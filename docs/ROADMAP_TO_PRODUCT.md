@@ -51886,3 +51886,25 @@ M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第�
 - 说明书第四章经由 Playwright 双端打开未混语、manifest 正常 ✓
 - `npm run test:web` ✓ · `npm run test:almanac`（11 章）✓ · `npm run test:i18n` ✓ · `npm run check:web` ✓ · doc_pointers rc=0
 - 视觉验收：真实浏览器截图确认 4 组双栏呈列、键位胶囊（amber 描边）齐全、面板宽 660px、关闭按钮可见、无 overflow ✓
+
+## 批次 959 - M8-T965：年鉴卷十一「回声 / The Echo」——三根弦，一片回响
+
+### 1 背景
+
+T960 补齐了卷十《未竟》——这卷给的是这座博物馆最里层的回廊：屋子里盘的「回声」——git 把东西写进历史、audit.jsonl 把每一步补一笔、缓存替你记住了一句还没说的话。三弦各谱各奏，互不相识却共用一个屋顶。
+
+### 2 变更
+
+- `web/src/panels/almanac.js`：CHAPTERS 新增 `echo`（卷十一 · 回声 / Chapter XI · The Echo，「三根看不见的弦，都在响」）；新增 `echoMarkup()` ——
+  - 双语文各两段，以「弦」（the strings）喻离线审计回环（git/audit/缓存）与「回声」（the echo）喻自治系统的同一事实给出三个跨空间的影子；绝对不假装测出别的。
+  - 仪器盘：仓库呼吸（commits) / 批次回响（batches) / 审计回声（audit）——全部 live 数值，`stats.audit.lines === number` 才展示，否则回落「—」。
+  - `ul.almanac-gate-list` 三枚卡（紫色琥珀左缘）：Redis 亲和卡（honestly 派生自 `stats.cache.live_backend`）、RabbitMQ 失效风暴、Git 审计闭环。每条附真实可执行的边界或读象性的说项。
+- `tests/almanac_smoke.mjs`：加 `echo` + `["回声", "The Echo"]`，rail → 12 章。
+- `README.md`：年鉴 11 → 12 卷（追加 Echo）；`web/src/panels/manual.js`（中英逐字对应）：「十二卷」「卷十一《回声》，讲的是 git / audit / 缓存三根弦互不相扰却共振」。
+- `web/styles.css`：`.almanac-echo .almanac-gate-list li { border-left-color: var(--purple); }`
+
+### 3 验证
+
+- Playwright 真浏览器 zh/en 双端：rail 12 条、`echo` 章 zh 中文 CJK=true / en 零 CJK，console errors = none ✓
+- 仪器盘 live：`仓库呼吸 1514 · 批次回响 283 · 审计回声 1468` ✓
+- `npm run test:almanac`（12 章 marker 断言，无混语）✓ · `npm run test:web` ✓ · `npm run test:i18n` ✓ · `npm run check:web` ✓ · doc_pointers ✓

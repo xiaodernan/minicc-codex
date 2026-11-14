@@ -30,6 +30,7 @@ const CHAPTERS = [
   { id: "witness", roman: { zh: "卷八", en: "Chapter VIII" }, title: { zh: "证人", en: "The Witness" }, subtitle: { zh: "笔录不说话，但不说谎", en: "The record does not speak, but it does not lie" } },
   { id: "craft", roman: { zh: "卷九", en: "Chapter IX" }, title: { zh: "技艺", en: "The Craft" }, subtitle: { zh: "一件件作品在同样的手里被磨", en: "Every detail ground by the same hand" } },
   { id: "backlog", roman: { zh: "卷十", en: "Chapter X" }, title: { zh: "未竟", en: "The Unfinished" }, subtitle: { zh: "这册子还没写完，它正在写", en: "This wing is still being written" } },
+  { id: "echo", roman: { zh: "卷十一", en: "Chapter XI" }, title: { zh: "回声", en: "The Echo" }, subtitle: { zh: "三根看不见的弦，都在响", en: "Three strings you cannot see, all humming" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -579,6 +580,67 @@ function backlogMarkup() {
     </div>`;
 }
 
+function echoMarkup() {
+  const d = digestCache;
+  const s = statsCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
+  const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "—";
+  const redisLive = s?.cache?.live_backend != null && s?.cache?.live_backend !== false;
+  const redisLabel = redisLive ? (zh() ? "Redis 在线" : "Redis live") : (zh() ? "本地 LRU" : "Local LRU");
+  return `
+    <div class="almanac-canvas almanac-echo">
+      <div class="almanac-kicker">${zh() ? "卷十一 · 回声" : "Chapter XI · The Echo"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '没有谁在重复<br/>每一根弦都在<span class="almanac-title-accent">传回来。</span>' : 'No one repeats,<br/>but every string <span class="almanac-title-accent">carries back.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          在这间屋子里你能听见三件事：一声是 <code>git</code> 把东西写进历史；
+          一声是 <code>audit.jsonl</code> 把每一步补了一笔账；
+          一声是缓存替你记住了一句你还没说的话。
+        </p>
+        <p>
+          它们互不相识——一个写树，一个记帐，一个看门——却共用一个屋顶：
+          你只想知道「做过什么」，这三件事会各自从角落里打来电话，
+          按时间先后重放一次。这就是回声：不是复制，是同一件事被三个角落
+          记住的样子。
+        </p>` : `<p>
+          In this wing you can hear three things: <code>git</code> is the beat that writes the history;
+          <code>audit.jsonl</code> is the metronome ticking behind it;
+          and the cache is the breath you hold before you speak.
+        </p>
+        <p>
+          They do not know each other — one writes the tree, one keeps the books,
+          one holds the door — but they share a roof: you ask one question,
+          "what was done here", and all three answer in their own time,
+          from their own corners, in order. That is an echo: not a copy,
+          but the same thing three corners remember.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "仓库呼吸" : "Repository breath"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "批次回响" : "Batch echoes"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "审计回声" : "Audit echo"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">
+        <li><strong>${redisLabel}</strong><span>${zh() ? "缓存亲和：同 key 跨进程复用 KV，0→100% 热命中率（实测，见缓存亲和矩阵）" : "Cache affinity: same key, warm KV across processes; 0→100% hot rate (measured, see the affinity matrix)"}</span></li>
+        <li><strong>${zh() ? "RabbitMQ 失效风暴" : "RabbitMQ invalidation"}</strong><span>${zh() ? "失效消息从 gateway 扇出，消费者逐一驱逐；健康实例会自己断连" : "fan-out from the gateway, consumers evict one by one; healthy boxes disconnect themselves"}</span></li>
+        <li><strong>${zh() ? "Git 审计闭环" : "Git audit loop"}</strong><span>${zh() ? "每段话都被 diff 锚在承诺之上；改动走路径可追溯——每一笔都有签名" : "every sentence is diff-anchored to a promise; every path of change is traceable — every stroke is signed"}</span></li>
+      </ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "回声不会描述声源，它只是把同一句话讲进另一种介质里——树里是事实，帐里是纪律，缓存里是耐心的样子。" : "An echo does not describe the voice; it re-tells the same verse in another medium — in the tree is the fact, in the ledger is the discipline, in the cache is the patience to remember."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -591,6 +653,7 @@ const CHAPTER_RENDERERS = {
   witness: () => witnessMarkup(),
   craft: () => craftMarkup(),
   backlog: () => backlogMarkup(),
+  echo: () => echoMarkup(),
 };
 
 async function loadChapter(id) {

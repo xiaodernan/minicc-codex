@@ -296,3 +296,5 @@
 - **Spring Cloud 平面两条后端通道用真 docker 实测，M8-T963**：RabbitMQ 缓存失效 fanout —— local broker 圆环 `CacheInvalidationRoundTripLiveTest` 实测通过（exchange 声明→队列绑定→消息到达+header 精确）；并修正该测试 Javadoc 的示例 URI（`amqp://…/` 尾斜杠被 Spring 解析为空 vhost）。Redis token bucket —— `ratelimit` profile 端到端实测（`MINICC_GATEWAY_RATE_LIMIT_*` env）——`/api/tasks` 序列 req1-2=503（LB 未注册的降级语义）/ req3+ = **429**（bucket 先耗尽，pico 限流先行）/ 3s 后 refill 恢复 → 503。全部生产代码本身真机链路，无示例 mock。`mvn verify` BUILD SUCCESS：gateway 56 / inspector 29 / tasks 14 / insights 19 = 118 tests 0 failures。实测期间未触碰 careeros/specproof 等任何运行中实例（独立 5673/6385/9215），`docker rm -f` 验证容器已清理。
 
 - **`?` 快捷键速查——同源、分组、真有内容，M8-T964**：新增 `web/src/cheat-sheet-data.js` 唯一家（撰写 / 逐行导航 / 全局 / 游戏 四组、16 条）；`openHelpPanel()` 从数据源渲染分组键位（此前完全无 CSS、11 行裸排）；说明书第四章同源渲染、不再双维护；CSS 补齐 `.help-panel` 全部规则——`?` 从「存在着但没人看」升格为「工作台真·键盘雷达」。zh/en 全语言键值齐平 ✓。
+
+- **年鉴卷十一「回声 / The Echo」，M8-T965**：`web/src/panels/almanac.js` 新增第十二卷——「三根看不见的弦，都在响」。git / audit.jsonl / 缓存三根弦各自按音区记事，却共用一个屋顶；EN 中英逐字对应；仪器盘「仓库呼吸 / 批次回响 / 审计回声」全实时数字；三枚紫边卡片揭示缓存亲和（Redis / LRU 现状）、RabbitMQ 失效风暴、Git 审计闭环；almanac smoke 12 章全绿、rail 12 条。

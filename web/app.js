@@ -2310,7 +2310,8 @@
     { id: "mesh", roman: { zh: "\u5377\u4E03", en: "Chapter VII" }, title: { zh: "\u661F\u7F51", en: "The Mesh" }, subtitle: { zh: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6", en: "Six services, one country" } },
     { id: "witness", roman: { zh: "\u5377\u516B", en: "Chapter VIII" }, title: { zh: "\u8BC1\u4EBA", en: "The Witness" }, subtitle: { zh: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E", en: "The record does not speak, but it does not lie" } },
     { id: "craft", roman: { zh: "\u5377\u4E5D", en: "Chapter IX" }, title: { zh: "\u6280\u827A", en: "The Craft" }, subtitle: { zh: "\u4E00\u4EF6\u4EF6\u4F5C\u54C1\u5728\u540C\u6837\u7684\u624B\u91CC\u88AB\u78E8", en: "Every detail ground by the same hand" } },
-    { id: "backlog", roman: { zh: "\u5377\u5341", en: "Chapter X" }, title: { zh: "\u672A\u7ADF", en: "The Unfinished" }, subtitle: { zh: "\u8FD9\u518C\u5B50\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u5B83\u6B63\u5728\u5199", en: "This wing is still being written" } }
+    { id: "backlog", roman: { zh: "\u5377\u5341", en: "Chapter X" }, title: { zh: "\u672A\u7ADF", en: "The Unfinished" }, subtitle: { zh: "\u8FD9\u518C\u5B50\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u5B83\u6B63\u5728\u5199", en: "This wing is still being written" } },
+    { id: "echo", roman: { zh: "\u5377\u5341\u4E00", en: "Chapter XI" }, title: { zh: "\u56DE\u58F0", en: "The Echo" }, subtitle: { zh: "\u4E09\u6839\u770B\u4E0D\u89C1\u7684\u5F26\uFF0C\u90FD\u5728\u54CD", en: "Three strings you cannot see, all humming" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -2829,6 +2830,66 @@
       </p>
     </div>`;
   }
+  function echoMarkup() {
+    const d = digestCache;
+    const s = statsCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
+    const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "\u2014";
+    const redisLive = s?.cache?.live_backend != null && s?.cache?.live_backend !== false;
+    const redisLabel = redisLive ? zh() ? "Redis \u5728\u7EBF" : "Redis live" : zh() ? "\u672C\u5730 LRU" : "Local LRU";
+    return `
+    <div class="almanac-canvas almanac-echo">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E00 \xB7 \u56DE\u58F0" : "Chapter XI \xB7 The Echo"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u6CA1\u6709\u8C01\u5728\u91CD\u590D<br/>\u6BCF\u4E00\u6839\u5F26\u90FD\u5728<span class="almanac-title-accent">\u4F20\u56DE\u6765\u3002</span>' : 'No one repeats,<br/>but every string <span class="almanac-title-accent">carries back.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u5728\u8FD9\u95F4\u5C4B\u5B50\u91CC\u4F60\u80FD\u542C\u89C1\u4E09\u4EF6\u4E8B\uFF1A\u4E00\u58F0\u662F <code>git</code> \u628A\u4E1C\u897F\u5199\u8FDB\u5386\u53F2\uFF1B
+          \u4E00\u58F0\u662F <code>audit.jsonl</code> \u628A\u6BCF\u4E00\u6B65\u8865\u4E86\u4E00\u7B14\u8D26\uFF1B
+          \u4E00\u58F0\u662F\u7F13\u5B58\u66FF\u4F60\u8BB0\u4F4F\u4E86\u4E00\u53E5\u4F60\u8FD8\u6CA1\u8BF4\u7684\u8BDD\u3002
+        </p>
+        <p>
+          \u5B83\u4EEC\u4E92\u4E0D\u76F8\u8BC6\u2014\u2014\u4E00\u4E2A\u5199\u6811\uFF0C\u4E00\u4E2A\u8BB0\u5E10\uFF0C\u4E00\u4E2A\u770B\u95E8\u2014\u2014\u5374\u5171\u7528\u4E00\u4E2A\u5C4B\u9876\uFF1A
+          \u4F60\u53EA\u60F3\u77E5\u9053\u300C\u505A\u8FC7\u4EC0\u4E48\u300D\uFF0C\u8FD9\u4E09\u4EF6\u4E8B\u4F1A\u5404\u81EA\u4ECE\u89D2\u843D\u91CC\u6253\u6765\u7535\u8BDD\uFF0C
+          \u6309\u65F6\u95F4\u5148\u540E\u91CD\u653E\u4E00\u6B21\u3002\u8FD9\u5C31\u662F\u56DE\u58F0\uFF1A\u4E0D\u662F\u590D\u5236\uFF0C\u662F\u540C\u4E00\u4EF6\u4E8B\u88AB\u4E09\u4E2A\u89D2\u843D
+          \u8BB0\u4F4F\u7684\u6837\u5B50\u3002
+        </p>` : `<p>
+          In this wing you can hear three things: <code>git</code> is the beat that writes the history;
+          <code>audit.jsonl</code> is the metronome ticking behind it;
+          and the cache is the breath you hold before you speak.
+        </p>
+        <p>
+          They do not know each other \u2014 one writes the tree, one keeps the books,
+          one holds the door \u2014 but they share a roof: you ask one question,
+          "what was done here", and all three answer in their own time,
+          from their own corners, in order. That is an echo: not a copy,
+          but the same thing three corners remember.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u4ED3\u5E93\u547C\u5438" : "Repository breath"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u6279\u6B21\u56DE\u54CD" : "Batch echoes"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u56DE\u58F0" : "Audit echo"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">
+        <li><strong>${redisLabel}</strong><span>${zh() ? "\u7F13\u5B58\u4EB2\u548C\uFF1A\u540C key \u8DE8\u8FDB\u7A0B\u590D\u7528 KV\uFF0C0\u2192100% \u70ED\u547D\u4E2D\u7387\uFF08\u5B9E\u6D4B\uFF0C\u89C1\u7F13\u5B58\u4EB2\u548C\u77E9\u9635\uFF09" : "Cache affinity: same key, warm KV across processes; 0\u2192100% hot rate (measured, see the affinity matrix)"}</span></li>
+        <li><strong>${zh() ? "RabbitMQ \u5931\u6548\u98CE\u66B4" : "RabbitMQ invalidation"}</strong><span>${zh() ? "\u5931\u6548\u6D88\u606F\u4ECE gateway \u6247\u51FA\uFF0C\u6D88\u8D39\u8005\u9010\u4E00\u9A71\u9010\uFF1B\u5065\u5EB7\u5B9E\u4F8B\u4F1A\u81EA\u5DF1\u65AD\u8FDE" : "fan-out from the gateway, consumers evict one by one; healthy boxes disconnect themselves"}</span></li>
+        <li><strong>${zh() ? "Git \u5BA1\u8BA1\u95ED\u73AF" : "Git audit loop"}</strong><span>${zh() ? "\u6BCF\u6BB5\u8BDD\u90FD\u88AB diff \u951A\u5728\u627F\u8BFA\u4E4B\u4E0A\uFF1B\u6539\u52A8\u8D70\u8DEF\u5F84\u53EF\u8FFD\u6EAF\u2014\u2014\u6BCF\u4E00\u7B14\u90FD\u6709\u7B7E\u540D" : "every sentence is diff-anchored to a promise; every path of change is traceable \u2014 every stroke is signed"}</span></li>
+      </ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u56DE\u58F0\u4E0D\u4F1A\u63CF\u8FF0\u58F0\u6E90\uFF0C\u5B83\u53EA\u662F\u628A\u540C\u4E00\u53E5\u8BDD\u8BB2\u8FDB\u53E6\u4E00\u79CD\u4ECB\u8D28\u91CC\u2014\u2014\u6811\u91CC\u662F\u4E8B\u5B9E\uFF0C\u5E10\u91CC\u662F\u7EAA\u5F8B\uFF0C\u7F13\u5B58\u91CC\u662F\u8010\u5FC3\u7684\u6837\u5B50\u3002" : "An echo does not describe the voice; it re-tells the same verse in another medium \u2014 in the tree is the fact, in the ledger is the discipline, in the cache is the patience to remember."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -2840,7 +2901,8 @@
     mesh: () => meshMarkup(),
     witness: () => witnessMarkup(),
     craft: () => craftMarkup(),
-    backlog: () => backlogMarkup()
+    backlog: () => backlogMarkup(),
+    echo: () => echoMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");

@@ -4821,3 +4821,6 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   white-space: nowrap;
 }
 .help-panel .panel-command { display: inline-flex; align-items: center; gap: 8px; }
+
+/* M8-T965: almanac chapter XI — the echo, violet hint left edge. */
+.almanac-echo .almanac-gate-list li { border-left-color: var(--purple); }
