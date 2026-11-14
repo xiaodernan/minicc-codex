@@ -1282,6 +1282,12 @@ class AgentService:
         }
 
     def workspace_info(self) -> dict[str, Any]:
+        # Read-only aggregate the web UI polls on every refresh; the worktree
+        # list subprocess dominates its cost on large trees. M8-T980: memoize
+        # 10 s (single-flight via _memo_http) — the UI re-renders anyway.
+        return self._memo_http("workspace", 10.0, self._workspace_info_build)
+
+    def _workspace_info_build(self) -> dict[str, Any]:
         try:
             worktrees = self.worktrees.list()
             worktree_error = ""

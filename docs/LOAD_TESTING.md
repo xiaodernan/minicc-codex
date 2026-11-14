@@ -106,3 +106,13 @@ Caveat kept honest: the previous 5 s TTL run at c=20 errored only before the
 backlog raise; warm-cache runs were already clean. The wins stack, none of
 them is claiming the GIL went away — it just stopped mattering for the
 read-only fact packs.
+
+
+## Update 2026-11-15 (M8-T980) — /api/workspace joins the pack
+
+`workspace_info()` was the one remaining path > 1 s at c=20 (p50 ≈ 2.4 s —
+`git worktree list` over the tree dominates). It is now memoized with the
+same single-flight `_memo_http` (10 s TTL): after change, **c=20 × 15 s —
+1,497 responses per path, zero errors, every path p50 under 22 ms**
+(health 18.7 / metrics 21.2 / digest 19.0 / stats 19.6 / roadmap 19.6 /
+workspace 18.7 ms). `/api/workspace` itself: 1.1 s cold → 104-139 ms warm.

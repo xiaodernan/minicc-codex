@@ -52215,3 +52215,20 @@ M8-T971~T977 建好了检索（BM25）、回答（/api/rag/query）与面板（A
 - GIL 还在，它只不再影响只读事实包了。真正的下一包（aiohttp/uvloop 或子进程池）仍未动。
 - `--no-prefetch` 给关闭出口；预热失败静默降级，不会卡住启动。
 - 未把持续高压下的 20-way 声称「跑过无条件健康」：三次实测成绩单见上；中间 regime 是如实记录的混沌态（那一次 260/119 全错），现已定位为并发地真的抢死 + 缓存冷，修复后复测 0 错误。
+
+## 批次 972 - M8-T980：`/api/workspace` 进只读事实包阵营 —— c=20 全路径 p50 ≤ 22ms
+
+### 1 背景
+
+M8-T979 后 `/api/workspace` 仍是 20-路唯一在 1s 以上的一条（p50 ≈ 2.4s，`git worktree list` + sandbox 状态 + mcp 状态 = 每次调用都重复付费）。
+
+### 2 做了什么
+
+- `AgentService.workspace_info()` 改为：调用 `self._memo_http("workspace", 10.0, self._workspace_info_build)`；原函数体改名 `_workspace_info_build()`，内容不变。
+- 未动 git/sandbox/mcp 的任何一次性调用，只动入口处缓存；10s TTL 足以让 UI 轮询免费重取。
+
+### 3 验证
+
+- workspace 三次连打：1137ms（冷）→ 139ms → 104ms（缓存命中）。
+- 20-way × 15s：**每条路径 1,497 × 200，0 错误，p50 ≤ 22ms**（workspace 18.7ms / stats 19.6ms / digest 19.0ms）。
+- `pytest tests/test_http_surface.py tests/test_http_route_inventory.py tests/test_workspaces.py tests/test_workspaces_pure.py` → **117 passed**；Route Coverage 不受影响；`doc_pointers` rc=0；`docs/LOAD_TESTING.md` 刷新第五次。

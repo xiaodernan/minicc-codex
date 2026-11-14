@@ -322,3 +322,5 @@
 - **年鉴第十二卷「回问 / The Answer Back」上线（M8-T978）**：十三章叙事宫殿新增一卷——项目自己的 RAG 被写成博物馆文物（零 embedding、真 wkapi.pro 实答、CJK 二元字组修复的诚实伤疤、cached_tokens 不伪造）；`tests/almanac_smoke.mjs` 扩到 13 章双模式验证通过；manual/README 更新到十三卷。顺手删 `minicc/rag.py` 里指向不存在文件的 `ROOT/CONTRIBUTING.md`；语料实测：docs/*.md 34 + README.md = **35 源文件 / 3,857 块**。
 
 - **高并发修复（M8-T979）**：`MiniccHTTPServer.request_queue_size` 5→128（SOCKET 层被丢包根治）；`serve()` 启动即开 `minicc-prefetch` 预热 stats/digest/roadmap 冷缓存（`--no-prefetch` 退出）；`AgentService._memo_http` 新增 single-flight lock（TTL 边界不再 N 倍重建）；stats/digest/roadmap memo 5s→30s；20-路冷压复测 **0 错误**（health/metrics/digest/stats/roadmap 全部 200，p50 ≤ 4.2ms）；`docs/LOAD_TESTING.md` 实测数据刷新；GIL 瓶颈如实记录未消除。
+
+- **`/api/workspace` 进 memo（M8-T980）**：`git worktree list` 仍昂贵，入口改走 single-flight `_memo_http`（10s TTL）——冷 1.1s → 热 104-139ms；c=20 × 15s 全路径 1,497×200、0 错误、p50 ≤ 22ms；117 项测试绿；Route Coverage 不变。
