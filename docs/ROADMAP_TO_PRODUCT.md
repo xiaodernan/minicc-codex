@@ -51282,3 +51282,24 @@ M8-T930 给 arcade 加了键盘操作（1-9 选卡 / P 暂停 / E 铲子）之�
 
 - 日志页只读，不会写任何状态——硬约束（与 digest 相同纪律）。
 - 工程日志不是"每日 18:00 生成"，而是"每次打开现场渲染"；不与真实时间挂钩更安全。
+
+## 批次 933 - M8-T938：展示页自动同步 bot 的第二次竞速修复
+
+### 1 问题
+
+`.github/workflows/update-latest.yml` 在 M8-T935 里加了 `git pull --rebase` 来解决
+"bot 撞上 non-fast-forward"。但现在撞上了更新一种的问题：
+**bot 自己的 `chore(latest)` 提交和另一个并发 bot 刷新同时落在 `docs/latest.json` 上，
+rebase 报 `CONFLICT (content): Merge conflict in docs/latest.json`**——
+13:54 实录日志显示 bot 已经建好了 71e212b 却推不上去。
+
+### 2 变更
+
+- `.github/workflows/update-latest.yml`：rebase 冲突时
+  `node scripts/update-latest-json.mjs` 重新生成（latest.json 本就是 bot 的产物，
+  一切与它有关的冲突都可以通过重建解决），再 `git -c core.editor=true rebase --continue`。
+  bot 对自己产物拥有完整裁量权：不是硬跳过，而是从工作树重新派生。
+
+### 3 验证
+
+- 下一个有 docs 变更的主干推送会驱动一次完整的 bot 流程，预期无冲突标记、无人工介入。

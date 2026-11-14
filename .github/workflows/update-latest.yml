@@ -34,8 +34,15 @@ jobs:
             git add docs/latest.json
             git commit -m "chore(latest): refresh showcase fact pack"
             # Rebase onto whatever main moved to while this run was in flight,
-            # then push. Earlier races lost the race outright.
-            git pull --rebase origin main
+            # then push. Regenerate the fact pack to resolve its own conflicting
+            # file deterministically — latest.json is bot-owned and always
+            # reproducible from the tree, so any resolution that regenerates is
+            # correct by construction.
+            if ! git pull --rebase origin main; then
+              node scripts/update-latest-json.mjs
+              git add docs/latest.json
+              git -c core.editor=true rebase --continue
+            fi
             git push
           else
             echo "latest.json unchanged"

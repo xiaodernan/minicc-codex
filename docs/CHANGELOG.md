@@ -244,3 +244,5 @@
 - **README 模块清单对齐现状，M8-T936**：年鉴 8→9 卷勘误（Gate 卷已落地 M8-T911）、补入「说明书」与「铁律」两个新模块条目。
 
 - **digest 最近提交 + 第十二板块「工程日志」，M8-T937**：`minicc/digest.py` 新增有界 `recent_commits`（12 条，newest first，被 git 读取、不碰网络）；`minicc --digest` 跟随打印；新增 `tests/test_workspace_digest.py::test_digest_carries_recent_commits_bounded`（6 passed）。全新面板「日志」——仓库自己写在自己身上的工程日志：仓库体素（提交数/开张天数/批次/文件/测试/分支@HEAD）+ 工作台体征（模型/会话/消息/审计/tokens/命中率）+ 最近 12 提交（今天 mint 左条高亮，凡带 M8-Txxxx 标签）；全部数字现场读 `/api/digest`·`/api/stats`·`/api/metrics`，零硬编码，en 实测零 CJK；⌘K 可搜；bundle 重建（app.js 483943 chars）。
+
+- **展示页自动同步 bot 第二次修复，M8-T938**：`git pull --rebase` 自身撞上 `docs/latest.json` 的合并冲突（bot 的提交与远程并发 refresh 同文件）——现在 rebase 冲突时先 `node scripts/update-latest-json.mjs` 重新生成（latest.json 是 bot 自己的产物，可由工作树内内容随时重建），`git -c core.editor=true rebase --continue` 收尾。这样 bot 对自己的产物拥有完整裁量权，不再需要人工介入。
