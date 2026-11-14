@@ -116,3 +116,19 @@ same single-flight `_memo_http` (10 s TTL): after change, **c=20 × 15 s —
 1,497 responses per path, zero errors, every path p50 under 22 ms**
 (health 18.7 / metrics 21.2 / digest 19.0 / stats 19.6 / roadmap 19.6 /
 workspace 18.7 ms). `/api/workspace` itself: 1.1 s cold → 104-139 ms warm.
+
+
+## Update 2026-11-15 (M8-T982) — 50-way arm
+
+Same machine, same repo, warm caches, c=50 × 20 s:
+
+```
+/api/health    n=415 errors=0 p50=187ms  p99=1188ms
+/api/metrics   n=415 errors=0 p50=186ms  p99=1199ms
+/api/digest    n=415 errors=0 p50=207ms  p99=4032ms
+/api/stats     n=415 errors=0 p50=203ms  p99=1316ms
+/api/roadmap   n=415 errors=0 p50=160ms  p99=742ms
+/api/workspace n=415 errors=0 p50=198ms  p99=2742ms
+```
+
+2,490 responses, zero non-200s. The rise in p50 from c=20 (≤ 22 ms) is the GIL scheduler, not the handlers — every read-only pack is now a cached read. The next honest step (aiohttp/uvloop or a process pool) is recorded, not started here.

@@ -52251,3 +52251,28 @@ M8-T979 后 `/api/workspace` 仍是 20-路唯一在 1s 以上的一条（p50 ≈
 - 真 key 真调用（wkapi.pro · gpt-6-sol · temperature=0）：同一问题连续两问，第二问 `prompt_cache_hit_tokens=19082`，总 token 19085；`error: None`；前端面板截图验证用量条新增缓存命中项（Playwright EN/zh 复测无 CJK 泄漏）。
 - `pytest tests/test_rag_bm25_index.py` → 8 passed；`node tests/frontend_askdocs_one_home_smoke.mjs` → exit 0；`npm run build:web` 后 `check:web` 干净；Route Coverage 不受影响；`doc_pointers` rc=0。
 - 边界：缓存命中率数字依赖 wkapi 侧 shard 亲和（客户端无法强制）；换网关需保持同一 key，否则换网关=全冷（doctor `prefix cache:` 行已如实提示）。
+
+## 批次 974 - M8-T982：50-way 全通量压测 —— 0 错误，2,490 次 200，无代码变更
+
+### 1 背景
+
+M8-T979/980 把只读事实包缓存做好了，但「c=50 下会不会垮」此前从未测过。本批跑了一次没有代码改动的诚实测量：`node scripts/load-test.mjs http://127.0.0.1:8899 50 20000`。
+
+### 2 实测（本机，本仓库，warm cache）
+
+```
+/api/health    n=415 errors=0 p50=187ms  p99=1188ms
+/api/metrics   n=415 errors=0 p50=186ms  p99=1199ms
+/api/digest    n=415 errors=0 p50=207ms  p99=4032ms
+/api/stats     n=415 errors=0 p50=203ms  p99=1316ms
+/api/roadmap   n=415 errors=0 p50=160ms  p99=742ms
+/api/workspace n=415 errors=0 p50=198ms  p99=2742ms
+```
+
+2,490 个请求，零非 200。p50 从 c=20（≤ 22ms）升到 c=50 的 ~190ms 是 GIL 调度争抢，不是处理逻辑——所有 pack 都是缓存读。热数据刷新周期的观察：digest/stats 在 30s TTL 内被单飞重建一次，50 个并发均摊。
+
+### 3 边界
+
+- workspace 陈旧 10s 内不变、stats/digest 30s 内不变：实测正确性被 30s TTL 接受。
+- 没有声称 51 以上也健康；GIL 未被解决，只被绕开。aiohttp/uvloop 或子进程池是登记的下一步。
+- 未动任何代码：本批仅数据 + 文档（`docs/LOAD_TESTING.md` 第六次刷新）。
