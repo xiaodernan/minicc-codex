@@ -2110,7 +2110,8 @@
     { id: "sentry", roman: "\u7B2C\u4E09\u7AE0", title: "The Sentry", subtitle: "\u6BCF\u4E00\u4E2A\u627F\u8BFA\u90FD\u8981\u88AB\u6267\u884C" },
     { id: "bloom", roman: "\u7B2C\u56DB\u7AE0", title: "The Bloom", subtitle: "\u5DE5\u4F5C\u53F0\u672C\u8EAB\u5C31\u662F\u8BC1\u8BCD" },
     { id: "hand", roman: "\u7B2C\u4E94\u7AE0", title: "The Open Road", subtitle: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9" },
-    { id: "gate", roman: "\u5377\u516D", title: "The Gate", subtitle: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934" }
+    { id: "gate", roman: "\u5377\u516D", title: "The Gate", subtitle: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934" },
+    { id: "mesh", roman: "\u5377\u4E03", title: "The Mesh", subtitle: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6" }
   ];
   function chapterMarkup(chapter) {
     return `<button class="almanac-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
@@ -2328,6 +2329,56 @@
       </p>
     </div>`;
   }
+  function meshMarkup() {
+    return `
+    <div class="almanac-canvas almanac-mesh">
+      <div class="almanac-kicker">\u5377\u4E03 \xB7 Chapter VII \u2014 The Mesh</div>
+      <h1 class="almanac-title almanac-title-sm">\u516D\u4E2A\u670D\u52A1\uFF0C<br/><span class="almanac-title-accent">\u4E00\u4E2A\u56FD\u5BB6\u3002</span></h1>
+      <div class="almanac-body">
+        <p>
+          \u8FD9\u4E2A\u4ED3\u5E93\u6709\u4E00\u534A\u5728\u4E91\u91CC\u3002Java \u4E0E Spring Cloud \u7EC4\u6210\u7684 plane \u6709\u4E03\u4E2A\u6A21\u5757\uFF1A
+          \u6CE8\u518C\u4E2D\u5FC3\u3001\u914D\u7F6E\u4E2D\u5FC3\u3001\u7F51\u5173\u3001\u6D1E\u5BDF\u3001\u5DE1\u68C0\u3001\u4EFB\u52A1\uFF0C\u4EE5\u53CA\u628A Python \u5F15\u64CE\u7FFB\u8BD1\u6210 HTTP \u5951\u7EA6\u7684\u6865\u63A5\u5C42\u3002
+          Eureka \u8BA4\u8BC6\u5B83\u4EEC\u6BCF\u4E00\u4E2A\uFF0C\u7F51\u5173\u4ECE\u4E0D\u95EE\u5730\u5740\u2014\u2014\u53EA\u95EE"\u8C01\u5065\u5EB7"\u3002
+        </p>
+        <p>
+          \u7F51\u5173\u80CC\u540E\u6709 Redis \u94F8\u6210\u7684\u4EE4\u724C\u6876\uFF08\u6BCF\u79D2 20 \u679A\u56DE\u586B\u300140 \u679A\u7A81\u53D1\uFF09\uFF0C
+          \u4E5F\u6709 Resilience4j \u94F8\u6210\u7684\u7194\u65AD\u5668\u2014\u2014\u8FC7\u8F7D\u65F6\u5B83\u5FEB\u901F\u5931\u8D25\uFF0C\u5E76\u9012\u51FA\u4E00\u53E5
+          <em>\u4E0D\u5192\u5145\u7A7A\u6570\u636E</em>\u7684\u56DE\u7B54\u3002RabbitMQ \u5728\u5B83\u4EEC\u4E4B\u95F4\u642C\u8FD0\u7F13\u5B58\u5931\u6548\u5E7F\u64AD\uFF0C
+          \u8BA9\u6BCF\u4E2A\u5B9E\u4F8B\u5728\u4E00\u79D2\u5185\u77E5\u9053"\u90A3\u6761\u7F13\u5B58\u5DF2\u7ECF\u8FC7\u671F"\u3002
+        </p>
+        <p>
+          2026 \u5E74 11 \u6708 14 \u65E5\uFF0C\u4E00\u573A\u5B9E\u5F39\u6F14\u4E60\u5728\u8FD9\u53F0\u673A\u5668\u4E0A\u6253\u54CD\uFF1A
+          120 \u4E2A\u5E76\u53D1\u8BF7\u6C42\u4E00\u6B21\u6027\u6D8C\u5411\u7F51\u5173\u300225 \u4E2A\u62FF\u5230 200\uFF0C
+          60 \u4E2A\u88AB\u4EE4\u724C\u6876\u6321\u56DE\uFF08429\uFF09\uFF0C35 \u4E2A\u5728\u7194\u65AD\u5FEB\u5F00\u65F6\u88AB\u8BDA\u5B9E\u62D2\u7EDD\uFF08503\uFF09\u3002
+          \u5341\u4E94\u79D2\u540E\uFF0C\u4E00\u5207\u6062\u590D\u95ED\u5408\uFF0C\u6CA1\u6709\u4E00\u6761\u8BB0\u5F55\u4E22\u5931\u3002
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">\u5B9E\u5F39 \xB7 \u88AB\u9650\u6D41</div>
+          <div class="almanac-instrument-value">60 \xD7 429</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u5B9E\u5F39 \xB7 \u7194\u65AD\u5FEB\u5F00</div>
+          <div class="almanac-instrument-value">31 \u6B21</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u6062\u590D\u8017\u65F6</div>
+          <div class="almanac-instrument-value">\u2264 15s</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">
+        <li><strong>Eureka</strong><span>\u6CE8\u518C\u53D1\u73B0 \u2014 \u7F51\u5173\u53EA\u5411\u6CE8\u518C\u4E2D\u5FC3\u7D22\u53D6\u5065\u5EB7\u5B9E\u4F8B\uFF0C\u4ECE\u4E0D\u786C\u7F16\u7801\u5730\u5740</span></li>
+        <li><strong>Spring Cloud Gateway</strong><span>lb:// \u8D1F\u8F7D\u5747\u8861 + RequestSize \u9884\u62D2\u7EDD + \u7194\u65AD\u8DEF\u7531</span></li>
+        <li><strong>Redis token bucket</strong><span>20 rps \u56DE\u586B / 40 \u7A81\u53D1 \xB7 \u6BCF IP \u8BA1\u6570 \xB7 Micrometer \u8BA1\u6570 \`gateway.rate_limited{route}\`</span></li>
+        <li><strong>Resilience4j</strong><span>\u6ED1\u52A8\u7A97\u53E3 10 \xB7 50% \u5931\u8D25\u5373 open \xB7 \u534A\u5F00\u8BD5\u63A2\u4E4B\u540E\u81EA\u52A8\u95ED\u5408</span></li>
+        <li><strong>RabbitMQ</strong><span>\u7F51\u5173\u7F13\u5B58\u5931\u6548\u5E7F\u64AD\uFF1A\u8DEF\u7531\u8868\u53D8\u66F4\u4E00\u79D2\u5185\u540C\u6B65\u5230\u6240\u6709\u5B9E\u4F8B</span></li>
+      </ul>
+      <p class="almanac-quote almanac-quote-end">
+        \u4E00\u4E2A\u56FD\u5BB6\u7684\u8FB9\u5883\uFF0C\u4E0D\u53D6\u51B3\u4E8E\u57CE\u5899\u6709\u591A\u9AD8\uFF0C\u800C\u53D6\u51B3\u4E8E\u6BCF\u4E00\u4E2A\u5173\u5361\u90FD\u77E5\u9053\u81EA\u5DF1\u5728\u5B88\u4EC0\u4E48\u3002
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -2335,7 +2386,8 @@
     sentry: (metrics) => sentryMarkup(metrics),
     bloom: () => bloomMarkup(),
     hand: () => handMarkup(),
-    gate: () => gateMarkup(digestCache)
+    gate: () => gateMarkup(digestCache),
+    mesh: () => meshMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");

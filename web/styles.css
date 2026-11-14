@@ -3614,6 +3614,12 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-gate-list strong { color: var(--text); font-size: 12.5px; letter-spacing: .02em; }
 .almanac-gate-list span { color: var(--muted); font-size: 12px; line-height: 1.55; }
 .almanac-gate .almanac-instrument-double { grid-template-columns: repeat(3, auto); gap: 14px 34px; }
+.almanac-instrument-triple { grid-template-columns: repeat(3, auto); gap: 14px 34px; }
+.almanac-mesh .almanac-gate-list li { border-left-color: var(--coral); }
+@media (max-width: 760px) {
+  .almanac-instrument-triple { grid-template-columns: 1fr; }
+  .almanac-mesh .almanac-gate-list li { grid-template-columns: 1fr; gap: 2px; }
+}
 @media (max-width: 760px) {
   .almanac-gate-list li { grid-template-columns: 1fr; gap: 2px; }
   .almanac-gate .almanac-instrument-double { grid-template-columns: 1fr; }

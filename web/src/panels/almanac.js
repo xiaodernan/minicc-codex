@@ -24,6 +24,7 @@ const CHAPTERS = [
   { id: "bloom", roman: "第四章", title: "The Bloom", subtitle: "工作台本身就是证词" },
   { id: "hand", roman: "第五章", title: "The Open Road", subtitle: "纸上画下的远方" },
   { id: "gate", roman: "卷六", title: "The Gate", subtitle: "每一道门都点了头" },
+  { id: "mesh", roman: "卷七", title: "The Mesh", subtitle: "六个服务，一个国家" },
 ];
 
 function chapterMarkup(chapter) {
@@ -257,6 +258,57 @@ function gateMarkup(digest) {
     </div>`;
 }
 
+function meshMarkup() {
+  return `
+    <div class="almanac-canvas almanac-mesh">
+      <div class="almanac-kicker">卷七 · Chapter VII — The Mesh</div>
+      <h1 class="almanac-title almanac-title-sm">六个服务，<br/><span class="almanac-title-accent">一个国家。</span></h1>
+      <div class="almanac-body">
+        <p>
+          这个仓库有一半在云里。Java 与 Spring Cloud 组成的 plane 有七个模块：
+          注册中心、配置中心、网关、洞察、巡检、任务，以及把 Python 引擎翻译成 HTTP 契约的桥接层。
+          Eureka 认识它们每一个，网关从不问地址——只问"谁健康"。
+        </p>
+        <p>
+          网关背后有 Redis 铸成的令牌桶（每秒 20 枚回填、40 枚突发），
+          也有 Resilience4j 铸成的熔断器——过载时它快速失败，并递出一句
+          <em>不冒充空数据</em>的回答。RabbitMQ 在它们之间搬运缓存失效广播，
+          让每个实例在一秒内知道"那条缓存已经过期"。
+        </p>
+        <p>
+          2026 年 11 月 14 日，一场实弹演习在这台机器上打响：
+          120 个并发请求一次性涌向网关。25 个拿到 200，
+          60 个被令牌桶挡回（429），35 个在熔断快开时被诚实拒绝（503）。
+          十五秒后，一切恢复闭合，没有一条记录丢失。
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">实弹 · 被限流</div>
+          <div class="almanac-instrument-value">60 × 429</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">实弹 · 熔断快开</div>
+          <div class="almanac-instrument-value">31 次</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">恢复耗时</div>
+          <div class="almanac-instrument-value">≤ 15s</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">
+        <li><strong>Eureka</strong><span>注册发现 — 网关只向注册中心索取健康实例，从不硬编码地址</span></li>
+        <li><strong>Spring Cloud Gateway</strong><span>lb:// 负载均衡 + RequestSize 预拒绝 + 熔断路由</span></li>
+        <li><strong>Redis token bucket</strong><span>20 rps 回填 / 40 突发 · 每 IP 计数 · Micrometer 计数 \`gateway.rate_limited{route}\`</span></li>
+        <li><strong>Resilience4j</strong><span>滑动窗口 10 · 50% 失败即 open · 半开试探之后自动闭合</span></li>
+        <li><strong>RabbitMQ</strong><span>网关缓存失效广播：路由表变更一秒内同步到所有实例</span></li>
+      </ul>
+      <p class="almanac-quote almanac-quote-end">
+        一个国家的边境，不取决于城墙有多高，而取决于每一个关卡都知道自己在守什么。
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -265,6 +317,7 @@ const CHAPTER_RENDERERS = {
   bloom: () => bloomMarkup(),
   hand: () => handMarkup(),
   gate: () => gateMarkup(digestCache),
+  mesh: () => meshMarkup(),
 };
 
 async function loadChapter(id) {

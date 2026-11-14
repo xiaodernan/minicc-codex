@@ -50716,3 +50716,33 @@ plane 的每一片都被单测钉住，但"注册中心 + 配置 + 网关 + 限�
 ### 5 文件
 
 `minicc-cloud/docker-compose.yml`（一行：镜像名）
+
+## 批次 915 - M8-T915：「年鉴」新增第七卷《The Mesh · 六个服务，一个国家》— 把平面风暴写进叙事
+
+### 1 为什么
+
+M8-T914 是一场在本机打响的实弹演习：120 并发、25×200、60×429、35×503（其中熔断器快速失败
+31 次），十五秒后闭合恢复。这么一大段真实历史不该只活在台账里——年鉴是这个项目的叙事宫殿，
+第七卷把它写进去：Java 一半、Spring Cloud 的 plane 如何被 Eureka 认识、被 Redis 铸成的令牌桶
+挡在门外、被 Resilience4j 在过载时快速失败、被 RabbitMQ 通知"缓存失效"。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` — 新增章节 `mesh`（卷七 · The Mesh，副题「六个服务，一个国家」）：
+  正文讲述 plane 的边界（7 模块、Eureka 注册发现、lb:// 路由、RequestSize 预拒、熔断、缓存失效广播），
+  2026-11-14 实弹演习的全过程（120 并发、25/60/35 的三态分布、≤15s 闭合恢复）；
+  仪表：60×429（被限流）/ 31 次（熔断快开）/ ≤15s（恢复耗时）；
+  门禁清单五行（Eureka / Gateway / Redis token bucket / Resilience4j / RabbitMQ）。
+  11 月 14 日的三态数字是当次实弹的测量值（含 M8-T888 的 `gateway.rate_limited{route=insights}` 计数 60）。
+- `web/styles.css` — `.almanac-instrument-triple`（三列）+ `.almanac-mesh` 左色条换调；
+  纯现有 token，零新自定义属性。
+
+### 3 验证
+
+- 真实浏览器探针（chromium headless + route 拦截）：rail 显示全部 8 章（序章 → 卷七），
+  mesh 章节正文 / 仪表 / 五行清单全部渲染，零 pageerror
+- `node --check web/src/panels/almanac.js` ✓；`npm run check:web` up to date
+
+### 4 文件
+
+`web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
