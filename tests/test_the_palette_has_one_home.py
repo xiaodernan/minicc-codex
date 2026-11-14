@@ -82,7 +82,7 @@ def test_no_component_re_answers_a_palette_token() -> None:
     )
 
 
-RUNTIME_TOKENS = {"--seed-cooldown", "--app-height", "--viewport-top"}
+RUNTIME_TOKENS = {"--seed-cooldown", "--app-height", "--viewport-top", "--color", "--cx", "--cy", "--delay", "--dx", "--dy", "--size", "--spin"}
 
 
 def test_the_palette_covers_the_roles_components_ask_for() -> None:

@@ -2298,7 +2298,8 @@
     { id: "hand", roman: { zh: "\u7B2C\u4E94\u7AE0", en: "Chapter V" }, title: { zh: "\u8FDC\u884C", en: "The Open Road" }, subtitle: { zh: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9", en: "What is still unmapped" } },
     { id: "gate", roman: { zh: "\u5377\u516D", en: "Chapter VI" }, title: { zh: "\u5173\u5361", en: "The Gate" }, subtitle: { zh: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934", en: "Every gate said yes" } },
     { id: "mesh", roman: { zh: "\u5377\u4E03", en: "Chapter VII" }, title: { zh: "\u661F\u7F51", en: "The Mesh" }, subtitle: { zh: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6", en: "Six services, one country" } },
-    { id: "witness", roman: { zh: "\u5377\u516B", en: "Chapter VIII" }, title: { zh: "\u8BC1\u4EBA", en: "The Witness" }, subtitle: { zh: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E", en: "The record does not speak, but it does not lie" } }
+    { id: "witness", roman: { zh: "\u5377\u516B", en: "Chapter VIII" }, title: { zh: "\u8BC1\u4EBA", en: "The Witness" }, subtitle: { zh: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E", en: "The record does not speak, but it does not lie" } },
+    { id: "craft", roman: { zh: "\u5377\u4E5D", en: "Chapter IX" }, title: { zh: "\u6280\u827A", en: "The Craft" }, subtitle: { zh: "\u4E00\u4EF6\u4EF6\u4F5C\u54C1\u5728\u540C\u6837\u7684\u624B\u91CC\u88AB\u78E8", en: "Every detail ground by the same hand" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -2314,6 +2315,7 @@
   }
   var digestCache = null;
   var statsCache = null;
+  var metricsCache = null;
   var currentChapter = "prologue";
   function witnessMarkup() {
     const s = statsCache;
@@ -2703,6 +2705,65 @@
       </p>
     </div>`;
   }
+  function craftMarkup() {
+    const d = digestCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const files = d?.tracked_files != null ? String(d.tracked_files) : "\u2014";
+    const tests = d?.test_files != null ? String(d.test_files) : "\u2014";
+    const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
+    const s = statsCache;
+    const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-craft">
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E5D \xB7 \u6280\u827A" : "Chapter IX \xB7 The Craft"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u6CA1\u6709\u8349\u56FE<br/>\u53EA\u6709<span class="almanac-title-accent">\u8230\u824F\u5B57\u3002</span>' : 'No sketch,<br/>only a <span class="almanac-title-accent">bowline.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u6CA1\u6709\u4E00\u5957\u6837\u5F0F\u4E66\u63CF\u5199\u8FC7\u8FD9\u95F4\u5C4B\u5B50\uFF1B\u5B83\u4E00\u6B21\u6B21\u4ECE\u63A8\u9001\u4E2D\u957F\u51FA\u6765\u3002
+          \u6BCF\u4E00\u7AE0\u4F5C\u4E3A\u4E00\u4E2A M8 \u6279\u6B21\uFF1A\u88AB\u95E8\u770B\u89C1\u3001\u88AB\u6D4B\u8BD5\u5224\u5377\u3001\u88AB diff \u590D\u6838\u3002
+          \u8FD9\u95F4\u5C4B\u5B50\u4E0D\u662F\u6284\u4E86\u54EA\u4E2A\u4EBA\u7684\u8BFE\u2014\u2014\u5B83\u5728\u81EA\u6211\u590D\u6838\u91CC\u957F\u51FA\u6765\u3002
+        </p>
+        <p>
+          \u4EFB\u4F55\u4E00\u4E2A\u6570\u5B57\u5728\u8FD9\u95F4\u5C4B\u5B50\u91CC\u51FA\u73B0\uFF0C\u90FD\u5FC5\u5B9A\u662F\u4ECE <code>git</code>\u3001\u4ECE <code>audit.jsonl</code>\u3001\u4ECE <code>ROADMAP_TO_PRODUCT.md</code> \u91CC\u628A\u5B83\u6570\u51FA\u6765\u7684\u2014\u2014\u8FD9\u662F\u552F\u4E00\u5141\u8BB8\u653E\u5728 <em>\u5DF2\u5B8C\u6210</em> \u65C1\u8FB9\u7684\u8BC1\u636E\u3002
+        </p>` : `<p>
+          This wing was never drawn up. It grew out of every push, mile by mile:
+          each chapter an M8 batch, each batch gated, each gate recorded.
+          This is not a copy of someone else's work \u2014 it grew out of its own review.
+        </p>
+        <p>
+          Every number you see here was counted from <code>git</code>, from <code>audit.jsonl</code>,
+          from <code>ROADMAP_TO_PRODUCT.md</code> \u2014 that is the only evidence allowed next to the word "done".
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4" : "Commits"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u6279\u6B21\u7AE0\u8282" : "Batch chapters"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u884C" : "Audit lines"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
+        </div>
+      </div>
+      <div class="almanac-instrument almanac-instrument-double">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u8DDF\u8E2A\u6587\u4EF6" : "Tracked files"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(files)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u6D4B\u8BD5\u6587\u4EF6" : "Test files"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(tests)}</div>
+        </div>
+      </div>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u5982\u679C\u4F60\u95EE\u8FD9\u95F4\u5C4B\u5B50\u8C01\u5EFA\u7684\u2014\u2014\u7B54\u6848\u662F\u516C\u57DF\u7684\u95E8\u3001\u63D0\u4EA4\u8BB0\u5F55\u3001\u548C\u5BA1\u7A3F\u4EEA\u3002" : "If you ask whose hand built this room \u2014 the answer is the gates, the ledger, and the review."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -2712,20 +2773,26 @@
     hand: () => handMarkup(),
     gate: () => gateMarkup(digestCache),
     mesh: () => meshMarkup(),
-    witness: () => witnessMarkup()
+    witness: () => witnessMarkup(),
+    craft: () => craftMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
     if (!slot) return;
-    const [metrics, digest, stats] = await Promise.all([
-      requestJson("/api/metrics").catch(() => null),
-      requestJson("/api/digest").catch(() => null),
-      requestJson("/api/stats").catch(() => null)
-    ]);
-    digestCache = digest;
-    statsCache = stats;
     const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
-    slot.innerHTML = renderer(metrics);
+    slot.innerHTML = renderer(metricsCache);
+    refreshIcons();
+    const [metrics, digest, stats] = await Promise.all([
+      requestJson("/api/metrics", {}, 8e3).catch(() => null),
+      requestJson("/api/digest", {}, 8e3).catch(() => null),
+      requestJson("/api/stats", {}, 8e3).catch(() => null)
+    ]);
+    if (currentChapter !== id) return;
+    if (metrics) metricsCache = metrics;
+    if (digest) digestCache = digest;
+    if (stats) statsCache = stats;
+    const hydrated = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+    slot.innerHTML = hydrated(metricsCache);
     refreshIcons();
   }
   async function openAlmanacPanel() {
@@ -4657,7 +4724,6 @@
         spark.style.setProperty("--cy", `${cy + (Math.random() - 0.5) * rect.height * 0.4}px`);
         spark.style.setProperty("--dx", `${dx.toFixed(1)}px`);
         spark.style.setProperty("--dy", `${dy.toFixed(1)}px`);
-        spark.style.setProperty("--hue", String(Math.round(Math.random() * 360)));
         spark.style.setProperty("--size", `${(4 + Math.random() * 5).toFixed(1)}px`);
         spark.style.setProperty("--delay", `${(Math.random() * 0.18).toFixed(3)}s`);
         spark.style.setProperty("--color", PALETTE[index % PALETTE.length]);

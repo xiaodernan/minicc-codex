@@ -2,7 +2,19 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft"];
+const CHAPTER_MARKERS = {
+  prologue: ["序章", "Prologue"],
+  spark: ["火种", "The Spark"],
+  depth: ["深度", "The Depth"],
+  sentry: ["哨兵", "The Sentry"],
+  bloom: ["盛放", "The Bloom"],
+  hand: ["远行", "The Open Road"],
+  gate: ["关卡", "The Gate"],
+  mesh: ["星网", "The Mesh"],
+  witness: ["证人", "The Witness"],
+  craft: ["技艺", "The Craft"],
+};
 const CJK = /[\u4e00-\u9fff]/;
 
 const browser = await chromium.launch({ headless: true });
@@ -20,6 +32,8 @@ async function checkMode(locale, expectCjk) {
     await page.waitForTimeout(150);
     const canvas = await page.locator("#almanacCanvas").innerText();
     const rail = await page.locator(".almanac-rail").innerText();
+    const marker = expectCjk ? CHAPTER_MARKERS[id][0] : CHAPTER_MARKERS[id][1].toLowerCase();
+    assert.ok(canvas.toLowerCase().includes(marker), `${locale}/${id}: canvas must render this chapter (looked for ${marker}), first 160 chars: ${canvas.slice(0, 160).replace(/\n/g, " ")}`);
     const hit = CJK.test(`${canvas}\n${rail}`);
     if (expectCjk) {
       assert.ok(hit, `${id}: zh mode should render Chinese prose`);
@@ -34,5 +48,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 9 chapters render fully bilingual, no mixed-language prose");
+console.log("almanac smoke passed: 10 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
 process.exit(0);

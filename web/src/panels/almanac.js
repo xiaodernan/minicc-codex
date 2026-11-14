@@ -28,6 +28,7 @@ const CHAPTERS = [
   { id: "gate", roman: { zh: "卷六", en: "Chapter VI" }, title: { zh: "关卡", en: "The Gate" }, subtitle: { zh: "每一道门都点了头", en: "Every gate said yes" } },
   { id: "mesh", roman: { zh: "卷七", en: "Chapter VII" }, title: { zh: "星网", en: "The Mesh" }, subtitle: { zh: "六个服务，一个国家", en: "Six services, one country" } },
   { id: "witness", roman: { zh: "卷八", en: "Chapter VIII" }, title: { zh: "证人", en: "The Witness" }, subtitle: { zh: "笔录不说话，但不说谎", en: "The record does not speak, but it does not lie" } },
+  { id: "craft", roman: { zh: "卷九", en: "Chapter IX" }, title: { zh: "技艺", en: "The Craft" }, subtitle: { zh: "一件件作品在同样的手里被磨", en: "Every detail ground by the same hand" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -45,6 +46,7 @@ function chapterMarkup(chapter) {
 
 let digestCache = null;
 let statsCache = null;
+let metricsCache = null;
 let currentChapter = "prologue";
 
 function witnessMarkup() {
@@ -454,6 +456,66 @@ function meshMarkup() {
     </div>`;
 }
 
+function craftMarkup() {
+  const d = digestCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const files = d?.tracked_files != null ? String(d.tracked_files) : "—";
+  const tests = d?.test_files != null ? String(d.test_files) : "—";
+  const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
+  const s = statsCache;
+  const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "—";
+  return `
+    <div class="almanac-canvas almanac-craft">
+      <div class="almanac-kicker">${zh() ? "卷九 · 技艺" : "Chapter IX · The Craft"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? "没有草图<br/>只有<span class=\"almanac-title-accent\">舰艏字。</span>" : "No sketch,<br/>only a <span class=\"almanac-title-accent\">bowline.</span>"}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          没有一套样式书描写过这间屋子；它一次次从推送中长出来。
+          每一章作为一个 M8 批次：被门看见、被测试判卷、被 diff 复核。
+          这间屋子不是抄了哪个人的课——它在自我复核里长出来。
+        </p>
+        <p>
+          任何一个数字在这间屋子里出现，都必定是从 <code>git</code>、从 <code>audit.jsonl</code>、从 <code>ROADMAP_TO_PRODUCT.md</code> 里把它数出来的——这是唯一允许放在 <em>已完成</em> 旁边的证据。
+        </p>` : `<p>
+          This wing was never drawn up. It grew out of every push, mile by mile:
+          each chapter an M8 batch, each batch gated, each gate recorded.
+          This is not a copy of someone else's work — it grew out of its own review.
+        </p>
+        <p>
+          Every number you see here was counted from <code>git</code>, from <code>audit.jsonl</code>,
+          from <code>ROADMAP_TO_PRODUCT.md</code> — that is the only evidence allowed next to the word "done".
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "提交" : "Commits"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "批次章节" : "Batch chapters"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "审计行" : "Audit lines"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
+        </div>
+      </div>
+      <div class="almanac-instrument almanac-instrument-double">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "跟踪文件" : "Tracked files"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(files)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "测试文件" : "Test files"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(tests)}</div>
+        </div>
+      </div>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "如果你问这间屋子谁建的——答案是公域的门、提交记录、和审稿仪。" : "If you ask whose hand built this room — the answer is the gates, the ledger, and the review."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -464,20 +526,30 @@ const CHAPTER_RENDERERS = {
   gate: () => gateMarkup(digestCache),
   mesh: () => meshMarkup(),
   witness: () => witnessMarkup(),
+  craft: () => craftMarkup(),
 };
 
 async function loadChapter(id) {
   const slot = $("#almanacCanvas");
   if (!slot) return;
-  const [metrics, digest, stats] = await Promise.all([
-    requestJson("/api/metrics").catch(() => null),
-    requestJson("/api/digest").catch(() => null),
-    requestJson("/api/stats").catch(() => null),
-  ]);
-  digestCache = digest;
-  statsCache = stats;
+  // Phase 1: swap the canvas immediately with whatever we already know.
+  // /api/stats can take seconds on a big .minicc tree; chapter switching
+  // must never freeze on it. Numbers hydrate behind the text.
   const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
-  slot.innerHTML = renderer(metrics);
+  slot.innerHTML = renderer(metricsCache);
+  refreshIcons();
+  // Phase 2: fetch fresh numbers; re-render only if still on this chapter.
+  const [metrics, digest, stats] = await Promise.all([
+    requestJson("/api/metrics", {}, 8000).catch(() => null),
+    requestJson("/api/digest", {}, 8000).catch(() => null),
+    requestJson("/api/stats", {}, 8000).catch(() => null),
+  ]);
+  if (currentChapter !== id) return;
+  if (metrics) metricsCache = metrics;
+  if (digest) digestCache = digest;
+  if (stats) statsCache = stats;
+  const hydrated = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+  slot.innerHTML = hydrated(metricsCache);
   refreshIcons();
 }
 

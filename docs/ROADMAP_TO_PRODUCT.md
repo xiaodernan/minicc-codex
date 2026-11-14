@@ -51555,3 +51555,26 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
   - en：`gar-g-g-gantuar` / `cherry-bomb` / `Jalapeño` 原样 ✓
   - `console.errors` = none ✓
 - bundle 重建 · `node --check web/app.js` ✓ · check:web ✓
+
+## 批次 944 - M8-T949：年鉴卷九「技艺」+ 换章不再冻结 + palette 门真修
+
+### 1 背景
+
+（1）年鉴任意章节点击后画布不动——`loadChapter` 等待 `/api/metrics` + `/api/digest` + `/api/stats` 全部返回才注入内层 `innerHTML`，而 `/api/stats` 在这个 322MB 的 `.minicc` 状态目录上可慢到几十秒，用户看见的是「点了 15 秒没反应」。（2）M8-T948 推完后 `tests/test_the_palette_has_one_home.py` 全红：celebration-spark 的 8 个 JS 运行时 CSS 变量被 `var()` 读取却从未在 CSS 里声明——诊断把它们登记到豁免名单即可（与 `--seed-cooldown` 同一类：从 JavaScript 书写）。
+
+### 2 变更
+
+- `web/src/panels/almanac.js`：
+  - **卷九 · 技艺 / The Craft** —— 提交数 / 批次章节 / 审计行数 / 跟踪文件 / 测试文件，全部现场从 `digest` + `stats` 读出；史诗结构压尾——「没有草图，只有舰艏字。」（zh）/ “No sketch — only a bowline.”（en），中英两套正文。
+  - **两阶段换章**：先用 `metricsCache`/`digestCache`/`statsCache` 立刻替换画布，再异步取新数字；若用户已切到别章则不覆盖；8s 超时兜底。
+  - CHAPTER_RENDERERS 增 `craft`；`metricsCache` 模块级缓存。
+- `tests/almanac_smoke.mjs`：章节列表加入 `craft`；新增 **CHAPTER_MARKERS** 断言——画布必须真的渲染该章（此前「9 章渲染」断言无法发现换章冻结伪装成通过的情形）；通过标准改为「10 章渲染 + 换章验证 + 无混语」。
+- `tests/test_the_palette_has_one_home.py`：`RUNTIME_TOKENS` 扩充 8 个（`--color --cx --cy --delay --dx --dy --size --spin`），全数有 JS `setProperty` 书写证据——门不弱化，豁免是声明而非关闭。
+- `web/src/celebration.js`：删除从未被任何 `var()` 读取的死属性 `--hue`（连同它在豁免名单里的席位一并拿掉）。
+
+### 3 验证
+
+- `pytest tests/test_the_palette_has_one_home.py` → **5 passed** ✓
+- `npm run test:almanac` → `almanac smoke passed: 10 chapters render fully bilingual, chapter switching verified, no mixed-language prose` ✓
+- 真实 fake-provider 浏览器换章探针：`craft` →「卷九 · 技艺」/ `witness` →「卷八 · 证人」/ `spark` →「卷一 · 火种」，均即时渲染 ✓
+- `npm run test:web` → web smoke passed ✓ · `npm run check:web` → bundle + assets clean ✓

@@ -32,7 +32,6 @@ export function celebrate(anchor) {
       spark.style.setProperty("--cy", `${cy + (Math.random() - 0.5) * rect.height * 0.4}px`);
       spark.style.setProperty("--dx", `${dx.toFixed(1)}px`);
       spark.style.setProperty("--dy", `${dy.toFixed(1)}px`);
-      spark.style.setProperty("--hue", String(Math.round(Math.random() * 360)));
       spark.style.setProperty("--size", `${(4 + Math.random() * 5).toFixed(1)}px`);
       spark.style.setProperty("--delay", `${(Math.random() * 0.18).toFixed(3)}s`);
       spark.style.setProperty("--color", PALETTE[index % PALETTE.length]);

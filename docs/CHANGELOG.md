@@ -266,3 +266,5 @@
 - **说明书第八章「安静的房间 / The Quiet Room」，M8-T947**：说明书扩展为 8 章——这一章讲「为什么这间屋子这样被造」：没有甲方 / 没有专有智慧 / 没有表演型智能体 / 没有「THE PLAN」/ 每件事都会回来。中文版与英文版同故事，铁证入后证据：命令行、沙箱、门电路、`/api/stats` 现场数值、缓存命中率——没有不可检验的领袖性短语。真浏览器 zh/en 验证（en chrome 零 CJK，rail 8 项完整）。
 
 - **手册游戏厅章 · 冲关心法，M8-T948**：新手册「wave-by-wave」条目按实际 `WAVE_TARGET(wave,'hard')` 直录 Wave 1–10 目标数：walker 1–9 / conehead+buckethead 6–9 / Wave 10 Gargantuar；economy 条揭露阳光 2–4/s、wallnut 吸收 3–4 波、撑杆跳只越第一个 plant、magnetshroom 拔锥桶、squash 强制击杀。中英并行，en 不混 CJK。
+
+- **年鉴卷九「技艺 / The Craft」+ 换章两阶段渲染 + palette 门修复，M8-T949**：新增年鉴卷九——提交数 / 批次章节 / 审计行数 / 跟踪文件 / 测试文件从现场 digest+stats 读出（"没有草图，只有舰艏字。"）。换章 bug 真因定位：`loadChapter` 等待 `/api/stats`（322MB 状态目录上可超时）才注入 innerHTML——改为两阶段：先用缓存即时渲染，新数字 8s 超时兜底、仅当用户仍停留在本章时刷新；`/api/stats` 孤立慢点不再冻结整个面板。almanac smoke 加 `craft` + 每章 marker 断言（canvas 必须渲染本章，根治「冻结伪装通过」）。palette 门修复：8 个 celebration-spark 运行时 CSS 变量登记豁免（均有 `setProperty` 书写证据，门不弱化），删除死属性 `--hue`；`test_the_palette_has_one_home` → 5 passed。
