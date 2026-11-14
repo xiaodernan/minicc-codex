@@ -4941,3 +4941,5 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .askdocs-controls { flex-direction: column; align-items: stretch; }
   .askdocs-submit { justify-content: center; }
 }
+/* M8-T978: almanac chapter XII — "The Answer Back", mint left edge. */
+.almanac-answer .almanac-gate-list li { border-left-color: var(--mint); }

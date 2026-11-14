@@ -100,7 +100,7 @@ function zhModules() {
     <ul class="manual-chapter-list">
       <li><strong>账本 · Ledger</strong> — ⌘L 打开：总 token 金句、缓存命中率圆环（hit/miss/write 拆分）、成本与未定价标注、模型分解表、状态 segmented bar。一切数字来自真实任务快照。</li>
       <li><strong>脉搏 · Pulse</strong> — 三环（命中率/上下文占比/完成率）+ 最近 12 个任务档案 + 逐次调用缓存火花线；实时增长，关了再开也读数。</li>
-      <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：十二卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷十一《回声》，讲的是 git / audit / 缓存三根弦互不相扰却共振），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
+      <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：十三卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷十二《回问》，讲的是项目终于学会反过身来回答读者的问题——没有 embedding、没有向量库、真 key 真跑），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -116,7 +116,7 @@ function enModules() {
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> — ⌘L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> — three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in twelve chapters (the newest, Chapter XI “The Echo”, on the three strings — git / audit / cache — that resonate in their own mediums), every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in thirteen chapters (the newest, Chapter XII “The Answer Back” — the book answering its reader, no embeddings, no vector store, real key end to end), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -299,7 +299,7 @@ function enLimits() {
 
 function zhAskDocs() {
   return `
-    <p class="manual-lede">「问仓库」是把 RAG 真跑给你看的一扇窗：它先用 BM25（Okapi, k1=1.2, b=0.75）从本仓库的 <code>docs/</code> + <code>README.md</code> + <code>CONTRIBUTING.md</code> 里取 top-k 段落，再让你配置好的模型——只读着这些段落回答，不让它凭空编。</p>
+    <p class="manual-lede">「问仓库」是把 RAG 真跑给你看的一扇窗：它先用 BM25（Okapi, k1=1.2, b=0.75）从本仓库的 <code>docs/</code>（含 <code>CONTRIBUTING.md</code>）与 <code>README.md</code> 取 top-k 段落，再让你配置好的模型——只读着这些段落回答，不让它凭空编。</p>
     <ol class="manual-list">
       <li><strong>打开</strong> — 侧边栏「问仓库」（档案馆旁边），或按 <code>Ctrl/⌘K</code> 输入「问仓库」。</li>
       <li><strong>提问</strong> — 用中文或英文问一个具体的问题。比如「为什么缓存命中率看起来很低？」「怎么跑压力测试？」选好引用来源数 k（2 / 4 / 6 / 8），按「提问」。</li>
@@ -316,7 +316,7 @@ function zhAskDocs() {
 
 function enAskDocs() {
   return `
-    <p class="manual-lede">Ask the Repo is RAG actually running, with the receipts shown. It first runs BM25 (Okapi, k1=1.2, b=0.75) over this repo's <code>docs/</code> + <code>README.md</code> + <code>CONTRIBUTING.md</code>, takes the top-k passages, then asks your configured model to answer from those passages alone.</p>
+    <p class="manual-lede">Ask the Repo is RAG actually running, with the receipts shown. It first runs BM25 (Okapi, k1=1.2, b=0.75) over this repo's <code>docs/</code> (including <code>CONTRIBUTING.md</code>) and <code>README.md</code>, takes the top-k passages, then asks your configured model to answer from those passages alone.</p>
     <ol class="manual-list">
       <li><strong>Open</strong> — the “Ask the Docs” sidebar button (next to the Archive), or press <code>Ctrl/⌘K</code> and type “ask”.</li>
       <li><strong>Ask</strong> — type a concrete question in Chinese or English, e.g. “Why does the cache hit rate look so low?” or “How do I run the load test?” Pick k (2 / 4 / 6 / 8) and press Ask.</li>

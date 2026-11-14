@@ -2371,7 +2371,8 @@
     { id: "witness", roman: { zh: "\u5377\u516B", en: "Chapter VIII" }, title: { zh: "\u8BC1\u4EBA", en: "The Witness" }, subtitle: { zh: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E", en: "The record does not speak, but it does not lie" } },
     { id: "craft", roman: { zh: "\u5377\u4E5D", en: "Chapter IX" }, title: { zh: "\u6280\u827A", en: "The Craft" }, subtitle: { zh: "\u4E00\u4EF6\u4EF6\u4F5C\u54C1\u5728\u540C\u6837\u7684\u624B\u91CC\u88AB\u78E8", en: "Every detail ground by the same hand" } },
     { id: "backlog", roman: { zh: "\u5377\u5341", en: "Chapter X" }, title: { zh: "\u672A\u7ADF", en: "The Unfinished" }, subtitle: { zh: "\u8FD9\u518C\u5B50\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u5B83\u6B63\u5728\u5199", en: "This wing is still being written" } },
-    { id: "echo", roman: { zh: "\u5377\u5341\u4E00", en: "Chapter XI" }, title: { zh: "\u56DE\u58F0", en: "The Echo" }, subtitle: { zh: "\u4E09\u6839\u770B\u4E0D\u89C1\u7684\u5F26\uFF0C\u90FD\u5728\u54CD", en: "Three strings you cannot see, all humming" } }
+    { id: "echo", roman: { zh: "\u5377\u5341\u4E00", en: "Chapter XI" }, title: { zh: "\u56DE\u58F0", en: "The Echo" }, subtitle: { zh: "\u4E09\u6839\u770B\u4E0D\u89C1\u7684\u5F26\uFF0C\u90FD\u5728\u54CD", en: "Three strings you cannot see, all humming" } },
+    { id: "answer", roman: { zh: "\u5377\u5341\u4E8C", en: "Chapter XII" }, title: { zh: "\u56DE\u95EE", en: "The Answer Back" }, subtitle: { zh: "\u7EC8\u4E8E\u5B66\u4F1A\u56DE\u7B54\u7684\u8FD9\u672C\u4E66", en: "The book that answered back" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -2950,6 +2951,82 @@
       </p>
     </div>`;
   }
+  function answerMarkup() {
+    return `
+    <div class="almanac-canvas almanac-answer">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E8C \xB7 \u56DE\u95EE" : "Chapter XII \xB7 The Answer Back"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u8FD9\u95F4\u5C4B\u5B50\u4E00\u76F4\u88AB\u4EBA<br/>\u5728\u5B83\u6700\u9700\u8981\u7684\u90A3\u5929<br/><span class="almanac-title-accent">\u5B83\u5F00\u59CB\u56DE\u7B54\u3002</span>' : 'This room was read,<br/>never answered<br/><span class="almanac-title-accent">until it had to be.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u6709\u4E00\u5929\u4F60\u7AD9\u5728\u95E8\u53E3\u95EE\uFF1A<strong>\u300C\u4E3A\u4EC0\u4E48\u7F13\u5B58\u547D\u4E2D\u7387\u770B\u8D77\u6765\u5F88\u4F4E\uFF1F\u300D</strong>
+          \u8FD9\u95F4\u5C4B\u5B50\u6CA1\u6709\u5B89\u9759\u3002\u5B83\u7FFB\u5F00\u81EA\u5DF1\u7684 <code>docs/</code> \u4E0E <code>README.md</code>\uFF0C
+          \u628A\u6BCF\u4E00\u9875\u6495\u6210\u51E0\u767E\u5B57\u7684\u5C0F\u5757\uFF0C\u6570\u51FA\u54EA\u4E9B\u6BB5\u843D\u6700\u914D\u5F97\u4E0A\u8FD9\u53E5\u8BDD\u2014\u2014
+          BM25\uFF0COkapi k1=1.2\uFF0Cb=0.75\u3002\u6CA1\u6709 embedding\uFF0C\u6CA1\u6709\u5411\u91CF\u5E93\uFF0C
+          \u6CA1\u6709\u4E00\u884C\u6A21\u578B\u4EE5\u5916\u7684\u7B97\u76D8\u3002
+        </p>
+        <p>
+          \u7136\u540E\u5B83\u8C03\u4E86\u4E00\u6B21\u771F\u5B9E\u8C03\u7528\uFF1A<code>wkapi.pro \xB7 gpt-6-sol</code>\uFF0C\u771F key\uFF0C\u5E26 <code>v1</code>\u3002
+          \u6A21\u578B\u6CA1\u6709\u7F16\u3002\u5B83\u6307\u7740\u4E24\u9875\u539F\u6587\u4F5C\u7B54\uFF0C\u5728\u56DE\u7B54\u91CC\u5199\u4E0B <code>[1] [3]</code>\uFF1B\u7528\u91CF\u6761\u4EAE\u51FA
+          \u7F51\u5173\u552F\u4E00\u80AF\u62A5\u7684\u6570\u5B57\uFF1A<strong>prompt 19426 \xB7 completion 139 \xB7 total 19565</strong>\u3002
+          <code>cached_tokens</code> \u6CA1\u6709\u88AB\u4F2A\u9020\u2014\u2014\u7F51\u5173\u4E0D\u62A5\uFF0C\u5B83\u5C31\u4E0D\u8BF4\u3002
+          \u8FD9\u662F 2026 \u5E74 11 \u6708 15 \u65E5\u7684\u4E8B\u5B9E\uFF0C\u53EF\u590D\u73B0\u3002
+        </p>
+        <p>
+          \u5F53\u7136\u4E0D\u5B8C\u7F8E\u3002\u6700\u521D\u6574\u53E5\u4E2D\u6587\u88AB\u5F53\u6210\u5355\u4E2A\u5DE8\u578B token\uFF0C\u7D22\u5F15\u4E86 3857 \u5757\u4EC0\u4E48\u90FD\u6CA1\u627E\u5230\uFF1B
+          \u6539\u6210 <strong>CJK \u4E8C\u5143\u5B57\u7EC4</strong>\u4E4B\u540E\uFF0C\u540C\u4E00\u53E5\u8BDD\u56DE\u5230\u4E86\u4E24\u4E2A\u6B63\u786E\u7684\u6587\u6863\uFF08CACHE_AFFINITY_MATRIX.md\uFF0Cscore 25.69\uFF09\u3002
+          \u8FD9\u4E2A\u5C55\u5385\u6CA1\u6709\u628A\u5B83\u5220\u6389\u2014\u2014\u9519\u8BEF\u6BD4\u821E\u53F0\u706F\u5149\u66F4\u63A5\u8FD1\u771F\u76F8\u3002
+        </p>` : `<p>
+          One day you stand at the door and ask: <strong>\u201CWhy does the cache hit rate look so low?\u201D</strong>
+          This room did not stay silent. It flipped open its own <code>docs/</code> and <code>README.md</code>,
+          tore every page into few-hundred-character passages, and counted which passages best matched the question \u2014
+          BM25, Okapi k1=1.2, b=0.75. No embeddings, no vector store, no arithmetic outside the model.
+        </p>
+        <p>
+          Then it made one real call: <code>wkapi.pro \xB7 gpt-6-sol</code>, real key, with <code>v1</code>.
+          The model did not invent. It pointed at two source pages and answered with <code>[1] [3]</code> inline;
+          the usage pill showed the only numbers the gateway was willing to report:
+          <strong>prompt 19426 \xB7 completion 139 \xB7 total 19565</strong>. <code>cached_tokens</code> was not fabricated \u2014
+          when the gateway does not report, this house does not speak. Reproducible as of November 15, 2026.
+        </p>
+        <p>
+          Not without a wound. At first the whole Chinese sentence indexed as one giant token \u2014 3,857 chunks in, nothing out.
+          Switching to <strong>CJK bigrams</strong>, the same sentence returned the two correct documents
+          (CACHE_AFFINITY_MATRIX.md, score 25.69). This wing keeps the scar; mistakes live closer to the truth
+          than the stage lights do.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u68C0\u7D22\u7B97\u6CD5" : "Retriever"}</div>
+          <div class="almanac-instrument-value">BM25 \xB7 k1=1.2</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u8BED\u6599 \xB7 35 \u6E90\u6587\u4EF6 3,857 \u5757" : "Corpus \xB7 35 files \xB7 3,857 chunks"}</div>
+          <div class="almanac-instrument-value">b=0.75</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u5F15\u7528\u4E0A\u9650 k" : "Sources k"}</div>
+          <div class="almanac-instrument-value">2\u20138</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["BM25 \u4E0D\u662F\u8BED\u4E49\u53EC\u56DE", "\u7CBE\u786E\u63AA\u8F9E\u5FC5\u80DC\uFF1B\u540C\u4E49\u6539\u5199\u53EF\u80FD\u6F0F\u3002\u5B83\u8D4C\u7684\u662F\u8FD9\u672C\u4E66\u6BCF\u4E00\u884C\u90FD\u5199\u5F97\u591F\u51C6\u3002"],
+      ["CJK \u4E8C\u5143\u5B57\u7EC4", "\u6B64\u524D\u6574\u53E5\u4E2D\u6587\u4E00\u6B21\u90FD\u6CA1\u627E\u5230\u8FC7\u3002\u4FEE\u590D\u5728\u7D22\u5F15\u5C42\uFF0C\u4E0D\u5728\u6A21\u578B\u5C42\u3002"],
+      ["\u547D\u4E2D\u7387\u300C\u4F4E\u300D\u662F\u4E0A\u62A5\u9762\u4EA7\u7269", "chat \u6D41\u5F0F\u7EBF\u7F06\u4E0D\u62A5 cached_tokens\uFF1B\u5E26 key \u540E 97.5%\uFF1BResponses \u4E24\u79CD\u7EBF\u7F06\u90FD\u62A5\uFF0C81\u201398%\u3002"],
+      ["/api/rag/query \u6D88\u8017\u771F\u5B9E tokens", "\u9762\u677F\u6BCF\u63D0\u4EA4\u4E00\u4E2A\u95EE\u9898\uFF0C\u5C31\u662F\u4E00\u6B21\u771F\u5B9E\u8C03\u7528\uFF1Bsources \u9010\u6761\u53EF\u5C55\u5F00\uFF0C\u53EF\u590D\u6838\u3002"],
+      ["\u4E24\u79CD\u8BED\u8A00\uFF0C\u540C\u4E00\u5957\u4EE3\u7801", "\u4E2D\u6587\u6A21\u5F0F 100% \u4E2D\u6587\uFF0C\u82F1\u6587\u6A21\u5F0F 100% \u82F1\u6587\uFF1B\u95EE\u8BE2\u4ECE\u8FD9\u95F4\u5C55\u5385\u5F00\u59CB\u3002"]
+    ] : [
+      ["BM25 is not semantic recall", "Exact phrases win; paraphrase can lose. It bets this book is written precisely enough."],
+      ["CJK bigrams", "Before them, one Chinese sentence found nothing, ever. The fix lived in the index, not the model."],
+      ["\u201CLow hit rate\u201D is a reporting surface", "chat streaming never reports cached_tokens; with a key, 97.5%; the Responses wire reports it both ways, 81\u201398%."],
+      ["/api/rag/query spends real tokens", "Every question is one real call; every source expands in place, on screen."],
+      ["Two languages, one codebase", "zh mode is all Chinese; en mode is all English \u2014 the asking starts in this wing."]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u5982\u679C\u8FD9\u95F4\u5C55\u5385\u6709\u4E00\u5929\u88AB\u4EBA\u53CD\u8FC7\u6765\u95EE\u8DEF\uFF0C\u5E76\u4E14\u7B54\u5F97\u51FA\u6765\u2014\u2014\u90A3\u5B83\u4ECE\u4E00\u5F00\u59CB\u5C31\u4E0D\u53EA\u662F\u4E00\u95F4\u5C55\u5385\u4E86\u3002" : "If this wing is ever asked for directions \u2014 and answers \u2014 then it was never just a wing."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -2962,7 +3039,8 @@
     witness: () => witnessMarkup(),
     craft: () => craftMarkup(),
     backlog: () => backlogMarkup(),
-    echo: () => echoMarkup()
+    echo: () => echoMarkup(),
+    answer: () => answerMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -3161,7 +3239,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E8C\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E00\u300A\u56DE\u58F0\u300B\uFF0C\u8BB2\u7684\u662F git / audit / \u7F13\u5B58\u4E09\u6839\u5F26\u4E92\u4E0D\u76F8\u6270\u5374\u5171\u632F\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E09\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E8C\u300A\u56DE\u95EE\u300B\uFF0C\u8BB2\u7684\u662F\u9879\u76EE\u7EC8\u4E8E\u5B66\u4F1A\u53CD\u8FC7\u8EAB\u6765\u56DE\u7B54\u8BFB\u8005\u7684\u95EE\u9898\u2014\u2014\u6CA1\u6709 embedding\u3001\u6CA1\u6709\u5411\u91CF\u5E93\u3001\u771F key \u771F\u8DD1\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -3176,7 +3254,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in twelve chapters (the newest, Chapter XI \u201CThe Echo\u201D, on the three strings \u2014 git / audit / cache \u2014 that resonate in their own mediums), every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in thirteen chapters (the newest, Chapter XII \u201CThe Answer Back\u201D \u2014 the book answering its reader, no embeddings, no vector store, real key end to end), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
@@ -3345,7 +3423,7 @@
   }
   function zhAskDocs() {
     return `
-    <p class="manual-lede">\u300C\u95EE\u4ED3\u5E93\u300D\u662F\u628A RAG \u771F\u8DD1\u7ED9\u4F60\u770B\u7684\u4E00\u6247\u7A97\uFF1A\u5B83\u5148\u7528 BM25\uFF08Okapi, k1=1.2, b=0.75\uFF09\u4ECE\u672C\u4ED3\u5E93\u7684 <code>docs/</code> + <code>README.md</code> + <code>CONTRIBUTING.md</code> \u91CC\u53D6 top-k \u6BB5\u843D\uFF0C\u518D\u8BA9\u4F60\u914D\u7F6E\u597D\u7684\u6A21\u578B\u2014\u2014\u53EA\u8BFB\u7740\u8FD9\u4E9B\u6BB5\u843D\u56DE\u7B54\uFF0C\u4E0D\u8BA9\u5B83\u51ED\u7A7A\u7F16\u3002</p>
+    <p class="manual-lede">\u300C\u95EE\u4ED3\u5E93\u300D\u662F\u628A RAG \u771F\u8DD1\u7ED9\u4F60\u770B\u7684\u4E00\u6247\u7A97\uFF1A\u5B83\u5148\u7528 BM25\uFF08Okapi, k1=1.2, b=0.75\uFF09\u4ECE\u672C\u4ED3\u5E93\u7684 <code>docs/</code>\uFF08\u542B <code>CONTRIBUTING.md</code>\uFF09\u4E0E <code>README.md</code> \u53D6 top-k \u6BB5\u843D\uFF0C\u518D\u8BA9\u4F60\u914D\u7F6E\u597D\u7684\u6A21\u578B\u2014\u2014\u53EA\u8BFB\u7740\u8FD9\u4E9B\u6BB5\u843D\u56DE\u7B54\uFF0C\u4E0D\u8BA9\u5B83\u51ED\u7A7A\u7F16\u3002</p>
     <ol class="manual-list">
       <li><strong>\u6253\u5F00</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u95EE\u4ED3\u5E93\u300D\uFF08\u6863\u6848\u9986\u65C1\u8FB9\uFF09\uFF0C\u6216\u6309 <code>Ctrl/\u2318K</code> \u8F93\u5165\u300C\u95EE\u4ED3\u5E93\u300D\u3002</li>
       <li><strong>\u63D0\u95EE</strong> \u2014 \u7528\u4E2D\u6587\u6216\u82F1\u6587\u95EE\u4E00\u4E2A\u5177\u4F53\u7684\u95EE\u9898\u3002\u6BD4\u5982\u300C\u4E3A\u4EC0\u4E48\u7F13\u5B58\u547D\u4E2D\u7387\u770B\u8D77\u6765\u5F88\u4F4E\uFF1F\u300D\u300C\u600E\u4E48\u8DD1\u538B\u529B\u6D4B\u8BD5\uFF1F\u300D\u9009\u597D\u5F15\u7528\u6765\u6E90\u6570 k\uFF082 / 4 / 6 / 8\uFF09\uFF0C\u6309\u300C\u63D0\u95EE\u300D\u3002</li>
@@ -3361,7 +3439,7 @@
   }
   function enAskDocs() {
     return `
-    <p class="manual-lede">Ask the Repo is RAG actually running, with the receipts shown. It first runs BM25 (Okapi, k1=1.2, b=0.75) over this repo's <code>docs/</code> + <code>README.md</code> + <code>CONTRIBUTING.md</code>, takes the top-k passages, then asks your configured model to answer from those passages alone.</p>
+    <p class="manual-lede">Ask the Repo is RAG actually running, with the receipts shown. It first runs BM25 (Okapi, k1=1.2, b=0.75) over this repo's <code>docs/</code> (including <code>CONTRIBUTING.md</code>) and <code>README.md</code>, takes the top-k passages, then asks your configured model to answer from those passages alone.</p>
     <ol class="manual-list">
       <li><strong>Open</strong> \u2014 the \u201CAsk the Docs\u201D sidebar button (next to the Archive), or press <code>Ctrl/\u2318K</code> and type \u201Cask\u201D.</li>
       <li><strong>Ask</strong> \u2014 type a concrete question in Chinese or English, e.g. \u201CWhy does the cache hit rate look so low?\u201D or \u201CHow do I run the load test?\u201D Pick k (2 / 4 / 6 / 8) and press Ask.</li>
@@ -3800,7 +3878,7 @@
     <div class="askdocs-shell">
       <div class="askdocs-kicker">${escapeHtml(isZh ? "\u95EE\u4ED3\u5E93 \xB7 RAG \u771F\u8DD1" : "Ask the repo \xB7 RAG in flight")}</div>
       <h1 class="askdocs-title">${isZh ? '\u95EE\u9879\u76EE<br/><span class="askdocs-accent">\u81EA\u5DF1\u7684\u6587\u6863\u3002</span>' : 'Ask the project<br/><span class="askdocs-accent">its own docs.</span>'}</h1>
-      <p class="askdocs-sidenote">${escapeHtml(isZh ? "BM25 \u4ECE\u672C\u4ED3\u5E93\u7684 docs / README / CONTRIBUTING \u53D6 top-k \u6BB5\u843D\uFF0C\u518D\u4EA4\u7ED9\u4F60\u914D\u7F6E\u597D\u7684\u6A21\u578B\uFF0C\u53EA\u4F9D\u636E\u8FD9\u4E9B\u6BB5\u843D\u4F5C\u7B54\u3002api_key \u4E0D\u8FDB prompt\u3001\u4E0D\u88AB\u56DE\u663E\uFF1B\u6A21\u578B\u4E0D\u53EF\u8FBE\u65F6\uFF0C\u8FD9\u91CC\u663E\u793A\u771F\u5B9E\u9519\u8BEF\uFF0C\u800C\u4E0D\u662F\u7F16\u9020\u7B54\u6848\u3002" : "BM25 retrieves top-k passages from this repo's docs / README / CONTRIBUTING, then asks your configured model to answer only from them. The api_key never enters the prompt nor is echoed back; when the model is unreachable, the real error is shown instead of a fabricated answer.")}</p>
+      <p class="askdocs-sidenote">${escapeHtml(isZh ? "BM25 \u4ECE\u672C\u4ED3\u5E93 docs/\uFF08\u542B CONTRIBUTING.md\uFF09\u4E0E README.md \u53D6 top-k \u6BB5\u843D\uFF0C\u518D\u4EA4\u7ED9\u4F60\u914D\u7F6E\u597D\u7684\u6A21\u578B\uFF0C\u53EA\u4F9D\u636E\u8FD9\u4E9B\u6BB5\u843D\u4F5C\u7B54\u3002api_key \u4E0D\u8FDB prompt\u3001\u4E0D\u88AB\u56DE\u663E\uFF1B\u6A21\u578B\u4E0D\u53EF\u8FBE\u65F6\uFF0C\u8FD9\u91CC\u663E\u793A\u771F\u5B9E\u9519\u8BEF\uFF0C\u800C\u4E0D\u662F\u7F16\u9020\u7B54\u6848\u3002" : "BM25 retrieves top-k passages from this repo's docs (including CONTRIBUTING.md) and README.md, then asks your configured model to answer only from them. The api_key never enters the prompt nor is echoed back; when the model is unreachable, the real error is shown instead of a fabricated answer.")}</p>
       <form class="askdocs-form" id="askdocsForm">
         <label class="askdocs-label" for="askdocsQuestion">${escapeHtml(isZh ? "\u4F60\u7684\u95EE\u9898" : "Your question")}</label>
         <textarea class="askdocs-question" id="askdocsQuestion" rows="2" required

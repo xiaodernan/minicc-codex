@@ -2,7 +2,7 @@
    Ask the Repo - RAG over the repository's own docs.
 
    The server side (minicc/rag.py, /api/rag/query) retrieves the
-   top-k BM25 chunks from this very repo's docs/README/CONTRIBUTING
+   top-k BM25 chunks from this very repo's docs (including CONTRIBUTING.md) and README
    and asks the configured chat model to answer only from those
    passages. This panel renders the answer, the sources it leaned
    on, and the exact token usage the gateway reports. The api_key
@@ -46,8 +46,8 @@ export async function openAskDocsPanel() {
         ? "问项目<br/><span class=\"askdocs-accent\">自己的文档。</span>"
         : "Ask the project<br/><span class=\"askdocs-accent\">its own docs.</span>"}</h1>
       <p class="askdocs-sidenote">${escapeHtml(isZh
-        ? "BM25 从本仓库的 docs / README / CONTRIBUTING 取 top-k 段落，再交给你配置好的模型，只依据这些段落作答。api_key 不进 prompt、不被回显；模型不可达时，这里显示真实错误，而不是编造答案。"
-        : "BM25 retrieves top-k passages from this repo's docs / README / CONTRIBUTING, then asks your configured model to answer only from them. The api_key never enters the prompt nor is echoed back; when the model is unreachable, the real error is shown instead of a fabricated answer.")}</p>
+        ? "BM25 从本仓库 docs/（含 CONTRIBUTING.md）与 README.md 取 top-k 段落，再交给你配置好的模型，只依据这些段落作答。api_key 不进 prompt、不被回显；模型不可达时，这里显示真实错误，而不是编造答案。"
+        : "BM25 retrieves top-k passages from this repo's docs (including CONTRIBUTING.md) and README.md, then asks your configured model to answer only from them. The api_key never enters the prompt nor is echoed back; when the model is unreachable, the real error is shown instead of a fabricated answer.")}</p>
       <form class="askdocs-form" id="askdocsForm">
         <label class="askdocs-label" for="askdocsQuestion">${escapeHtml(isZh ? "你的问题" : "Your question")}</label>
         <textarea class="askdocs-question" id="askdocsQuestion" rows="2" required

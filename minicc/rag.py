@@ -3,8 +3,8 @@
 The workbench already carries a local sentence retriever (``LocalEvidenceIndex``)
 but it is task-shaped: it answers "which file evidence supports this question
 right now". This module is smaller, simpler, and symmetric to what a RAG
-("/api/rag/search") caller needs: a ranked list of documentation chunks
-relevant to a free-form query.
+("/api/rag/search" and "/api/rag/query") caller needs: a ranked list of
+documentation chunks relevant to a free-form query.
 
 Tokenization is bilingual by construction: latin/digit runs are kept whole,
 CJK runs are emitted as bigrams (a Chinese sentence has no spaces; scoring
@@ -23,9 +23,11 @@ from pathlib import Path
 from typing import Any
 
 _DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
+#: The corpus is docs/*.md (which already carries CONTRIBUTING.md) plus the
+#: repository README; there is no second root-level CONTRIBUTING — pointing
+#: at one would either double-count docs/CONTRIBUTING.md or fail silently.
 _ROOT_FILES = (
     Path(__file__).resolve().parent.parent / "README.md",
-    Path(__file__).resolve().parent.parent / "CONTRIBUTING.md",
 )
 
 # Two token families. Latin/digit runs are kept whole (prefix_cache_key is

@@ -31,6 +31,7 @@ const CHAPTERS = [
   { id: "craft", roman: { zh: "卷九", en: "Chapter IX" }, title: { zh: "技艺", en: "The Craft" }, subtitle: { zh: "一件件作品在同样的手里被磨", en: "Every detail ground by the same hand" } },
   { id: "backlog", roman: { zh: "卷十", en: "Chapter X" }, title: { zh: "未竟", en: "The Unfinished" }, subtitle: { zh: "这册子还没写完，它正在写", en: "This wing is still being written" } },
   { id: "echo", roman: { zh: "卷十一", en: "Chapter XI" }, title: { zh: "回声", en: "The Echo" }, subtitle: { zh: "三根看不见的弦，都在响", en: "Three strings you cannot see, all humming" } },
+  { id: "answer", roman: { zh: "卷十二", en: "Chapter XII" }, title: { zh: "回问", en: "The Answer Back" }, subtitle: { zh: "终于学会回答的这本书", en: "The book that answered back" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -641,6 +642,87 @@ function echoMarkup() {
     </div>`;
 }
 
+function answerMarkup() {
+  return `
+    <div class="almanac-canvas almanac-answer">
+      <div class="almanac-kicker">${zh() ? "卷十二 · 回问" : "Chapter XII · The Answer Back"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? "这间屋子一直被人<br/>在它最需要的那天<br/><span class=\"almanac-title-accent\">它开始回答。</span>"
+        : "This room was read,<br/>never answered<br/><span class=\"almanac-title-accent\">until it had to be.</span>"}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          有一天你站在门口问：<strong>「为什么缓存命中率看起来很低？」</strong>
+          这间屋子没有安静。它翻开自己的 <code>docs/</code> 与 <code>README.md</code>，
+          把每一页撕成几百字的小块，数出哪些段落最配得上这句话——
+          BM25，Okapi k1=1.2，b=0.75。没有 embedding，没有向量库，
+          没有一行模型以外的算盘。
+        </p>
+        <p>
+          然后它调了一次真实调用：<code>wkapi.pro · gpt-6-sol</code>，真 key，带 <code>v1</code>。
+          模型没有编。它指着两页原文作答，在回答里写下 <code>[1] [3]</code>；用量条亮出
+          网关唯一肯报的数字：<strong>prompt 19426 · completion 139 · total 19565</strong>。
+          <code>cached_tokens</code> 没有被伪造——网关不报，它就不说。
+          这是 2026 年 11 月 15 日的事实，可复现。
+        </p>
+        <p>
+          当然不完美。最初整句中文被当成单个巨型 token，索引了 3857 块什么都没找到；
+          改成 <strong>CJK 二元字组</strong>之后，同一句话回到了两个正确的文档（CACHE_AFFINITY_MATRIX.md，score 25.69）。
+          这个展厅没有把它删掉——错误比舞台灯光更接近真相。
+        </p>` : `<p>
+          One day you stand at the door and ask: <strong>“Why does the cache hit rate look so low?”</strong>
+          This room did not stay silent. It flipped open its own <code>docs/</code> and <code>README.md</code>,
+          tore every page into few-hundred-character passages, and counted which passages best matched the question —
+          BM25, Okapi k1=1.2, b=0.75. No embeddings, no vector store, no arithmetic outside the model.
+        </p>
+        <p>
+          Then it made one real call: <code>wkapi.pro · gpt-6-sol</code>, real key, with <code>v1</code>.
+          The model did not invent. It pointed at two source pages and answered with <code>[1] [3]</code> inline;
+          the usage pill showed the only numbers the gateway was willing to report:
+          <strong>prompt 19426 · completion 139 · total 19565</strong>. <code>cached_tokens</code> was not fabricated —
+          when the gateway does not report, this house does not speak. Reproducible as of November 15, 2026.
+        </p>
+        <p>
+          Not without a wound. At first the whole Chinese sentence indexed as one giant token — 3,857 chunks in, nothing out.
+          Switching to <strong>CJK bigrams</strong>, the same sentence returned the two correct documents
+          (CACHE_AFFINITY_MATRIX.md, score 25.69). This wing keeps the scar; mistakes live closer to the truth
+          than the stage lights do.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "检索算法" : "Retriever"}</div>
+          <div class="almanac-instrument-value">BM25 · k1=1.2</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "语料 · 35 源文件 3,857 块" : "Corpus · 35 files · 3,857 chunks"}</div>
+          <div class="almanac-instrument-value">b=0.75</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "引用上限 k" : "Sources k"}</div>
+          <div class="almanac-instrument-value">2–8</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["BM25 不是语义召回", "精确措辞必胜；同义改写可能漏。它赌的是这本书每一行都写得够准。"],
+        ["CJK 二元字组", "此前整句中文一次都没找到过。修复在索引层，不在模型层。"],
+        ["命中率「低」是上报面产物", "chat 流式线缆不报 cached_tokens；带 key 后 97.5%；Responses 两种线缆都报，81–98%。"],
+        ["/api/rag/query 消耗真实 tokens", "面板每提交一个问题，就是一次真实调用；sources 逐条可展开，可复核。"],
+        ["两种语言，同一套代码", "中文模式 100% 中文，英文模式 100% 英文；问询从这间展厅开始。"],
+      ] : [
+        ["BM25 is not semantic recall", "Exact phrases win; paraphrase can lose. It bets this book is written precisely enough."],
+        ["CJK bigrams", "Before them, one Chinese sentence found nothing, ever. The fix lived in the index, not the model."],
+        ["“Low hit rate” is a reporting surface", "chat streaming never reports cached_tokens; with a key, 97.5%; the Responses wire reports it both ways, 81–98%."],
+        ["/api/rag/query spends real tokens", "Every question is one real call; every source expands in place, on screen."],
+        ["Two languages, one codebase", "zh mode is all Chinese; en mode is all English — the asking starts in this wing."],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "如果这间展厅有一天被人反过来问路，并且答得出来——那它从一开始就不只是一间展厅了。"
+          : "If this wing is ever asked for directions — and answers — then it was never just a wing."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -654,6 +736,7 @@ const CHAPTER_RENDERERS = {
   craft: () => craftMarkup(),
   backlog: () => backlogMarkup(),
   echo: () => echoMarkup(),
+  answer: () => answerMarkup(),
 };
 
 async function loadChapter(id) {

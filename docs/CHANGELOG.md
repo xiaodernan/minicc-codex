@@ -318,3 +318,5 @@
 - **T974 CI 红灯两处收口（M8-T976）**：`minicc/rag.py` 手写的 measured-usage 三键记录改走 `minicc.llm.usage.measured_usage`（one-home 门复绿）；`load_config` 的宽静默 except 体内陈述边界（route promises honest error payload, never a 500）——三个宽静默门复绿。门未放宽一格；Route Coverage 100%。
 
 - **RAG 提示语单语化（M8-T977）**：`minicc/rag.py` 的 system prompt 去掉双语兜底句串；模型只允许「复制问题语言作答、逐事实引用 [n]」，文档不覆盖时用问题语言回一句无混语的短话。en 复测零 CJK（`scripts/load-test.mjs` 回答带 `[1] [2]`）；zh 复测无英文混杂；`doc_pointers` rc=0。
+
+- **年鉴第十二卷「回问 / The Answer Back」上线（M8-T978）**：十三章叙事宫殿新增一卷——项目自己的 RAG 被写成博物馆文物（零 embedding、真 wkapi.pro 实答、CJK 二元字组修复的诚实伤疤、cached_tokens 不伪造）；`tests/almanac_smoke.mjs` 扩到 13 章双模式验证通过；manual/README 更新到十三卷。顺手删 `minicc/rag.py` 里指向不存在文件的 `ROOT/CONTRIBUTING.md`；语料实测：docs/*.md 34 + README.md = **35 源文件 / 3,857 块**。

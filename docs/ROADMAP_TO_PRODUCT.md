@@ -52163,3 +52163,22 @@ M8-T975/976 的面板真 E2E 实测（en locale）：模型在「文档不回答
 
 - 两语 E2E（Playwright + 真 key）双向通过；`doc_pointers` rc=0；`check:web` 干净；`test_rag_bm25_index.py` 8 passed（未动检索层）。
 - 边界：未把 CI 声称绿——本批 push 后以 `gh run` 实况为准。
+
+## 批次 970 - M8-T978：年鉴第十二卷「回问 / The Answer Back」——项目终于学会反过身来回答读者的问题
+
+### 1 背景
+
+M8-T971~T977 建好了检索（BM25）、回答（/api/rag/query）与面板（Ask the Docs）。本批把这条叙事写进年鉴：十二卷叙事宫殿迎来第十三章「卷十二 · 回问 / Chapter XII · The Answer Back」。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` 新增 `answerMarkup()`：标题「这间屋子一直被人 / 在它最需要的那天 / **它开始回答。**」；正文讲清 BM25（k1=1.2、b=0.75）零 embedding 的检索、真 key 真 wkapi.pro 的一次实答（prompt 19426 / completion 139 / total 19565，cached_tokens 不伪造）、以及 CJK 二元字组修复前的那个「3857 块零结果」的真失败；mint 左边框（`.almanac-answer`）；三枚仪器格「检索算法 BM25 · k1=1.2」「语料 · 35 源文件 3,857 块」「引用上限 k 2–8」；五行门的清单（精确措辞必胜 / CJK 二元字组 / 「命中率低是上报面产物」 / 消耗真实 tokens / 两种语言同一套代码）。
+- `tests/almanac_smoke.mjs` 增加 `answer` 章节及 marker，控制台文案改为 13 chapters；`web/src/panels/manual.js` 中/英文模块章节「年鉴：十二卷」→「十三卷，最新卷 XI→XII《回问/The Answer Back》」；README 年鉴节 12→13 卷、章节链新增 Answer Back；`web/styles.css` 追加 `.almanac-answer` mint 左边框。
+- 顺手收口语料事实：`minicc/rag.py` `_ROOT_FILES` 里一个永远不会命中的 `ROOT/CONTRIBUTING.md`（仓库根本没有这个文件；CONTRIBUTING.md 在 `docs/`，本就被 docs/*.md 覆盖）——删掉无效引用，注释写明 corpus = docs/*.md + README.md；askdocs 面板与 manual 第十章措辞同步改为「docs（含 CONTRIBUTING.md）+ README.md」。
+
+### 3 验证
+
+- `MINICC_WEB_URL=http://127.0.0.1:8899 node tests/almanac_smoke.mjs` → **passed: 13 chapters render fully bilingual, chapter switching verified, no mixed-language prose**（zh 全中文 / en 全英文）。
+- Playwright 双模式截图 `output/almanac_ch12_zh.png` / `output/almanac_ch12_en.png`：中文模式 kicker「卷十二 · 回问」、英文模式「CHAPTER XII · THE ANSWER BACK」，rails 目录完整（12→13 行均正确）。
+- `npm run build:web` 后 `check:web` 干净；`tests/almanac_smoke.mjs` 与 `tests/frontend_askdocs_one_home_smoke.mjs` 均 PASS；`doc_pointers` rc=0；RAG 8 项单元测试不受影响（未动检索层逻辑）。
+- corpus 计数实测：`BM25Index().docs` → **3,857 块 / 35 源文件**（docs/*.md 34 + README.md 1）。
