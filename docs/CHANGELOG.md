@@ -310,3 +310,5 @@
 - **仓库文档内置 BM25 RAG，M8-T971**：新模块 `minicc/rag.py`（Okapi BM25、CJK+alphanumeric 分词、3836 chunks 一次冷加载 0.49s / 0.08s cached）+ `GET /api/rag/search?q=…&k=5`（纯本地、零模型、零外部网络）——自带 `minicc.rag.reload_index()` 显式失效；Route Coverage 全 100%（GET 25/25）；`tests/test_rag_bm25_index.py` 7 项；`tests/test_http_surface.py` 94 项（含新端点）。
 
 - **RAG 真跑，M8-T973**：`/api/rag/query` — 仓库文档 BM25 top-k 检索 + 一次 chat.completions（wkapi.pro · gpt-6-sol）；`MINICC_*` env 同仓库其他 lane；`usage` 如实回传（prompt/completion/total，不伪造 cached_tokens）；api_key 从不进 prompt；任何异常退化到 200 + `error`；Route Coverage 100%；真密钥实测 roundtrip=280ms、sources 命中 CHANGELOG/ROADMAP 对应缓存亲和章节。
+
+- **CI 红灯三连修（M8-T974）**：`Python tests`（windows/ubuntu）与 `JavaScript syntax` job 的 3 个真实失败面全部修掉而非绕过 —— INDEX.md「性能与测量」登记 LOAD_TESTING.md；re-aimed citation `minicc/web.py:1804` 随 T970 memoization 平移至 `:1809`（第二处 `:2315`），两篇引测 docstring 与 REPAIRED 名册同步；`frontend_help_shortcuts_one_home_smoke.mjs` 重写为 single-source 世界的等强断言（SHORTCUT_GROUPS 家 + main.js 绑定面全覆盖 + zh/en 双标签非空）；顺带删 `minicc/rag.py` 未被引用的 `_DOC_FILE`。门一格没放宽。

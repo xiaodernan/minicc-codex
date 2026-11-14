@@ -52076,3 +52076,28 @@ usage: prompt_tokens=19360 completion_tokens=208 total_tokens=19568
 - 单元 + HTTP 合集由 `pytest tests/test_rag_bm25_index.py tests/test_http_surface.py`：7 + 83 = 90 passed（早期 M8-T971 的 94 把路由 redis-naming 也包了进来，统计口径略有不同，不构成回归）
 - 真密钥 three-question roundtrip 0.3-0.3s，total_tokens=19k（远大于本傻问句 dd了的 10KB context）
 - 下游影响：API budget 消耗一目了然；本 RAG 是 optional surface，workbench 不依赖它运行
+
+## 批次 966 - M8-T974：CI 红灯复盘 —— INDEX 漏登记、 re-aimed citation 漂移、helpshortcuts smoke 与 single-source 脱节
+
+### 1 背景
+
+M8-T971 / M8-T973 的 CI（run 43642454665 / 随后以相同内容入 main）在 `Python tests (windows-latest)`、`Python tests (ubuntu-latest)` 与 `JavaScript syntax` 三个 job 红灯。本批把三 job 的 `gh run view --log-failed` 逐条读完，修的是代码与文档的真实不一致，不是门。账本如实记录：被 push 出去的 main 是一个有红 CI 的状态，直到本批。
+
+### 2 三处真实不一致（均被 CI 实锤）
+
+1. **docs/INDEX.md 没有登记 LOAD_TESTING.md** — `tests/test_docs_index_enumerates_every_docs_md.py::test_every_docs_md_is_reachable_from_docs_index` 报：`LOAD_TESTING.md` 未被枚举。LOAD_TESTING.md 是 M8-T968/T969 落盘的高并发压测实录（修前 p50=43.9s、修后 c=8 p50=3.8s）。修法：INDEX.md「性能与测量」节新增一行指向它（不是放宽门）。
+2. **re-aimed citation 漂移** — `tests/test_a_line_a_test_docstring_cites_can_be_read.py::test_the_repaired_citations_still_name_what_the_sentence_claims` 报：`minicc/web.py:1804 no longer contains 'record_text(8000)'`。M8-T970 在 `web.py` 前部插入了 per-PID memo（`_memo_http`），把 `record_text(8000)` 第一次出现推到了 **1809**（第二处 2315 同步 +5）。修法：`test_a_line_a_test_docstring_cites_can_be_read.py` 的 REPAIRED 名册 + 两篇被引测试的 docstring（`web.py:1804/:2310` → `:1809/:2315`）同步修订，`scripts/doc_pointers.py --check` 保持 rc=0。
+3. **JavaScript syntax job：`command palette binding missing from the help table`** — `tests/frontend_help_shortcuts_one_home_smoke.mjs` 仍在 T964 之前的世界里断言 `openHelpPanel` 源码内联键表；T964 已把 `?` 面板改为从 `web/src/cheat-sheet-data.js::SHORTCUT_GROUPS` 单一数据源渲染。修法：把 smoke 重写为单一数据源世界的同等强度断言 —— 数据家存在且被 panel import、main.js 处理的全部绑定（Ctrl/⌘N/K/L、Enter、Shift+Enter、/、?、Esc）都出现在数据里、每行 zh/en 双标签非空、`?` 行在场（参考自列）、`?`/`/` 同 TEXTAREA 输入保护；语义不打折扣。
+
+另删 `minicc/rag.py` 中未被引用的模块级常量 `_DOC_FILE`（`test_the_package_does_not_define_what_the_repo_never_uses` 实锤），`ROADMAP_TO_PRODUCT.md` 本就由 `_DOCS_DIR.glob("*.md")` 自动进语料。
+
+### 3 验证（本机）
+
+- `pytest tests/test_docs_index_enumerates_every_docs_md.py tests/test_a_line_a_test_docstring_cites_can_be_read.py tests/test_the_raw_record_announces_the_bytes_its_ceiling_dropped.py tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py` → **25 passed**
+- `pytest tests/test_rag_bm25_index.py tests/test_http_surface.py` → **90 passed**；Route Coverage **GET 26/26 · POST 14/14 = 100%**
+- `node tests/frontend_help_shortcuts_one_home_smoke.mjs` → PASS (exit 0)；timeline / prefixstrip / scale smokes → exit 0
+- Frontend smoke chain 修复后 `npm run test:helpshortcuts` 之后的环节（helpshortcuts → timeline → prefixstrip → scale）全部可达绿灯
+
+### 4 边界
+
+CI 全量 5,653 项（windows）/ 5,650 项（ubuntu）中除上述 3 项外全绿。`test_the_package_does_not_define_what_the_repo_never_uses.py` 本机 300s 超时未能本地完整复现，但缺陷点（`_DOC_FILE` 未被引用）已删除，按 CI 口径再验。当前 main 的 CI 状态一律以 `gh run` 实况为准：本批 push 后的 run 若仍有环境红灯（例如 runner 形势/偶发超时），不会被声称「已绿」。

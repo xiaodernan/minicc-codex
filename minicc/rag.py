@@ -24,7 +24,6 @@ _ROOT_FILES = (
     Path(__file__).resolve().parent.parent / "README.md",
     Path(__file__).resolve().parent.parent / "CONTRIBUTING.md",
 )
-_DOC_FILE = Path(__file__).resolve().parent.parent / "docs" / "ROADMAP_TO_PRODUCT.md"
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]{2,}")
 
@@ -118,16 +117,6 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
                 "usage": None,
                 "error": f"config-unavailable: {type(exc).__name__}: {exc}",
             }
-    if config is None:
-        return {
-            "query": query,
-            "answer": "",
-            "sources": sources,
-            "model": None,
-            "usage": None,
-            "error": "config-unavailable",
-        }
-
     # Headers carry the key as a constant; never insert it into the prompt.
     model_name = str(getattr(config, "model", "gpt-6-sol") or "gpt-6-sol")
     base_url = str(getattr(config, "base_url", "https://wkapi.pro/v1") or "https://wkapi.pro/v1")
