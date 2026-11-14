@@ -50,6 +50,7 @@
 ## 性能与测量
 
 - [PERFORMANCE.md](PERFORMANCE.md) —— 实测过的性能改进与资源治理决策（import 时间、SQLite JSON1 过滤、impact BFS、网关 Redis 缓存、前端对比度门与内容寻址产物）；未经复测的不默认完成。
+- [CACHE_AFFINITY_MATRIX.md](CACHE_AFFINITY_MATRIX.md) —— wkapi.pro · gpt-6-sol 的 prompt_cache_key 亲和实测矩阵（Responses 流/非流报告 cached_tokens；chat/completions 流式不上报、带 key 后上报）——为什么「命中率显示低」是上报面产物而不是缓存失效。
 
 ## 阅读路径建议
 
