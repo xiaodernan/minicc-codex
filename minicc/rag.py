@@ -17,6 +17,7 @@ can ever hope to, because the project uses the exact phrase in the docs.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from pathlib import Path
@@ -105,6 +106,15 @@ def search(query: str, limit: int = 5) -> list[dict[str, Any]]:
     return _LazyIndex.get().search(query, limit=limit)
 
 
+def _prompt_cache_key(base_url: str, model: str, explicit: str = "") -> str:
+    """Same affinity-key discipline as the provider: an explicit key wins,
+    otherwise a salted hash of gateway+model — stable across processes."""
+    explicit = (explicit or "").strip()[:64]
+    if explicit:
+        return explicit
+    return f"minicc-{hashlib.sha256(f'{base_url}|{model}'.encode('utf-8')).hexdigest()[:16]}"
+
+
 def reload_index() -> int:
     """Invalidate the cached index (call after docs change)."""
     _LazyIndex._instance = None
@@ -144,6 +154,8 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
     model_name = str(getattr(config, "model", "gpt-6-sol") or "gpt-6-sol")
     base_url = str(getattr(config, "base_url", "https://wkapi.pro/v1") or "https://wkapi.pro/v1")
     api_key = str(getattr(config, "api_key", "") or "")
+    explicit_key = str(getattr(config, "prompt_cache_key", "") or "")
+    cache_key = _prompt_cache_key(base_url, model_name, explicit_key)
 
     prompt = (
         "You answer only from the documents below. Copy the language of the question.\n"
@@ -162,6 +174,7 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             messages=messages,
             max_tokens=max_output_tokens,
             temperature=0,
+            prompt_cache_key=cache_key,
         )
         from .llm.usage import measured_usage, token_count
 
@@ -172,6 +185,16 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             token_count(getattr(usage_obj, "completion_tokens", 0), 0) or 0,
             token_count(getattr(usage_obj, "total_tokens", None), None),
         )
+        # Report cache visibility honestly when the gateway reports it.
+        # Never fabricate: absent details → key absent.
+        details = getattr(usage_obj, "prompt_tokens_details", None)
+        cached = None
+        if isinstance(details, dict):
+            cached = details.get("cached_tokens")
+        elif details is not None:
+            cached = getattr(details, "cached_tokens", None)
+        if isinstance(cached, (int, float)) and not isinstance(cached, bool):
+            usage["prompt_cache_hit_tokens"] = int(cached)
         # Note: /usage does not carry cached_tokens on chat/completions; it is
         # intentionally honest about that — we do not fabricate a cache hit rate.
         return {

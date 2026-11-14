@@ -324,3 +324,5 @@
 - **高并发修复（M8-T979）**：`MiniccHTTPServer.request_queue_size` 5→128（SOCKET 层被丢包根治）；`serve()` 启动即开 `minicc-prefetch` 预热 stats/digest/roadmap 冷缓存（`--no-prefetch` 退出）；`AgentService._memo_http` 新增 single-flight lock（TTL 边界不再 N 倍重建）；stats/digest/roadmap memo 5s→30s；20-路冷压复测 **0 错误**（health/metrics/digest/stats/roadmap 全部 200，p50 ≤ 4.2ms）；`docs/LOAD_TESTING.md` 实测数据刷新；GIL 瓶颈如实记录未消除。
 
 - **`/api/workspace` 进 memo（M8-T980）**：`git worktree list` 仍昂贵，入口改走 single-flight `_memo_http`（10s TTL）——冷 1.1s → 热 104-139ms；c=20 × 15s 全路径 1,497×200、0 错误、p50 ≤ 22ms；117 项测试绿；Route Coverage 不变。
+
+- **RAG 通道 prompt_cache_key 落地（M8-T981）**：`minicc/rag.py::answer` 自派生 `minicc-<sha256(base_url|model)[:16]>` 的 affinity key（显式 `MINICC_PROMPT_CACHE_KEY` 优先）；`usage` 如实解析 `prompt_tokens_details.cached_tokens`；「问仓库」用量条新增「缓存命中 N（P%）」；真 key 同题两连问实测 **19082/19085 = 99.98%**（此前该键不可见）；CACHE_AFFINITY_MATRIX.md 刷新。

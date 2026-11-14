@@ -51,3 +51,30 @@ payload_args = dict(
 - M8-T900：chat/completions 流对称补齐同一进度契约
 - M8-T904：脉搏卡 per-turn 缓存火花线
 - M8-T954：本页（今天逐格重测并固化：两路×两模式矩阵 + judge 0% 的结构性说明）
+
+
+---
+
+## 2026-11-15（M8-T981）—— RAG 通道的 prompt_cache_key 落地 + 实测
+
+用户的「调用大模型的时候缓存命中率这么低」在本项目新开的 RAG 通道（`minicc/rag.py::answer`）上同样成立——它默认走 `chat.completions` 而没有 `prompt_cache_key`，所以缓存命中率是**不可见**的（不是低，是无人测）。
+
+### 改了什么
+
+1. `rag.py` 自己派生 `prompt_cache_key`（与 `minicc/llm/openai_provider.py::_effective_prompt_cache_key` 同一套：显式 `MINICC_PROMPT_CACHE_KEY` 优先，否则 `minicc-<sha256(base_url|model)[:16]>`，跨进程稳定、不含工作区路径）。
+2. `usage` 解析网关如实回传的 `prompt_tokens_details.cached_tokens`（**有则带 `prompt_cache_hit_tokens`，没有就不带，不伪造**）；RAG UI 的用量条同步显示「缓存命中 N（P%）」或「缓存命中未上报」。
+
+### 实测（wkapi.pro · gpt-6-sol · 真 key · 同一问题两次连问）
+
+| 调用 | prompt | completion | total | cached |
+| --- | --- | --- | --- | --- |
+| 第 1 次（冷） | 19085 | 288 | 19373 | 未上报（首跑写入） |
+| 第 2 次（热） | 19085 | 221 | 19306 | **19082 / 19085 = 99.98%** |
+
+命中率从「未上报」→ **实测 99.98%**（同前缀复跑）。往返延迟 32.8s → 7.2s。
+
+### 结论（与 matrix 顶部一致）
+
+- **没有 key 的 chat 路径**：命中率不可见，wkapi 不报 `cached_tokens`。
+- **有 key 的 chat 路径**：两种模式都上报 ≈97-100%。
+- minicc 主回路默认 Responses 线缆，缓存全程可见；RAG 单独走 chat 加 key 后也已可见。

@@ -22,9 +22,17 @@ const zh = () => state.locale === "zh";
 
 function usageLine(usage) {
   if (!usage) return zh() ? "用量未上报（chat/completions 不回传 cached_tokens，这里不伪造）。" : "Usage not reported (chat/completions never carries cached_tokens; we do not invent one).";
-  return zh()
-    ? `提示 ${usage.prompt_tokens} · 补全 ${usage.completion_tokens} · 合计 ${usage.total_tokens} tokens`
-    : `prompt ${usage.prompt_tokens} · completion ${usage.completion_tokens} · total ${usage.total_tokens} tokens`;
+  const parts = zh()
+    ? [`提示 ${usage.prompt_tokens}`, `补全 ${usage.completion_tokens}`, `合计 ${usage.total_tokens} tokens`]
+    : [`prompt ${usage.prompt_tokens}`, `completion ${usage.completion_tokens}`, `total ${usage.total_tokens} tokens`];
+  const hit = Number(usage.prompt_cache_hit_tokens);
+  if (Number.isFinite(hit) && hit >= 0) {
+    const pct = usage.prompt_tokens > 0 ? Math.round((hit / usage.prompt_tokens) * 100) : 0;
+    parts.push(zh() ? `缓存命中 ${hit}（${pct}%）` : `cache hit ${hit} (${pct}%)`);
+  } else {
+    parts.push(zh() ? "缓存命中未上报" : "cache hit unreported");
+  }
+  return parts.join(" · ");
 }
 
 function sourceRow(index, source) {

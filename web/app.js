@@ -3862,7 +3862,15 @@
   var zh5 = () => state.locale === "zh";
   function usageLine(usage) {
     if (!usage) return zh5() ? "\u7528\u91CF\u672A\u4E0A\u62A5\uFF08chat/completions \u4E0D\u56DE\u4F20 cached_tokens\uFF0C\u8FD9\u91CC\u4E0D\u4F2A\u9020\uFF09\u3002" : "Usage not reported (chat/completions never carries cached_tokens; we do not invent one).";
-    return zh5() ? `\u63D0\u793A ${usage.prompt_tokens} \xB7 \u8865\u5168 ${usage.completion_tokens} \xB7 \u5408\u8BA1 ${usage.total_tokens} tokens` : `prompt ${usage.prompt_tokens} \xB7 completion ${usage.completion_tokens} \xB7 total ${usage.total_tokens} tokens`;
+    const parts = zh5() ? [`\u63D0\u793A ${usage.prompt_tokens}`, `\u8865\u5168 ${usage.completion_tokens}`, `\u5408\u8BA1 ${usage.total_tokens} tokens`] : [`prompt ${usage.prompt_tokens}`, `completion ${usage.completion_tokens}`, `total ${usage.total_tokens} tokens`];
+    const hit = Number(usage.prompt_cache_hit_tokens);
+    if (Number.isFinite(hit) && hit >= 0) {
+      const pct = usage.prompt_tokens > 0 ? Math.round(hit / usage.prompt_tokens * 100) : 0;
+      parts.push(zh5() ? `\u7F13\u5B58\u547D\u4E2D ${hit}\uFF08${pct}%\uFF09` : `cache hit ${hit} (${pct}%)`);
+    } else {
+      parts.push(zh5() ? "\u7F13\u5B58\u547D\u4E2D\u672A\u4E0A\u62A5" : "cache hit unreported");
+    }
+    return parts.join(" \xB7 ");
   }
   function sourceRow(index, source) {
     const score2 = typeof source.score === "number" ? source.score : 0;

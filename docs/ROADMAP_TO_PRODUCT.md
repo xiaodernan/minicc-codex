@@ -52232,3 +52232,22 @@ M8-T979 后 `/api/workspace` 仍是 20-路唯一在 1s 以上的一条（p50 ≈
 - workspace 三次连打：1137ms（冷）→ 139ms → 104ms（缓存命中）。
 - 20-way × 15s：**每条路径 1,497 × 200，0 错误，p50 ≤ 22ms**（workspace 18.7ms / stats 19.6ms / digest 19.0ms）。
 - `pytest tests/test_http_surface.py tests/test_http_route_inventory.py tests/test_workspaces.py tests/test_workspaces_pure.py` → **117 passed**；Route Coverage 不受影响；`doc_pointers` rc=0；`docs/LOAD_TESTING.md` 刷新第五次。
+
+## 批次 973 - M8-T981：RAG 通道接上 prompt_cache_key —— 缓存命中率 99.98% 实测
+
+### 1 背景
+
+用户反馈（2026-11 多次重复）：「调用大模型 api 时缓存命中率这么低……一直显示非流」。主回路已由 M8-T878/879/897/900/954 修复并固化（`docs/CACHE_AFFINITY_MATRIX.md`）；但本项目新开的 **RAG 通道**（`minicc/rag.py::answer`，T971 落 BM25、T973 真跑、T975 面板）默认走 `chat.completions` 且**没有任何 cache key**——命中率不是低，是不可见。本批把它接上并实测。
+
+### 2 做了什么
+
+- `minicc/rag.py` 自派生 `prompt_cache_key`（同 Provider 口径：`minicc-<sha256(base_url|model)[:16]>`，显式 `MINICC_PROMPT_CACHE_KEY` 优先；零工作区路径泄漏）。
+- `answer()` 解析 `prompt_tokens_details.cached_tokens` 并如实附到 `usage`（网关不报则不带该键；**不伪造**）。
+- 「问仓库」面板用量条：显示「缓存命中 N（P%）」或「缓存命中未上报」，中英 locale 双语。
+- `docs/CACHE_AFFINITY_MATRIX.md` 新增 2026-11-15 RAG 通道实测段：冷 0/19085（未上报）→ **热 19082/19085 = 99.98%**（wkapi.pro · gpt-6-sol）；延迟 32.8s → 7.2s（同前缀复跑）。
+
+### 3 验证
+
+- 真 key 真调用（wkapi.pro · gpt-6-sol · temperature=0）：同一问题连续两问，第二问 `prompt_cache_hit_tokens=19082`，总 token 19085；`error: None`；前端面板截图验证用量条新增缓存命中项（Playwright EN/zh 复测无 CJK 泄漏）。
+- `pytest tests/test_rag_bm25_index.py` → 8 passed；`node tests/frontend_askdocs_one_home_smoke.mjs` → exit 0；`npm run build:web` 后 `check:web` 干净；Route Coverage 不受影响；`doc_pointers` rc=0。
+- 边界：缓存命中率数字依赖 wkapi 侧 shard 亲和（客户端无法强制）；换网关需保持同一 key，否则换网关=全冷（doctor `prefix cache:` 行已如实提示）。
