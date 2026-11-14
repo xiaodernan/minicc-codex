@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T18:21:53.106Z",
+  "generated_at": "2026-11-14T18:43:00.593Z",
   "branch": "main",
-  "head": "e60c415",
-  "total_commits": 1503,
+  "head": "9277dc3",
+  "total_commits": 1505,
   "recent_commits": [
+    {
+      "short": "9277dc3",
+      "at": "2026-11-15T02:42:36+08:00",
+      "subject": "M8-T960: '/' filters the recent-task list in the sidebar - live debounced search, Enter opens first match, Esc clears, MutationObserver re-applies across the hi"
+    },
+    {
+      "short": "ccedb4e",
+      "at": "2026-11-14T18:21:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e60c415",
       "at": "2026-11-15T02:21:30+08:00",
@@ -19,23 +29,13 @@
       "short": "a82459c",
       "at": "2026-11-15T02:16:43+08:00",
       "subject": "M8-T957: /api/digest in parallel - the 9 read-only git probes now run concurrently; wall clock 1.34s -> ~0.6s, payload identical (measured gate: test_workspace_"
-    },
-    {
-      "short": "04276fb",
-      "at": "2026-11-14T18:02:53Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7ccdf97",
-      "at": "2026-11-15T02:02:28+08:00",
-      "subject": "M8-T956: almanac volume X The Unfinished - the wing is still under construction; live commits instrument (commits/chapters/HEAD) plus the six newest shipments r"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 278,
+  "roadmap_batches": 279,
   "changelog_entries": 1,
-  "roadmap_lines": 51773,
-  "tracked_files": 1052,
+  "roadmap_lines": 51796,
+  "tracked_files": 1053,
   "test_files": 702,
   "almanac_chapters": 11,
   "module_count": 14,
