@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T21:48:22.731Z",
+  "generated_at": "2026-11-14T22:03:41.174Z",
   "branch": "main",
-  "head": "47ac03a",
-  "total_commits": 1528,
+  "head": "61357a0",
+  "total_commits": 1530,
   "recent_commits": [
+    {
+      "short": "61357a0",
+      "at": "2026-11-15T06:03:20+08:00",
+      "subject": "M8-T974: CI red-job post-mortem fixed, gates unchanged - INDEX enumerates LOAD_TESTING.md, re-aimed citation web.py:1804->1809 (T970 line shift +5), helpshortcu"
+    },
+    {
+      "short": "d5c4f01",
+      "at": "2026-11-14T21:48:23Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "47ac03a",
       "at": "2026-11-15T05:48:00+08:00",
@@ -19,22 +29,12 @@
       "short": "9f285a9",
       "at": "2026-11-15T05:22:06+08:00",
       "subject": "M8-T971: /api/rag/search - in-process Okapi BM25 over the repo-docs corpus, zero deps, lazy index (0.49s load / 0.08s cached), route coverage 25/25; 94 http_sur"
-    },
-    {
-      "short": "95ff007",
-      "at": "2026-11-14T21:08:33Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a2668a3",
-      "at": "2026-11-15T05:08:13+08:00",
-      "subject": "M8-T970: /api/stats+digest+roadmap per-PID memo (5s TTL) - 20-way concurrent crash-loop eliminated at c=8, /api/stats p50 43.9s->3.8s, /api/roadmap p50=3.12ms; "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 290,
+  "roadmap_batches": 291,
   "changelog_entries": 1,
-  "roadmap_lines": 52079,
+  "roadmap_lines": 52104,
   "tracked_files": 1059,
   "test_files": 703,
   "almanac_chapters": 12,
