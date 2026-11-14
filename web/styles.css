@@ -4619,3 +4619,31 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .recent-entry { grid-template-columns: 44px auto 1fr; padding: 8px 10px; }
   .recent-foot { flex-direction: column; align-items: stretch; }
 }
+
+/* ============================================================
+   Celebration — a brief burst when a task actually completes.
+   ============================================================ */
+
+.celebration-layer { position: fixed; inset: 0; pointer-events: none; z-index: 95; overflow: hidden; }
+.celebration-spark {
+  position: fixed;
+  left: var(--cx);
+  top: var(--cy);
+  width: var(--size);
+  height: var(--size);
+  margin-left: calc(var(--size) / -2);
+  margin-top: calc(var(--size) / -2);
+  background: var(--color);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(0, 0) scale(.4) rotate(0deg);
+  animation: celebration-fly 1.25s var(--delay) cubic-bezier(.17, .67, .23, .99) forwards;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color) 60%, transparent);
+}
+.celebration-spark:nth-child(odd) { border-radius: 2px; }
+@keyframes celebration-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(.3) rotate(0deg); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.05) rotate(var(--spin)); }
+}
+@media (prefers-reduced-motion: reduce) { .celebration-layer { display: none; } }

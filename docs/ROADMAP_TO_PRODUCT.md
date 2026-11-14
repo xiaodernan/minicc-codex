@@ -51493,3 +51493,24 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 
 - 本地 `node scripts/update-latest-json.mjs` 输出 `recent_commits` 正确 ✓
 - `.github/workflows/update-latest.yml` 在推送后自动刷新事实包（`main` 含该脚本 → 触发一次新的 bot refresh）。
+
+## 批次 941 - M8-T946：任务完成时的彩带——真做完才算数
+
+### 1 背景
+
+工作台完成一件任务，此刻竟然唯一的信号是“已完成”标签和一个不到 2 秒的 toast——没有庆祝，也没有让用户确信“这个瞬间值得保留”。本批次补上这最后一英寸的仪式感。
+
+### 2 变更
+
+- 新增 `web/src/celebration.js`：26 枚彩色火花沿气泡中心飞散（mint / amber / violet / blue / rose / orange），`prefers-reduced-motion` 时完全不渲染。CSS `.celebration-spark` + `celebration-fly` keyframes，`z-index:95` 安置在所有 modal 之下。
+- `web/src/panels/index.js` 的 `addAssistantMessage`：live completion path（`loadingId` 存在且 `status==="completed"`）时调用 `celebrate(renderedNode)`；非 live、失败、取消、刷新恢复时不出现。
+- 全前端零新增 i18n key（burst 不产生文字）；空 canvas / 颜色双语 / 现有提示文本不变。
+
+### 3 验证
+
+- fake provider 真浏览器（`MINICC_FAKE_PROVIDER=1` + 新 session id `celebration-<ts>`）：
+  - 点击空台芯片（"读一下 README.md……"）→ send → 答案出来 → `.celebration-spark` 26 枚 DOM 节点 ✓
+  - 颜色样本［mint #34d399 / amber #fbbf24 / violet #a78bfa / blue #60a5fa］✓
+- `npm run test:web` → web smoke passed，product path 完好 ✓
+- `npm run test:i18n` → 579 keys / 218 literal t() 全可解析 ✓
+- 不干扰恢复路径（`loadingId` 不传=false）：不触发庆祝 ✓

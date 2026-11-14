@@ -260,3 +260,5 @@
 - **空台焕新（M8-T944）**：`web/src/chat/markdown.js` 的 `emptySessionMarkup()` 重做——环形轨道（orbit）+ 碑记 M 徽标 + 涟漪微动 + 三枚一键 pills（读 README / 跑测试 / 审 diff，中英同版，i18n 双语），按钮 click 即填入 composer；`web/index.html` 静态占位空台同步；M8-T892 时代 `.empty-mark` / `.empty-actions` 死规则清理；空台 chip 绑定改为 `#messageList` 委托；Playwright zh/en 双路验证渲染与填入。
 
 - **事实包带最近提交 + 展示页最近提交条，M8-T945**：`scripts/update-latest-json.mjs` 新增 `recent_commits`（5 条最新，schema 保持 `minicc.latest.v1`，新增不破）；`xiaodernan.github.io` 的 minicc 卡片新增 `.minicc-latest-commits` 渲染器，按事实包实时渲染（5 行 coral 等宽 short + 原始 subject）——访客每次进卡片看到最新的开发故事，不再只有数字。
+
+- **任务完成庆祝彩带，M8-T946**：新增 `web/src/celebration.js`——26 枚彩色火花从气泡中心向外飞散（`prefers-reduced-motion` 完全不渲染）；`addAssistantMessage` 只在 live + `status==='completed'` 的路径上触发，restore / 失败 / 非当前任务路径不变。首次证明“做完一件事给用户一个让人需要太久的呼气”。

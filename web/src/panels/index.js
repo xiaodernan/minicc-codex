@@ -9,6 +9,7 @@ import { isTerminalTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
 import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, PERMISSION_MODES, TASK_PHASES, TERMINAL_TASK_STATUSES, TODO_PRIORITIES, TODO_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
+import { celebrate } from "../celebration.js";
 
 export function showToast(message) {
   const toast = $("#toast");
@@ -1954,12 +1955,17 @@ export function addAssistantMessage(data, loadingId = "") {
   const chatPosition = captureChatPosition();
   const loading = loadingId ? document.getElementById(loadingId) : null;
   const anchor = loadingId ? `live-${loadingId}` : "";
+  let renderedNode = null;
   if (loading) {
     const replacement = document.createElement("div");
     replacement.innerHTML = assistantMessageMarkup(data, anchor);
-    loading.replaceWith(replacement.firstElementChild);
+    renderedNode = replacement.firstElementChild;
+    loading.replaceWith(renderedNode);
   } else {
-    $("#messageList").insertAdjacentHTML("beforeend", assistantMessageMarkup(data, anchor));
+    const holder = document.createElement("div");
+    holder.innerHTML = assistantMessageMarkup(data, anchor);
+    $("#messageList").insertAdjacentHTML("beforeend", holder.innerHTML);
+    renderedNode = $("#messageList").lastElementChild;
   }
   state.turns += Number(data.turns || 0);
   state.tools += Number(data.tool_calls_total || 0);
@@ -1967,6 +1973,9 @@ export function addAssistantMessage(data, loadingId = "") {
   $("#toolMetric").textContent = state.tools;
   updateTaskDock(data);
   refreshIcons();
+  // M8-T946: celebrate a completed task in the visible live path only.
+  // Never on restore, never for background (non-current) tasks.
+  if (loadingId && String(data?.status || "") === "completed") celebrate(renderedNode);
   persistSessionView();
   restoreChatPosition(chatPosition, false);
 }
