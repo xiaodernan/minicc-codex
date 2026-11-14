@@ -736,6 +736,30 @@ def test_get_roadmap_answers_the_archive(live: _LiveServer, tmp_path: Path) -> N
     ]
 
 
+def test_get_rag_search_returns_bm25_results(live: _LiveServer, tmp_path: Path) -> None:
+    """M8-T971: /api/rag/search is a read-only, in-process BM25 retrieval over
+    the repo's own bundled documentation. It never makes network calls,
+    returns at most k snippets, and survives unknown/empty queries."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "DEMO.md").write_text(
+        "# demo\n\n缓存命中率低时，看看 prefix_cache_key 有没有同样的前缀。\n\n"
+        "load test at twenty concurrent requests: every cold /api/stats walk\n"
+        "is on you.\n\n",
+        encoding="utf-8",
+    )
+    status, _, body = _request(f"{live.url}/api/rag/search?q=%E7%BC%93%E5%AD%98&k=3", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["q"]
+    assert "results" in payload
+    assert isinstance(payload["results"], list)
+    # Empty query degrades to empty list, never 500
+    status, _, body = _request(f"{live.url}/api/rag/search?q=&k=5", method="GET")
+    assert status == 200
+    assert json.loads(body)["results"] == []
+
+
 def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:
     status, _, body = _request(f"{live.url}/api/models", method="GET")
     assert status == 200

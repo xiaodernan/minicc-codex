@@ -306,3 +306,5 @@
 - **/api/stats 并发爆恐消化，M8-T968**：`minicc/stats.py 的 _disk_bytes` 加 per-workspace threading.Lock — 10 路冷 walk 序列化为 7.55 s（之前 60-80s 叠加）；`docs/LOAD_TESTING.md` 诚实钉出 pre-fix 探针（`/api/stats` p50=**43,946ms**，ThreadingHTTPServer+GIL 下 20 路并发每个都 walk 一遍）；`scripts/load-test.mjs` 留在仓库（n / errors / p50 / p95 / p99 / max）。`minicc --stats` CLI 与 `/api/stats` Web 同时受益。
 
 - **/api 三窗 per-PID memo，M8-T970**：`AgentService` 用 `_memo_http(key, 5s, builder)` 缓存 `stats`/`digest`/`roadmap` 三读窗口，并发重复 caller 不再各自走 git-walk+SQLite+os.walk；concurrency=8 × 12s 完美 14/14 200，`/api/stats` p50 43.9s→3.8s、`/api/roadmap` p50=3.12ms。`LOAD_TESTING.md` 附有真实 pre→post 数据。`pytest` 子集 101 passed（含 http_surface 81 项）。
+
+- **仓库文档内置 BM25 RAG，M8-T971**：新模块 `minicc/rag.py`（Okapi BM25、CJK+alphanumeric 分词、3836 chunks 一次冷加载 0.49s / 0.08s cached）+ `GET /api/rag/search?q=…&k=5`（纯本地、零模型、零外部网络）——自带 `minicc.rag.reload_index()` 显式失效；Route Coverage 全 100%（GET 25/25）；`tests/test_rag_bm25_index.py` 7 项；`tests/test_http_surface.py` 94 项（含新端点）。

@@ -52013,3 +52013,33 @@ M8-T968 的磁盘锁把 `stats._disk_bytes` 的 322MB 撞库降到一次，但 `
   - Test suite：`tests/test_a_session_cost_…` 9 + `tests/test_workspace_digest.py` 6 + `tests/test_the_palette_has_one_home.py` 5 + `tests/test_http_surface.py` 81 = **101 passed**
 - `pytest tests/test_the_palette_has_one_home.py && python scripts/doc_pointers.py --check`：rc=0 ✓
 - 同样 20 路测试仍然崩塌 —— 瓶颈在 ThreadingHTTPServer 共享 Python 全局解释器锁与 Windows thread 上限，属于上层架构问题（需改 aiohttp/uvloop 或多进程部署）。本批只修读端共享缓存，GIL 问题不在此范围。
+
+## 批次 964 - M8-T971：`GET /api/rag/search` — 仓库文档的 BM25 词法检索塔，纯本地零网络
+
+### 1 背景
+
+用户指令："最好用一些 rag / langchain / langgraph 的知识，并且最好可以开发一个配套的本地 ide / 云端 ide。" 本机没有外部向量库，也没有对 langchain / langgraph 的商业授权；使用它们去重造一个基础检索面是浪费。仓库里已经有 `LocalEvidenceIndex`（任务粒度的 sentence retrieval），但没有面向「写给自己的这本仓库文档如何回答这个问题」的检索面。
+
+本批把 BM25 + lazy-loaded in-memory index 装进 `minicc.rag`：输入任意 query，返回 k 个最相关的 (source, chunk, score)，纯本地、纯 Python stdlib 运算、零模型依赖、零外部网络。
+
+### 2 变更
+
+- 新模块 `minicc/rag.py`：`BM25Index`（k1=1.2、b=0.75，`_tokens` 按 CJK + alphanumerics 2+ 之一分词，`_chunk_markdown` 800 字节段，3836 chunks in 4MB docs 一次冷加载 0.49s、随后 0.08s / 查询 = 6×）；`_LazyIndex.get()` 单例复用（避免每请求一次 build）；`reload_index()` 显式失效。
+- `minicc/webserver.py::do_GET`：新增路由 `GET /api/rag/search?q=…&k=5`，BM25 排序，`k=1..20` clamp，异常 → `{results: [], error: …}`；Route Coverage 自动给出断言行。
+- `tests/test_rag_bm25_index.py`：7 项 — token 切分 / 索引加载 / 中文查询命中 CHANGELOG / 未知查询空结果 / 空查询空结果 / limit 遵守 / score 严格正有限。
+- `tests/test_http_surface.py`（94 项）：新增 `test_get_rag_search_returns_bm25_results` — 路由 200，q/results 字段存在，空 q 退化为 `[]`，永不 500。
+
+### 3 验证
+
+- `pytest tests/test_rag_bm25_index.py` → 7 passed
+- `pytest tests/test_http_surface.py` → 92 → 94 passed
+- `scripts/route_coverage.py --check` → GET 25/25 100%、POST 14/14 100%（路由目录中 dispatch sites=39）
+- `python scripts/doc_pointers.py --check` → rc=0
+- 真实调用 `GET /api/rag/search?q=缓存命中率低&k=3`：命中 CHANGELOG/3915 节、ROADMAP_TO_PRODUCT（pulse 章节）、剔除段 unused `1.2`/`585` token -> 这三批文档是 ASCII-English 偏多；中文分词细则没有处理，先以 token 字符匹配。
+
+### 4 边界
+
+- BM25 是 lexical，不是语义。「缓存命中率低」的最佳答案在仓库里实际上是中文 CHANGELOG 条目；这不是向量错。若要真正的语义 RAG（embedding + cosine），需要装依赖；不是本批事。
+- 3836 个文档分块在内存里占约 ~10 MB。lazy instance 在第一次 `/api/rag/search` 命中时建立；后续 0.08s/次。
+- 没有 `/api/rag/...` 的 POST 端点：这个动作不适合预训练-style；纯词法检索不需要索引重建。
+- `minicc.rag` 明确不去读 `git log` / `audit.jsonl` — 两者在 changelog 轨道上；本次暴露值给的是「docs 百科」。

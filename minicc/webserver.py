@@ -405,6 +405,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # gate - a non-git workspace answers 200 with is_git: false.
             self._json(self.server.service.digest())
             return
+        if path == "/api/rag/search":
+            # M8-T971: lexical BM25 retrieval over our own docs + README.
+            # Answers "which document explains this" without leaving the repo
+            # or reaching the network; never raises on an odd query.
+            try:
+                query = parse_qs(parsed.query)
+                q = (query.get("q") or [""])[0].strip()
+                try:
+                    limit = int((query.get("k") or ["5"])[0])
+                except ValueError:
+                    limit = 5
+                limit = max(1, min(20, limit))
+                from .rag import search as _rag_search
+
+                body = {"q": q, "results": _rag_search(q, limit=limit)}
+                self._json(body)
+            except Exception as exc:  # noqa: BLE001 - read-only path, never 500s
+                self._json({"q": "", "results": [], "error": f"{type(exc).__name__}: {exc}"})
+            return
         if path == "/api/roadmap":
             # M8-T940: the ledger, parsed - every batch heading, verbatim,
             # bounded titles, grouped into hundred-epoch eras.
