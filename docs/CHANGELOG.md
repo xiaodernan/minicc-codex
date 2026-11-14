@@ -224,3 +224,5 @@
 - **两个 CI 红各自揪出一个真 bug（M8-T922）**：航行灯分隔符 `.running-light-text i` 用了 hairline `--line-bright` 当字体色——改为 `--quiet`（色板门修）；README 提到的 `/api/stats` 从来不存在，但 web 早在调它（pulse 的会话/audit/disk/cache 拓扑因为每次 404 一直没渲染上）——新增 `GET /api/stats`（`AgentService.stats()`，与 CLI `--stats` 同事实包，只读免凭据不抛错）。12+8+8+5 项门测全绿，重建 bundle 验收通过。
 
 - **route_coverage 门红→绿（M8-T923）**：claim 检查（doc pointers + route coverage + impact floor）里红的那条 Gate——`test_every_api_route_is_named_by_a_python_test`——要求每条 `path == "/api/x"` 路由在 tests/ 中有名有姓。M8-T922 新增的 `/api/stats` 只在测试里隐式经过，没有具名化；新增 `test_get_stats_answers_the_operational_inventory`：HTTP 200、state_dir_present=false、audit/tasks/sessions/disk/cache/llm_cache 逐项钉住。并行会话一度把该文件截零，已 `git checkout` 复原后重写。`route_coverage --check`：91 passed，GET 22/22、POST 14/14，exit 0。
+
+- **脉搏面板三格读数实机点亮（M8-T924）**：chromium headless 实跑脉搏面板，`/api/stats` 事实包完整渲染——`pulseMemory: 115`（sessions）、`pulseAudit: 1464`（audit lines）、`pulseTurns: 2392`（messages）。M8-T922 的修复在整条 HTTP→Service→DOM 链路上验证为真，不再是"应该能行"。

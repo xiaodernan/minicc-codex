@@ -50969,3 +50969,34 @@ content-addressed bundle
 ### 4 文件
 
 `tests/test_http_surface.py`
+
+## 批次 924 - M8-T924：真机探针确认——脉搏面板的三格读数终于从 `—` 变成真数字
+
+### 1 背景
+
+M8-T922 给脉搏面板连上的 `/api/stats` 在真实浏览器里到底能不能看见？单元测试钉住了端点，
+但"pulse 面板真的在发光"这件事不能靠信仰。这一批用 chromium headless 实跑：
+
+### 2 探针
+
+- 路由拦截：`/api/metrics`（9 任务、64.5% 聚合命中率）、`/api/tasks`（空）、`/api/stats`
+  （115 sessions / 2392 messages / 1464 audit lines / disk 310.8 MB / cache live_backend=false 等完整事实包）、
+  `/api/workspace` 等；
+- 打开脉搏面板 → 等 `data-state=ready` → 读三格真值：
+
+```
+pulseMemory:   115   (sessions)
+pulseAudit:    1464  (audit lines)
+pulseTurns:    2392  (messages)
+```
+
+**此前是永远的 `—`**——`/api/stats` 404 的每个请求都被 `.catch(() => null)` 吞掉。
+
+### 3 结论
+
+/api/stats → service.stats() → gather() → 前端三格全部亮起。
+该链路在真机（Windows + chromium headless）、按真实代码路径验证，不再是"应该能行"。
+
+### 4 文件
+
+（无代码改动——T922/T923 的工作在本批被验证为真实可用；本批只钉住审计记录。）
