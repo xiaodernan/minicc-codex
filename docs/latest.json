@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T23:27:06.306Z",
+  "generated_at": "2026-11-14T23:31:14.296Z",
   "branch": "main",
-  "head": "617a320",
-  "total_commits": 1540,
+  "head": "092617c",
+  "total_commits": 1542,
   "recent_commits": [
+    {
+      "short": "092617c",
+      "at": "2026-11-15T07:30:54+08:00",
+      "subject": "M8-T980: /api/workspace memoized (10s TTL, single-flight) - cold 1.1s to warm ~100ms; c=20 x 15s: every path 1497x200, 0 errors, p50 <= 22ms; 117 tests green"
+    },
+    {
+      "short": "9a8a31b",
+      "at": "2026-11-14T23:27:06Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "617a320",
       "at": "2026-11-15T07:26:45+08:00",
@@ -19,22 +29,12 @@
       "short": "5ac53b8",
       "at": "2026-11-15T07:05:22+08:00",
       "subject": "M8-T978: almanac chapter XII 'Answer Back' - the project's RAG written into the museum (zero embeddings, real wkapi.pro roundtrip, the CJK bigram scar, cached_t"
-    },
-    {
-      "short": "f8ae023",
-      "at": "2026-11-14T22:54:51Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "43d666c",
-      "at": "2026-11-15T06:54:29+08:00",
-      "subject": "M8-T977: bilingual purity at the prompt layer - system prompt no longer hardcodes a bilingual fallback sentence (en mode emitted a CJK apology); en/zh both veri"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 296,
+  "roadmap_batches": 297,
   "changelog_entries": 1,
-  "roadmap_lines": 52218,
+  "roadmap_lines": 52235,
   "tracked_files": 1061,
   "test_files": 704,
   "almanac_chapters": 13,
