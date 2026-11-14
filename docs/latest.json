@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T21:08:33.283Z",
+  "generated_at": "2026-11-14T21:22:36.454Z",
   "branch": "main",
-  "head": "a2668a3",
-  "total_commits": 1524,
+  "head": "9f285a9",
+  "total_commits": 1526,
   "recent_commits": [
+    {
+      "short": "9f285a9",
+      "at": "2026-11-15T05:22:06+08:00",
+      "subject": "M8-T971: /api/rag/search - in-process Okapi BM25 over the repo-docs corpus, zero deps, lazy index (0.49s load / 0.08s cached), route coverage 25/25; 94 http_sur"
+    },
+    {
+      "short": "95ff007",
+      "at": "2026-11-14T21:08:33Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a2668a3",
       "at": "2026-11-15T05:08:13+08:00",
@@ -19,24 +29,14 @@
       "short": "6d8ecc4",
       "at": "2026-11-15T04:58:51+08:00",
       "subject": "M8-T968/969: /api/stats disk walk coalesced under a per-workspace lock (10 concurrent cold walkers: 7.55s wall, was 60-80s); load-test.mjs + docs/LOAD_TESTING.m"
-    },
-    {
-      "short": "c581591",
-      "at": "2026-11-14T20:42:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f7b20fd",
-      "at": "2026-11-15T04:40:02+08:00",
-      "subject": "M8-T967: toggle in settings for mouse wheel direction - Windows/Linux default (swipe up = scroll up) stays, invert opt-in matches Mac natural-scroll; wheel-inve"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 288,
+  "roadmap_batches": 289,
   "changelog_entries": 1,
-  "roadmap_lines": 52016,
-  "tracked_files": 1057,
-  "test_files": 702,
+  "roadmap_lines": 52046,
+  "tracked_files": 1059,
+  "test_files": 703,
   "almanac_chapters": 12,
   "module_count": 14,
   "feature_surface": [
