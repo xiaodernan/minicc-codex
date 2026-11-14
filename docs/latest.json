@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T18:17:22.153Z",
+  "generated_at": "2026-11-14T18:21:53.106Z",
   "branch": "main",
-  "head": "a82459c",
-  "total_commits": 1501,
+  "head": "e60c415",
+  "total_commits": 1503,
   "recent_commits": [
+    {
+      "short": "e60c415",
+      "at": "2026-11-15T02:21:30+08:00",
+      "subject": "M8-T958: almanac hydrates in two waves - metrics+digest re-render immediately, stats lands whenever it lands; tap-to-numbers from ~9.8s to ~1.7s measured on the"
+    },
+    {
+      "short": "4e66abd",
+      "at": "2026-11-14T18:17:22Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a82459c",
       "at": "2026-11-15T02:16:43+08:00",
@@ -19,22 +29,12 @@
       "short": "7ccdf97",
       "at": "2026-11-15T02:02:28+08:00",
       "subject": "M8-T956: almanac volume X The Unfinished - the wing is still under construction; live commits instrument (commits/chapters/HEAD) plus the six newest shipments r"
-    },
-    {
-      "short": "9842116",
-      "at": "2026-11-15T01:54:58+08:00",
-      "subject": "M8-T955b: manual (workbench chapter) documents the flame chip in both languages"
-    },
-    {
-      "short": "bfa18c3",
-      "at": "2026-11-14T17:54:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 277,
+  "roadmap_batches": 278,
   "changelog_entries": 1,
-  "roadmap_lines": 51754,
+  "roadmap_lines": 51773,
   "tracked_files": 1052,
   "test_files": 702,
   "almanac_chapters": 11,
