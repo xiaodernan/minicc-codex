@@ -1,9 +1,9 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T13:03:17.400Z",
+  "generated_at": "2026-11-14T13:05:02.546Z",
   "branch": "main",
-  "head": "8f03906",
-  "total_commits": 1443,
+  "head": "92118c9",
+  "total_commits": 1444,
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 250,
   "changelog_entries": 1,
