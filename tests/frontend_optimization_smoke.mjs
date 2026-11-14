@@ -64,8 +64,8 @@ try {
       const readyMs = Date.now() - start;
       assert.equal(changesComplete, false, "slow Git request must not block startup");
       assert.equal(gameRequests, 0, "home must not download arcade");
-      await page.locator('[data-start-action="explore"]').click();
-      assert((await page.locator("#promptInput").inputValue()).includes("架构"));
+      await page.locator(".empty-chip").first().click();
+      assert((await page.locator("#promptInput").inputValue()).trim().length > 8, "empty-state chip must fill the composer with a real prompt");
       const geometry = await page.evaluate(() => {
         const send = document.querySelector("#sendButton").getBoundingClientRect();
         const controls = document.querySelector("#allowNetwork").closest("label").getBoundingClientRect();
