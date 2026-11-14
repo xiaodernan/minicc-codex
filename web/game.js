@@ -2229,23 +2229,107 @@
     window.scrollTo(0, 0);
   }
   var codexState = { tab: "plants", plant: "peashooter", zombie: "walker" };
-  var codexPlantNames = { peashooter: "\u8C4C\u8C46\u5C04\u624B", sunflower: "\u5411\u65E5\u8475", wallnut: "\u575A\u679C\u5899", repeater: "\u53CC\u53D1\u5C04\u624B", cherrybomb: "\u6A31\u6843\u70B8\u5F39", icepeashooter: "\u5BD2\u51B0\u5C04\u624B", firepeashooter: "\u706B\u7130\u5C04\u624B", twinpea: "\u53CC\u53D1\u5F3A\u5316", kernelpult: "\u7389\u7C73\u6295\u624B", pumpkin: "\u5357\u74DC\u5934", spikeweed: "\u5730\u523A", gloomshroom: "\u5FE7\u90C1\u83C7", potatomine: "\u571F\u8C46\u96F7", threepeater: "\u4E09\u7EBF\u5C04\u624B", jalapeno: "\u706B\u7206\u8FA3\u6912", magnetshroom: "\u78C1\u529B\u83C7", garlic: "\u5927\u849C", squash: "\u7A9D\u74DC", gatlingpea: "\u673A\u67AA\u5C04\u624B" };
-  var codexZombieNames = { walker: "\u666E\u901A\u50F5\u5C38", backup: "\u4F34\u821E\u50F5\u5C38", roadblock: "\u8DEF\u969C\u50F5\u5C38", conehead: "\u8DEF\u9525\u50F5\u5C38", imp: "\u5C0F\u9B3C\u50F5\u5C38", scout: "\u4FA6\u5BDF\u50F5\u5C38", storm: "\u98CE\u66B4\u50F5\u5C38", runner: "\u5954\u8DD1\u50F5\u5C38", polevault: "\u6491\u6746\u50F5\u5C38", bucket: "\u94C1\u6876\u50F5\u5C38", football: "\u6A44\u6984\u7403\u50F5\u5C38", miner: "\u77FF\u5DE5\u50F5\u5C38", flag: "\u65D7\u5E1C\u50F5\u5C38", dancer: "\u821E\u738B\u50F5\u5C38", newspaper: "\u62A5\u7EB8\u50F5\u5C38", gargantuar: "\u5DE8\u4EBA\u50F5\u5C38", witch: "\u5973\u5DEB\u50F5\u5C38", dragon: "\u9F99\u50F5\u5C38", shield: "\u62A4\u76FE\u50F5\u5C38" };
+  var codexPlantNames = {
+    peashooter: { zh: "\u8C4C\u8C46\u5C04\u624B", en: "Peashooter" },
+    sunflower: { zh: "\u5411\u65E5\u8475", en: "Sunflower" },
+    wallnut: { zh: "\u575A\u679C\u5899", en: "Wall-nut" },
+    repeater: { zh: "\u53CC\u53D1\u5C04\u624B", en: "Repeater" },
+    cherrybomb: { zh: "\u6A31\u6843\u70B8\u5F39", en: "Cherry Bomb" },
+    icepeashooter: { zh: "\u5BD2\u51B0\u5C04\u624B", en: "Ice Peashooter" },
+    firepeashooter: { zh: "\u706B\u7130\u5C04\u624B", en: "Fire Peashooter" },
+    twinpea: { zh: "\u53CC\u53D1\u5F3A\u5316", en: "Triple Peashooter" },
+    kernelpult: { zh: "\u7389\u7C73\u6295\u624B", en: "Kernel-pult" },
+    pumpkin: { zh: "\u5357\u74DC\u5934", en: "Pumpkin" },
+    spikeweed: { zh: "\u5730\u523A", en: "Spikeweed" },
+    gloomshroom: { zh: "\u5FE7\u90C1\u83C7", en: "Gloom-shroom" },
+    potatomine: { zh: "\u571F\u8C46\u96F7", en: "Potato Mine" },
+    threepeater: { zh: "\u4E09\u7EBF\u5C04\u624B", en: "Threepeater" },
+    jalapeno: { zh: "\u706B\u7206\u8FA3\u6912", en: "Jalapeno" },
+    magnetshroom: { zh: "\u78C1\u529B\u83C7", en: "Magnet-shroom" },
+    garlic: { zh: "\u5927\u849C", en: "Garlic" },
+    squash: { zh: "\u7A9D\u74DC", en: "Squash" },
+    gatlingpea: { zh: "\u673A\u67AA\u5C04\u624B", en: "Gatling Pea" }
+  };
+  var codexZombieNames = {
+    walker: { zh: "\u666E\u901A\u50F5\u5C38", en: "Zombie" },
+    backup: { zh: "\u4F34\u821E\u50F5\u5C38", en: "Backup Dancer" },
+    roadblock: { zh: "\u8DEF\u969C\u50F5\u5C38", en: "Roadblock Zombie" },
+    conehead: { zh: "\u8DEF\u9525\u50F5\u5C38", en: "Conehead Zombie" },
+    imp: { zh: "\u5C0F\u9B3C\u50F5\u5C38", en: "Imp" },
+    scout: { zh: "\u4FA6\u5BDF\u50F5\u5C38", en: "Scout Zombie" },
+    storm: { zh: "\u98CE\u66B4\u50F5\u5C38", en: "Storm Zombie" },
+    runner: { zh: "\u5954\u8DD1\u50F5\u5C38", en: "Runner Zombie" },
+    polevault: { zh: "\u6491\u6746\u50F5\u5C38", en: "Polevaulter Zombie" },
+    bucket: { zh: "\u94C1\u6876\u50F5\u5C38", en: "Buckethead Zombie" },
+    football: { zh: "\u6A44\u6984\u7403\u50F5\u5C38", en: "Football Zombie" },
+    miner: { zh: "\u77FF\u5DE5\u50F5\u5C38", en: "Miner Zombie" },
+    flag: { zh: "\u65D7\u5E1C\u50F5\u5C38", en: "Flag Zombie" },
+    dancer: { zh: "\u821E\u738B\u50F5\u5C38", en: "Dancer Zombie" },
+    newspaper: { zh: "\u62A5\u7EB8\u50F5\u5C38", en: "Newspaper Zombie" },
+    gargantuar: { zh: "\u5DE8\u4EBA\u50F5\u5C38", en: "Gargantuar" },
+    witch: { zh: "\u5973\u5DEB\u50F5\u5C38", en: "Witch" },
+    dragon: { zh: "\u9F99\u50F5\u5C38", en: "Dragon Zombie" },
+    shield: { zh: "\u62A4\u76FE\u50F5\u5C38", en: "Shield Zombie" }
+  };
   var codexPlantIcons = { peashooter: "\u{1F331}", sunflower: "\u{1F33B}", wallnut: "\u{1F95C}", repeater: "\u{1F33F}", cherrybomb: "\u{1F352}", icepeashooter: "\u2744\uFE0F", firepeashooter: "\u{1F525}", twinpea: "\u{1F331}", kernelpult: "\u{1F33D}", pumpkin: "\u{1F383}", spikeweed: "\u{1F335}", gloomshroom: "\u{1F344}", potatomine: "\u{1F954}", threepeater: "\u{1F33E}", jalapeno: "\u{1F336}\uFE0F", magnetshroom: "\u{1F9F2}", garlic: "\u{1F9C4}", squash: "\u{1F383}", gatlingpea: "\u{1F52B}" };
-  var codexPlantSpecials = { peashooter: "\u53D1\u5C04\u666E\u901A\u8C4C\u8C46\uFF0C\u7A33\u5B9A\u8F93\u51FA\u3002", sunflower: "\u6BCF\u9694\u4E00\u6BB5\u65F6\u95F4\u751F\u4EA7 25 \u9633\u5149\u3002", wallnut: "\u9AD8\u751F\u547D\u503C\u963B\u6321\uFF0C\u62D6\u5EF6\u50F5\u5C38\u3002", repeater: "\u6BCF\u8F6E\u53D1\u5C04 2 \u53D1\u8C4C\u8C46\uFF0C\u5E76\u53EF\u7A7F\u900F 1 \u4E2A\u76EE\u6807\u3002", cherrybomb: "\u77ED\u5EF6\u8FDF\u540E\u5728\u540C\u4E00\u884C 145 \u8303\u56F4\u5185\u76F4\u63A5\u6D88\u706D\u50F5\u5C38\u3002", icepeashooter: "\u547D\u4E2D\u540E\u51CF\u901F 3200ms\uFF0C\u5E76\u53EF\u7A7F\u900F 1 \u4E2A\u76EE\u6807\u3002", firepeashooter: "\u6BCF\u53D1 2 \u70B9\u4F24\u5BB3\u5E76\u65BD\u52A0 2600ms \u707C\u70E7\uFF0C\u707C\u70E7\u4F24\u5BB3 3\u3002", twinpea: "\u6BCF\u8F6E\u53D1\u5C04 2 \u53D1\u5F3A\u5316\u8C4C\u8C46\uFF0C\u6BCF\u53D1 2 \u70B9\u4F24\u5BB3\u3002", kernelpult: "28% \u6982\u7387\u7528\u9EC4\u6CB9\u5B9A\u8EAB\uFF0C\u5E76\u53EF\u7A7F\u900F 1 \u4E2A\u76EE\u6807\u3002", pumpkin: "\u4E3A\u540C\u683C\u690D\u7269\u63D0\u4F9B 32 \u70B9\u62A4\u7F69\u751F\u547D\u3002", spikeweed: "\u653B\u51FB\u6240\u5728\u683C\u9644\u8FD1 44 \u8303\u56F4\u5185\u7684\u50F5\u5C38\u3002", gloomshroom: "\u8FD1\u8EAB\u8303\u56F4\u653B\u51FB\u5E76\u65BD\u52A0 900ms \u51CF\u901F\u3002", potatomine: "1800ms \u540E\u5E03\u96F7\uFF0C\u5728\u540C\u4E00\u884C 90 \u8303\u56F4\u5185\u7206\u70B8\u3002", threepeater: "\u540C\u65F6\u653B\u51FB\u5F53\u524D\u884C\u3001\u4E0A\u884C\u548C\u4E0B\u884C\u3002", jalapeno: "\u77ED\u5EF6\u8FDF\u540E\u6D88\u706D\u6240\u5728\u884C\u7684\u5168\u90E8\u50F5\u5C38\u3002", magnetshroom: "\u5468\u671F\u6027\u5438\u8D70\u50F5\u5C38\u62A4\u7532\u6216\u88C5\u5907\uFF0C\u4E0D\u76F4\u63A5\u9020\u6210\u4F24\u5BB3\u3002", garlic: "\u88AB\u54AC\u540E\u5C06\u50F5\u5C38\u6539\u9053\u5230\u4E0B\u4E00\u884C\u3002", squash: "\u63A5\u8FD1\u65F6\u91CD\u51FB\u5E76\u76F4\u63A5\u6D88\u706D\u76EE\u6807\u3002", gatlingpea: "\u6BCF\u8F6E\u8FDE\u7EED\u53D1\u5C04 4 \u53D1\u8C4C\u8C46\uFF0C\u6BCF\u53D1 1 \u70B9\u4F24\u5BB3\u3002" };
-  var codexZombieSkills = { walker: "\u65E0\u989D\u5916\u6280\u80FD\uFF0C\u63A5\u89E6\u690D\u7269\u540E\u5543\u98DF\u3002", backup: "\u4F34\u968F\u821E\u738B\u53EC\u5524\uFF0C\u6CBF\u884C\u5543\u98DF\u3002", roadblock: "\u8DEF\u969C\u63D0\u4F9B\u989D\u5916\u9632\u62A4\u3002", conehead: "\u8DEF\u9525\u63D0\u4F9B\u989D\u5916\u62A4\u7532\u3002", imp: "\u5FEB\u901F\u79FB\u52A8\u5E76\u8DF3\u8DC3\u690D\u7269\u3002", scout: "\u95F4\u6B47\u51B2\u523A\u5E76\u6807\u8BB0\u3001\u8BC5\u5492\u9644\u8FD1\u690D\u7269\u3002", storm: "\u5468\u671F\u6027\u4F7F\u540C\u4E00\u884C\u690D\u7269\u77ED\u6682\u5931\u6548\u3002", runner: "\u6CBF\u884C\u5FEB\u901F\u79FB\u52A8\u5E76\u95F4\u6B47\u51B2\u523A\u3002", polevault: "\u9047\u5230\u7B2C\u4E00\u682A\u690D\u7269\u65F6\u6491\u6746\u8DF3\u8FC7\u3002", bucket: "\u94C1\u6876\u63D0\u4F9B\u9AD8\u989D\u62A4\u7532\u3002", football: "\u9AD8\u62A4\u7532\u5E76\u53EF\u51B2\u950B\u653B\u51FB\u3002", miner: "\u5730\u4E0B\u6F5C\u884C\uFF0C\u63A5\u8FD1\u9632\u7EBF\u540E\u51FA\u571F\u3002", flag: "\u4E3A\u540C\u4E00\u884C\u76DF\u53CB\u63D0\u4F9B\u79FB\u52A8\u901F\u5EA6\u52A0\u6210\u3002", dancer: "\u5468\u671F\u6027\u53EC\u5524\u4F34\u821E\u50F5\u5C38\u3002", newspaper: "\u62A5\u7EB8\u88AB\u7834\u574F\u540E\u8FDB\u5165\u72C2\u66B4\u72B6\u6001\u3002", gargantuar: "\u7F13\u6162\u63A8\u8FDB\uFF0C\u63A5\u89E6\u690D\u7269\u65F6\u91CD\u51FB\u5E76\u9020\u6210\u9AD8\u989D\u4F24\u5BB3\u3002", witch: "\u6807\u8BB0\u5E76\u8BC5\u5492\u9644\u8FD1\u690D\u7269\u3002", dragon: "\u55B7\u5410\u706B\u7130\uFF0C\u5BF9\u690D\u7269\u65BD\u52A0\u707C\u70E7\u3002", shield: "\u5468\u671F\u6027\u6062\u590D\u62A4\u76FE\u3002" };
+  var codexPlantSpecials = {
+    peashooter: { zh: "\u53D1\u5C04\u666E\u901A\u8C4C\u8C46\uFF0C\u7A33\u5B9A\u8F93\u51FA\u3002", en: "Standard shooter, no special ability" },
+    sunflower: { zh: "\u6BCF\u9694\u4E00\u6BB5\u65F6\u95F4\u751F\u4EA7 25 \u9633\u5149\u3002", en: "Produces sun every 25s" },
+    wallnut: { zh: "\u9AD8\u751F\u547D\u503C\u963B\u6321\uFF0C\u62D6\u5EF6\u50F5\u5C38\u3002", en: "High-health wall plant" },
+    repeater: { zh: "\u6BCF\u8F6E\u53D1\u5C04 2 \u53D1\u8C4C\u8C46\uFF0C\u5E76\u53EF\u7A7F\u900F 1 \u4E2A\u76EE\u6807\u3002", en: "Fires two peas at once" },
+    cherrybomb: { zh: "\u77ED\u5EF6\u8FDF\u540E\u5728\u540C\u4E00\u884C 145 \u8303\u56F4\u5185\u76F4\u63A5\u6D88\u706D\u50F5\u5C38\u3002", en: "Explodes in a 145px radius" },
+    icepeashooter: { zh: "\u547D\u4E2D\u540E\u51CF\u901F 3200ms\uFF0C\u5E76\u53EF\u7A7F\u900F 1 \u4E2A\u76EE\u6807\u3002", en: "Slows target by 50% for 3200ms" },
+    firepeashooter: { zh: "\u6BCF\u53D1 2 \u70B9\u4F24\u5BB3\u5E76\u65BD\u52A0 2600ms \u707C\u70E7\uFF0C\u707C\u70E7\u4F24\u5BB3 3\u3002", en: "Double shot, 2600ms against 3 targets" },
+    twinpea: { zh: "\u6BCF\u8F6E\u53D1\u5C04 2 \u53D1\u5F3A\u5316\u8C4C\u8C46\uFF0C\u6BCF\u53D1 2 \u70B9\u4F24\u5BB3\u3002", en: "Twin shots, 2 projectiles per volley" },
+    kernelpult: { zh: "28% \u6982\u7387\u7528\u9EC4\u6CB9\u5B9A\u8EAB\uFF0C\u5E76\u53EF\u7A7F\u900F 1 \u4E2A\u76EE\u6807\u3002", en: "28% chance to stun 1 target" },
+    pumpkin: { zh: "\u4E3A\u540C\u683C\u690D\u7269\u63D0\u4F9B 32 \u70B9\u62A4\u7F69\u751F\u547D\u3002", en: "Wall plant protecting the plant underneath" },
+    spikeweed: { zh: "\u653B\u51FB\u6240\u5728\u683C\u9644\u8FD1 44 \u8303\u56F4\u5185\u7684\u50F5\u5C38\u3002", en: "Standing damage to walkers" },
+    gloomshroom: { zh: "\u8FD1\u8EAB\u8303\u56F4\u653B\u51FB\u5E76\u65BD\u52A0 900ms \u51CF\u901F\u3002", en: "Area damage, 900ms cadence" },
+    potatomine: { zh: "1800ms \u540E\u5E03\u96F7\uFF0C\u5728\u540C\u4E00\u884C 90 \u8303\u56F4\u5185\u7206\u70B8\u3002", en: "1800ms arming, then a 90-damage burst" },
+    threepeater: { zh: "\u540C\u65F6\u653B\u51FB\u5F53\u524D\u884C\u3001\u4E0A\u884C\u548C\u4E0B\u884C\u3002", en: "Shoots three lanes at once" },
+    jalapeno: { zh: "\u77ED\u5EF6\u8FDF\u540E\u6D88\u706D\u6240\u5728\u884C\u7684\u5168\u90E8\u50F5\u5C38\u3002", en: "Burns the entire lane" },
+    magnetshroom: { zh: "\u5468\u671F\u6027\u5438\u8D70\u50F5\u5C38\u62A4\u7532\u6216\u88C5\u5907\uFF0C\u4E0D\u76F4\u63A5\u9020\u6210\u4F24\u5BB3\u3002", en: "Strips metal gear from zombies" },
+    garlic: { zh: "\u88AB\u54AC\u540E\u5C06\u50F5\u5C38\u6539\u9053\u5230\u4E0B\u4E00\u884C\u3002", en: "Redirects zombies into another lane" },
+    squash: { zh: "\u63A5\u8FD1\u65F6\u91CD\u51FB\u5E76\u76F4\u63A5\u6D88\u706D\u76EE\u6807\u3002", en: "Crushes the first zombie that touches it" },
+    gatlingpea: { zh: "\u6BCF\u8F6E\u8FDE\u7EED\u53D1\u5C04 4 \u53D1\u8C4C\u8C46\uFF0C\u6BCF\u53D1 1 \u70B9\u4F24\u5BB3\u3002", en: "Fires 4 peas per second" }
+  };
+  var codexZombieSkills = {
+    walker: { zh: "\u65E0\u989D\u5916\u6280\u80FD\uFF0C\u63A5\u89E6\u690D\u7269\u540E\u5543\u98DF\u3002", en: "No special skill, just bites plants" },
+    backup: { zh: "\u4F34\u968F\u821E\u738B\u53EC\u5524\uFF0C\u6CBF\u884C\u5543\u98DF\u3002", en: "Dances alongside its crew, bites on contact" },
+    roadblock: { zh: "\u8DEF\u969C\u63D0\u4F9B\u989D\u5916\u9632\u62A4\u3002", en: "Heavy and slow, hard to stop" },
+    conehead: { zh: "\u8DEF\u9525\u63D0\u4F9B\u989D\u5916\u62A4\u7532\u3002", en: "Cone-shaped head armor" },
+    imp: { zh: "\u5FEB\u901F\u79FB\u52A8\u5E76\u8DF3\u8DC3\u690D\u7269\u3002", en: "Tiny zombie thrown by gargantuars" },
+    scout: { zh: "\u95F4\u6B47\u51B2\u523A\u5E76\u6807\u8BB0\u3001\u8BC5\u5492\u9644\u8FD1\u690D\u7269\u3002", en: "Fast moving scout" },
+    storm: { zh: "\u5468\u671F\u6027\u4F7F\u540C\u4E00\u884C\u690D\u7269\u77ED\u6682\u5931\u6548\u3002", en: "Freezes plants with a cold aura" },
+    runner: { zh: "\u6CBF\u884C\u5FEB\u901F\u79FB\u52A8\u5E76\u95F4\u6B47\u51B2\u523A\u3002", en: "Sprints forward fast" },
+    polevault: { zh: "\u9047\u5230\u7B2C\u4E00\u682A\u690D\u7269\u65F6\u6491\u6746\u8DF3\u8FC7\u3002", en: "Vaults the first plant on the lane" },
+    bucket: { zh: "\u94C1\u6876\u63D0\u4F9B\u9AD8\u989D\u62A4\u7532\u3002", en: "Bucket-helmet armor" },
+    football: { zh: "\u9AD8\u62A4\u7532\u5E76\u53EF\u51B2\u950B\u653B\u51FB\u3002", en: "Charges fast with high HP" },
+    miner: { zh: "\u5730\u4E0B\u6F5C\u884C\uFF0C\u63A5\u8FD1\u9632\u7EBF\u540E\u51FA\u571F\u3002", en: "Tunnels under the lawn to bypass plants" },
+    flag: { zh: "\u4E3A\u540C\u4E00\u884C\u76DF\u53CB\u63D0\u4F9B\u79FB\u52A8\u901F\u5EA6\u52A0\u6210\u3002", en: "Raises a flag for the next wave" },
+    dancer: { zh: "\u5468\u671F\u6027\u53EC\u5524\u4F34\u821E\u50F5\u5C38\u3002", en: "Dances and calls dancers to the lane" },
+    newspaper: { zh: "\u62A5\u7EB8\u88AB\u7834\u574F\u540E\u8FDB\u5165\u72C2\u66B4\u72B6\u6001\u3002", en: "Enraged when its newspaper is destroyed" },
+    gargantuar: { zh: "\u7F13\u6162\u63A8\u8FDB\uFF0C\u63A5\u89E6\u690D\u7269\u65F6\u91CD\u51FB\u5E76\u9020\u6210\u9AD8\u989D\u4F24\u5BB3\u3002", en: "Towering bruiser, throws imps" },
+    witch: { zh: "\u6807\u8BB0\u5E76\u8BC5\u5492\u9644\u8FD1\u690D\u7269\u3002", en: "Curses the nearest plant" },
+    dragon: { zh: "\u55B7\u5410\u706B\u7130\uFF0C\u5BF9\u690D\u7269\u65BD\u52A0\u707C\u70E7\u3002", en: "Breathes fire down the lane" },
+    shield: { zh: "\u5468\u671F\u6027\u6062\u590D\u62A4\u76FE\u3002", en: "Blocks frontal plant damage" }
+  };
   function codexPlantInfo(type) {
     const profile = plantProfiles[type] || {};
-    const damage = profile.damage ? `${profile.damage} \u70B9/\u53D1` : ["cherrybomb", "jalapeno", "potatomine", "squash"].includes(type) ? "\u7279\u6B8A/\u7206\u53D1\u4F24\u5BB3" : "0\uFF08\u529F\u80FD\u578B\uFF09";
-    const target = profile.rows || type === "jalapeno" ? "\u7FA4\u4F53" : ["cherrybomb", "potatomine", "squash"].includes(type) ? "\u8303\u56F4\u7206\u53D1" : "\u5355\u4F53";
-    const range = profile.rows ? "\u5F53\u524D\u884C\u53CA\u76F8\u90BB\u4E24\u884C" : ["gloomshroom", "spikeweed"].includes(type) ? "\u8FD1\u8EAB\uFF08\u7EA6 44\uFF09" : ["cherrybomb", "potatomine"].includes(type) ? "\u540C\u4E00\u884C\u8303\u56F4" : type === "jalapeno" ? "\u6574\u884C" : "\u6240\u5728\u884C\u76F4\u7EBF/\u6240\u5728\u683C";
-    const usage = type === "sunflower" ? "\u653E\u5728\u540E\u6392\uFF0C\u6301\u7EED\u751F\u4EA7\u9633\u5149\u3002" : type === "wallnut" || type === "pumpkin" ? "\u653E\u5728\u50F5\u5C38\u8DEF\u7EBF\u524D\u5438\u6536\u4F24\u5BB3\u3002" : `\u9009\u4E2D\u5361\u7247\u540E\u70B9\u51FB\u8349\u576A\u683C\u5B50\uFF0C\u6D88\u8017 ${plantCost[type]} \u9633\u5149\u3002`;
-    return { name: codexPlantNames[type], icon: codexPlantIcons[type], health: plantHealth[type], cost: plantCost[type], damage, attack: profile.shots ? `${profile.shots} \u53D1/\u8F6E` : type === "threepeater" ? "3 \u6761\u7EBF\u8DEF" : "\u7279\u6B8A\u903B\u8F91", target, range, usage, special: codexPlantSpecials[type] || "\u6309\u5F53\u524D\u6E38\u620F\u903B\u8F91\u53D1\u6325\u4F5C\u7528\u3002", raw: Object.keys(profile).length ? JSON.stringify(profile) : "\u7531\u72EC\u7ACB\u6E38\u620F\u903B\u8F91\u5904\u7406" };
+    const damage = profile.damage ? `${profile.damage} ${state.locale === "zh" ? "\u6B21/\u79D2" : "hits/s"}` : ["cherrybomb", "jalapeno", "potatomine", "squash"].includes(type) ? state.locale === "zh" ? "\u4E00\u6B21\u6027" : "one-shot" : state.locale === "zh" ? "\u2014" : "\u2014";
+    const target = profile.rows || type === "jalapeno" ? state.locale === "zh" ? "\u4E09\u884C\u7FA4\u4F53" : "3 lanes" : ["cherrybomb", "potatomine", "squash"].includes(type) ? state.locale === "zh" ? "\u5355\u4E2A\u76EE\u6807" : "single target" : state.locale === "zh" ? "\u76F4\u7EBF\u76EE\u6807" : "line targets";
+    const range = profile.rows ? state.locale === "zh" ? "\u5F53\u524D\u884C\u53CA\u76F8\u90BB\u4E24\u884C" : "own lane plus the two neighbours" : ["gloomshroom", "spikeweed"].includes(type) ? state.locale === "zh" ? "\u81EA\u8EAB\u5468\u56F4" : "around itself" : ["cherrybomb", "potatomine", "squash"].includes(type) ? state.locale === "zh" ? "\u89E6\u78B0\u8303\u56F4" : "touch range" : state.locale === "zh" ? "\u6574\u6761\u884C" : "the whole lane";
+    const usage = type === "sunflower" ? state.locale === "zh" ? "\u653E\u5728\u540E\u6392\uFF0C\u6301\u7EED\u751F\u4EA7\u9633\u5149" : "back row, keeps producing sun" : type === "wallnut" || type === "pumpkin" ? state.locale === "zh" ? "\u653E\u5728\u524D\u6392\uFF0C\u66FF\u690D\u7269\u62B5\u6321\u50F5\u5C38" : "front row, tanks the horde" : type === "jalapeno" || type === "cherrybomb" ? state.locale === "zh" ? "\u4F5C\u4E3A\u6E05\u573A/\u6551\u573A\u624B\u6BB5" : "emergency lane clear" : state.locale === "zh" ? "\u6CBF\u524D\u950B\u7EBF\u63A8\u8FDB\u653E\u7F6E" : "place along the advance line";
+    const name = codexPlantNames[type];
+    const special = codexPlantSpecials[type];
+    return { name: state.locale === "zh" ? name.zh : name.en, icon: codexPlantIcons[type], health: plantHealth[type], cost: plantCost[type], damage, attack: profile.shots ? `${profile.shots} ${state.locale === "zh" ? "\u8FDE\u53D1" : "burst"}` : type === "threepeater" ? state.locale === "zh" ? "3 \u8FDE\u53D1" : "3-lane volley" : state.locale === "zh" ? "\u5355\u53D1" : "single shot", target, range, usage, special: state.locale === "zh" ? special.zh : special.en, raw: Object.keys(profile).length ? JSON.stringify(profile) : state.locale === "zh" ? "\uFF08\u65E0 profile \u6570\u636E\uFF09" : "(no profile data)" };
   }
   function codexZombieInfo(type) {
     const profile = zombieProfiles[type];
-    const movement = profile.burrow ? "\u5730\u4E0B\u6F5C\u884C\uFF0C\u63A5\u8FD1\u9632\u7EBF\u540E\u51FA\u571F" : profile.vault ? "\u6301\u6746\u524D\u8FDB\uFF0C\u9047\u5230\u690D\u7269\u65F6\u8DF3\u8FC7" : profile.leap ? "\u5FEB\u901F\u524D\u8FDB\u5E76\u8DF3\u8DC3\u690D\u7269" : profile.dash ? "\u6CBF\u6240\u5728\u884C\u79FB\u52A8\u5E76\u95F4\u6B47\u51B2\u523A" : profile.giant ? "\u7F13\u6162\u76F4\u7EBF\u63A8\u8FDB" : "\u6CBF\u6240\u5728\u884C\u5411\u5DE6\u76F4\u7EBF\u79FB\u52A8";
-    return { name: codexZombieNames[type], hp: profile.hp, armor: profile.armor || 0, speed: `${profile.speed.toFixed(3)} + \u6BCF\u6CE2 ${profile.growth.toFixed(4)}`, attack: `${profile.attackInterval} ms`, score: profile.score, movement, skills: codexZombieSkills[type] };
+    const movement = profile.burrow ? state.locale === "zh" ? "\u5730\u4E0B\u6F5C\u884C\uFF0C\u63A5\u8FD1\u9632\u7EBF\u540E\u51FA\u571F" : "digs underground, surfaces at the plants" : profile.vault ? state.locale === "zh" ? "\u6301\u6746\u524D\u8FDB\uFF0C\u9047\u5230\u690D\u7269\u524D\u8DF3\u8FC7" : "keeps a pole, vaults the first plant" : profile.leap ? state.locale === "zh" ? "\u8DC3\u5411\u524D\u65B9\u8D8A\u8FC7\u690D\u7269" : "leaps forward over plants" : profile.dash ? state.locale === "zh" ? "\u671D\u524D\u51B2\u950B\u8D8A\u8FC7\u690D\u7269" : "charges forward through plants" : profile.giant ? state.locale === "zh" ? "\u4F53\u578B\u5DE8\u5927\uFF0C\u901F\u5EA6\u6781\u6162" : "huge frame, crawls forward" : state.locale === "zh" ? "\u6301\u7EED\u671D\u524D\u63A8\u8FDB" : "marches steadily forward";
+    const name = codexZombieNames[type];
+    const skill = codexZombieSkills[type];
+    return { name: state.locale === "zh" ? name.zh : name.en, hp: profile.hp, armor: profile.armor || 0, speed: `${profile.speed.toFixed(3)} ${state.locale === "zh" ? "+ \u6BCF\u6CE2" : "+ per wave"} ${profile.growth.toFixed(4)}`, attack: `${profile.attackInterval} ms`, score: profile.score, movement, skills: state.locale === "zh" ? skill.zh : skill.en };
   }
   function codexRows(rows) {
     return rows.map(([label, value]) => `<div class="codex-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join("");
@@ -2254,8 +2338,8 @@
     const plants = codexState.tab === "plants";
     const keys = Object.keys(plants ? plantCost : zombieProfiles);
     const selected = codexState[plants ? "plant" : "zombie"];
-    $("#codexPlantCount").textContent = `\uFF08${Object.keys(plantCost).length}\uFF09`;
-    $("#codexZombieCount").textContent = `\uFF08${Object.keys(zombieProfiles).length}\uFF09`;
+    $("#codexPlantCount").textContent = `(${Object.keys(plantCost).length})`;
+    $("#codexZombieCount").textContent = `(${Object.keys(zombieProfiles).length})`;
     $$(".codex-tab").forEach((tab) => {
       const active = tab.dataset.codexTab === codexState.tab;
       tab.classList.toggle("active", active);
@@ -2266,7 +2350,7 @@
       return `<button class="codex-entry ${key === selected ? "active" : ""}" type="button" data-codex-entry="${key}"><span class="codex-entry-icon">${info2.icon || "\u{1F9DF}"}</span><span>${escapeHtml(info2.name)}</span></button>`;
     }).join("");
     const info = plants ? codexPlantInfo(selected) : codexZombieInfo(selected);
-    $("#codexDetail").innerHTML = `<div class="codex-detail-title"><span class="codex-detail-icon">${info.icon || "\u{1F9DF}"}</span><div><span class="game-kicker">${plants ? "\u690D\u7269\u8BE6\u60C5" : "\u50F5\u5C38\u8BE6\u60C5"}</span><h4>${escapeHtml(info.name)}</h4></div></div>${plants ? `<dl class="codex-stats">${codexRows([["\u9633\u5149\u6D88\u8017", `${info.cost} \u9633\u5149`], ["\u690D\u7269\u751F\u547D\u503C", `${info.health} HP`], ["\u4F24\u5BB3", info.damage], ["\u653B\u51FB\u9891\u7387", info.attack], ["\u4F24\u5BB3\u7C7B\u578B", info.target], ["\u653B\u51FB\u8303\u56F4", info.range]])}</dl><div class="codex-section"><strong>\u4F7F\u7528\u65B9\u6CD5</strong><p>${escapeHtml(info.usage)}</p></div><div class="codex-section"><strong>\u7279\u6B8A\u6548\u679C</strong><p>${escapeHtml(info.special)}</p></div><div class="codex-section"><strong>\u5B9E\u9645 profile \u53C2\u6570</strong><code>${escapeHtml(info.raw)}</code></div>` : `<dl class="codex-stats">${codexRows([["\u57FA\u7840\u751F\u547D\u503C", `${info.hp} HP`], ["\u62A4\u7532", `${info.armor} \u70B9`], ["\u79FB\u52A8\u901F\u5EA6", info.speed], ["\u653B\u51FB\u95F4\u9694", info.attack], ["\u51FB\u9000\u79EF\u5206", info.score]])}</dl><div class="codex-health-bar" aria-label="\u50F5\u5C38\u57FA\u7840\u751F\u547D\u503C"><i style="width: 100%"></i></div><div class="codex-section"><strong>\u79FB\u52A8\u65B9\u5F0F</strong><p>${escapeHtml(info.movement)}</p></div><div class="codex-section"><strong>\u7279\u6B8A\u6280\u80FD</strong><p>${escapeHtml(info.skills)}</p></div>`}`;
+    $("#codexDetail").innerHTML = `<div class="codex-detail-title"><span class="codex-detail-icon">${info.icon || "\u{1F9DF}"}</span><div><span class="game-kicker">${plants ? t("game.codexPlantDetail") : t("game.codexZombieDetail")}</span><h4>${escapeHtml(info.name)}</h4></div></div>` + (plants ? `<dl class="codex-stats">${codexRows([[t("game.codexSunCost"), `${info.cost} \u2600`], [t("game.codexPlantHp"), `${info.health} HP`], [t("game.codexDamage"), info.damage], [t("game.codexAttackRate"), info.attack], [t("game.codexDamageType"), info.target], [t("game.codexRange"), info.range]])}</dl><div class="codex-section"><strong>${t("game.codexUsage")}</strong><p>${escapeHtml(info.usage)}</p></div><div class="codex-section"><strong>${t("game.codexSpecial")}</strong><p>${escapeHtml(info.special)}</p></div><div class="codex-section"><strong>${t("game.codexProfile")}</strong><code>${escapeHtml(info.raw)}</code></div>` : `<dl class="codex-stats">${codexRows([[t("game.codexBaseHp"), `${info.hp} HP`], [t("game.codexArmor"), `${info.armor}`], [t("game.codexMoveSpeed"), info.speed], [t("game.codexAttackInterval"), info.attack], [t("game.codexScore"), info.score]])}</dl><div class="codex-health-bar" aria-label="${t("game.codexBaseHp")}"><i style="width: 100%"></i></div><div class="codex-section"><strong>${t("game.codexMovement")}</strong><p>${escapeHtml(info.movement)}</p></div><div class="codex-section"><strong>${t("game.codexSkills")}</strong><p>${escapeHtml(info.skills)}</p></div>`);
     $$(".codex-entry").forEach((entry) => entry.addEventListener("click", () => {
       codexState[plants ? "plant" : "zombie"] = entry.dataset.codexEntry;
       renderCodex();

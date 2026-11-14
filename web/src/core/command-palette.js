@@ -41,7 +41,7 @@ function commands() {
     { id: "help", glyph: "circle-help", group: "palette.group.surface", run: () => openHelpPanel() },
     { id: "arcade", glyph: "gamepad-2", group: "palette.group.surface", run: () => openArcade() },
     { id: "theme", glyph: "moon-star", group: "palette.group.surface", labelOverride: themeTarget, run: () => setTheme(state.theme === "dark" ? "light" : "dark") },
-    { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh ? "Switch to English" : "切换到中文", run: () => setLocale(zh ? "en" : "zh") },
+    { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh ? "切换到英文" : "Switch to Chinese", run: () => setLocale(zh ? "en" : "zh") },
     { id: "sidebar", glyph: "panel-left", group: "palette.group.surface", run: () => setSidebarCollapsed(!state.sidebarCollapsed) },
     { id: "inspector", glyph: "panel-right", group: "palette.group.surface", run: () => setInspectorCollapsed(!state.inspectorCollapsed) },
     { id: "focus", glyph: "scan-line", group: "palette.group.surface", run: () => setFocusMode(!state.focusMode) },

@@ -753,7 +753,76 @@
       "replay.aria": "\u4EFB\u52A1\u56DE\u653E",
       "pulse.timelineOld": "\u8F83\u65E9",
       "pulse.timelineNew": "\u6700\u65B0",
-      "pulse.timelineEmpty": "\u8FD8\u6CA1\u6709\u53EF\u753B\u7684\u65F6\u95F4\u8F74"
+      "pulse.timelineEmpty": "\u8FD8\u6CA1\u6709\u53EF\u753B\u7684\u65F6\u95F4\u8F74",
+      "startup.status": "\u6B63\u5728\u542F\u52A8\u672C\u5730\u5DE5\u4F5C\u53F0",
+      "nav.appMenu": "\u5E94\u7528\u83DC\u5355",
+      "sidebar.toggle": "\u5207\u6362\u4FA7\u680F",
+      "nav.mainMenu": "\u4E3B\u83DC\u5355",
+      "menu.help": "\u5E2E\u52A9",
+      "brand.workspace": "\u5207\u6362\u5DE5\u4F5C\u533A",
+      "brand.search": "\u641C\u7D22",
+      "theme.toggle": "\u5207\u6362\u5230\u4EAE\u8272\u6A21\u5F0F",
+      "inspector.tabs": "\u5DE5\u4F5C\u533A\u68C0\u67E5\u5668",
+      "files.refreshWorkspace": "\u5237\u65B0\u5DE5\u4F5C\u533A",
+      "pulse.close": "\u5173\u95ED\u8109\u640F",
+      "palette.commands": "\u547D\u4EE4",
+      "permission.hint": "\u5B8C\u5168\u8BBF\u95EE\uFF1AAgent \u53EF\u4EE5\u8BFB\u5199\u6587\u4EF6\u5E76\u6267\u884C\u547D\u4EE4\u3002",
+      "game.codex": "\u56FE\u9274",
+      "game.codexOpen": "\u6253\u5F00\u56FE\u9274",
+      "game.codexTitle": "\u690D\u7269\u4E0E\u50F5\u5C38\u56FE\u9274",
+      "game.codexSubtitle": "\u5F53\u524D\u5C0F\u6E38\u620F\u5B9E\u9645\u4F7F\u7528\u7684\u6570\u503C\u3001\u6280\u80FD\u4E0E\u6218\u6597\u884C\u4E3A\u3002",
+      "game.codexClose": "\u5173\u95ED\u56FE\u9274",
+      "game.codexTabs": "\u56FE\u9274\u5206\u7C7B",
+      "game.codexPlants": "\u690D\u7269\u56FE\u9274",
+      "game.codexZombies": "\u50F5\u5C38\u56FE\u9274",
+      "game.codexEntries": "\u56FE\u9274\u6761\u76EE",
+      "game.codexPlantDetail": "\u690D\u7269\u8BE6\u60C5",
+      "game.codexZombieDetail": "\u50F5\u5C38\u8BE6\u60C5",
+      "game.codexSunCost": "\u9633\u5149\u6D88\u8017",
+      "game.codexPlantHp": "\u690D\u7269\u751F\u547D\u503C",
+      "game.codexDamage": "\u4F24\u5BB3",
+      "game.codexAttackRate": "\u653B\u51FB\u9891\u7387",
+      "game.codexDamageType": "\u4F24\u5BB3\u7C7B\u578B",
+      "game.codexRange": "\u653B\u51FB\u8303\u56F4",
+      "game.codexUsage": "\u4F7F\u7528\u65B9\u6CD5",
+      "game.codexSpecial": "\u7279\u6B8A\u6548\u679C",
+      "game.codexProfile": "\u5B9E\u9645 profile \u53C2\u6570",
+      "game.codexBaseHp": "\u57FA\u7840\u751F\u547D\u503C",
+      "game.codexArmor": "\u62A4\u7532",
+      "game.codexMoveSpeed": "\u79FB\u52A8\u901F\u5EA6",
+      "game.codexAttackInterval": "\u653B\u51FB\u95F4\u9694",
+      "game.codexScore": "\u51FB\u9000\u79EF\u5206",
+      "game.codexMovement": "\u79FB\u52A8\u65B9\u5F0F",
+      "game.codexSkills": "\u7279\u6B8A\u6280\u80FD",
+      "game.codexEmptyProfile": "\uFF08\u65E0 profile \u6570\u636E\uFF09",
+      "game.codexDamagePerSec": "\u6B21/\u79D2",
+      "game.codexOneShot": "\u4E00\u6B21\u6027",
+      "game.codexThreeLanes": "\u4E09\u884C\u7FA4\u4F53",
+      "game.codexSingleTarget": "\u5355\u4E2A\u76EE\u6807",
+      "game.codexLineTargets": "\u76F4\u7EBF\u76EE\u6807",
+      "game.codexRowPlusNeighbors": "\u5F53\u524D\u884C\u53CA\u76F8\u90BB\u4E24\u884C",
+      "game.codexSelfRadius": "\u81EA\u8EAB\u5468\u56F4",
+      "game.codexTouchRange": "\u89E6\u78B0\u8303\u56F4",
+      "game.codexWholeLane": "\u6574\u6761\u884C",
+      "game.codexBackRowSun": "\u653E\u5728\u540E\u6392\uFF0C\u6301\u7EED\u751F\u4EA7\u9633\u5149",
+      "game.codexFrontRowWall": "\u653E\u5728\u524D\u6392\uFF0C\u66FF\u690D\u7269\u62B5\u6321\u50F5\u5C38",
+      "game.codexEmergencyClear": "\u4F5C\u4E3A\u6E05\u573A/\u6551\u573A\u624B\u6BB5",
+      "game.codexFrontLine": "\u6CBF\u524D\u950B\u7EBF\u63A8\u8FDB\u653E\u7F6E",
+      "game.codexBurst": "\u8FDE\u53D1",
+      "game.codexTripleBurst": "3 \u8FDE\u53D1",
+      "game.codexSingleShot": "\u5355\u53D1",
+      "game.codexPerWave": "+ \u6BCF\u6CE2",
+      "game.codexBurrow": "\u5730\u4E0B\u6F5C\u884C\uFF0C\u63A5\u8FD1\u9632\u7EBF\u540E\u51FA\u571F",
+      "game.codexVault": "\u6301\u6746\u524D\u8FDB\uFF0C\u9047\u5230\u690D\u7269\u524D\u8DF3\u8FC7",
+      "game.codexLeap": "\u8DC3\u5411\u524D\u65B9\u8D8A\u8FC7\u690D\u7269",
+      "game.codexDash": "\u671D\u524D\u51B2\u950B\u8D8A\u8FC7\u690D\u7269",
+      "game.codexGiant": "\u4F53\u578B\u5DE8\u5927\uFF0C\u901F\u5EA6\u6781\u6162",
+      "game.codexMarch": "\u6301\u7EED\u671D\u524D\u63A8\u8FDB",
+      "game.perf": "\u6E32\u67D3\u6027\u80FD",
+      "game.fps": "FPS",
+      "game.frame": "\u5E27",
+      "game.longFrame": "\u957F\u5E27",
+      "game.objects": "\u5BF9\u8C61"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1248,7 +1317,76 @@
       "replay.aria": "Task replay",
       "pulse.timelineOld": "older",
       "pulse.timelineNew": "latest",
-      "pulse.timelineEmpty": "No timeline yet"
+      "pulse.timelineEmpty": "No timeline yet",
+      "startup.status": "Starting the local workbench",
+      "nav.appMenu": "Application menu",
+      "sidebar.toggle": "Toggle sidebar",
+      "nav.mainMenu": "Main menu",
+      "menu.help": "Help",
+      "brand.workspace": "Switch workspace",
+      "brand.search": "Search",
+      "theme.toggle": "Switch to light mode",
+      "inspector.tabs": "Workspace inspector",
+      "files.refreshWorkspace": "Refresh workspace",
+      "pulse.close": "Close pulse",
+      "palette.commands": "Commands",
+      "permission.hint": "Full access: the agent can edit files and run commands.",
+      "game.codex": "Codex",
+      "game.codexOpen": "Open the codex",
+      "game.codexTitle": "Plant & zombie codex",
+      "game.codexSubtitle": "The real numbers, skills and combat behaviour the arcade uses.",
+      "game.codexClose": "Close the codex",
+      "game.codexTabs": "Codex categories",
+      "game.codexPlants": "Plant codex",
+      "game.codexZombies": "Zombie codex",
+      "game.codexEntries": "Codex entries",
+      "game.codexPlantDetail": "Plant detail",
+      "game.codexZombieDetail": "Zombie detail",
+      "game.codexSunCost": "Sun cost",
+      "game.codexPlantHp": "Plant HP",
+      "game.codexDamage": "Damage",
+      "game.codexAttackRate": "Attack rate",
+      "game.codexDamageType": "Damage type",
+      "game.codexRange": "Range",
+      "game.codexUsage": "How to use",
+      "game.codexSpecial": "Special effect",
+      "game.codexProfile": "Raw profile parameters",
+      "game.codexBaseHp": "Base HP",
+      "game.codexArmor": "Armor",
+      "game.codexMoveSpeed": "Move speed",
+      "game.codexAttackInterval": "Attack interval",
+      "game.codexScore": "Repel score",
+      "game.codexMovement": "Movement",
+      "game.codexSkills": "Special skills",
+      "game.codexEmptyProfile": "(no profile data)",
+      "game.codexDamagePerSec": "hits/s",
+      "game.codexOneShot": "one-shot",
+      "game.codexThreeLanes": "3 lanes",
+      "game.codexSingleTarget": "single target",
+      "game.codexLineTargets": "line targets",
+      "game.codexRowPlusNeighbors": "own lane plus the two neighbours",
+      "game.codexSelfRadius": "around itself",
+      "game.codexTouchRange": "touch range",
+      "game.codexWholeLane": "the whole lane",
+      "game.codexBackRowSun": "back row, keeps producing sun",
+      "game.codexFrontRowWall": "front row, tanks the horde",
+      "game.codexEmergencyClear": "emergency lane clear",
+      "game.codexFrontLine": "place along the advance line",
+      "game.codexBurst": "burst",
+      "game.codexTripleBurst": "3-lane volley",
+      "game.codexSingleShot": "single shot",
+      "game.codexPerWave": "+ per wave",
+      "game.codexBurrow": "digs underground, surfaces at the plants",
+      "game.codexVault": "keeps a pole, vaults the first plant",
+      "game.codexLeap": "leaps forward over plants",
+      "game.codexDash": "charges forward through plants",
+      "game.codexGiant": "huge frame, crawls forward",
+      "game.codexMarch": "marches steadily forward",
+      "game.perf": "Rendering performance",
+      "game.fps": "FPS",
+      "game.frame": "frame",
+      "game.longFrame": "long frames",
+      "game.objects": "objects"
     }
   };
   function t(key) {
@@ -2055,7 +2193,8 @@
     const binding = runningTasks.get(taskId) || { taskId, sessionId: state.sessionId, workspacePath: state.workspacePath, loadingId };
     finishLiveTask(binding.loadingId || loadingId);
     stopTaskTimer(taskId);
-    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "\u4EFB\u52A1\u5931\u8D25\u3002") };
+    const zh2 = state.locale === "zh";
+    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh2 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh2 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
     cacheTaskDetail(finalData);
     runningTasks.delete(taskId);
     if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
@@ -2088,7 +2227,7 @@
       }
       cacheSessionView(binding.sessionId, holder.innerHTML, binding.workspacePath);
     }
-    if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88" : "\u4EFB\u52A1\u5931\u8D25"));
+    if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? state.locale === "zh" ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88" : "Task cancelled" : state.locale === "zh" ? "\u4EFB\u52A1\u5931\u8D25" : "Task failed"));
     notifyTaskFinished(finalData);
     scheduleChangesRefresh();
     refreshFileTreeSoon();
@@ -2115,23 +2254,27 @@
   }
 
   // web/src/panels/almanac.js
+  var zh = () => state.locale === "zh";
   var CHAPTERS = [
-    { id: "prologue", roman: "\u5E8F\u7AE0", title: "The Letter", subtitle: "\u4E00\u5C01\u7ED9\u672A\u6765\u7684\u4FE1" },
-    { id: "spark", roman: "\u7B2C\u4E00\u7AE0", title: "The Spark", subtitle: "\u610F\u56FE \u2192 \u8BA1\u5212 \u2192 \u884C\u52A8 \u2192 \u8BC1\u636E" },
-    { id: "depth", roman: "\u7B2C\u4E8C\u7AE0", title: "The Depth", subtitle: "\u538B\u7F29\u3001\u4FDD\u7559\u3001\u518D\u51FA\u53D1" },
-    { id: "sentry", roman: "\u7B2C\u4E09\u7AE0", title: "The Sentry", subtitle: "\u6BCF\u4E00\u4E2A\u627F\u8BFA\u90FD\u8981\u88AB\u6267\u884C" },
-    { id: "bloom", roman: "\u7B2C\u56DB\u7AE0", title: "The Bloom", subtitle: "\u5DE5\u4F5C\u53F0\u672C\u8EAB\u5C31\u662F\u8BC1\u8BCD" },
-    { id: "hand", roman: "\u7B2C\u4E94\u7AE0", title: "The Open Road", subtitle: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9" },
-    { id: "gate", roman: "\u5377\u516D", title: "The Gate", subtitle: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934" },
-    { id: "mesh", roman: "\u5377\u4E03", title: "The Mesh", subtitle: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6" },
-    { id: "witness", roman: "\u5377\u516B", title: "The Witness", subtitle: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E" }
+    { id: "prologue", roman: { zh: "\u5E8F\u7AE0", en: "Prologue" }, title: { zh: "\u4E00\u5C01\u7ED9\u672A\u6765\u7684\u4FE1", en: "The Letter" }, subtitle: { zh: "\u4E00\u5C01\u7ED9\u672A\u6765\u7684\u4FE1", en: "A letter to the future" } },
+    { id: "spark", roman: { zh: "\u7B2C\u4E00\u7AE0", en: "Chapter I" }, title: { zh: "\u706B\u79CD", en: "The Spark" }, subtitle: { zh: "\u610F\u56FE \u2192 \u8BA1\u5212 \u2192 \u884C\u52A8 \u2192 \u8BC1\u636E", en: "Intent \u2192 Plan \u2192 Act \u2192 Proof" } },
+    { id: "depth", roman: { zh: "\u7B2C\u4E8C\u7AE0", en: "Chapter II" }, title: { zh: "\u6DF1\u5EA6", en: "The Depth" }, subtitle: { zh: "\u538B\u7F29\u3001\u4FDD\u7559\u3001\u518D\u51FA\u53D1", en: "Compact, keep, depart again" } },
+    { id: "sentry", roman: { zh: "\u7B2C\u4E09\u7AE0", en: "Chapter III" }, title: { zh: "\u54E8\u5175", en: "The Sentry" }, subtitle: { zh: "\u6BCF\u4E00\u4E2A\u627F\u8BFA\u90FD\u8981\u88AB\u6267\u884C", en: "Every promise gets executed" } },
+    { id: "bloom", roman: { zh: "\u7B2C\u56DB\u7AE0", en: "Chapter IV" }, title: { zh: "\u76DB\u653E", en: "The Bloom" }, subtitle: { zh: "\u5DE5\u4F5C\u53F0\u672C\u8EAB\u5C31\u662F\u8BC1\u8BCD", en: "The workbench itself is testimony" } },
+    { id: "hand", roman: { zh: "\u7B2C\u4E94\u7AE0", en: "Chapter V" }, title: { zh: "\u8FDC\u884C", en: "The Open Road" }, subtitle: { zh: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9", en: "What is still unmapped" } },
+    { id: "gate", roman: { zh: "\u5377\u516D", en: "Chapter VI" }, title: { zh: "\u5173\u5361", en: "The Gate" }, subtitle: { zh: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934", en: "Every gate said yes" } },
+    { id: "mesh", roman: { zh: "\u5377\u4E03", en: "Chapter VII" }, title: { zh: "\u661F\u7F51", en: "The Mesh" }, subtitle: { zh: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6", en: "Six services, one country" } },
+    { id: "witness", roman: { zh: "\u5377\u516B", en: "Chapter VIII" }, title: { zh: "\u8BC1\u4EBA", en: "The Witness" }, subtitle: { zh: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E", en: "The record does not speak, but it does not lie" } }
   ];
   function chapterMarkup(chapter) {
+    const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
+    const title = zh() ? chapter.title.zh : chapter.title.en;
+    const subtitle = zh() ? chapter.subtitle.zh : chapter.subtitle.en;
     return `<button class="almanac-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
-            <span class="almanac-chapter-roman">${escapeHtml(chapter.roman)}</span>
+            <span class="almanac-chapter-roman">${escapeHtml(kicker)}</span>
             <span class="almanac-chapter-body">
-              <strong>${escapeHtml(chapter.title)}</strong>
-              <small>${escapeHtml(chapter.subtitle)}</small>
+              <strong>${escapeHtml(title)}</strong>
+              <small>${escapeHtml(subtitle)}</small>
             </span>
           </button>`;
   }
@@ -2143,44 +2286,57 @@
     const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "\u2014";
     const sessions = s?.sessions && typeof s?.sessions?.count === "number" ? String(s.sessions.count) : "\u2014";
     const messages = s?.sessions && typeof s?.sessions?.messages === "number" ? String(s.sessions.messages) : "\u2014";
-    const rows = [
+    const rows = (zh() ? [
       ["provider_retry", "\u7F51\u5173\u7684\u8010\u5FC3\u2014\u2014\u6BCF\u4E00\u6B21\u91CD\u8BD5\u8BA1\u6570\u90FD\u662F\u7F51\u5173\u4E0E\u6A21\u578B\u4E4B\u95F4\u7684\u4E00\u6B21\u63E1\u624B"],
       ["tool_round_finished", "\u5DE5\u5177\u56DE\u5408\u7684\u5B8C\u6574\u7B7E\u540D\u2014\u2014\u53C2\u6570\u591A\u5C11\u5B57\u7B26\uFF0C\u4E00\u6B21\u90FD\u4E0D\u5C11"],
-      ["completion_assessed", "\u5B8C\u6210\u843D\u69CC\u6216\u5224\u5B9A\u843D\u69CC\u2014\u2014never \u6765\u81EA\u9759\u9ED8\u8DF3\u8FC7"],
+      ["completion_assessed", "\u5B8C\u6210\u843D\u69CC\u6216\u5224\u5B9A\u843D\u69CC\u2014\u2014\u4ECE\u6765\u4E0D\u6765\u81EA\u9759\u9ED8\u8DF3\u8FC7"],
       ["approval_requested", "\u8D8A\u6743\u8FB9\u7F18\u7684\u505C\u4E0B\u4E0E\u7B49\u5F85\u2014\u2014\u4F60\u8BF4\u4E86\u7B97\uFF0C\u5B83\u505C\u7740"],
       ["audit", "\u88AB\u5199\u4E0B\u6765\u7684\uFF0C\u90FD\u80FD\u88AB\u8BFB\u56DE\u53BB\u2014\u2014\u5305\u62EC\u8FD9\u53E5\u8BDD\u672C\u8EAB"]
-    ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
+    ] : [
+      ["provider_retry", "The gateway's patience \u2014 every retry count is a handshake between gateway and model"],
+      ["tool_round_finished", "The full signature of a tool round \u2014 parameters, character counts, none skipped"],
+      ["completion_assessed", "The hammer falls or it doesn't \u2014 never from a silent skip"],
+      ["approval_requested", "The pause at the edge of excess authority \u2014 the user decides, the agent waits"],
+      ["audit", "What is written can be read back \u2014 including this very sentence"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
     return `
     <div class="almanac-canvas almanac-witness">
-      <div class="almanac-kicker">\u5377\u516B \xB7 Chapter VIII \u2014 The Witness</div>
-      <h1 class="almanac-title almanac-title-sm">\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C<br/><span class="almanac-title-accent">\u4F46\u7B14\u5F55\u4E0D\u8BF4\u8C0E\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u516B \xB7 \u8BC1\u4EBA" : "Chapter VIII \xB7 The Witness"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C<br/><span class="almanac-title-accent">\u4F46\u7B14\u5F55\u4E0D\u8BF4\u8C0E\u3002</span>' : 'The record does not speak,<br/><span class="almanac-title-accent">but the record does not lie.</span>'}</h1>
       <div class="almanac-body">
-        <p>
+        ${zh() ? `<p>
           \u8FD9\u4E2A\u9879\u76EE\u4E0D\u4FE1\u4EFB\u53D9\u8FF0\uFF0C\u5B83\u76F8\u4FE1\u7B14\u5F55\u3002\u6BCF\u4E00\u6B21\u5DE5\u5177\u8C03\u7528\u3001\u6BCF\u4E00\u6B21\u91CD\u8BD5\u3001\u6BCF\u4E00\u6B21\u5B8C\u6210\u5224\u5B9A\uFF0C
           \u90FD\u88AB\u5199\u8FDB\u5BA1\u8BA1\u65E5\u5FD7\u2014\u2014\u6309\u987A\u5E8F\u3001\u5E26\u5E8F\u53F7\u3001\u5E26\u65F6\u95F4\u6233\u3002
         </p>
         <p>
           \u5BC6\u94A5\u6C38\u8FDC\u4E0D\u843D\u76D8\uFF1A\u6240\u6709\u51FA\u7AD9\u5185\u5BB9\u90FD\u7ECF\u8FC7\u8131\u654F\u624D\u5199\u5165\u65E5\u5FD7\u3002
           \u4F60\u80FD\u5728\u8FD9\u91CC\u770B\u5230\u7684\uFF0C\u662F\u52A8\u8BCD\u548C\u8DEF\u5F84\uFF0C\u4ECE\u6765\u4E0D\u662F\u51ED\u636E\u3002
+        </p>` : `<p>
+          This project does not trust narrative; it trusts the record. Every tool call, every retry,
+          every completion verdict is written into the audit log \u2014 in order, numbered, timestamped.
         </p>
+        <p>
+          Secrets never touch disk: everything leaving the machine is redacted before it lands in the log.
+          What you see here are verbs and paths \u2014 never credentials.
+        </p>`}
       </div>
       <div class="almanac-instrument almanac-instrument-triple">
         <div>
-          <div class="almanac-instrument-label">\u5BA1\u8BA1\u884C\u6570 \xB7 Audit lines</div>
+          <div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u884C\u6570" : "Audit lines"}</div>
           <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u4F1A\u8BDD \xB7 Sessions</div>
+          <div class="almanac-instrument-label">${zh() ? "\u4F1A\u8BDD" : "Sessions"}</div>
           <div class="almanac-instrument-value">${escapeHtml(sessions)}</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u6D88\u606F \xB7 Messages</div>
+          <div class="almanac-instrument-label">${zh() ? "\u6D88\u606F" : "Messages"}</div>
           <div class="almanac-instrument-value">${escapeHtml(messages)}</div>
         </div>
       </div>
       <ul class="almanac-gate-list">${rows}</ul>
       <p class="almanac-quote almanac-quote-end">
-        \u5F53\u4F60\u4E0D\u77E5\u9053 agent \u505A\u8FC7\u4EC0\u4E48\uFF0C\u6253\u5F00\u5BA1\u8BA1\u3002\u5B83\u4E0D\u89E3\u91CA\uFF0C\u4F46\u5B83\u6309\u987A\u5E8F\u4EA4\u51FA\u4E8B\u5B9E\u3002
+        ${zh() ? "\u5F53\u4F60\u4E0D\u77E5\u9053 agent \u505A\u8FC7\u4EC0\u4E48\uFF0C\u6253\u5F00\u5BA1\u8BA1\u3002\u5B83\u4E0D\u89E3\u91CA\uFF0C\u4F46\u5B83\u6309\u987A\u5E8F\u4EA4\u51FA\u4E8B\u5B9E\u3002" : "When you don't know what the agent did, open the audit. It does not explain, but it hands over the facts in order."}
       </p>
     </div>`;
   }
@@ -2189,59 +2345,62 @@
     const date = String(digest.first_commit_at || "").slice(0, 10);
     const dirty = Number(digest.dirty_entries);
     const branch = `${digest.branch ?? "\u2014"}${digest.head_short ? ` @ ${digest.head_short}` : ""}`;
+    const batches = digest.roadmap_batches != null ? zh() ? `${digest.roadmap_batches} \u7AE0` : `${digest.roadmap_batches} chapters` : "\u2014";
     const cells = [
-      { label: "\u5206\u652F \xB7 Branch", value: escapeHtml(branch) },
-      { label: "\u63D0\u4EA4\u603B\u6570 \xB7 Commits", value: digest.total_commits != null ? String(digest.total_commits) : "\u2014" },
-      { label: "\u7B2C\u4E00\u7B14\u63D0\u4EA4 \xB7 First", value: date || "\u2014" },
-      { label: "\u6279\u6B21\u624B\u7A3F \xB7 Batches", value: digest.roadmap_batches != null ? `${digest.roadmap_batches} \u7AE0` : "\u2014" },
-      { label: "\u8DDF\u8E2A\u6587\u4EF6 \xB7 Tracked files", value: digest.tracked_files != null ? String(digest.tracked_files) : "\u2014" },
-      { label: "\u6D4B\u8BD5\u6587\u4EF6 \xB7 Tests", value: digest.test_files != null ? String(digest.test_files) : "\u2014" }
+      { label: zh() ? "\u5206\u652F" : "Branch", value: escapeHtml(branch) },
+      { label: zh() ? "\u63D0\u4EA4\u603B\u6570" : "Commits", value: digest.total_commits != null ? String(digest.total_commits) : "\u2014" },
+      { label: zh() ? "\u7B2C\u4E00\u7B14\u63D0\u4EA4" : "First commit", value: date || "\u2014" },
+      { label: zh() ? "\u6279\u6B21\u7AE0\u8282" : "Batch chapters", value: batches },
+      { label: zh() ? "\u8DDF\u8E2A\u6587\u4EF6" : "Tracked files", value: digest.tracked_files != null ? String(digest.tracked_files) : "\u2014" },
+      { label: zh() ? "\u6D4B\u8BD5\u6587\u4EF6" : "Test files", value: digest.test_files != null ? String(digest.test_files) : "\u2014" }
     ];
     const grid = cells.map((cell) => `<div><div class="almanac-instrument-label">${escapeHtml(cell.label)}</div><div class="almanac-instrument-value">${cell.value}</div></div>`).join("");
-    const note = Number.isFinite(dirty) && dirty > 0 ? `<div class="almanac-sidenote">\u5DE5\u4F5C\u6811\u91CC\u8FD8\u6709 ${dirty} \u5904\u672A\u63D0\u4EA4\u6539\u52A8\u2014\u2014\u8FD9\u4E2A\u535A\u7269\u9986\u8FD8\u5728\u65BD\u5DE5\u4E2D\u3002</div>` : "";
+    const note = Number.isFinite(dirty) && dirty > 0 ? `<div class="almanac-sidenote">${zh() ? `\u5DE5\u4F5C\u6811\u91CC\u8FD8\u6709 ${dirty} \u5904\u672A\u63D0\u4EA4\u6539\u52A8\u2014\u2014\u8FD9\u4E2A\u535A\u7269\u9986\u8FD8\u5728\u65BD\u5DE5\u4E2D\u3002` : `${dirty} uncommitted change(s) in the worktree \u2014 this museum is still under construction.`}</div>` : "";
     return `<div class="almanac-instrument almanac-instrument-grid">${grid}</div>${note}`;
   }
   function prologueMarkup(digest) {
     return `
     <div class="almanac-canvas almanac-prologue">
-      <div class="almanac-kicker">\u5E8F\u7AE0 \xB7 Prologue \u2014 The Letter</div>
-      <h1 class="almanac-title">\u6211\u5E0C\u671B<br/>\u6709\u4EBA\u4E3A\u6211
-        <span class="almanac-title-accent">\u628A\u4E16\u754C\u8BFB\u4E00\u904D\u3002</span>
-      </h1>
+      <div class="almanac-kicker">${zh() ? "\u5E8F\u7AE0 \xB7 \u4E00\u5C01\u7ED9\u672A\u6765\u7684\u4FE1" : "Prologue \xB7 The Letter"}</div>
+      <h1 class="almanac-title">${zh() ? "\u6211\u5E0C\u671B<br/>\u6709\u4EBA\u4E3A\u6211" : "I wish<br/>someone would"}<br/><span class="almanac-title-accent">${zh() ? "\u628A\u4E16\u754C\u8BFB\u4E00\u904D\u3002" : "read the world back to me."}</span></h1>
       <div class="almanac-body">
         <p class="almanac-lede">
-          2026 \u5E74\u590F\u5929\uFF0C\u8FD9\u4E2A\u9879\u76EE\u5F00\u59CB\u4E8E\u4E00\u4E2A\u95EE\u9898\uFF1A
-          <em>\u300C\u80FD\u4E0D\u80FD\u505A\u4E00\u4E2A\u4EBA\u613F\u610F\u6BCF\u5929\u4F7F\u7528\u7684\u672C\u5730\u7F16\u7A0B\u667A\u80FD\u4F53\uFF1F\u300D</em>
+          ${zh() ? `2026 \u5E74\u590F\u5929\uFF0C\u8FD9\u4E2A\u9879\u76EE\u5F00\u59CB\u4E8E\u4E00\u4E2A\u95EE\u9898\uFF1A<em>\u300C\u80FD\u4E0D\u80FD\u505A\u4E00\u4E2A\u4EBA\u613F\u610F\u6BCF\u5929\u4F7F\u7528\u7684\u672C\u5730\u7F16\u7A0B\u667A\u80FD\u4F53\uFF1F\u300D</em>` : `Summer 2026. This project began with a question: <em>"Could there be a local coding agent people would actually use every day?"</em>`}
         </p>
         <p>
-          \u5B83\u4E0D\u662F ChatGPT \u7684\u5957\u58F3\uFF0C\u4E5F\u4E0D\u662F Claude Code \u7684\u514B\u9686\u3002
-          \u5B83\u63A5\u53D7 <code>MINICC_API_KEY</code>\u3001<code>MINICC_BASE_URL</code>\u3001<code>MINICC_MODEL</code>\uFF0C
-          \u7136\u540E\u5728\u4F60\u7684\u5DE5\u4F5C\u533A\u91CC <code>read_file</code>\u3001<code>edit_file</code>\u3001<code>run_bash</code>\uFF0C
-          \u7528 <code>verify</code> \u8BC1\u660E\u81EA\u5DF1\u8BF4\u7684\u8BDD\u662F\u771F\u7684\uFF0C\u6700\u540E\u628A\u7B54\u6848\u4EA4\u7ED9\u4F60\u3002
+          ${zh() ? `\u5B83\u4E0D\u662F\u6D88\u8D39\u7EA7\u804A\u5929\u5BA2\u6237\u7AEF\u7684\u5957\u58F3\uFF0C\u4E5F\u4E0D\u662F\u4EFB\u4F55\u5DF2\u6709\u4EA7\u54C1\u7684\u514B\u9686\u3002<br/>\u5B83\u63A5\u53D7 <code>MINICC_API_KEY</code>\u3001<code>MINICC_BASE_URL</code>\u3001<code>MINICC_MODEL</code>\uFF0C<br/>\u7136\u540E\u5728\u4F60\u7684\u5DE5\u4F5C\u533A\u91CC <code>read_file</code>\u3001<code>edit_file</code>\u3001<code>run_bash</code>\uFF0C<br/>\u7528 <code>verify</code> \u8BC1\u660E\u81EA\u5DF1\u8BF4\u7684\u8BDD\u662F\u771F\u7684\uFF0C\u6700\u540E\u628A\u7B54\u6848\u4EA4\u7ED9\u4F60\u3002` : `It is not a wrapper around any chat client, and not a clone of anything.<br/>It takes <code>MINICC_API_KEY</code>, <code>MINICC_BASE_URL</code> and <code>MINICC_MODEL</code>,<br/>then in your workspace it does <code>read_file</code>, <code>edit_file</code>, <code>run_bash</code>,<br/>proves its claims with <code>verify</code>, and hands you the answer.`}
         </p>
         <p class="almanac-quote">
-          \u201C\u6211\u4E0D\u9700\u8981\u4E00\u4E2A\u66FF\u6211\u505A\u51B3\u5B9A\u7684\u4EBA\uFF1B\u6211\u9700\u8981\u4E00\u4E2A\u628A\u51B3\u5B9A\u505A\u5F97\u66F4\u7A33\u7684\u4EBA\u3002\u201D
+          ${zh() ? "\u201C\u6211\u4E0D\u9700\u8981\u4E00\u4E2A\u66FF\u6211\u505A\u51B3\u5B9A\u7684\u4EBA\uFF1B\u6211\u9700\u8981\u4E00\u4E2A\u628A\u51B3\u5B9A\u505A\u5F97\u66F4\u7A33\u7684\u4EBA\u3002\u201D" : "\u201CI don't need someone who decides for me; I need someone who makes decisions stand steadier.\u201D"}
         </p>
         <p class="almanac-sidenote">
-          \u8FD9\u662F\u7ED9\u4F60\u7684\u4EA7\u54C1\u505A\u7684\u540C\u4E00\u4E2A\u95EE\u9898\uFF0C\u4F5C\u4E3A\u5750\u6807\u3002
+          ${zh() ? "\u8FD9\u662F\u7ED9\u4F60\u7684\u4EA7\u54C1\u505A\u7684\u540C\u4E00\u4E2A\u95EE\u9898\uFF0C\u4F5C\u4E3A\u5750\u6807\u3002" : "The same question, asked about your product. This page is the coordinate."}
         </p>
       </div>
       ${digestInstrumentMarkup(digest)}
     </div>`;
   }
   function sparkMarkup() {
+    const steps = zh() ? [
+      { index: "01", head: "\u5165\u53E3", body: "\u7528\u6237\u5728 composer \u91CC\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\u3002" },
+      { index: "02", head: "\u8BA1\u5212", body: "\u6A21\u578B\u5728 plan / verify \u5FAA\u73AF\u91CC\u5207\u5206\u95EE\u9898\u3002\u6BCF\u4E00\u6B65\u90FD\u5F97\u5230\u4E00\u4EFD\u8BC1\u636E\u6216\u4E00\u79CD\u5931\u8D25\u3002" },
+      { index: "03", head: "\u884C\u52A8", body: "read_file / edit_file / bash \u4EFB\u4E00\u5DE5\u5177\u88AB\u8C03\u7528\uFF0C\u8F93\u51FA\u88AB\u9A8C\u8BC1\u540E\u518D\u8FDB\u5165\u4E0B\u4E00\u8F6E\u3002" },
+      { index: "04", head: "\u9A8C\u6536", body: "completion_assessment \u6216 verifier \u653E\u884C\u7B54\u6848\u3002\u672A\u901A\u8FC7\u5219\u505C\u5728\u539F\u5730\u5E76\u62A5\u544A\u3002" }
+    ] : [
+      { index: "01", head: "Intake", body: "You type a sentence in the composer. The system reads files, git status, and session memory." },
+      { index: "02", head: "Plan", body: "The model splits the problem inside a plan / verify loop. Each step earns evidence or a named failure." },
+      { index: "03", head: "Act", body: "read_file / edit_file / bash \u2014 every tool call's output is verified before the next round." },
+      { index: "04", head: "Verify", body: "completion_assessment or the verifier clears the answer. If it doesn't pass, it stops right there and says why." }
+    ];
     return `
     <div class="almanac-canvas almanac-spark">
-      <div class="almanac-kicker">\u5377\u4E00 \xB7 Chapter I \u2014 The Spark</div>
-      <h1 class="almanac-title almanac-title-sm">\u4E00\u4E2A\u53E5\u5B50<br/>\u5982\u4F55\u53D8\u6210<span class="almanac-title-accent">\u4E00\u4E2A\u4EFB\u52A1\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E00 \xB7 \u706B\u79CD" : "Chapter I \xB7 The Spark"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u4E00\u4E2A\u53E5\u5B50<br/>\u5982\u4F55\u53D8\u6210<span class="almanac-title-accent">\u4E00\u4E2A\u4EFB\u52A1\u3002</span>' : 'How a sentence<br/>becomes <span class="almanac-title-accent">a task.</span>'}</h1>
       <div class="almanac-body">
-        <p>\u4F60\u5728\u8F93\u5165\u6846\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\uFF0C\u628A\u8FD9\u4E00\u53E5\u53D8\u6210\u4E00\u6761\u6D41\u6C34\u7EBF\uFF1A</p>
+        <p>${zh() ? "\u4F60\u5728\u8F93\u5165\u6846\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\uFF0C\u628A\u8FD9\u4E00\u53E5\u53D8\u6210\u4E00\u6761\u6D41\u6C34\u7EBF\uFF1A" : "You type one sentence. The system reads files, git status and session memory \u2014 and turns that sentence into a pipeline:"}</p>
       </div>
       <div class="almanac-chapter-aside">
-        <div class="almanac-step"><span class="almanac-step-index">01</span><div><strong>\u5165\u53E3</strong><p>\u7528\u6237\u5728 composer \u91CC\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\u3002</p></div></div>
-        <div class="almanac-step"><span class="almanac-step-index">02</span><div><strong>\u8BA1\u5212</strong><p>\u6A21\u578B\u5728 plan / verify \u5FAA\u73AF\u91CC\u5207\u5206\u95EE\u9898\u3002\u6BCF\u4E00\u6B65\u90FD\u5F97\u5230\u4E00\u4EFD\u8BC1\u636E\u6216\u4E00\u79CD\u5931\u8D25\u3002</p></div></div>
-        <div class="almanac-step"><span class="almanac-step-index">03</span><div><strong>\u884C\u52A8</strong><p>read_file / edit_file / bash \u4EFB\u4E00\u5DE5\u5177\u88AB\u8C03\u7528\uFF0C\u8F93\u51FA\u88AB\u9A8C\u8BC1\u540E\u518D\u8FDB\u5165\u4E0B\u4E00\u8F6E\u3002</p></div></div>
-        <div class="almanac-step"><span class="almanac-step-index">04</span><div><strong>\u9A8C\u6536</strong><p>completion_assessment \u6216 verifier \u653E\u884C\u7B54\u6848\u3002\u672A\u901A\u8FC7\u5219\u505C\u5728\u539F\u5730\u5E76\u62A5\u544A\u3002</p></div></div>
+        ${steps.map((s) => `<div class="almanac-step"><span class="almanac-step-index">${escapeHtml(s.index)}</span><div><strong>${escapeHtml(s.head)}</strong><p>${escapeHtml(s.body)}</p></div></div>`).join("\n        ")}
       </div>
     </div>`;
   }
@@ -2255,21 +2414,29 @@
     const hitLabel = hitRate > 0 ? `${Math.round(hitRate * 100)}%` : "\u2014";
     return `
     <div class="almanac-canvas almanac-depth">
-      <div class="almanac-kicker">\u5377\u4E8C \xB7 Chapter II \u2014 The Depth</div>
-      <h1 class="almanac-title almanac-title-sm">\u8D8A\u6DF1\u5165<br/>\u8D8A\u5BB9\u6613<span class="almanac-title-accent">\u88AB\u538B\u7F29\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E8C \xB7 \u6DF1\u5EA6" : "Chapter II \xB7 The Depth"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u8D8A\u6DF1\u5165<br/>\u8D8A\u5BB9\u6613<span class="almanac-title-accent">\u88AB\u538B\u7F29\u3002</span>' : 'The deeper it goes,<br/><span class="almanac-title-accent">the more it compacts.</span>'}</h1>
       <div class="almanac-body">
-        <p>
+        ${zh() ? `<p>
           \u7F16\u7801\u4F1A\u8BDD\u7684\u4EE3\u4EF7\u4E0D\u5728 token\uFF0C\u800C\u5728<em>\u6CE8\u610F\u529B</em>\u3002\u8FD9\u4E2A\u9879\u76EE\u7684\u4E0A\u4E0B\u6587\u538B\u7F29
           \u5728\u63A5\u8FD1\u9608\u503C\u65F6\u4FDD\u5B58<em>checkpoint</em>\uFF1A\u6458\u8981 + \u6700\u8FD1\u82E5\u5E72\u8F6E\u9010\u5B57\uFF0C\u5176\u4F59\u5168\u90E8\u4E22\u5F03\u3002
-          \u4E22\u51FA\u53BB\u7684\u662F"\u8FD9\u4E00\u523B"\uFF0C\u7559\u4E0B\u7684\u662F"\u6211\u5728\u505A\u4EC0\u4E48"\u3002
+          \u4E22\u51FA\u53BB\u7684\u662F\u201C\u8FD9\u4E00\u523B\u201D\uFF0C\u7559\u4E0B\u7684\u662F\u201C\u6211\u5728\u505A\u4EC0\u4E48\u201D\u3002
         </p>
         <p>
           \u7F13\u5B58\u547D\u4E2D\u505A\u7684\u662F\u540C\u4E00\u4EF6\u4E8B\uFF1A\u7528\u524D\u7F00\u4EB2\u548C\u8BA9\u6A21\u578B<em>\u4E0D\u91CD\u65B0\u8BFB\u4E00\u904D</em>\u4F60\u521A\u5199\u5B8C\u7684\u4E0A\u4E0B\u6587\u3002
           \u6CA1\u6709\u5B83\uFF0C\u6BCF\u4E2A\u8BF7\u6C42\u90FD\u8981\u4E3A\u540C\u4E00\u6BB5 system prompt \u4ED8\u8D39\uFF1B\u6709\u5B83\uFF0C\u4ED8\u4E00\u6B21\u5C31\u884C\u4E86\u3002
+        </p>` : `<p>
+          The cost of a coding session is paid in <em>attention</em>, not tokens. This project's context compaction
+          saves a <em>checkpoint</em> near the threshold: a summary plus the most recent turns verbatim; the rest is discarded.
+          What gets thrown out is "this moment"; what remains is "what I am doing".
         </p>
+        <p>
+          Cache affinity solves the same problem: a prefix-aware model never re-reads the context you just wrote.
+          Without it, every request pays for the same system prompt again; with it, you pay once.
+        </p>`}
       </div>
       <div class="almanac-instrument">
-        <div class="almanac-instrument-label">\u672C\u5730\u6570\u636E \xB7 \u5B9E\u65F6\u8BFB\u6570</div>
+        <div class="almanac-instrument-label">${zh() ? "\u672C\u5730\u6570\u636E \xB7 \u5B9E\u65F6\u8BFB\u6570" : "Local data \xB7 live reading"}</div>
         <div class="almanac-instrument-value">${compactNumber(tokens)} tokens in flight \xB7 hit rate ${escapeHtml(hitLabel)}</div>
       </div>
     </div>`;
@@ -2279,10 +2446,10 @@
     const total = metrics?.usage?.total_tokens ?? 0;
     return `
     <div class="almanac-canvas almanac-sentry">
-      <div class="almanac-kicker">\u5377\u4E09 \xB7 Chapter III \u2014 The Sentry</div>
-      <h1 class="almanac-title almanac-title-sm">\u6BCF\u4E00\u4E2A\u627F\u8BFA<br/>\u90FD\u662F\u4E00\u4E2A<span class="almanac-title-accent">\u95E8\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E09 \xB7 \u54E8\u5175" : "Chapter III \xB7 The Sentry"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u6BCF\u4E00\u4E2A\u627F\u8BFA<br/>\u90FD\u662F\u4E00\u4E2A<span class="almanac-title-accent">\u95E8\u3002</span>' : 'Every promise<br/>is a <span class="almanac-title-accent">gate.</span>'}</h1>
       <div class="almanac-body">
-        <p>
+        ${zh() ? `<p>
           \u5982\u679C agent \u53EF\u4EE5\u5728\u6CA1\u6709\u547D\u4EE4\u7684\u60C5\u51B5\u4E0B\u81EA\u79F0\u5B8C\u6210\uFF0C\u90A3\u4E48<em>\u4EFB\u4F55</em>\u590D\u6742
           \u7CFB\u7EDF\u90FD\u7ECF\u4E0D\u8D77\u7B2C\u4E09\u4E2A\u5DE5\u5177\u8C03\u7528\u3002\u8FD9\u4E2A\u9879\u76EE\u7684\u7B54\u6848\u662F\u4E00\u4E32 <code>tests/</code>\u2014\u2014
           \u6BCF\u4E2A change \u90FD\u5FC5\u987B\u901A\u8FC7\u81EA\u5DF1\u6CA1\u6709\u78B0\u5230\u8FC7\u7684\u95E8\u3002
@@ -2290,15 +2457,23 @@
         <p>
           \u5B8C\u6210\u4E4B\u540E\u518D\u770B\uFF1A\u4E00\u4E2A <code>completion_assessed</code> \u4E8B\u4EF6\u4E0D\u4F1A\u6765\u81EA\u9759\u9ED8\u8DF3\u8FC7\uFF0C\u800C\u662F
           \u6765\u81EA\u660E\u786E\u83B7\u8BB8\u6216\u660E\u786E\u5224\u8F93\u3002
+        </p>` : `<p>
+          If an agent can claim completion without a command, then <em>any</em> complex system
+          breaks on the third tool call. This project answers with a wall of <code>tests/</code> \u2014
+          every change must clear gates it never touched.
         </p>
+        <p>
+          And after completion: a <code>completion_assessed</code> event never comes from a silent skip,
+          only from explicit success or explicit failure.
+        </p>`}
       </div>
       <div class="almanac-instrument almanac-instrument-double">
         <div>
-          <div class="almanac-instrument-label">\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u603B\u6570</div>
+          <div class="almanac-instrument-label">${zh() ? "\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u603B\u6570" : "Tasks completed"}</div>
           <div class="almanac-instrument-value">${escapeHtml(String(taskCount))}</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u7D2F\u8BA1\u6D88\u8017 tokens</div>
+          <div class="almanac-instrument-label">${zh() ? "\u7D2F\u8BA1\u6D88\u8017 tokens" : "Tokens consumed"}</div>
           <div class="almanac-instrument-value">${compactNumber(total)}</div>
         </div>
       </div>
@@ -2307,37 +2482,54 @@
   function bloomMarkup() {
     return `
     <div class="almanac-canvas almanac-bloom">
-      <div class="almanac-kicker">\u5377\u56DB \xB7 Chapter IV \u2014 The Bloom</div>
-      <h1 class="almanac-title almanac-title-sm">\u8FD9\u4E2A<br/>\u5DE5\u4F5C\u53F0\u672C\u8EAB<br/>\u5C31\u662F<span class="almanac-title-accent">\u8BC1\u8BCD\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u56DB \xB7 \u76DB\u653E" : "Chapter IV \xB7 The Bloom"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u8FD9\u4E2A<br/>\u5DE5\u4F5C\u53F0\u672C\u8EAB<br/>\u5C31\u662F<span class="almanac-title-accent">\u8BC1\u8BCD\u3002</span>' : 'This<br/>workbench<br/>itself is <span class="almanac-title-accent">testimony.</span>'}</h1>
       <div class="almanac-body">
-        <p>
+        ${zh() ? `<p>
           \u8FD9\u91CC\u7684\u6BCF\u4E00\u5757\u4E0D\u4EC5\u4E0D\u53EA\u662F\u300C\u754C\u9762\u300D\u3002\u5DE6\u8FB9\u300C\u6700\u8FD1\u4EFB\u52A1\u300D\u4E0D\u662F\u5BFC\u822A\u680F\uFF1B\u300C\u7F13\u5B58\u547D\u4E2D\u7387\u300D\u4E0D\u662F\u767E\u5206\u6BD4\uFF1B
           \u300C\u4EFB\u52A1\u6863\u6848\u300D\u4E0D\u662F\u65E5\u5FD7\u2014\u2014\u5B83\u4EEC\u4E00\u8D77\u6784\u6210<strong>\u4EA4\u4ED8\u8FC7\u7A0B\u672C\u8EAB</strong>\u3002
         </p>
         <p>
           \u5C4F\u5E55\u4E0A\u6BCF\u4E2A\u6570\u503C\u90FD\u53EF\u4EE5\u88AB\u70B9\u51FB\u3001\u88AB\u5C55\u5F00\u3001\u88AB\u6298\u53E0\u3001\u88AB\u590D\u76D8\u3002\u771F\u6B63\u5728\u8FD9\u91CC\u8DD1\u8FC7\u7684 agent \u624D\u914D\u5F97\u4E0A
           \u300C\u5DF2\u8FDE\u63A5\u300D\u8FD9\u4E09\u4E2A\u5B57\u2014\u2014\u800C\u4E0D\u662F\u7ED9\u81EA\u5DF1\u6234\u8363\u8A89\u3002
+        </p>` : `<p>
+          Nothing here is "just UI". The recent-tasks list is not a sidebar; the cache hit rate is not a percentage;
+          the task archive is not a log \u2014 together they <strong>are the delivery process itself</strong>.
         </p>
+        <p>
+          Every number on screen can be clicked, expanded, folded, replayed. Only an agent that has actually run here
+          earns the right to the label "connected" \u2014 not as an honorific, but as a fact.
+        </p>`}
       </div>
     </div>`;
   }
   function handMarkup() {
+    const bullets = zh() ? [
+      ["\u56DE\u653E Replay", "\u4EFB\u52A1\u4ECE intake \u5230 deliver \u7684\u6BCF\u4E00\u6B65\uFF0C\u5DF2\u7ECF\u53EF\u4EE5\u88AB\u56DE\u653E\u3001\u88AB diff\u3001\u88AB\u590D\u76D8\u3002"],
+      ["\u8D26\u672C Ledger", "\u4F60\u5728\u8FD9\u91CC\u770B\u5230\u7684\u4E0D\u662F\u4F59\u989D\uFF0C\u662F\u4E00\u7B14\u4E00\u7B14\u53EF\u88AB\u5BA1\u8BA1\u7684 token\u3002"],
+      ["\u8109\u640F Pulse", "\u4F60\u5728\u4EFB\u4F55\u65F6\u5019\u90FD\u53EF\u4EE5\u6253\u5F00\u300C\u5DE5\u4F5C\u533A\u8109\u640F\u300D\uFF0C\u770B\u89C1\u8FD9\u4E2A\u9879\u76EE\u5728\u547C\u5438\u3002"],
+      ["\u6A21\u677F\u5E93 Templates", "8 \u5F20\u7ECF\u8FC7\u7B56\u5212\u7684 prompt\uFF0C\u8BA9\u65B0\u624B\u5C11\u7FFB\u534A\u5929\u6587\u6863\u3002"],
+      ["Spring Cloud \u5E73\u9762", "\u4E91\u4FA7\u7684\u670D\u52A1\u8FB9\u754C\u6B63\u5728\u53D8\u5F97\u66F4\u771F\u5B9E\uFF1A\u6CE8\u518C\u53D1\u73B0\u3001\u914D\u7F6E\u4E0B\u53D1\u3001\u9650\u6D41\u3002"],
+      ["MCP \u4E0E \u6280\u80FD", "\u4F60\u7684\u7F16\u8F91\u5668\u91CC\u6F5C\u85CF\u7684\u80FD\u529B\uFF0C\u53EF\u4EE5\u88AB\u63A5\u5230\u8FD9\u6761\u6D41\u6C34\u7EBF\u3002"]
+    ] : [
+      ["Replay", "Every step from intake to deliver can already be replayed, diffed, reviewed."],
+      ["Ledger", "What you see here is not a balance; it is token-by-token auditability."],
+      ["Pulse", "Any time, open the workspace pulse and watch this project breathe."],
+      ["Templates", "Eight curated prompts so new users don't spend half a day reading docs."],
+      ["Spring Cloud plane", "The cloud-side service boundaries keep getting realer: discovery, config push, rate limits."],
+      ["MCP & skills", "Abilities hidden inside your editor can be wired into this pipeline."]
+    ];
     return `
     <div class="almanac-canvas almanac-hand">
-      <div class="almanac-kicker">\u5377\u4E94 \xB7 Chapter V \u2014 The Open Road</div>
-      <h1 class="almanac-title almanac-title-sm">\u8FD8\u6709\u597D\u591A<br/>\u53EF\u4EE5\u7EE7\u7EED<span class="almanac-title-accent">\u505A\u7684\u4E8B\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E94 \xB7 \u8FDC\u884C" : "Chapter V \xB7 The Open Road"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u8FD8\u6709\u597D\u591A<br/>\u53EF\u4EE5\u7EE7\u7EED<span class="almanac-title-accent">\u505A\u7684\u4E8B\u3002</span>' : 'So much is<br/>still worth <span class="almanac-title-accent">doing.</span>'}</h1>
       <div class="almanac-body">
-        <p>\u8FD9\u4E2A\u9879\u76EE\u8FD8\u5728\u957F\uFF1A</p>
+        <p>${zh() ? "\u8FD9\u4E2A\u9879\u76EE\u8FD8\u5728\u957F\uFF1A" : "This project is still growing:"}</p>
         <ul class="almanac-chapter-list">
-          <li><strong>Memory</strong> \u2014 \u4EFB\u52A1\u4ECE intake \u5230 deliver \u7684\u6BCF\u4E00\u6B65\uFF0C\u5DF2\u7ECF\u53EF\u4EE5\u88AB\u56DE\u653E\u3001\u88AB diff\u3001\u88AB\u590D\u76D8\u3002</li>
-          <li><strong>Ledger</strong> \u2014 \u4F60\u5728\u8FD9\u91CC\u770B\u5230\u7684\u4E0D\u662F\u4F59\u989D\uFF0C\u662F\u4E00\u7B14\u4E00\u7B14\u53EF\u88AB\u5BA1\u8BA1\u7684 token\u3002</li>
-          <li><strong>Pulse</strong> \u2014 \u4F60\u5728\u4EFB\u4F55\u65F6\u5019\u90FD\u53EF\u4EE5\u6253\u5F00\u300C\u5DE5\u4F5C\u533A\u8109\u640F\u300D\uFF0C\u770B\u89C1\u8FD9\u4E2A\u9879\u76EE\u5728\u547C\u5438\u3002</li>
-          <li><strong>Templates</strong> \u2014 8 \u5F20\u7ECF\u8FC7\u7B56\u5212\u7684 prompt\uFF0C\u8BA9\u65B0\u624B\u5C11\u7FFB\u534A\u5929\u6587\u6863\u3002</li>
-          <li><strong>Spring Cloud plane</strong> \u2014 \u4E91\u4FA7\u7684\u670D\u52A1\u8FB9\u754C\u6B63\u5728\u53D8\u5F97\u66F4\u771F\u5B9E\uFF1A\u6CE8\u518C\u53D1\u73B0\u3001\u914D\u7F6E\u4E0B\u53D1\u3001\u9650\u6D41\u3002</li>
-          <li><strong>MCP &amp; skills</strong> \u2014 \u4F60\u7684\u7F16\u8F91\u5668\u91CC\u6F5C\u85CF\u7684\u80FD\u529B\uFF0C\u53EF\u4EE5\u88AB\u63A5\u5230\u8FD9\u6761\u6D41\u6C34\u7EBF\u3002</li>
+          ${bullets.map(([b, s]) => `<li><strong>${escapeHtml(b)}</strong> \u2014 ${escapeHtml(s)}</li>`).join("\n          ")}
         </ul>
         <p class="almanac-quote almanac-quote-end">
-          \u8FD9\u4E2A\u4EA7\u54C1\u7684\u672A\u6765\u662F\u4F60\u5199\u4E0B\u6BCF\u4E00\u6761\u6307\u4EE4\u4E4B\u540E\uFF0C\u4E16\u754C\u4F1A\u56E0\u6B64\u66F4\u7CBE\u786E\u4E00\u70B9\u70B9\u3002
+          ${zh() ? "\u8FD9\u4E2A\u4EA7\u54C1\u7684\u672A\u6765\u662F\uFF1A\u4F60\u5199\u4E0B\u6BCF\u4E00\u6761\u6307\u4EE4\u4E4B\u540E\uFF0C\u4E16\u754C\u4F1A\u56E0\u6B64\u66F4\u7CBE\u786E\u4E00\u70B9\u70B9\u3002" : "The product's future: after you write every instruction, the world is a little more precise because of it."}
         </p>
       </div>
     </div>`;
@@ -2345,20 +2537,26 @@
   function gateMarkup(digest) {
     const commits = digest && digest.is_git === true && digest.total_commits != null ? String(digest.total_commits) : "\u2014";
     const tests = digest && digest.is_git === true && digest.test_files != null ? String(digest.test_files) : "\u2014";
-    const batches = digest && digest.is_git === true && digest.roadmap_batches != null ? `${digest.roadmap_batches} \u7AE0` : "\u2014";
-    const rows = [
+    const batches = digest && digest.is_git === true && digest.roadmap_batches != null ? zh() ? `${digest.roadmap_batches} \u7AE0` : `${digest.roadmap_batches} chapters` : "\u2014";
+    const rows = (zh() ? [
       ["Python \u53CC\u5E73\u53F0", "ubuntu-latest + windows-latest \xB7 \u6BCF\u63A8\u9001\u4E00\u6B21\u5168\u91CF\u8DD1\uFF0C\u4E24\u4E2A\u64CD\u4F5C\u7CFB\u7EDF\u5404\u81EA\u5224\u5377"],
-      ["Claim checkers", "doc pointers\uFF08\u60AC\u7A7A\u8BC1\u636E\u96F6\u5BB9\u5FCD\uFF09\xB7 route coverage \xB7 impact floor\uFF08\u6BCF\u4E2A\u6A21\u5757\u90FD\u8981\u88AB\u6D4B\u8BD5\u591F\u5F97\u7740\uFF09"],
-      ["JavaScript syntax", "22 \u4E2A\u8BED\u6CD5/\u534F\u8BAE\u95E8 \xB7 \u4EFB\u4E00\u6761\u4E0D\u8FC7\uFF0C\u8FD9\u6247\u95E8\u5C31\u4E0D\u7B97\u8FC7"],
+      ["\u58F0\u660E\u6838\u5BF9\u5668", "doc pointers\uFF08\u60AC\u7A7A\u8BC1\u636E\u96F6\u5BB9\u5FCD\uFF09\xB7 route coverage \xB7 impact floor\uFF08\u6BCF\u4E2A\u6A21\u5757\u90FD\u8981\u88AB\u6D4B\u8BD5\u591F\u5F97\u7740\uFF09"],
+      ["JavaScript \u8BED\u6CD5\u95E8", "22 \u4E2A\u8BED\u6CD5/\u534F\u8BAE\u95E8 \xB7 \u4EFB\u4E00\u6761\u4E0D\u8FC7\uFF0C\u8FD9\u6247\u95E8\u5C31\u4E0D\u7B97\u8FC7"],
       ["Service plane", "mvn \xB7 7 \u4E2A Spring Cloud \u6A21\u5757 \xB7 \u7F51\u5173 / \u6CE8\u518C / \u914D\u7F6E / \u4EFB\u52A1 / \u6D1E\u5BDF / \u5DE1\u68C0 / \u6865\u63A5"],
       ["Playwright \xD72", "\u771F\u6D4F\u89C8\u5668 \xB7 \u542B\u300C\u4E0D\u53EF\u8FBE\u63D0\u4F9B\u65B9\u5FC5\u987B\u5931\u8D25\u300D\u2014\u2014\u95E8\u672C\u8EAB\u4E5F\u88AB\u95E8\u5B88\u7740"]
-    ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
+    ] : [
+      ["Python, two platforms", "ubuntu-latest + windows-latest \xB7 the full suite on every push, both OSes grading"],
+      ["Claim checkers", "doc pointers (no dangling evidence) \xB7 route coverage \xB7 impact floor (every module must be reachable by a test)"],
+      ["JavaScript syntax gates", "22 syntax/protocol gates \xB7 if one fails, the gate does not count as passed"],
+      ["Service plane", "mvn \xB7 7 Spring Cloud modules \xB7 gateway / registry / config / tasks / insights / inspector / bridge"],
+      ["Playwright \xD72", "Real browsers \xB7 including 'an unreachable provider must fail' \u2014 the gates are gated too"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
     return `
     <div class="almanac-canvas almanac-gate">
-      <div class="almanac-kicker">\u5377\u516D \xB7 Chapter VI \u2014 The Gate</div>
-      <h1 class="almanac-title almanac-title-sm">\u4E0D\u662F\u5199\u5B8C\u4E86\uFF0C<br/>\u662F\u88AB<span class="almanac-title-accent">\u5168\u90E8\u6279\u51C6\u4E86\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u516D \xB7 \u5173\u5361" : "Chapter VI \xB7 The Gate"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u4E0D\u662F\u5199\u5B8C\u4E86\uFF0C<br/>\u662F\u88AB<span class="almanac-title-accent">\u5168\u90E8\u6279\u51C6\u4E86\u3002</span>' : `Not 'it's written',<br/>but <span class="almanac-title-accent">'it's all approved.'</span>`}</h1>
       <div class="almanac-body">
-        <p>
+        ${zh() ? `<p>
           \u8FD9\u4E2A\u9879\u76EE\u6700\u5B89\u9759\u3001\u4E5F\u6700\u8BDA\u5B9E\u7684\u89D2\u8272\u662F CI\u3002\u6BCF\u4E00\u6B21\u63D0\u4EA4\u90FD\u8981\u7ECF\u8FC7\u540C\u4E00\u6392\u95E8\uFF1A
           \u53CC\u5E73\u53F0\u5168\u91CF\u6D4B\u8BD5\u3001\u6587\u6863\u95E8\u7981\u3001\u8DEF\u7531\u8986\u76D6\u7387\u4E0E\u6A21\u5757\u5F15\u7528\u9762\u300122 \u4E2A JS \u534F\u8BAE\u95E8\u3001
           Spring Cloud plane \u7684 mvn \u5957\u4EF6\u3001\u771F\u6D4F\u89C8\u5668 \xD72\u3002
@@ -2367,75 +2565,107 @@
           \u4EFB\u4F55\u4E00\u9053\u95E8\u7EA2\u4E86\uFF0C\u8FD9\u6247\u95E8\u5C31\u6CA1\u6709\u610F\u4E49\u3002\u5B83\u4ECE\u4E0D\u8BF4\u8C0E\uFF0C\u56E0\u4E3A\u5B83\u4ECE\u4E0D\u88AB\u5141\u8BB8\u8BF4\u8C0E\uFF1A
           \u65AD\u8A00\u5931\u8D25\u7684\u6570\u5B57\u3001\u60AC\u7A7A\u7684\u8BC1\u636E\u6307\u9488\u3001\u88AB\u6F0F\u6389\u7684\u8DEF\u7531\u3001\u5931\u8E2A\u7684\u5F15\u7528\u9762\u2014\u2014\u6BCF\u4E00\u4E2A
           \u90FD\u8BA9\u7EA2\u706F\u4EAE\u8D77\u6765\uFF0C\u800C\u4E0D\u662F\u8BB0\u5728\u5FC3\u91CC\u3002
+        </p>` : `<p>
+          The quietest and most honest role in this project is CI. Every push goes through the same row of gates:
+          the dual-platform full suite, doc gates, route coverage and module reference surface, 22 JS protocol gates,
+          the Spring Cloud plane's mvn suite, two real browsers.
         </p>
+        <p>
+          If any gate is red, the gate has no meaning. It never lies, because it is never allowed to:
+          a failed assertion count, a dangling evidence pointer, a missing route, a missing reference
+          surface \u2014 each one turns a light red instead of being quietly remembered.
+        </p>`}
       </div>
       <div class="almanac-instrument almanac-instrument-double">
         <div>
-          <div class="almanac-instrument-label">\u95E8\u653E\u8FC7\u7684\u63D0\u4EA4\u6570</div>
+          <div class="almanac-instrument-label">${zh() ? "\u95E8\u653E\u8FC7\u7684\u63D0\u4EA4\u6570" : "Commits passed by the gates"}</div>
           <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u95E8 \xB7 \u6D4B\u8BD5\u6587\u4EF6</div>
+          <div class="almanac-instrument-label">${zh() ? "\u95E8 \xB7 \u6D4B\u8BD5\u6587\u4EF6" : "Gate \xB7 test files"}</div>
           <div class="almanac-instrument-value">${escapeHtml(tests)}</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u95E8\u7684\u6587\u732E \xB7 \u6279\u6B21\u624B\u7A3F</div>
+          <div class="almanac-instrument-label">${zh() ? "\u95E8\u7684\u6587\u732E \xB7 \u6279\u6B21\u7AE0\u8282" : "Gate's canon \xB7 batch chapters"}</div>
           <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
         </div>
       </div>
       <ul class="almanac-gate-list">${rows}</ul>
       <p class="almanac-quote almanac-quote-end">
-        \u8FD9\u4E2A\u9879\u76EE\u7684\u5B8C\u6210\u6807\u51C6\u4E0D\u662F\u300C\u505A\u5B8C\u4E86\u300D\uFF0C\u800C\u662F\u300C\u6240\u6709\u7684\u95E8\u90FD\u70B9\u4E86\u5934\u300D\u3002
+        ${zh() ? "\u8FD9\u4E2A\u9879\u76EE\u7684\u5B8C\u6210\u6807\u51C6\u4E0D\u662F\u300C\u505A\u5B8C\u4E86\u300D\uFF0C\u800C\u662F\u300C\u6240\u6709\u7684\u95E8\u90FD\u70B9\u4E86\u5934\u300D\u3002" : `This project's definition of done is not "finished" \u2014 it is "every gate nodded."`}
       </p>
     </div>`;
   }
   function meshMarkup() {
+    const list = (zh() ? [
+      ["Eureka", "\u6CE8\u518C\u53D1\u73B0 \u2014 \u7F51\u5173\u53EA\u5411\u6CE8\u518C\u4E2D\u5FC3\u7D22\u53D6\u5065\u5EB7\u5B9E\u4F8B\uFF0C\u4ECE\u4E0D\u786C\u7F16\u7801\u5730\u5740"],
+      ["Spring Cloud Gateway", "lb:// \u8D1F\u8F7D\u5747\u8861 + RequestSize \u9884\u62D2\u7EDD + \u7194\u65AD\u8DEF\u7531"],
+      ["Redis \u4EE4\u724C\u6876", "\u6BCF\u79D2 20 \u679A\u56DE\u586B / 40 \u679A\u7A81\u53D1 \xB7 \u6BCF IP \u8BA1\u6570 \xB7 Micrometer \u8BA1\u6570 gateway.rate_limited{route}"],
+      ["Resilience4j", "\u6ED1\u52A8\u7A97\u53E3 10 \xB7 50% \u5931\u8D25\u5373\u7194\u65AD \xB7 \u534A\u5F00\u8BD5\u63A2\u4E4B\u540E\u81EA\u52A8\u95ED\u5408"],
+      ["RabbitMQ", "\u7F51\u5173\u7F13\u5B58\u5931\u6548\u5E7F\u64AD\uFF1A\u8DEF\u7531\u8868\u53D8\u66F4\u4E00\u79D2\u5185\u540C\u6B65\u5230\u6240\u6709\u5B9E\u4F8B"]
+    ] : [
+      ["Eureka", "Discovery \u2014 the gateway only ever asks the registry for healthy instances, never a hard-coded address"],
+      ["Spring Cloud Gateway", "lb:// load balancing + RequestSize pre-reject + circuit-breaker routes"],
+      ["Redis token bucket", "20 refills/s / 40 burst \xB7 per-IP counter \xB7 Micrometer counter gateway.rate_limited{route}"],
+      ["Resilience4j", "Sliding window 10 \xB7 50% failure opens the circuit \xB7 half-open probe, then auto-close"],
+      ["RabbitMQ", "Gateway cache-invalidation broadcast: route changes reach every instance within one second"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
     return `
     <div class="almanac-canvas almanac-mesh">
-      <div class="almanac-kicker">\u5377\u4E03 \xB7 Chapter VII \u2014 The Mesh</div>
-      <h1 class="almanac-title almanac-title-sm">\u516D\u4E2A\u670D\u52A1\uFF0C<br/><span class="almanac-title-accent">\u4E00\u4E2A\u56FD\u5BB6\u3002</span></h1>
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E03 \xB7 \u661F\u7F51" : "Chapter VII \xB7 The Mesh"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u516D\u4E2A\u670D\u52A1\uFF0C<br/><span class="almanac-title-accent">\u4E00\u4E2A\u56FD\u5BB6\u3002</span>' : 'Six services,<br/><span class="almanac-title-accent">one country.</span>'}</h1>
       <div class="almanac-body">
-        <p>
+        ${zh() ? `<p>
           \u8FD9\u4E2A\u4ED3\u5E93\u6709\u4E00\u534A\u5728\u4E91\u91CC\u3002Java \u4E0E Spring Cloud \u7EC4\u6210\u7684 plane \u6709\u4E03\u4E2A\u6A21\u5757\uFF1A
           \u6CE8\u518C\u4E2D\u5FC3\u3001\u914D\u7F6E\u4E2D\u5FC3\u3001\u7F51\u5173\u3001\u6D1E\u5BDF\u3001\u5DE1\u68C0\u3001\u4EFB\u52A1\uFF0C\u4EE5\u53CA\u628A Python \u5F15\u64CE\u7FFB\u8BD1\u6210 HTTP \u5951\u7EA6\u7684\u6865\u63A5\u5C42\u3002
-          Eureka \u8BA4\u8BC6\u5B83\u4EEC\u6BCF\u4E00\u4E2A\uFF0C\u7F51\u5173\u4ECE\u4E0D\u95EE\u5730\u5740\u2014\u2014\u53EA\u95EE"\u8C01\u5065\u5EB7"\u3002
+          Eureka \u8BA4\u8BC6\u5B83\u4EEC\u6BCF\u4E00\u4E2A\uFF0C\u7F51\u5173\u4ECE\u4E0D\u95EE\u5730\u5740\u2014\u2014\u53EA\u95EE\u201C\u8C01\u5065\u5EB7\u201D\u3002
         </p>
         <p>
           \u7F51\u5173\u80CC\u540E\u6709 Redis \u94F8\u6210\u7684\u4EE4\u724C\u6876\uFF08\u6BCF\u79D2 20 \u679A\u56DE\u586B\u300140 \u679A\u7A81\u53D1\uFF09\uFF0C
           \u4E5F\u6709 Resilience4j \u94F8\u6210\u7684\u7194\u65AD\u5668\u2014\u2014\u8FC7\u8F7D\u65F6\u5B83\u5FEB\u901F\u5931\u8D25\uFF0C\u5E76\u9012\u51FA\u4E00\u53E5
           <em>\u4E0D\u5192\u5145\u7A7A\u6570\u636E</em>\u7684\u56DE\u7B54\u3002RabbitMQ \u5728\u5B83\u4EEC\u4E4B\u95F4\u642C\u8FD0\u7F13\u5B58\u5931\u6548\u5E7F\u64AD\uFF0C
-          \u8BA9\u6BCF\u4E2A\u5B9E\u4F8B\u5728\u4E00\u79D2\u5185\u77E5\u9053"\u90A3\u6761\u7F13\u5B58\u5DF2\u7ECF\u8FC7\u671F"\u3002
+          \u8BA9\u6BCF\u4E2A\u5B9E\u4F8B\u5728\u4E00\u79D2\u5185\u77E5\u9053\u201C\u90A3\u6761\u7F13\u5B58\u5DF2\u7ECF\u8FC7\u671F\u201D\u3002
         </p>
         <p>
           2026 \u5E74 11 \u6708 14 \u65E5\uFF0C\u4E00\u573A\u5B9E\u5F39\u6F14\u4E60\u5728\u8FD9\u53F0\u673A\u5668\u4E0A\u6253\u54CD\uFF1A
           120 \u4E2A\u5E76\u53D1\u8BF7\u6C42\u4E00\u6B21\u6027\u6D8C\u5411\u7F51\u5173\u300225 \u4E2A\u62FF\u5230 200\uFF0C
           60 \u4E2A\u88AB\u4EE4\u724C\u6876\u6321\u56DE\uFF08429\uFF09\uFF0C35 \u4E2A\u5728\u7194\u65AD\u5FEB\u5F00\u65F6\u88AB\u8BDA\u5B9E\u62D2\u7EDD\uFF08503\uFF09\u3002
           \u5341\u4E94\u79D2\u540E\uFF0C\u4E00\u5207\u6062\u590D\u95ED\u5408\uFF0C\u6CA1\u6709\u4E00\u6761\u8BB0\u5F55\u4E22\u5931\u3002
+        </p>` : `<p>
+          Half this repository lives in the cloud. The Java/Spring Cloud plane has seven modules:
+          registry, config, gateway, insights, inspector, tasks \u2014 and the bridge that translates the Python engine into an HTTP contract.
+          Eureka knows every one of them; the gateway never asks for addresses, only \u201Cwho is healthy\u201D.
         </p>
+        <p>
+          Behind the gateway sits a Redis-cast token bucket (20 refills per second, 40 burst)
+          and a Resilience4j-cast circuit breaker \u2014 under overload it fails fast and answers
+          with an <em>honest, not-fake-empty</em> response. RabbitMQ shuttles cache-invalidation broadcasts
+          between them, so every instance learns "that cache entry is stale" within a second.
+        </p>
+        <p>
+          On November 14, 2026, a live-fire drill ran on this very machine:
+          120 concurrent requests hit the gateway at once. 25 got 200,
+          60 were turned away by the token bucket (429), 35 were honestly refused while the circuit was open (503).
+          Fifteen seconds later, everything closed again \u2014 no record was lost.
+        </p>`}
       </div>
       <div class="almanac-instrument almanac-instrument-triple">
         <div>
-          <div class="almanac-instrument-label">\u5B9E\u5F39 \xB7 \u88AB\u9650\u6D41</div>
+          <div class="almanac-instrument-label">${zh() ? "\u5B9E\u5F39 \xB7 \u88AB\u9650\u6D41" : "Live-fire \xB7 rate limited"}</div>
           <div class="almanac-instrument-value">60 \xD7 429</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u5B9E\u5F39 \xB7 \u7194\u65AD\u5FEB\u5F00</div>
-          <div class="almanac-instrument-value">31 \u6B21</div>
+          <div class="almanac-instrument-label">${zh() ? "\u5B9E\u5F39 \xB7 \u7194\u65AD\u5FEB\u5F00" : "Live-fire \xB7 fast-open"}</div>
+          <div class="almanac-instrument-value">31</div>
         </div>
         <div>
-          <div class="almanac-instrument-label">\u6062\u590D\u8017\u65F6</div>
+          <div class="almanac-instrument-label">${zh() ? "\u6062\u590D\u8017\u65F6" : "Recovery"}</div>
           <div class="almanac-instrument-value">\u2264 15s</div>
         </div>
       </div>
-      <ul class="almanac-gate-list">
-        <li><strong>Eureka</strong><span>\u6CE8\u518C\u53D1\u73B0 \u2014 \u7F51\u5173\u53EA\u5411\u6CE8\u518C\u4E2D\u5FC3\u7D22\u53D6\u5065\u5EB7\u5B9E\u4F8B\uFF0C\u4ECE\u4E0D\u786C\u7F16\u7801\u5730\u5740</span></li>
-        <li><strong>Spring Cloud Gateway</strong><span>lb:// \u8D1F\u8F7D\u5747\u8861 + RequestSize \u9884\u62D2\u7EDD + \u7194\u65AD\u8DEF\u7531</span></li>
-        <li><strong>Redis token bucket</strong><span>20 rps \u56DE\u586B / 40 \u7A81\u53D1 \xB7 \u6BCF IP \u8BA1\u6570 \xB7 Micrometer \u8BA1\u6570 \`gateway.rate_limited{route}\`</span></li>
-        <li><strong>Resilience4j</strong><span>\u6ED1\u52A8\u7A97\u53E3 10 \xB7 50% \u5931\u8D25\u5373 open \xB7 \u534A\u5F00\u8BD5\u63A2\u4E4B\u540E\u81EA\u52A8\u95ED\u5408</span></li>
-        <li><strong>RabbitMQ</strong><span>\u7F51\u5173\u7F13\u5B58\u5931\u6548\u5E7F\u64AD\uFF1A\u8DEF\u7531\u8868\u53D8\u66F4\u4E00\u79D2\u5185\u540C\u6B65\u5230\u6240\u6709\u5B9E\u4F8B</span></li>
-      </ul>
+      <ul class="almanac-gate-list">${list}</ul>
       <p class="almanac-quote almanac-quote-end">
-        \u4E00\u4E2A\u56FD\u5BB6\u7684\u8FB9\u5883\uFF0C\u4E0D\u53D6\u51B3\u4E8E\u57CE\u5899\u6709\u591A\u9AD8\uFF0C\u800C\u53D6\u51B3\u4E8E\u6BCF\u4E00\u4E2A\u5173\u5361\u90FD\u77E5\u9053\u81EA\u5DF1\u5728\u5B88\u4EC0\u4E48\u3002
+        ${zh() ? "\u4E00\u4E2A\u56FD\u5BB6\u7684\u8FB9\u5883\uFF0C\u4E0D\u53D6\u51B3\u4E8E\u57CE\u5899\u6709\u591A\u9AD8\uFF0C\u800C\u53D6\u51B3\u4E8E\u6BCF\u4E00\u4E2A\u5173\u5361\u90FD\u77E5\u9053\u81EA\u5DF1\u5728\u5B88\u4EC0\u4E48\u3002" : "A country's border is not defined by how high its walls are \u2014 but by whether every checkpoint knows what it is guarding."}
       </p>
     </div>`;
   }
@@ -2470,7 +2700,7 @@
       const rail = CHAPTERS.map(chapterMarkup).join("");
       openPanel(t("almanac.title"), `
       <div class="almanac-shell">
-        <nav class="almanac-rail" aria-label="Chapters">${rail}</nav>
+        <nav class="almanac-rail" aria-label="${zh() ? "\u7AE0\u8282" : "Chapters"}">${rail}</nav>
         <div class="almanac-canvas-shell"><div class="almanac-canvas" id="almanacCanvas">${prologueMarkup(digestCache)}</div></div>
       </div>
     `, { wide: true });
@@ -2500,36 +2730,38 @@
 
   // web/src/panels/manual.js
   var CHAPTERS2 = [
-    { id: "start", roman: "\u4E00", title: "Quick Start", titleZh: "\u4E94\u5206\u949F\u4E0A\u624B" },
-    { id: "workbench", roman: "\u4E8C", title: "The Workbench", titleZh: "\u5DE5\u4F5C\u53F0\u5BFC\u89C8" },
-    { id: "modules", roman: "\u4E09", title: "The Modules", titleZh: "\u4E03\u4E2A\u6A21\u5757\uFF0C\u4E00\u4E2A\u4E16\u754C" },
-    { id: "keys", roman: "\u56DB", title: "Commands & Shortcuts", titleZh: "\u547D\u4EE4\u4E0E\u5FEB\u6377\u952E" },
-    { id: "arcade", roman: "\u4E94", title: "Playbook", titleZh: "\u6E38\u620F\u5385\u6559\u7A0B" },
-    { id: "trouble", roman: "\u516D", title: "Troubleshooting", titleZh: "\u6392\u9519" },
-    { id: "limits", roman: "\u4E03", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" }
+    { id: "start", roman: "\u4E00", romanEn: "1", title: "Quick Start", titleZh: "\u4E94\u5206\u949F\u4E0A\u624B" },
+    { id: "workbench", roman: "\u4E8C", romanEn: "2", title: "The Workbench", titleZh: "\u5DE5\u4F5C\u53F0\u5BFC\u89C8" },
+    { id: "modules", roman: "\u4E09", romanEn: "3", title: "The Modules", titleZh: "\u4E03\u4E2A\u6A21\u5757\uFF0C\u4E00\u4E2A\u4E16\u754C" },
+    { id: "keys", roman: "\u56DB", romanEn: "4", title: "Commands & Shortcuts", titleZh: "\u547D\u4EE4\u4E0E\u5FEB\u6377\u952E" },
+    { id: "arcade", roman: "\u4E94", romanEn: "5", title: "Playbook", titleZh: "\u6E38\u620F\u5385\u6559\u7A0B" },
+    { id: "trouble", roman: "\u516D", romanEn: "6", title: "Troubleshooting", titleZh: "\u6392\u9519" },
+    { id: "limits", roman: "\u4E03", romanEn: "7", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" }
   ];
   function zhStart() {
     return `
     <p class="manual-lede">\u4E00\u4E2A\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u2014\u2014\u5B83\u63A5\u53D7 <code>MINICC_API_KEY</code>\u3001<code>MINICC_BASE_URL</code>\u3001<code>MINICC_MODEL</code>\uFF0C\u7136\u540E\u5728\u4F60\u7684\u5DE5\u4F5C\u533A\u91CC\u771F\u6B63\u8BFB\u5199\u3001\u8FD0\u884C\u3001\u9A8C\u8BC1\uFF0C\u6700\u540E\u628A\u8BC1\u636E\u4EA4\u56DE\u7ED9\u4F60\u3002</p>
     <ol class="manual-list">
-      <li><strong>\u4E94\u5206\u949F</strong>\uFF1A\u590D\u5236 <code>minicc.config.example</code> \u4E3A <code>.env</code>\uFF0C\u586B\u5165\u4E09\u4E2A\u73AF\u5883\u53D8\u91CF\uFF08\u4EFB\u4F55 OpenAI \u517C\u5BB9\u7684\u7F51\u5173\u90FD\u53EF\u4EE5\uFF0C\u5305\u62EC\u4F60\u7684\u79C1\u6709\u4EE3\u7406\uFF09\u3002</li>
-      <li>\u542F\u52A8\u5DE5\u4F5C\u53F0\uFF1A<code>minicc-web --workspace /\u4F60\u7684\u9879\u76EE\u8DEF\u5F84</code></li>
-      <li>\u6253\u5F00 <code>http://127.0.0.1:8765/</code>\uFF0C\u5728\u8F93\u5165\u6846\u91CC\u76F4\u63A5\u8BF4\u4EBA\u8BDD\u2014\u2014\u6BD4\u5982\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u3002</li>
-      <li>\u770B\u89C1 <em>\u5DF2\u8FDE\u63A5</em> \u4E0E <em>\u4EFB\u52A1\u5B9E\u65F6\u6D41</em> \u5373\u8868\u793A\u4E00\u5207\u6B63\u5E38\u3002\u56DE\u7B54\u5B8C\u6BD5\u540E\u70B9\u5F00\u4EFB\u52A1\u8BE6\u60C5\uFF0C\u91CC\u9762\u6709\u5168\u90E8\u5DE5\u5177\u8C03\u7528\u4E0E\u9A8C\u8BC1\u7ED3\u679C\u3002</li>
+      <li><strong>\u7B2C\u4E00\u6B65\uFF1A\u914D\u7F6E</strong> \u590D\u5236 <code>minicc.config.example</code> \u4E3A <code>.env</code>\uFF0C\u586B\u5165\u4E09\u4E2A\u73AF\u5883\u53D8\u91CF\uFF1A<code>MINICC_API_KEY</code>\u3001<code>MINICC_BASE_URL</code>\u3001<code>MINICC_MODEL</code>\uFF08\u4EFB\u4F55 OpenAI \u517C\u5BB9\u7684\u7F51\u5173\u90FD\u53EF\u4EE5\uFF0C\u5305\u62EC\u4F60\u7684\u79C1\u6709\u4EE3\u7406\uFF09\u3002</li>
+      <li><strong>\u7B2C\u4E8C\u6B65\uFF1A\u542F\u52A8</strong> <code>minicc-web --workspace /\u4F60\u7684\u9879\u76EE\u8DEF\u5F84</code>\uFF0C\u6253\u5F00 <code>http://127.0.0.1:8765/</code>\u3002</li>
+      <li><strong>\u7B2C\u4E09\u6B65\uFF1A\u53D1\u7B2C\u4E00\u4E2A\u4EFB\u52A1</strong> \u5728\u8F93\u5165\u6846\u91CC\u8BF4\u4EBA\u8BDD\u2014\u2014\u6BD4\u5982\u300C\u8BFB\u4E00\u4E0B README.md \u5E76\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u3002\u591A\u4EFB\u52A1\u4F1A\u81EA\u52A8\u62C6\u6210\u7236\u5B50\u4EFB\u52A1\u3002</li>
+      <li><strong>\u7B2C\u56DB\u6B65\uFF1A\u770B\u8FDE\u63A5</strong> \u5E95\u90E8\u72B6\u6001\u680F\u51FA\u73B0 <em>\u5DF2\u8FDE\u63A5</em>\u3001\u4EFB\u52A1\u6D41\u5F00\u59CB\u6EDA\u52A8\uFF0C\u8BF4\u660E\u6A21\u578B\u4E0E\u672C\u5730\u5DE5\u5177\u90FD\u901A\u4E86\u3002\u56DE\u7B54\u51FA\u6765\u540E\u70B9\u5F00\u4EFB\u52A1\u8BE6\u60C5\uFF0C\u91CC\u9762\u6709\u5168\u90E8\u5DE5\u5177\u8C03\u7528\u3001\u9010\u8F6E\u7F13\u5B58\u547D\u4E2D\u7387\u3001\u5B8C\u6210\u9A8C\u6536\u8BB0\u5F55\u3002</li>
+      <li><strong>\u7B2C\u4E94\u6B65\uFF1A\u56DE\u653E</strong> \u4EFB\u52A1\u8BE6\u60C5\u9876\u90E8\u70B9\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u91CD\u6F14\u4E00\u6B21\u4EA4\u4ED8\u8FC7\u7A0B\u2014\u2014\u50CF\u770B\u4E00\u573A\u7535\u5F71\uFF0C\u652F\u6301\u6682\u505C\u3001\u62D6\u62FD\u8FDB\u5EA6\u30011\xD7/2\xD7/4\xD7 \u500D\u901F\u3002</li>
     </ol>
-    <p>\u547D\u4EE4\u884C\u91CC\u4E5F\u80FD\u76F4\u63A5\u7528\uFF1A<code>minicc "\u8BFB README \u5E76\u603B\u7ED3"</code>\uFF0C\u6216 <code>minicc --stats</code> \u770B\u5DE5\u4F5C\u533A\u4F53\u5F81\u3002</p>
+    <p>\u4E0D\u60F3\u6253\u5F00\u6D4F\u89C8\u5668\uFF1F\u547D\u4EE4\u884C\u4E5F\u80FD\u76F4\u63A5\u7528\uFF1A<code>minicc "\u8BFB README \u5E76\u603B\u7ED3"</code>\uFF0C\u6216 <code>minicc --stats</code> \u770B\u5DE5\u4F5C\u533A\u4F53\u5F81\u3002</p>
   `;
   }
   function enStart() {
     return `
     <p class="manual-lede">A local-first coding agent. Give it <code>MINICC_API_KEY</code>, <code>MINICC_BASE_URL</code> and <code>MINICC_MODEL</code>, and it reads, edits, runs and verifies \u2014 then hands you the evidence.</p>
     <ol class="manual-list">
-      <li><strong>Five minutes</strong>: copy <code>minicc.config.example</code> to <code>.env</code>, fill the three variables (any OpenAI-compatible gateway works, including your private proxy).</li>
-      <li>Start the workbench: <code>minicc-web --workspace /path/to/your/project</code></li>
-      <li>Open <code>http://127.0.0.1:8765/</code> and say what you want \u2014 e.g. \u201CRead README.md and tell me what this project does.\u201D</li>
-      <li><em>Connected</em> + a live task stream means everything is working. Open the task detail afterwards for the full tool-call and verification record.</li>
+      <li><strong>Step 1 \u2014 Configure</strong> copy <code>minicc.config.example</code> to <code>.env</code> and fill three variables: <code>MINICC_API_KEY</code>, <code>MINICC_BASE_URL</code>, <code>MINICC_MODEL</code> (any OpenAI-compatible gateway works, including your private proxy).</li>
+      <li><strong>Step 2 \u2014 Start</strong> run <code>minicc-web --workspace /path/to/your/project</code>, open <code>http://127.0.0.1:8765/</code>.</li>
+      <li><strong>Step 3 \u2014 Send your first task</strong> type a sentence in the composer \u2014 e.g. \u201CRead README.md and tell me what this project does.\u201D Multi-part sentences are auto-split into parent and child tasks.</li>
+      <li><strong>Step 4 \u2014 Watch it connect</strong> the status bar shows <em>Connected</em> and the task stream starts scrolling. When the answer arrives, open the task detail to see every tool call, per-turn cache hit rate, and the completion verdict.</li>
+      <li><strong>Step 5 \u2014 Replay it</strong> from the task detail top, click \u201CReplay the whole task\u201D to replay the delivery event by event \u2014 pause, scrub the progress bar, 1\xD7/2\xD7/4\xD7 speed.</li>
     </ol>
-    <p>CLI works too: <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
+    <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;
   }
   function zhWorkbench() {
@@ -2618,26 +2850,28 @@
   }
   function zhArcade() {
     return `
-    <p class="manual-lede">\u300C\u6E38\u620F\u5385\u300D\u662F\u5DE5\u4F5C\u53F0\u81EA\u5E26\u7684\u771F\xB7\u6E38\u620F\u2014\u2014\u4E0D\u662F demo\uFF0C\u4E0D\u662F\u5360\u4F4D\u7B26\u3002\u690D\u7269\u5BF9\u50F5\u5C38\uFF0C\u5854\u9632\u7C7B\u578B\u3002</p>
+    <p class="manual-lede">\u300C\u6E38\u620F\u5385\u300D\u662F\u5DE5\u4F5C\u53F0\u81EA\u5E26\u7684\u771F\xB7\u6E38\u620F\u2014\u2014\u4E0D\u662F demo\uFF0C\u4E0D\u662F\u5360\u4F4D\u7B26\u3002\u690D\u7269\u5BF9\u50F5\u5C38\uFF0C\u5854\u9632\u7C7B\u578B\uFF0C\u7EAF\u524D\u7AEF\uFF0C\u79BB\u7EBF\u53EF\u73A9\u3002</p>
     <div class="manual-arcade">
-      <div><span class="arcade-label">\u73A9\u6CD5</span><p>\u628A\u690D\u7269\u79CD\u5728\u7A7A\u5730\u4E0A\uFF0C\u7528\u592A\u9633\u80FD\u62B5\u5FA1\u50F5\u5C38\u7684\u8FDB\u653B\u3002\u673A\u5236\u662F\u6807\u51C6\u7684\u5854\u9632\uFF1A\u9633\u5149\u3001\u6210\u672C\u3001\u51B7\u5374\u3001\u51FB\u6740\u3001\u9632\u5B88\u8DEF\u7EBF\u3002</p></div>
-      <div><span class="arcade-label">\u56DB\u79CD\u6280\u80FD</span><p>Pulse\uFF0825 \u9633\u5149\uFF0C7 \u79D2\u51B7\u5374\uFF09\u3001Sun\uFF0835 \u9633\u5149\uFF09\u3001Rally\uFF0845 \u9633\u5149\uFF0C14 \u79D2\uFF09\u3001Time Stop\uFF0855 \u9633\u5149\uFF0C18 \u79D2\uFF09\u2014\u2014\u6BCF\u79CD\u6280\u80FD\u53EA\u5BF9\u7279\u5B9A\u5C40\u9762\u6709\u6548\u3002</p></div>
-      <div><span class="arcade-label">\u56FE\u9274</span><p>\u6E38\u620F\u5185\u7F6E\u690D\u7269/\u50F5\u5C38\u56FE\u9274\u2014\u2014peashooter\u3001sunflower\u3001wall-nut\u3001cherry bomb\u3001gatling pea\u3001jalapeno\u3001magnetshroom\u2026\u2026\u6BCF\u79CD\u690D\u7269\u90FD\u6709\u5C5E\u6027\u4E0E special \u63CF\u8FF0\uFF0C\u7EC8\u6781\u5173\u5361\u662F\u300C\u5DE8\u4EBA\u50F5\u5C38\u300D\u3002</p></div>
-      <div><span class="arcade-label">\u600E\u4E48\u8FDB\u6E38\u620F</span><p>\u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u6216\u8005\u547D\u4EE4\u9762\u677F\u641C\u300CArcade/\u6E38\u620F\u5385\u300D\uFF0C\u6309 <code>Enter</code> \u5373\u73A9\u3002\u79BB\u7EBF\u53EF\u73A9\uFF0C\u968F\u65F6\u6309 <code>Esc</code> \u8FD4\u56DE\u5DE5\u4F5C\u53F0\u3002</p></div>
+      <div><span class="arcade-label">\u600E\u4E48\u8FDB</span><p>\u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u6216\u8005\u547D\u4EE4\u9762\u677F\u641C\u300CArcade/\u6E38\u620F\u5385\u300D\uFF0C\u6309 <code>Enter</code> \u5373\u73A9\u3002\u968F\u65F6\u6309 <code>Esc</code> \u8FD4\u56DE\u5DE5\u4F5C\u53F0\u3002</p></div>
+      <div><span class="arcade-label">\u6838\u5FC3\u673A\u5236</span><p>\u79CD\u690D\u7269\u62B5\u5FA1\u50F5\u5C38\u8FDB\u653B\u3002\u9633\u5149\u662F\u8D44\u6E90\uFF0C\u79CD\u690D\u9700\u8981\u9633\u5149\u503C\uFF1B\u6BCF\u79CD\u690D\u7269\u6709\u653B\u51FB/\u9632\u5FA1/\u7279\u6B8A\u80FD\u529B\uFF1B\u50F5\u5C38\u4ECE\u53F3\u5411\u5DE6\u63A8\u8FDB\uFF0C\u89E6\u78B0\u5230\u4F60\u7684\u57FA\u5730\u5219\u5931\u8D25\u3002</p></div>
+      <div><span class="arcade-label">\u56DB\u79CD\u6280\u80FD</span><p>Pulse\uFF0825 \u9633\u5149\uFF0C7 \u79D2\u51B7\u5374\uFF09\u3001Sun\uFF0835 \u9633\u5149\uFF0C\u7ACB\u5373\u56DE\u80FD\uFF09\u3001Rally\uFF0845 \u9633\u5149\uFF0C14 \u79D2\u51B7\u5374\uFF09\u3001Time Stop\uFF0855 \u9633\u5149\uFF0C18 \u79D2\u51B7\u5374\uFF09\u2014\u2014\u6BCF\u79CD\u6280\u80FD\u53EA\u5BF9\u7279\u5B9A\u5C40\u9762\u6709\u6548\uFF0C\u5408\u7406\u6512\u9633\u5149\u6BD4\u76F2\u76EE\u79CD\u690D\u66F4\u91CD\u8981\u3002</p></div>
+      <div><span class="arcade-label">\u56FE\u9274</span><p>\u6E38\u620F\u5185\u7F6E\u690D\u7269/\u50F5\u5C38\u56FE\u9274\u2014\u2014peashooter\u3001sunflower\u3001wall-nut\u3001cherry bomb\u3001gatling pea\u3001jalapeno\u3001magnetshroom\u2026\u2026\u6BCF\u79CD\u690D\u7269\u90FD\u6709\u5C5E\u6027\u4E0E special \u63CF\u8FF0\uFF1B\u7EC8\u6781\u5173\u5361\u662F\u300C\u5DE8\u4EBA\u50F5\u5C38\u300D\u3002</p></div>
+      <div><span class="arcade-label">\u6570\u636E</span><p>\u6E38\u620F\u6570\u636E\u5168\u90E8\u4FDD\u5B58\u5728\u4F60\u7684\u6D4F\u89C8\u5668\u91CC\uFF1B\u5173\u95ED\u5DE5\u4F5C\u53F0\u4E0D\u4F1A\u4E22\u5931\u8FDB\u5EA6\uFF0C\u6E05\u6D4F\u89C8\u5668\u7F13\u5B58\u4F1A\u91CD\u7F6E\u3002</p></div>
     </div>
-    <p class="manual-footnote">\u6E38\u620F\u6570\u636E\u5168\u90E8\u4FDD\u5B58\u5728\u4F60\u7684\u6D4F\u89C8\u5668\u91CC\uFF1B\u5173\u95ED\u5DE5\u4F5C\u53F0\u4E0D\u4F1A\u4E22\u5931\u8FDB\u5EA6\u3002</p>
+    <p class="manual-footnote">\u6E38\u620F\u4EE3\u7801\u5728 <code>web/game.js</code>\uFF0C\u7EAF\u524D\u7AEF\uFF0C\u6CA1\u6709\u4EFB\u4F55\u670D\u52A1\u7AEF\u4EA4\u4E92\u3002</p>
   `;
   }
   function enArcade() {
     return `
-    <p class="manual-lede">The Arcade is a real game baked into the workbench \u2014 not a demo, not a placeholder. Plants versus Zombies, tower-defense genre.</p>
+    <p class="manual-lede">The Arcade is a real game baked into the workbench \u2014 not a demo, not a placeholder. Plants versus Zombies, tower-defense genre, pure frontend, offline-playable.</p>
     <div class="manual-arcade">
-      <div><span class="arcade-label">How to play</span><p>Plant your units on the lawn and hold the line. Sun, cost, cooldown, kills, lanes \u2014 classic tower defense.</p></div>
-      <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun), Rally (45 sun, 14s), Time Stop (55 sun, 18s) \u2014 each is situational, none is generic.</p></div>
+      <div><span class="arcade-label">How to open</span><p>Sidebar entry \xAB Arcade \xBB or type \u201CArcade\u201D in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
+      <div><span class="arcade-label">Core loop</span><p>Plant units on the lawn and hold the line against zombies. Sun is the resource; planting costs sun; every plant has attack/defense/special traits; zombies push from right to left \u2014 reaching your base means failure.</p></div>
+      <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun, instant refill), Rally (45 sun, 14s cooldown), Time Stop (55 sun, 18s cooldown) \u2014 each skill is situational, none is generic; hoarding sun beats mindless planting.</p></div>
       <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex \u2014 peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom \u2026 each with stats and a special. The final wave is the gargantuar.</p></div>
-      <div><span class="arcade-label">How to open</span><p>Sidebar \xAB Arcade \xBB or type \u201CArcade\u201D in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
+      <div><span class="arcade-label">Data</span><p>All game state lives in your browser; closing the workbench never loses progress, clearing browser cache resets it.</p></div>
     </div>
-    <p class="manual-footnote">Everything stays in your browser; closing the workbench never loses your progress.</p>
+    <p class="manual-footnote">Game code lives in <code>web/game.js</code> \u2014 pure frontend, no server round-trip whatsoever.</p>
   `;
   }
   function zhTrouble() {
@@ -2700,10 +2934,10 @@
     limits: { zh: zhLimits, en: enLimits }
   };
   function chapterMarkup2(chapter) {
-    const zh = state.locale === "zh";
-    const title = zh ? chapter.titleZh : chapter.title;
+    const zh2 = state.locale === "zh";
+    const title = zh2 ? chapter.titleZh : chapter.title;
     return `<button class="manual-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
-            <span class="manual-chapter-roman">${escapeHtml(chapter.roman)}</span>
+            <span class="manual-chapter-roman">${escapeHtml(zh2 ? chapter.roman : chapter.romanEn)}</span>
             <span class="manual-chapter-body"><strong>${escapeHtml(title)}</strong></span>
           </button>`;
   }
@@ -2714,18 +2948,18 @@
     const slot = $("#manualCanvas");
     const chapter = CHAPTERS2.find((c) => c.id === id) ?? CHAPTERS2[0];
     if (!slot) return;
-    const zh = state.locale === "zh";
-    const body = (zh ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
+    const zh2 = state.locale === "zh";
+    const body = (zh2 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
     slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.roman}`} \xB7 ${escapeHtml(chapter.title)}</div>
+      <div class="manual-kicker">${zh2 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapter.title)}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;
     refreshIcons();
   }
   async function openManualPanel() {
-    const zh = state.locale === "zh";
+    const zh2 = state.locale === "zh";
     const current = beginPanelRequest(t("manual.title"));
     try {
       const rail = CHAPTERS2.map(chapterMarkup2).join("");
@@ -2894,7 +3128,7 @@
   function readImageFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onerror = () => reject(new Error(`\u65E0\u6CD5\u8BFB\u53D6\u56FE\u7247\uFF1A${file.name}`));
+      reader.onerror = () => reject(new Error(state.locale === "zh" ? `\u8BFB\u53D6\u5931\u8D25: ${file.name}` : `Failed to read: ${file.name}`));
       reader.onload = () => resolve(String(reader.result || ""));
       reader.readAsDataURL(file);
     });
@@ -3190,8 +3424,8 @@
     const expand = $("#panelExpand");
     if (expand) {
       expand.hidden = false;
-      expand.title = "\u5C55\u5F00\u5168\u5C4F";
-      expand.setAttribute("aria-label", "\u5C55\u5F00\u5168\u5C4F");
+      expand.title = state.locale === "zh" ? "\u5C55\u5F00\u5168\u5C4F" : "Expand fullscreen";
+      expand.setAttribute("aria-label", state.locale === "zh" ? "\u5C55\u5F00\u5168\u5C4F" : "Expand fullscreen");
       expand.innerHTML = icon("maximize-2");
     }
     modal.classList.add("show");
@@ -3220,7 +3454,7 @@
     const fullscreen = modal.classList.toggle("fullscreen");
     const button = $("#panelExpand");
     if (!button) return;
-    button.title = fullscreen ? "\u9000\u51FA\u5168\u5C4F" : "\u5C55\u5F00\u5168\u5C4F";
+    button.title = fullscreen ? state.locale === "zh" ? "\u9000\u51FA\u5168\u5C4F" : "Collapse fullscreen" : state.locale === "zh" ? "\u5C55\u5F00\u5168\u5C4F" : "Expand fullscreen";
     button.setAttribute("aria-label", button.title);
     button.innerHTML = icon(fullscreen ? "minimize-2" : "maximize-2");
     refreshIcons();
@@ -3472,55 +3706,55 @@
     return { gateway: "wkapi.pro" };
   }
   function openTemplatesPanel() {
-    const zh = state.locale === "zh";
+    const zh2 = state.locale === "zh";
     const cards = [
       {
         icon: "file-search-2",
-        title: zh ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
-        subtitle: zh ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
-        prompt: zh ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
+        title: zh2 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
+        subtitle: zh2 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
+        prompt: zh2 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
       },
       {
         icon: "shield-check",
-        title: zh ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
-        subtitle: zh ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
-        prompt: zh ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
+        title: zh2 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
+        subtitle: zh2 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
+        prompt: zh2 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
       },
       {
         icon: "git-compare",
-        title: zh ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
-        subtitle: zh ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
-        prompt: zh ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
+        title: zh2 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
+        subtitle: zh2 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
+        prompt: zh2 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
       },
       {
         icon: "book-open",
-        title: zh ? "\u751F\u6210 README" : "Write README",
-        subtitle: zh ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
-        prompt: zh ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
+        title: zh2 ? "\u751F\u6210 README" : "Write README",
+        subtitle: zh2 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
+        prompt: zh2 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
       },
       {
         icon: "globe-2",
-        title: zh ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
-        subtitle: zh ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
-        prompt: zh ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
+        title: zh2 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
+        subtitle: zh2 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
+        prompt: zh2 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
       },
       {
         icon: "refresh-cw",
-        title: zh ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
-        subtitle: zh ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
-        prompt: zh ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
+        title: zh2 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
+        subtitle: zh2 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
+        prompt: zh2 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
       },
       {
         icon: "sparkles",
-        title: zh ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
-        subtitle: zh ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
-        prompt: zh ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
+        title: zh2 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
+        subtitle: zh2 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
+        prompt: zh2 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
       },
       {
         icon: "list-checks",
-        title: zh ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
-        subtitle: zh ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
-        prompt: zh ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
+        title: zh2 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
+        subtitle: zh2 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
+        prompt: zh2 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
       }
     ];
     const zhCards = cards;
@@ -4237,12 +4471,12 @@
       networkCheckbox.disabled = state.permissionMode === "yolo";
       networkCheckbox.closest(".safe-toggle")?.classList.toggle("locked", networkCheckbox.disabled);
     }
-    const zh = state.locale === "zh";
+    const zh2 = state.locale === "zh";
     const write = effective.mode === "acceptEdits" || effective.allowChanges;
     const command = effective.allowChanges;
     const label2 = $("#modeLabel");
     if (label2) label2.textContent = t("capability.executeToggle");
-    const summary = zh ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
+    const summary = zh2 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
     $("#permissionHint").textContent = summary;
     $("#permissionSummary").textContent = summary;
     $("#modeBadge").textContent = t(`perm.${effective.mode}`);
@@ -4714,15 +4948,15 @@
     const epoch = Date.parse(String(value || ""));
     if (!Number.isFinite(epoch)) return "--";
     const seconds = Math.max(0, Math.round((Date.now() - epoch) / 1e3));
-    const zh = state.locale === "zh";
-    if (seconds < 60) return zh ? "\u521A\u521A" : "just now";
+    const zh2 = state.locale === "zh";
+    if (seconds < 60) return zh2 ? "\u521A\u521A" : "just now";
     const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return zh ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
+    if (minutes < 60) return zh2 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return zh ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
+    if (hours < 24) return zh2 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
     const days = Math.round(hours / 24);
-    if (days < 30) return zh ? `${days} \u5929\u524D` : `${days}d ago`;
-    return new Date(epoch).toLocaleDateString(zh ? "zh-CN" : "en-US");
+    if (days < 30) return zh2 ? `${days} \u5929\u524D` : `${days}d ago`;
+    return new Date(epoch).toLocaleDateString(zh2 ? "zh-CN" : "en-US");
   }
   function highlightSearchText(text, query) {
     const escaped = escapeHtml(String(text || ""));
@@ -4938,9 +5172,9 @@
     const target = $("#verificationList");
     if (!target) return;
     const events = (data?.events || []).filter((event) => /verification_|completion_assessed/.test(event.code || ""));
-    const zh = state.locale === "zh";
+    const zh2 = state.locale === "zh";
     if (!events.length) {
-      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
+      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh2 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh2 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
       return;
     }
     target.innerHTML = events.slice(-12).reverse().map((event) => `<details class="verification-card" data-status="${escapeHtml(event.status || "pending")}"><summary>${icon(event.status === "error" ? "alert-circle" : "list-checks")}<span>${escapeHtml(event.summary || traceLabel(event))}</span></summary><pre>${escapeHtml(JSON.stringify(event.detail || {}, null, 2))}</pre></details>`).join("");
@@ -5728,7 +5962,7 @@
   function assistantMessageMarkup(data, anchor = "") {
     const events = Array.isArray(data.events) ? data.events : [];
     const eventMarkup = eventTimelineMarkup(events);
-    const answer = data.answer || data.error || "\u6A21\u578B\u6CA1\u6709\u8FD4\u56DE\u53EF\u4EA4\u4ED8\u6587\u5B57\u3002";
+    const answer = data.answer || data.error || (state.locale === "zh" ? "\u6A21\u578B\u6CA1\u6709\u8FD4\u56DE\u53EF\u4EA4\u4ED8\u6587\u5B57\u3002" : "The model returned no deliverable text.");
     const rawStream = !data.answer && data.stream_text ? rawOutputMarkup(data.stream_text) : "";
     const execution = executionTrailMarkup(eventMarkup, events);
     const anchorMarkup = anchor ? ` data-chat-anchor="${escapeHtml(anchor)}"` : "";
@@ -5982,7 +6216,7 @@
   }
   function taskHistoryMarkup(task) {
     const prompt = task.prompt || task.preview || "";
-    const answer = task.answer || task.error || "\u4EFB\u52A1\u6CA1\u6709\u8FD4\u56DE\u53EF\u4EA4\u4ED8\u6587\u5B57\u3002";
+    const answer = task.answer || task.error || (state.locale === "zh" ? "\u4EFB\u52A1\u6CA1\u6709\u8FD4\u56DE\u53EF\u4EA4\u4ED8\u6587\u5B57\u3002" : "No answer yet, waiting for model response.");
     const rawStream = !task.answer && task.stream_text ? rawOutputMarkup(task.stream_text) : "";
     const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
     const taskAnchor = escapeHtml(`task-${task.task_id || task.created_at || prompt.slice(0, 40)}`);
@@ -6227,13 +6461,15 @@
     const sidebarButton = $("#sidebarOpen");
     const inspectorButton = $("#inspectorToggle");
     if (sidebarButton && desktop) {
-      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? "\u6253\u5F00\u4FA7\u680F" : "\u6536\u8D77\u4FA7\u680F");
-      sidebarButton.title = state.sidebarCollapsed ? "\u6253\u5F00\u4FA7\u680F" : "\u6536\u8D77\u4FA7\u680F";
+      const zh2 = state.locale === "zh";
+      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh2 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh2 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
+      sidebarButton.title = state.sidebarCollapsed ? zh2 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh2 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
       sidebarButton.innerHTML = icon(state.sidebarCollapsed ? "panel-left-open" : "panel-left-close");
     }
     if (inspectorButton && desktop) {
-      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? "\u6253\u5F00\u68C0\u67E5\u5668" : "\u6536\u8D77\u68C0\u67E5\u5668");
-      inspectorButton.title = state.inspectorCollapsed ? "\u6253\u5F00\u68C0\u67E5\u5668" : "\u6536\u8D77\u68C0\u67E5\u5668";
+      const zh2 = state.locale === "zh";
+      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh2 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh2 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
+      inspectorButton.title = state.inspectorCollapsed ? zh2 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh2 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
       inspectorButton.innerHTML = icon(state.inspectorCollapsed ? "panel-right-open" : "panel-right-close");
     }
     refreshIcons();
@@ -6453,7 +6689,7 @@
     return translated === id ? fallback : translated;
   }
   function commands() {
-    const zh = state.locale === "zh";
+    const zh2 = state.locale === "zh";
     const themeTarget = state.theme === "dark" ? label("palette.toLight", "Switch to light theme") : label("palette.toDark", "Switch to dark theme");
     return [
       { id: "newTask", glyph: "plus", group: "palette.group.task", run: () => resetTask() },
@@ -6472,7 +6708,7 @@
       { id: "help", glyph: "circle-help", group: "palette.group.surface", run: () => openHelpPanel() },
       { id: "arcade", glyph: "gamepad-2", group: "palette.group.surface", run: () => openArcade() },
       { id: "theme", glyph: "moon-star", group: "palette.group.surface", labelOverride: themeTarget, run: () => setTheme(state.theme === "dark" ? "light" : "dark") },
-      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh ? "Switch to English" : "\u5207\u6362\u5230\u4E2D\u6587", run: () => setLocale(zh ? "en" : "zh") },
+      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh2 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh2 ? "en" : "zh") },
       { id: "sidebar", glyph: "panel-left", group: "palette.group.surface", run: () => setSidebarCollapsed(!state.sidebarCollapsed) },
       { id: "inspector", glyph: "panel-right", group: "palette.group.surface", run: () => setInspectorCollapsed(!state.inspectorCollapsed) },
       { id: "focus", glyph: "scan-line", group: "palette.group.surface", run: () => setFocusMode(!state.focusMode) },

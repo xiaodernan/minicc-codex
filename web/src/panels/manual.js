@@ -13,13 +13,13 @@ import { escapeHtml } from "../chat/markdown.js";
 import { openPanel, beginPanelRequest } from "../chat/stream.js";
 
 const CHAPTERS = [
-  { id: "start", roman: "一", title: "Quick Start", titleZh: "五分钟上手" },
-  { id: "workbench", roman: "二", title: "The Workbench", titleZh: "工作台导览" },
-  { id: "modules", roman: "三", title: "The Modules", titleZh: "七个模块，一个世界" },
-  { id: "keys", roman: "四", title: "Commands & Shortcuts", titleZh: "命令与快捷键" },
-  { id: "arcade", roman: "五", title: "Playbook", titleZh: "游戏厅教程" },
-  { id: "trouble", roman: "六", title: "Troubleshooting", titleZh: "排错" },
-  { id: "limits", roman: "七", title: "Honest Limits", titleZh: "边界与范围" },
+  { id: "start", roman: "一", romanEn: "1", title: "Quick Start", titleZh: "五分钟上手" },
+  { id: "workbench", roman: "二", romanEn: "2", title: "The Workbench", titleZh: "工作台导览" },
+  { id: "modules", roman: "三", romanEn: "3", title: "The Modules", titleZh: "七个模块，一个世界" },
+  { id: "keys", roman: "四", romanEn: "4", title: "Commands & Shortcuts", titleZh: "命令与快捷键" },
+  { id: "arcade", roman: "五", romanEn: "5", title: "Playbook", titleZh: "游戏厅教程" },
+  { id: "trouble", roman: "六", romanEn: "6", title: "Troubleshooting", titleZh: "排错" },
+  { id: "limits", roman: "七", romanEn: "7", title: "Honest Limits", titleZh: "边界与范围" },
 ];
 
 function zhStart() {
@@ -236,7 +236,7 @@ function chapterMarkup(chapter) {
   const zh = state.locale === "zh";
   const title = zh ? chapter.titleZh : chapter.title;
   return `<button class="manual-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
-            <span class="manual-chapter-roman">${escapeHtml(chapter.roman)}</span>
+            <span class="manual-chapter-roman">${escapeHtml(zh ? chapter.roman : chapter.romanEn)}</span>
             <span class="manual-chapter-body"><strong>${escapeHtml(title)}</strong></span>
           </button>`;
 }
@@ -253,7 +253,7 @@ function renderChapter(id) {
   const body = (zh ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
   slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh ? `第${chapter.roman}章` : `Chapter ${chapter.roman}`} · ${escapeHtml(chapter.title)}</div>
+      <div class="manual-kicker">${zh ? `第${chapter.roman}章` : `Chapter ${chapter.romanEn}`} · ${escapeHtml(chapter.title)}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;

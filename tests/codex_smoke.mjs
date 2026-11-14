@@ -89,13 +89,33 @@ try {
   await page.locator("#gameCodexPanel").click({ position: { x: 4, y: 4 } });
   await page.locator("#gameCodexPanel").waitFor({ state: "hidden" });
 
-  await page.locator("#gameCodex").click();
-  await page.locator("#gameCodexPanel.show").waitFor();
+  // M8-T929: the codex speaks both languages. Flip to English and prove it,
+  // then flip back so later suites see the zh default.
   await page.evaluate(() => window.closeGame());
   await page.locator("#gameModal").waitFor({ state: "hidden" });
-  await page.locator("#gameCodexPanel").waitFor({ state: "hidden" });
+  await page.locator("#localeEn").click();
+  await page.waitForTimeout(400);
+  await openCodex(page);
+  const zombieTab = page.locator('[data-codex-tab="zombies"]');
+  assert.ok((await zombieTab.innerText()).includes("Zombie codex"), "en zombie tab label");
+  assert.ok((await page.locator('[data-codex-tab="plants"]').innerText()).includes("Plant codex"), "en plant tab label");
+  await page.locator('[data-codex-entry="peashooter"]').click();
+  assert.equal((await page.locator("#codexDetail h4").innerText()).trim(), "Peashooter", "en peashooter name");
+  assert.ok((await page.locator("#codexDetail").innerText()).includes("Plant detail"), "en plant detail kicker");
+  assert.ok((await page.locator("#codexDetail").innerText()).includes("Peashooter"));
+  await page.locator('[data-codex-tab="zombies"]').click();
+  await page.locator('[data-codex-entry="gargantuar"]').click();
+  assert.equal((await page.locator("#codexDetail h4").innerText()).trim(), "Gargantuar", "en gargantuar name");
+  assert.ok((await page.locator("#codexDetail").innerText()).includes("Zombie detail"), "en zombie detail kicker");
+  await page.locator("#gameCodexClose").click();
+  await page.waitForSelector("#gameCodexPanel:not(.show)", { state: "attached" });
+  await page.evaluate(() => window.closeGame());
+  await page.locator("#gameModal").waitFor({ state: "hidden" });
+  await page.locator("#localeZh").click();
+  await page.waitForTimeout(200);
+
   assert.deepEqual(errors, [], `browser console errors: ${errors.join(" | ")}`);
-  console.log(`codex smoke passed: ${plantKeys.length} plants + ${zombieKeys.length} zombies, interactions and close flows verified`);
+  console.log(`codex smoke passed: ${plantKeys.length} plants + ${zombieKeys.length} zombies, bilingual zh/en, interactions and close flows verified`);
 } finally {
   await browser.close();
 }

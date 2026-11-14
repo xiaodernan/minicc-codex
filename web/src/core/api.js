@@ -186,9 +186,10 @@ export async function completeTask(loadingId, data) {
   const binding = runningTasks.get(taskId) || { taskId, sessionId: state.sessionId, workspacePath: state.workspacePath, loadingId };
   finishLiveTask(binding.loadingId || loadingId);
   stopTaskTimer(taskId);
+  const zh = state.locale === "zh";
   const finalData = data.status === "completed"
     ? data
-    : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? "任务已取消。" : "任务失败。") };
+    : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? (zh ? "任务已取消。" : "Task cancelled.") : (zh ? "任务失败。" : "Task failed.")) };
   cacheTaskDetail(finalData);
   runningTasks.delete(taskId);
   if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
@@ -222,7 +223,7 @@ export async function completeTask(loadingId, data) {
     }
     cacheSessionView(binding.sessionId, holder.innerHTML, binding.workspacePath);
   }
-  if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
+  if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? (state.locale === "zh" ? "任务已取消" : "Task cancelled") : (state.locale === "zh" ? "任务失败" : "Task failed")));
   notifyTaskFinished(finalData);
   scheduleChangesRefresh();
   refreshFileTreeSoon(); // task finished: workspace files may have changed

@@ -51000,3 +51000,81 @@ pulseTurns:    2392  (messages)
 ### 4 文件
 
 （无代码改动——T922/T923 的工作在本批被验证为真实可用；本批只钉住审计记录。）
+
+## 批次 925 - M8-T925 ~ M8-T929：双语说明书 + 全内容中英切换落地 → 连环事故 → 修复与重建
+
+### 1 背景与经过
+
+用户的持续要求里有三块：给产品配一本可以打开的简明说明书（含游戏厅教程与新手上手演示）；
+项目的所有内容支持全内容中英文切换（不中英夹杂，原生英文内容也要中文化，中文模式全中文、英文模式全英文）；
+以及把 GitHub 项目的最新成果自动同步到个人展示页 `xiaodernan.github.io`。
+
+M8-T925 ~ M8-T928 顺序落地了说明书与初版 i18n，但中途出了两次事故，M8-T929 是修复批次：
+
+- **M8-T925**（已推送）：说明书模块落地——七章双语小册子（五分钟上手 / 工作台导览 / 七个模块，一个世界 /
+  命令与快捷键 / 游戏厅教程 / 排错 / 边界与范围），侧边栏 sidebar 进入，zh/en 全章内联双语，包含新手教程
+  与游戏厅 5 步教程（Pulse / Sun / Rally / Time Stop 四技能 + 植物僵尸图鉴双语化 + 图鉴 zh 释义中文/en 英文）；
+  个人展示页接入自动更新（`.github/workflows/update-latest.yml` + `scripts/update-latest-json.mjs`，推送后自动刷新
+  `docs/latest.json`，展示页按周抓取）。
+- **M8-T926 / T926b / T927**（已推送）：stream…/api/stats 链路补齐、手册 start/arcade 章改写为完整教程、
+  markdown 默认答案双语 fallback、manual CSS 收尾。
+  **事故 1**：这批提交丢了 `web/src/core/i18n.js` 与 `web/index.html` 的 CRLF——仓库对这两个文件有
+  CRLF 契约（`tests/test_the_toolstream_chip_answers_its_own_keys.py::test_the_two_crlf_files_keep_their_endings`），
+  CI 如实红。
+- **M8-T928**（已推送）：game.js 图鉴双语化——**事故 2**（更严重）：当时的自动改写脚本在四个
+  `codex*` 常量之后用"跳到下一个精确 `};` 行"的逻辑吞掉了一段**约 95 函数**的连续源码
+  （`rebuildGameRows` 到 `closeGame` 之间的绝大部分逻辑），仅留下的残骸碰巧能通过 `node --check`。
+  远程 8f03906 = 已损坏；claim checkers 绿、JS syntax 红（`npm run check:web` 报 stale bundle +
+  资产 manifest 不一致：commit 里没有随 rebuild 一起提交 bundle）、Python 双平台红（i18n.js / index.html CRLF 断言）。
+
+### 2 M8-T929 修复（本批次）
+
+- **game.js 图鉴双语化重写**：先 `git checkout` 恢复损坏前的版本（e0ae7c6~e8442c7 语义为恢复到事故前的
+  origin/main 真版本），然后用**逐行定位 + zh 原文捕获 + en 对照翻译**的方式重建四个双语常量
+  （`codexPlantNames` / `codexZombieNames` / `codexPlantSpecials` / `codexZombieSkills`，
+  共 19+19+19+19 键），**不静默丢弃任何函数**；为 `codexPlantInfo` / `codexZombieInfo` 写入 zh⇄en 的
+  目标/范围/用法/移动方式/special 双语选择逻辑；语气贴近原作者的写法。
+- **CRLF 契约恢复**：`web/src/core/i18n.js` → 纯 CRLF（scrimp）、`web/index.html` → 纯 CRLF；
+  契约测试 `test_the_two_crlf_files_keep_their_endings` 本地 **6 passed**。
+- **全内容双语化闭环**：
+  - `index.html`：删除所有用户可见的硬编码中文（23 处 aria-label / title / 可见文案），
+    改为 `data-i18n*` 键 + 键值对照表；`#panelTitle` / `#taskDockPhase` / `#cacheMetric` / `#startupStatus`
+    补回退键；`#gamePerformance`（was "帧 · 长帧 · 对象"）重写为双语片段。
+  - `i18n.js`：新增 69 个双语键（557→562 键对），zh/en 严格 parity，`npm run test:i18n` 绿（213 literal t() 全可解析）。
+  - `renderCodex`：innerHTML 里的中文栏位文案全部切换为 `t()` 键；中文括号 `（N）` → 语种无关 `(N)`。
+  - **the almanac 全量重写**：之前的 almanac 整章中文叙述 + 英文夹杂（原生英文模式完全没有翻译，
+    直接违反全内容双语切换要求）。重写为完整的 zh⇄en 两套正文——9 章、全部用户可见文本
+    （prologue / spark / depth / sentry / bloom / hand / gate / mesh / witness）逐章双语，
+    所有插图式 instrument 标签、instrument 数字后缀、sidenote、kicker 都按 locale 选择。
+  - `manual.js`：kicker 的 `Chapter ${romanEn}` 修掉中文数字；`.manual-chapter-roman` 切语种。
+  - `api.js` / `core\locale.js` / `core\command-palette.js` / `panels\index.js`：
+    残余中文 literal 补双语 fallback（sidebar 收展文案、fetch 收尾 toast、task failed / cancelled、语言切换按钮措辞对齐）。
+- **bundle 重建**：`web/app.js` 457250 chars、`web/game.js` 113792，`npm run check:web` ✓、`node --check` ✓；
+  asset-manifest 同步。
+- **英文探针**（本地 ephemeral，不提交）：六视图逐个遍历
+  （workbench / arcade / codex-plants / codex-zombies / manual / almanac）→ **零 CJK**
+  （唯一例外：`#localeZh` 的"中"按钮本身——语言切换器的约定留法，以及用户自己产生的数据——
+  最近任务、任务历史、审计日志、文件树、git 分支名等，这类不属于产品文案，不翻译。）
+- **codex_smoke.mjs**：新增英文断言块（中文模式跑完后翻到英文、重开图鉴、验证标签/条目名
+  （Peashooter/Gargantuar）/kicker，并翻回 zh 默认）；本地 `npm run test:codex` 全绿，验证真浏览器。
+
+### 3 验证
+
+- `pytest tests/test_the_toolstream_chip_answers_its_own_keys.py -q` → **6 passed**（CRLF 契约绿）
+- `npm run test:i18n` → zh/en 562 键对齐，213 个字面量 t() 引用全部可解析
+- `npm run test:arcade` → game_upgrade / codex / zombie spawn 全绿（19 plants + 19 zombies）
+- `npm run test:codex`（含新增英文断言）→ passed
+- `npm run test:web` → web smoke passed: timeline, product path, desktop, mobile
+- `git diff e0ae7c6 == web/src/game.js: +101/-14` 行；`web/index.html` 与事故前内容逐行无差异（仅 LF→CRLF 全文件替换）
+- 远程 CI 的 T925/T927/T928 运行结果为红（i18n.js / index.html CRLF 断言 + JS syntax stale bundle），
+  本提交期望回绿——红的历史保留，不掩盖。
+
+### 4 遗留与风险
+
+- 远程 CI 回绿由推送后的运行证明；未绿前不宣称"CI 全绿"。
+- web_smoke 首个本地运行曾在已经损坏的 8765 服务上报 NO_COMPLETION_VERDICT——新服务进程下通过；
+  该失败与本批代码无因果关系。
+- 用户数据（最近任务、审计日志、任务详情、git 分支名、文件树）保持原语种，符合边界。
+- 说明书章节体（BODIES 的 zh/en 分支）与 almanac 的双语长文仍**内联**切换（state.locale ternary），
+  暂不走 i18n 键——若前端测试将来强制"所有 zh/en 文本必须落 i18n 键"，再迁移。
+- `minicc/` 与并行会话文件未触碰。

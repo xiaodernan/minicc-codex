@@ -1939,7 +1939,7 @@ export function eventTimelineMarkup(events, options = {}) {
 export function assistantMessageMarkup(data, anchor = "") {
   const events = Array.isArray(data.events) ? data.events : [];
   const eventMarkup = eventTimelineMarkup(events);
-  const answer = data.answer || data.error || "模型没有返回可交付文字。";
+  const answer = data.answer || data.error || (state.locale === "zh" ? "模型没有返回可交付文字。" : "The model returned no deliverable text.");
   const rawStream = !data.answer && data.stream_text ? rawOutputMarkup(data.stream_text) : "";
   const execution = executionTrailMarkup(eventMarkup, events);
   const anchorMarkup = anchor ? ` data-chat-anchor="${escapeHtml(anchor)}"` : "";

@@ -70,13 +70,15 @@ export function applyPaneLayout() {
   const sidebarButton = $("#sidebarOpen");
   const inspectorButton = $("#inspectorToggle");
   if (sidebarButton && desktop) {
-    sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? "打开侧栏" : "收起侧栏");
-    sidebarButton.title = state.sidebarCollapsed ? "打开侧栏" : "收起侧栏";
+    const zh = state.locale === "zh";
+    sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? (zh ? "打开侧栏" : "Open sidebar") : (zh ? "收起侧栏" : "Collapse sidebar"));
+    sidebarButton.title = state.sidebarCollapsed ? (zh ? "打开侧栏" : "Open sidebar") : (zh ? "收起侧栏" : "Collapse sidebar");
     sidebarButton.innerHTML = icon(state.sidebarCollapsed ? "panel-left-open" : "panel-left-close");
   }
   if (inspectorButton && desktop) {
-    inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? "打开检查器" : "收起检查器");
-    inspectorButton.title = state.inspectorCollapsed ? "打开检查器" : "收起检查器";
+    const zh = state.locale === "zh";
+    inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? (zh ? "打开检查器" : "Open inspector") : (zh ? "收起检查器" : "Collapse inspector"));
+    inspectorButton.title = state.inspectorCollapsed ? (zh ? "打开检查器" : "Open inspector") : (zh ? "收起检查器" : "Collapse inspector");
     inspectorButton.innerHTML = icon(state.inspectorCollapsed ? "panel-right-open" : "panel-right-close");
   }
   refreshIcons();

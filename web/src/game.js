@@ -1516,21 +1516,134 @@ const codexState = { tab: "plants", plant: "peashooter", zombie: "walker" };
 const codexPlantNames = {
     peashooter: { zh: "豌豆射手", en: "Peashooter" },
     sunflower: { zh: "向日葵", en: "Sunflower" },
-    wallnut: { zh: "坚果", en: "Wall-nut" },
+    wallnut: { zh: "坚果墙", en: "Wall-nut" },
     repeater: { zh: "双发射手", en: "Repeater" },
     cherrybomb: { zh: "樱桃炸弹", en: "Cherry Bomb" },
-    icepeashooter: { zh: "冰豌豆射手", en: "Ice Peashooter" },
-    firepeashooter: { zh: "火豌豆射手", en: "Fire Peashooter" },
-    twinpea: { zh: "三连豌豆射手", en: "Triple Peashooter" },
-    kernelpult: { zh: "臭樱桃", en: "Kernel-pult" },
-    pumpkin: { zh: "南瓜", en: "Pumpkin" },
+    icepeashooter: { zh: "寒冰射手", en: "Ice Peashooter" },
+    firepeashooter: { zh: "火焰射手", en: "Fire Peashooter" },
+    twinpea: { zh: "双发强化", en: "Triple Peashooter" },
+    kernelpult: { zh: "玉米投手", en: "Kernel-pult" },
+    pumpkin: { zh: "南瓜头", en: "Pumpkin" },
     spikeweed: { zh: "地刺", en: "Spikeweed" },
-    gloomshroom: { zh: "暗蘑菇", en: "Gloom Shroom" },
-    potatomine: { zh: "土豆地雷", en: "Potato Mine" },
-    threepeater: { zh: "三连发射手", en: "Triple Peashooter" },
-    jalapeno: { zh: "辣椒", en: "Jalapeno" },
-    magnetshroom: { zh: "磁性蘑菇", en: "Magnet-shroom" },
+    gloomshroom: { zh: "忧郁菇", en: "Gloom-shroom" },
+    potatomine: { zh: "土豆雷", en: "Potato Mine" },
+    threepeater: { zh: "三线射手", en: "Threepeater" },
+    jalapeno: { zh: "火爆辣椒", en: "Jalapeno" },
+    magnetshroom: { zh: "磁力菇", en: "Magnet-shroom" },
     garlic: { zh: "大蒜", en: "Garlic" },
-    squash: { zh: "南瓜投手", en: "Squash" },
-    gatlingpea: { zh: "加特林豌豆射手", en: "Gatling Pea" },
+    squash: { zh: "窝瓜", en: "Squash" },
+    gatlingpea: { zh: "机枪射手", en: "Gatling Pea" },
 };
+const codexZombieNames = {
+    walker: { zh: "普通僵尸", en: "Zombie" },
+    backup: { zh: "伴舞僵尸", en: "Backup Dancer" },
+    roadblock: { zh: "路障僵尸", en: "Roadblock Zombie" },
+    conehead: { zh: "路锥僵尸", en: "Conehead Zombie" },
+    imp: { zh: "小鬼僵尸", en: "Imp" },
+    scout: { zh: "侦察僵尸", en: "Scout Zombie" },
+    storm: { zh: "风暴僵尸", en: "Storm Zombie" },
+    runner: { zh: "奔跑僵尸", en: "Runner Zombie" },
+    polevault: { zh: "撑杆僵尸", en: "Polevaulter Zombie" },
+    bucket: { zh: "铁桶僵尸", en: "Buckethead Zombie" },
+    football: { zh: "橄榄球僵尸", en: "Football Zombie" },
+    miner: { zh: "矿工僵尸", en: "Miner Zombie" },
+    flag: { zh: "旗帜僵尸", en: "Flag Zombie" },
+    dancer: { zh: "舞王僵尸", en: "Dancer Zombie" },
+    newspaper: { zh: "报纸僵尸", en: "Newspaper Zombie" },
+    gargantuar: { zh: "巨人僵尸", en: "Gargantuar" },
+    witch: { zh: "女巫僵尸", en: "Witch" },
+    dragon: { zh: "龙僵尸", en: "Dragon Zombie" },
+    shield: { zh: "护盾僵尸", en: "Shield Zombie" },
+};
+const codexPlantIcons = { peashooter: "🌱", sunflower: "🌻", wallnut: "🥜", repeater: "🌿", cherrybomb: "🍒", icepeashooter: "❄️", firepeashooter: "🔥", twinpea: "🌱", kernelpult: "🌽", pumpkin: "🎃", spikeweed: "🌵", gloomshroom: "🍄", potatomine: "🥔", threepeater: "🌾", jalapeno: "🌶️", magnetshroom: "🧲", garlic: "🧄", squash: "🎃", gatlingpea: "🔫" };
+const codexPlantSpecials = {
+    peashooter: { zh: "发射普通豌豆，稳定输出。", en: "Standard shooter, no special ability" },
+    sunflower: { zh: "每隔一段时间生产 25 阳光。", en: "Produces sun every 25s" },
+    wallnut: { zh: "高生命值阻挡，拖延僵尸。", en: "High-health wall plant" },
+    repeater: { zh: "每轮发射 2 发豌豆，并可穿透 1 个目标。", en: "Fires two peas at once" },
+    cherrybomb: { zh: "短延迟后在同一行 145 范围内直接消灭僵尸。", en: "Explodes in a 145px radius" },
+    icepeashooter: { zh: "命中后减速 3200ms，并可穿透 1 个目标。", en: "Slows target by 50% for 3200ms" },
+    firepeashooter: { zh: "每发 2 点伤害并施加 2600ms 灼烧，灼烧伤害 3。", en: "Double shot, 2600ms against 3 targets" },
+    twinpea: { zh: "每轮发射 2 发强化豌豆，每发 2 点伤害。", en: "Twin shots, 2 projectiles per volley" },
+    kernelpult: { zh: "28% 概率用黄油定身，并可穿透 1 个目标。", en: "28% chance to stun 1 target" },
+    pumpkin: { zh: "为同格植物提供 32 点护罩生命。", en: "Wall plant protecting the plant underneath" },
+    spikeweed: { zh: "攻击所在格附近 44 范围内的僵尸。", en: "Standing damage to walkers" },
+    gloomshroom: { zh: "近身范围攻击并施加 900ms 减速。", en: "Area damage, 900ms cadence" },
+    potatomine: { zh: "1800ms 后布雷，在同一行 90 范围内爆炸。", en: "1800ms arming, then a 90-damage burst" },
+    threepeater: { zh: "同时攻击当前行、上行和下行。", en: "Shoots three lanes at once" },
+    jalapeno: { zh: "短延迟后消灭所在行的全部僵尸。", en: "Burns the entire lane" },
+    magnetshroom: { zh: "周期性吸走僵尸护甲或装备，不直接造成伤害。", en: "Strips metal gear from zombies" },
+    garlic: { zh: "被咬后将僵尸改道到下一行。", en: "Redirects zombies into another lane" },
+    squash: { zh: "接近时重击并直接消灭目标。", en: "Crushes the first zombie that touches it" },
+    gatlingpea: { zh: "每轮连续发射 4 发豌豆，每发 1 点伤害。", en: "Fires 4 peas per second" },
+};
+const codexZombieSkills = {
+    walker: { zh: "无额外技能，接触植物后啃食。", en: "No special skill, just bites plants" },
+    backup: { zh: "伴随舞王召唤，沿行啃食。", en: "Dances alongside its crew, bites on contact" },
+    roadblock: { zh: "路障提供额外防护。", en: "Heavy and slow, hard to stop" },
+    conehead: { zh: "路锥提供额外护甲。", en: "Cone-shaped head armor" },
+    imp: { zh: "快速移动并跳跃植物。", en: "Tiny zombie thrown by gargantuars" },
+    scout: { zh: "间歇冲刺并标记、诅咒附近植物。", en: "Fast moving scout" },
+    storm: { zh: "周期性使同一行植物短暂失效。", en: "Freezes plants with a cold aura" },
+    runner: { zh: "沿行快速移动并间歇冲刺。", en: "Sprints forward fast" },
+    polevault: { zh: "遇到第一株植物时撑杆跳过。", en: "Vaults the first plant on the lane" },
+    bucket: { zh: "铁桶提供高额护甲。", en: "Bucket-helmet armor" },
+    football: { zh: "高护甲并可冲锋攻击。", en: "Charges fast with high HP" },
+    miner: { zh: "地下潜行，接近防线后出土。", en: "Tunnels under the lawn to bypass plants" },
+    flag: { zh: "为同一行盟友提供移动速度加成。", en: "Raises a flag for the next wave" },
+    dancer: { zh: "周期性召唤伴舞僵尸。", en: "Dances and calls dancers to the lane" },
+    newspaper: { zh: "报纸被破坏后进入狂暴状态。", en: "Enraged when its newspaper is destroyed" },
+    gargantuar: { zh: "缓慢推进，接触植物时重击并造成高额伤害。", en: "Towering bruiser, throws imps" },
+    witch: { zh: "标记并诅咒附近植物。", en: "Curses the nearest plant" },
+    dragon: { zh: "喷吐火焰，对植物施加灼烧。", en: "Breathes fire down the lane" },
+    shield: { zh: "周期性恢复护盾。", en: "Blocks frontal plant damage" },
+};
+function codexPlantInfo(type) {
+  const profile = plantProfiles[type] || {};
+  const damage = profile.damage ? `${profile.damage} ${state.locale === "zh" ? "次/秒" : "hits/s"}` : ["cherrybomb", "jalapeno", "potatomine", "squash"].includes(type) ? (state.locale === "zh" ? "一次性" : "one-shot") : (state.locale === "zh" ? "—" : "—");
+  const target = profile.rows || type === "jalapeno" ? (state.locale === "zh" ? "三行群体" : "3 lanes") : ["cherrybomb", "potatomine", "squash"].includes(type) ? (state.locale === "zh" ? "单个目标" : "single target") : (state.locale === "zh" ? "直线目标" : "line targets");
+  const range = profile.rows ? (state.locale === "zh" ? "当前行及相邻两行" : "own lane plus the two neighbours") : ["gloomshroom", "spikeweed"].includes(type) ? (state.locale === "zh" ? "自身周围" : "around itself") : ["cherrybomb", "potatomine", "squash"].includes(type) ? (state.locale === "zh" ? "触碰范围" : "touch range") : (state.locale === "zh" ? "整条行" : "the whole lane");
+  const usage = type === "sunflower" ? (state.locale === "zh" ? "放在后排，持续生产阳光" : "back row, keeps producing sun") : type === "wallnut" || type === "pumpkin" ? (state.locale === "zh" ? "放在前排，替植物抵挡僵尸" : "front row, tanks the horde") : type === "jalapeno" || type === "cherrybomb" ? (state.locale === "zh" ? "作为清场/救场手段" : "emergency lane clear") : (state.locale === "zh" ? "沿前锋线推进放置" : "place along the advance line");
+  const name = codexPlantNames[type];
+  const special = codexPlantSpecials[type];
+  return { name: state.locale === "zh" ? name.zh : name.en, icon: codexPlantIcons[type], health: plantHealth[type], cost: plantCost[type], damage, attack: profile.shots ? `${profile.shots} ${state.locale === "zh" ? "连发" : "burst"}` : type === "threepeater" ? (state.locale === "zh" ? "3 连发" : "3-lane volley") : (state.locale === "zh" ? "单发" : "single shot"), target, range, usage, special: state.locale === "zh" ? special.zh : special.en, raw: Object.keys(profile).length ? JSON.stringify(profile) : (state.locale === "zh" ? "（无 profile 数据）" : "(no profile data)") };
+}
+function codexZombieInfo(type) {
+  const profile = zombieProfiles[type];
+  const movement = profile.burrow ? (state.locale === "zh" ? "地下潜行，接近防线后出土" : "digs underground, surfaces at the plants") : profile.vault ? (state.locale === "zh" ? "持杆前进，遇到植物前跳过" : "keeps a pole, vaults the first plant") : profile.leap ? (state.locale === "zh" ? "跃向前方越过植物" : "leaps forward over plants") : profile.dash ? (state.locale === "zh" ? "朝前冲锋越过植物" : "charges forward through plants") : profile.giant ? (state.locale === "zh" ? "体型巨大，速度极慢" : "huge frame, crawls forward") : (state.locale === "zh" ? "持续朝前推进" : "marches steadily forward");
+  const name = codexZombieNames[type];
+  const skill = codexZombieSkills[type];
+  return { name: state.locale === "zh" ? name.zh : name.en, hp: profile.hp, armor: profile.armor || 0, speed: `${profile.speed.toFixed(3)} ${state.locale === "zh" ? "+ 每波" : "+ per wave"} ${profile.growth.toFixed(4)}`, attack: `${profile.attackInterval} ms`, score: profile.score, movement, skills: state.locale === "zh" ? skill.zh : skill.en };
+}
+function codexRows(rows) { return rows.map(([label, value]) => `<div class="codex-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join(""); }
+function renderCodex() {
+  const plants = codexState.tab === "plants";
+  const keys = Object.keys(plants ? plantCost : zombieProfiles);
+  const selected = codexState[plants ? "plant" : "zombie"];
+  $("#codexPlantCount").textContent = `(${Object.keys(plantCost).length})`;
+  $("#codexZombieCount").textContent = `(${Object.keys(zombieProfiles).length})`;
+  $$(".codex-tab").forEach((tab) => { const active = tab.dataset.codexTab === codexState.tab; tab.classList.toggle("active", active); tab.setAttribute("aria-selected", String(active)); });
+  $("#codexEntryList").innerHTML = keys.map((key) => { const info = plants ? codexPlantInfo(key) : codexZombieInfo(key); return `<button class="codex-entry ${key === selected ? "active" : ""}" type="button" data-codex-entry="${key}"><span class="codex-entry-icon">${info.icon || "🧟"}</span><span>${escapeHtml(info.name)}</span></button>`; }).join("");
+  const info = plants ? codexPlantInfo(selected) : codexZombieInfo(selected);
+  $("#codexDetail").innerHTML = `<div class="codex-detail-title"><span class="codex-detail-icon">${info.icon || "🧟"}</span><div><span class="game-kicker">${plants ? t("game.codexPlantDetail") : t("game.codexZombieDetail")}</span><h4>${escapeHtml(info.name)}</h4></div></div>` +
+    (plants
+      ? `<dl class="codex-stats">${codexRows([[t("game.codexSunCost"), `${info.cost} ☀`], [t("game.codexPlantHp"), `${info.health} HP`], [t("game.codexDamage"), info.damage], [t("game.codexAttackRate"), info.attack], [t("game.codexDamageType"), info.target], [t("game.codexRange"), info.range]])}</dl><div class="codex-section"><strong>${t("game.codexUsage")}</strong><p>${escapeHtml(info.usage)}</p></div><div class="codex-section"><strong>${t("game.codexSpecial")}</strong><p>${escapeHtml(info.special)}</p></div><div class="codex-section"><strong>${t("game.codexProfile")}</strong><code>${escapeHtml(info.raw)}</code></div>`
+      : `<dl class="codex-stats">${codexRows([[t("game.codexBaseHp"), `${info.hp} HP`], [t("game.codexArmor"), `${info.armor}`], [t("game.codexMoveSpeed"), info.speed], [t("game.codexAttackInterval"), info.attack], [t("game.codexScore"), info.score]])}</dl><div class="codex-health-bar" aria-label="${t("game.codexBaseHp")}"><i style="width: 100%"></i></div><div class="codex-section"><strong>${t("game.codexMovement")}</strong><p>${escapeHtml(info.movement)}</p></div><div class="codex-section"><strong>${t("game.codexSkills")}</strong><p>${escapeHtml(info.skills)}</p></div>`);
+  $$(".codex-entry").forEach((entry) => entry.addEventListener("click", () => { codexState[plants ? "plant" : "zombie"] = entry.dataset.codexEntry; renderCodex(); }));
+}
+function openGameCodex(tab = "plants") { codexState.tab = tab; $("#gameCodexPanel").classList.add("show"); $("#gameCodexPanel").setAttribute("aria-hidden", "false"); renderCodex(); refreshIcons(); }
+function closeGameCodex() { const panel = $("#gameCodexPanel"); if (!panel) return; panel.classList.remove("show"); panel.setAttribute("aria-hidden", "true"); }
+
+Object.assign(window, {
+  openGame, closeGame, openGameWindow, toggleGameWideMode, toggleGameFullscreen,
+  openGameCodex, closeGameCodex, startGame, initGame, gameLoop, game,
+  plantAt, collectSun, produceSun, firePlantShots, explodeCherryBomb, damagePlant,
+  cellPosition, toggleShovel, activateGameSkill, toggleGamePause, setGameDifficulty,
+  toggleGameSound, setGameVolume, setGamePaused, updateGameHover, clearGameHover,
+  selectPlant, clearPlantSelection, updateShovelButton, rebuildGameIndexes, defeatZombie,
+  zombieTypeForWave, spawnZombie, plantProfiles, plantCost, plantHealth, plantColor,
+  plantCooldown, zombieProfiles, GAME_LOGICAL_WIDTH, GAME_LOGICAL_HEIGHT, GAME_DIFFICULTIES,
+  WAVE_TARGET, MAX_WAVES, gameLayout, drawGame,
+});
+window.__gameUpgradeProbe = { game, gameLoop, defeatZombie, rebuildGameIndexes, activateGameSkill };
+window.__zombieProbe = { game, zombieProfiles, zombieTypeForWave, spawnZombie, gameLoop, drawGame };
