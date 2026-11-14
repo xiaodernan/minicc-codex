@@ -10,7 +10,7 @@ import { $, state } from "../core/state.js";
 import { t } from "../core/i18n.js";
 import { icon, refreshIcons } from "../icons.js";
 import { escapeHtml } from "../chat/markdown.js";
-import { openPanel, beginPanelRequest } from "../chat/stream.js";
+import { openPanel, beginPanelRequest, closePanel } from "../chat/stream.js";
 
 const CHAPTERS = [
   { id: "start", roman: "一", romanEn: "1", title: "Quick Start", titleZh: "五分钟上手" },
@@ -32,6 +32,11 @@ function zhStart() {
       <li><strong>第四步：看连接</strong> 底部状态栏出现 <em>已连接</em>、任务流开始滚动，说明模型与本地工具都通了。回答出来后点开任务详情，里面有全部工具调用、逐轮缓存命中率、完成验收记录。</li>
       <li><strong>第五步：回放</strong> 任务详情顶部点「回放整个任务」，按事件顺序重演一次交付过程——像看一场电影，支持暂停、拖拽进度、1×/2×/4× 倍速。</li>
     </ol>
+    <div class="manual-callout">
+      <strong>不想读字？直接看一遍。</strong>
+      <p>点下面这个按钮，工作台会现场演示一次完整 Agent 任务：输入 → 计划 → 工具调用 → 测试验证 → 交付总结——看完你就会用了。</p>
+      <button type="button" class="manual-demo-run" data-manual-demo>运行一次完整演示</button>
+    </div>
     <p>不想打开浏览器？命令行也能直接用：<code>minicc "读 README 并总结"</code>，或 <code>minicc --stats</code> 看工作区体征。</p>
   `;
 }
@@ -46,6 +51,11 @@ function enStart() {
       <li><strong>Step 4 — Watch it connect</strong> the status bar shows <em>Connected</em> and the task stream starts scrolling. When the answer arrives, open the task detail to see every tool call, per-turn cache hit rate, and the completion verdict.</li>
       <li><strong>Step 5 — Replay it</strong> from the task detail top, click “Replay the whole task” to replay the delivery event by event — pause, scrub the progress bar, 1×/2×/4× speed.</li>
     </ol>
+    <div class="manual-callout">
+      <strong>Would rather watch than read?</strong>
+      <p>Click the button below and the workbench will run a full agent task for you, live: intake → plan → tool calls → test verification → delivery summary. Watch it once and you know the product.</p>
+      <button type="button" class="manual-demo-run" data-manual-demo>Run the live demo</button>
+    </div>
     <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;
 }
@@ -149,6 +159,8 @@ function zhArcade() {
       <div><span class="arcade-label">四种技能</span><p>Pulse（25 阳光，7 秒冷却）、Sun（35 阳光，立即回能）、Rally（45 阳光，14 秒冷却）、Time Stop（55 阳光，18 秒冷却）——每种技能只对特定局面有效，合理攒阳光比盲目种植更重要。</p></div>
       <div><span class="arcade-label">图鉴</span><p>游戏内置植物/僵尸图鉴——peashooter、sunflower、wall-nut、cherry bomb、gatling pea、jalapeno、magnetshroom……每种植物都有属性与 special 描述；终极关卡是「巨人僵尸」。</p></div>
       <div><span class="arcade-label">数据</span><p>游戏数据全部保存在你的浏览器里；关闭工作台不会丢失进度，清浏览器缓存会重置。</p></div>
+      <div><span class="arcade-label">第一局怎么赢（通关路线）</span><p><strong>① 先攒阳光</strong>——开局先放两朵向日葵，边生产边等僵尸靠近；<br/><strong>② 再输出</strong>——至少 3 株豌豆射手位于第一波路线的右侧，跟上升级节奏；<br/><strong>③ 第三波筑墙</strong>——坚果墙顶在僵尸路径正前面，其余输出站后面；<br/><strong>④ 关键清场</strong>——阳光攒够 150，在僵尸至少两个聚到一起时放樱桃炸弹/辣椒；<br/><strong>⑤ 决胜巨人</strong>——第 10 波把 Time Stop + Rally 连用，把路径两侧辅助火力推满。</p></div>
+      <div><span class="arcade-label">几个经常忽略但管用的键位</span><p><code>数字键 1-9</code> 选卡 · <code>P</code> 暂停/继续 · <code>E</code> 铲子/取消 · 阳光可手动点击收集（游戏内也有「自动拾取」开关）· 切到其他标签页会自动暂停，回到来继续——战斗用时只按活跃帧统计，不会吃冤枉时长。</p></div>
     </div>
     <p class="manual-footnote">游戏代码在 <code>web/game.js</code>，纯前端，没有任何服务端交互。</p>
   `;
@@ -163,6 +175,8 @@ function enArcade() {
       <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun, instant refill), Rally (45 sun, 14s cooldown), Time Stop (55 sun, 18s cooldown) — each skill is situational, none is generic; hoarding sun beats mindless planting.</p></div>
       <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex — peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom … each with stats and a special. The final wave is the gargantuar.</p></div>
       <div><span class="arcade-label">Data</span><p>All game state lives in your browser; closing the workbench never loses progress, clearing browser cache resets it.</p></div>
+      <div><span class="arcade-label">First game walkthrough</span><p><strong>① Sun first</strong> — drop two sunflowers before the first wave arrives and let them bake sun while zombies approach;<br/><strong>② Then damage</strong> — at least 3 peashooters along the threatened lanes; keep them behind the wall;<br/><strong>③ Wall by wave 3</strong> — a wall-nut planted right in front of the attack lanes, absorbing hits while your shooters fire from behind;<br/><strong>④ Clear the clump</strong> — once you have 150 sun, drop a cherry bomb or jalapeno when two or more zombies clump together;<br/><strong>⑤ Close out the gargantuar</strong> — wave 10: chain Time Stop + Rally, and let your full volley land while the giant is stopped.</p></div>
+      <div><span class="arcade-label">Keys you will want</span><p><code>1-9</code> pick a card · <code>P</code> pause / resume · <code>E</code> shovel / cancel · click sun drops to collect them yourself (auto-collect toggle exists in-game) · the game pauses itself when the tab loses focus — fight time only counts active frames.</p></div>
     </div>
     <p class="manual-footnote">Game code lives in <code>web/game.js</code> — pure frontend, no server round-trip whatsoever.</p>
   `;
@@ -257,6 +271,10 @@ function renderChapter(id) {
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;
+  slot.querySelector("[data-manual-demo]")?.addEventListener("click", () => {
+    closePanel();
+    document.getElementById("demoFlowButton")?.click();
+  });
   refreshIcons();
 }
 

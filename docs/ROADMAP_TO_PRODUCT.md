@@ -51078,3 +51078,42 @@ M8-T925 ~ M8-T928 顺序落地了说明书与初版 i18n，但中途出了两次
 - 说明书章节体（BODIES 的 zh/en 分支）与 almanac 的双语长文仍**内联**切换（state.locale ternary），
   暂不走 i18n 键——若前端测试将来强制"所有 zh/en 文本必须落 i18n 键"，再迁移。
 - `minicc/` 与并行会话文件未触碰。
+
+## 批次 926 - M8-T930：新手演示按钮 + 游戏厅通关路线 + arcade 真键盘操作
+
+### 1 背景
+
+说明书上线后的用户体验闭环还缺两件第一手体验：新用户看完文字就能动手验证（而不是假设自己跑了一遍），
+以及游戏厅不是"知道它能玩"而是"知道第一局怎么赢"。手册的游戏厅章节里一度出现键位描述（1-9 / P / E）——
+**写完才发现游戏里其实没有这些键**，属于文档先于实现的一条事实错误，本批一并修正：要么实现，要么不写。
+
+### 2 变更
+
+- `web/src/panels/manual.js`
+  - 五分钟上手章节新增「直接看一遍 / Would rather watch than read」行动块：一个按钮，
+    点击后关闭说明书面板并**真的运行 demo Flow**（现场演示一次完整 agent 任务：
+    intake → plan → tool → verify → deliver）；中英两套文案。
+  - 游戏厅教程章节新增两块：「第一局怎么赢（通关路线）」（先阳光 → 再输出 → 三波前筑墙 →
+    双怪群樱桃炸弹/辣椒清场 → 第 10 波 Time Stop + Rally 连用推巨人）与
+    「几个经常忽略但管用的键位」（数字键 1-9 选卡 · P 暂停/继续 · E 铲子 · 点击拾取阳光）——
+    中英两套。
+  - kicker 不再出现中文数字（`Chapter N`）。
+- `web/src/game.js`
+  - **新增 arcade 键盘操作**（之前不存在，手册明文描述但游戏里没有）：
+    `1-9` 按 DOM 顺序选择种子卡片，`P` 暂停/继续，`E` 铲子；仅在游戏弹窗打开且焦点不在输入框时生效。
+- `web/styles.css`
+  - `.manual-callout`（行动块）与 `.manual-demo-run`（琥珀色 CTA，hover/active/focus-visible 齐备）。
+- bundle 重建（app.js 461397 chars / game.js 114446）；asset-manifest 同步。
+- 新增 `tests/codex_smoke.mjs` 的英文断言块（来自 T929，本批随捆提交）。
+
+### 3 验证
+
+- 真浏览器（fake provider）：
+  - 手册"运行一次完整演示"按钮（zh `运行一次完整演示` / en `Run the live demo`）→ 说明书关闭、demo flow 启动 ✓
+  - `1` → `game.selected === "peashooter"`；`e` 铲子 true/false；开始游戏后 `p` → `pauseReasons=["manual"]`、`paused=true`，再按 `p` → 恢复 ✓
+- `npm run build:web` ✓、`check:web` ✓、`node --check` ✓、`npm run test:arcade` 全绿（双语 codex 断言也覆盖）
+
+### 4 遗留
+
+- `1-9` 按 DOM 顺序选卡（前 9 张：豌豆射手、向日葵、坚果、双射、樱桃、寒冰、火焰、双倍、玉米投手），
+  不是语义编号；手册措辞用了"按 DOM 顺序"提醒。

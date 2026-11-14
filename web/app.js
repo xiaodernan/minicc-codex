@@ -2748,6 +2748,11 @@
       <li><strong>\u7B2C\u56DB\u6B65\uFF1A\u770B\u8FDE\u63A5</strong> \u5E95\u90E8\u72B6\u6001\u680F\u51FA\u73B0 <em>\u5DF2\u8FDE\u63A5</em>\u3001\u4EFB\u52A1\u6D41\u5F00\u59CB\u6EDA\u52A8\uFF0C\u8BF4\u660E\u6A21\u578B\u4E0E\u672C\u5730\u5DE5\u5177\u90FD\u901A\u4E86\u3002\u56DE\u7B54\u51FA\u6765\u540E\u70B9\u5F00\u4EFB\u52A1\u8BE6\u60C5\uFF0C\u91CC\u9762\u6709\u5168\u90E8\u5DE5\u5177\u8C03\u7528\u3001\u9010\u8F6E\u7F13\u5B58\u547D\u4E2D\u7387\u3001\u5B8C\u6210\u9A8C\u6536\u8BB0\u5F55\u3002</li>
       <li><strong>\u7B2C\u4E94\u6B65\uFF1A\u56DE\u653E</strong> \u4EFB\u52A1\u8BE6\u60C5\u9876\u90E8\u70B9\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u91CD\u6F14\u4E00\u6B21\u4EA4\u4ED8\u8FC7\u7A0B\u2014\u2014\u50CF\u770B\u4E00\u573A\u7535\u5F71\uFF0C\u652F\u6301\u6682\u505C\u3001\u62D6\u62FD\u8FDB\u5EA6\u30011\xD7/2\xD7/4\xD7 \u500D\u901F\u3002</li>
     </ol>
+    <div class="manual-callout">
+      <strong>\u4E0D\u60F3\u8BFB\u5B57\uFF1F\u76F4\u63A5\u770B\u4E00\u904D\u3002</strong>
+      <p>\u70B9\u4E0B\u9762\u8FD9\u4E2A\u6309\u94AE\uFF0C\u5DE5\u4F5C\u53F0\u4F1A\u73B0\u573A\u6F14\u793A\u4E00\u6B21\u5B8C\u6574 Agent \u4EFB\u52A1\uFF1A\u8F93\u5165 \u2192 \u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u6D4B\u8BD5\u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u2014\u2014\u770B\u5B8C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002</p>
+      <button type="button" class="manual-demo-run" data-manual-demo>\u8FD0\u884C\u4E00\u6B21\u5B8C\u6574\u6F14\u793A</button>
+    </div>
     <p>\u4E0D\u60F3\u6253\u5F00\u6D4F\u89C8\u5668\uFF1F\u547D\u4EE4\u884C\u4E5F\u80FD\u76F4\u63A5\u7528\uFF1A<code>minicc "\u8BFB README \u5E76\u603B\u7ED3"</code>\uFF0C\u6216 <code>minicc --stats</code> \u770B\u5DE5\u4F5C\u533A\u4F53\u5F81\u3002</p>
   `;
   }
@@ -2761,6 +2766,11 @@
       <li><strong>Step 4 \u2014 Watch it connect</strong> the status bar shows <em>Connected</em> and the task stream starts scrolling. When the answer arrives, open the task detail to see every tool call, per-turn cache hit rate, and the completion verdict.</li>
       <li><strong>Step 5 \u2014 Replay it</strong> from the task detail top, click \u201CReplay the whole task\u201D to replay the delivery event by event \u2014 pause, scrub the progress bar, 1\xD7/2\xD7/4\xD7 speed.</li>
     </ol>
+    <div class="manual-callout">
+      <strong>Would rather watch than read?</strong>
+      <p>Click the button below and the workbench will run a full agent task for you, live: intake \u2192 plan \u2192 tool calls \u2192 test verification \u2192 delivery summary. Watch it once and you know the product.</p>
+      <button type="button" class="manual-demo-run" data-manual-demo>Run the live demo</button>
+    </div>
     <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;
   }
@@ -2857,6 +2867,8 @@
       <div><span class="arcade-label">\u56DB\u79CD\u6280\u80FD</span><p>Pulse\uFF0825 \u9633\u5149\uFF0C7 \u79D2\u51B7\u5374\uFF09\u3001Sun\uFF0835 \u9633\u5149\uFF0C\u7ACB\u5373\u56DE\u80FD\uFF09\u3001Rally\uFF0845 \u9633\u5149\uFF0C14 \u79D2\u51B7\u5374\uFF09\u3001Time Stop\uFF0855 \u9633\u5149\uFF0C18 \u79D2\u51B7\u5374\uFF09\u2014\u2014\u6BCF\u79CD\u6280\u80FD\u53EA\u5BF9\u7279\u5B9A\u5C40\u9762\u6709\u6548\uFF0C\u5408\u7406\u6512\u9633\u5149\u6BD4\u76F2\u76EE\u79CD\u690D\u66F4\u91CD\u8981\u3002</p></div>
       <div><span class="arcade-label">\u56FE\u9274</span><p>\u6E38\u620F\u5185\u7F6E\u690D\u7269/\u50F5\u5C38\u56FE\u9274\u2014\u2014peashooter\u3001sunflower\u3001wall-nut\u3001cherry bomb\u3001gatling pea\u3001jalapeno\u3001magnetshroom\u2026\u2026\u6BCF\u79CD\u690D\u7269\u90FD\u6709\u5C5E\u6027\u4E0E special \u63CF\u8FF0\uFF1B\u7EC8\u6781\u5173\u5361\u662F\u300C\u5DE8\u4EBA\u50F5\u5C38\u300D\u3002</p></div>
       <div><span class="arcade-label">\u6570\u636E</span><p>\u6E38\u620F\u6570\u636E\u5168\u90E8\u4FDD\u5B58\u5728\u4F60\u7684\u6D4F\u89C8\u5668\u91CC\uFF1B\u5173\u95ED\u5DE5\u4F5C\u53F0\u4E0D\u4F1A\u4E22\u5931\u8FDB\u5EA6\uFF0C\u6E05\u6D4F\u89C8\u5668\u7F13\u5B58\u4F1A\u91CD\u7F6E\u3002</p></div>
+      <div><span class="arcade-label">\u7B2C\u4E00\u5C40\u600E\u4E48\u8D62\uFF08\u901A\u5173\u8DEF\u7EBF\uFF09</span><p><strong>\u2460 \u5148\u6512\u9633\u5149</strong>\u2014\u2014\u5F00\u5C40\u5148\u653E\u4E24\u6735\u5411\u65E5\u8475\uFF0C\u8FB9\u751F\u4EA7\u8FB9\u7B49\u50F5\u5C38\u9760\u8FD1\uFF1B<br/><strong>\u2461 \u518D\u8F93\u51FA</strong>\u2014\u2014\u81F3\u5C11 3 \u682A\u8C4C\u8C46\u5C04\u624B\u4F4D\u4E8E\u7B2C\u4E00\u6CE2\u8DEF\u7EBF\u7684\u53F3\u4FA7\uFF0C\u8DDF\u4E0A\u5347\u7EA7\u8282\u594F\uFF1B<br/><strong>\u2462 \u7B2C\u4E09\u6CE2\u7B51\u5899</strong>\u2014\u2014\u575A\u679C\u5899\u9876\u5728\u50F5\u5C38\u8DEF\u5F84\u6B63\u524D\u9762\uFF0C\u5176\u4F59\u8F93\u51FA\u7AD9\u540E\u9762\uFF1B<br/><strong>\u2463 \u5173\u952E\u6E05\u573A</strong>\u2014\u2014\u9633\u5149\u6512\u591F 150\uFF0C\u5728\u50F5\u5C38\u81F3\u5C11\u4E24\u4E2A\u805A\u5230\u4E00\u8D77\u65F6\u653E\u6A31\u6843\u70B8\u5F39/\u8FA3\u6912\uFF1B<br/><strong>\u2464 \u51B3\u80DC\u5DE8\u4EBA</strong>\u2014\u2014\u7B2C 10 \u6CE2\u628A Time Stop + Rally \u8FDE\u7528\uFF0C\u628A\u8DEF\u5F84\u4E24\u4FA7\u8F85\u52A9\u706B\u529B\u63A8\u6EE1\u3002</p></div>
+      <div><span class="arcade-label">\u51E0\u4E2A\u7ECF\u5E38\u5FFD\u7565\u4F46\u7BA1\u7528\u7684\u952E\u4F4D</span><p><code>\u6570\u5B57\u952E 1-9</code> \u9009\u5361 \xB7 <code>P</code> \u6682\u505C/\u7EE7\u7EED \xB7 <code>E</code> \u94F2\u5B50/\u53D6\u6D88 \xB7 \u9633\u5149\u53EF\u624B\u52A8\u70B9\u51FB\u6536\u96C6\uFF08\u6E38\u620F\u5185\u4E5F\u6709\u300C\u81EA\u52A8\u62FE\u53D6\u300D\u5F00\u5173\uFF09\xB7 \u5207\u5230\u5176\u4ED6\u6807\u7B7E\u9875\u4F1A\u81EA\u52A8\u6682\u505C\uFF0C\u56DE\u5230\u6765\u7EE7\u7EED\u2014\u2014\u6218\u6597\u7528\u65F6\u53EA\u6309\u6D3B\u8DC3\u5E27\u7EDF\u8BA1\uFF0C\u4E0D\u4F1A\u5403\u51A4\u6789\u65F6\u957F\u3002</p></div>
     </div>
     <p class="manual-footnote">\u6E38\u620F\u4EE3\u7801\u5728 <code>web/game.js</code>\uFF0C\u7EAF\u524D\u7AEF\uFF0C\u6CA1\u6709\u4EFB\u4F55\u670D\u52A1\u7AEF\u4EA4\u4E92\u3002</p>
   `;
@@ -2870,6 +2882,8 @@
       <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun, instant refill), Rally (45 sun, 14s cooldown), Time Stop (55 sun, 18s cooldown) \u2014 each skill is situational, none is generic; hoarding sun beats mindless planting.</p></div>
       <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex \u2014 peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom \u2026 each with stats and a special. The final wave is the gargantuar.</p></div>
       <div><span class="arcade-label">Data</span><p>All game state lives in your browser; closing the workbench never loses progress, clearing browser cache resets it.</p></div>
+      <div><span class="arcade-label">First game walkthrough</span><p><strong>\u2460 Sun first</strong> \u2014 drop two sunflowers before the first wave arrives and let them bake sun while zombies approach;<br/><strong>\u2461 Then damage</strong> \u2014 at least 3 peashooters along the threatened lanes; keep them behind the wall;<br/><strong>\u2462 Wall by wave 3</strong> \u2014 a wall-nut planted right in front of the attack lanes, absorbing hits while your shooters fire from behind;<br/><strong>\u2463 Clear the clump</strong> \u2014 once you have 150 sun, drop a cherry bomb or jalapeno when two or more zombies clump together;<br/><strong>\u2464 Close out the gargantuar</strong> \u2014 wave 10: chain Time Stop + Rally, and let your full volley land while the giant is stopped.</p></div>
+      <div><span class="arcade-label">Keys you will want</span><p><code>1-9</code> pick a card \xB7 <code>P</code> pause / resume \xB7 <code>E</code> shovel / cancel \xB7 click sun drops to collect them yourself (auto-collect toggle exists in-game) \xB7 the game pauses itself when the tab loses focus \u2014 fight time only counts active frames.</p></div>
     </div>
     <p class="manual-footnote">Game code lives in <code>web/game.js</code> \u2014 pure frontend, no server round-trip whatsoever.</p>
   `;
@@ -2956,6 +2970,10 @@
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;
+    slot.querySelector("[data-manual-demo]")?.addEventListener("click", () => {
+      closePanel();
+      document.getElementById("demoFlowButton")?.click();
+    });
     refreshIcons();
   }
   async function openManualPanel() {

@@ -1646,4 +1646,23 @@ Object.assign(window, {
   WAVE_TARGET, MAX_WAVES, gameLayout, drawGame,
 });
 window.__gameUpgradeProbe = { game, gameLoop, defeatZombie, rebuildGameIndexes, activateGameSkill };
+// M8-T930: keyboard play for the arcade — digits pick seed cards (DOM order),
+// P pauses/resumes, E toggles the shovel. Only while the modal is open, and
+// never while the user is typing in a field.
+window.addEventListener("keydown", (event) => {
+  const modal = $("#gameModal");
+  if (!modal?.classList.contains("show")) return;
+  if (!(event.target instanceof HTMLElement)) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+  const key = event.key;
+  if (key >= "1" && key <= "9") {
+    const cards = [...document.querySelectorAll(".seed-card")];
+    const card = cards[Number(key) - 1];
+    if (card) card.click();
+    return;
+  }
+  if (key.toLowerCase() === "p") { toggleGamePause(); return; }
+  if (key.toLowerCase() === "e") { toggleShovel(); return; }
+});
+
 window.__zombieProbe = { game, zombieProfiles, zombieTypeForWave, spawnZombie, gameLoop, drawGame };

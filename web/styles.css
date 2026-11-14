@@ -3954,6 +3954,35 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .manual-list li strong { color: var(--text); }
 .manual-footnote { margin: 0; color: var(--muted) !important; font-size: 12px !important; }
 
+.manual-callout {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--coral) 35%, var(--line));
+  background: color-mix(in srgb, var(--coral-soft) 45%, var(--surface-soft));
+}
+.manual-callout strong { color: var(--text); font-size: 14px; letter-spacing: -0.01em; }
+.manual-callout p { margin: 0; }
+.manual-demo-run {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  background: var(--coral);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--coral) 38%, transparent);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.manual-demo-run:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 24px color-mix(in srgb, var(--coral) 44%, transparent); }
+.manual-demo-run:active { transform: translateY(0); }
+.manual-demo-run:focus-visible { outline: 2px solid var(--coral); outline-offset: 3px; }
+
 .manual-grid-list { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .manual-grid-list > div {
   display: grid;
