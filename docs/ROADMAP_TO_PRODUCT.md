@@ -51732,3 +51732,22 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
 - 真浏览器 zh/en：rail 11 条、切换即时、卷十 zh 中文渲染 CJK=true / en 零 CJK ✓
 - hydrate 后仪器盘实时：`提交总数 1498 · 批次章节 275 · 当前北极星 9842116` + 6 条最近交付（本地 git head），head 北极星现场可见 ✓
 - `npm run test:almanac` → `almanac smoke passed: 11 chapters ... verified` ✓ · `test:web` ✓ · `test:i18n`（581/218）✓ · `check:web` ✓ · doc_pointers ✓
+
+## 批次 952 - M8-T957：/api/digest 并行 9 个 git 探针 —— 1.3 秒变成 0.6 秒
+
+### 1 背景
+
+`/api/digest` 是所有「这个工作区是什么」的入口：年鉴、工程日志、近况、脉搏全都按需取它。M8-T905 加了 `recent_commits` 之后，每轮 digest 跑了 10 个 git 子进程，**其中 9 个互相独立**——它们排队跑各自的 spawn 成本。cProfile 实测：wall clock **1.34s 的 87%** 都在 subprocess 里（Windows 上单个 git spawn ≈ 100–150ms），真正算正文的部分只有 ~0.18s。
+
+### 2 变更
+
+- `minicc/digest.py::build_digest`：所有 git 子进程改为 `ThreadPoolExecutor(max_workers=9)` 并发——`is-inside-work-tree / abbrev-ref / short HEAD / upstream / status / rev-list --count / log --max-parents=0 / ls-files / log -n 12`；数据流不变、参数不变、每个子进程依然各自在 `_GIT_TIMEOUT=5s` 内独立限时。
+- 删除被取代的串行链：根提交与 `%cI` 改用单次 `git log --max-parents=0 -n 1 --format=%cI HEAD`。
+- **不引入、不改动缓存**：这批的是性能修复不是新鲜度折扣——每条子进程都真实执行，机制上无脏数据。
+
+### 3 验证
+
+- `pytest tests/test_workspace_digest.py` → **6 passed**
+- 连续 5 次 `/api/digest`（fake provider，loopback）：**0.59 / 0.59 / 0.67 / 0.61 / 0.58 秒**；对比优化前 ~1.3–2s；payload 一致（head=7ccdf97 · commits=1499 · batches=276 · test_files=702）
+- cProfile 对比：`cumtime` 从 1.34s → ~0.5s，全程 0 个 subprocess 等锁（线程直接消费）
+- 失败路径行为不变：非 git 工作区/缺失二进制仍然 fail-close 到 `null` 字段

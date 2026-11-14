@@ -19,6 +19,7 @@ Design rules:
 from __future__ import annotations
 
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -124,40 +125,54 @@ def build_digest(workspace: Path | str) -> dict[str, Any]:
     if not root.is_dir():
         return payload
 
-    inside = _git(root, ["rev-parse", "--is-inside-work-tree"])
-    if inside is None or inside.strip() != "true":
-        return payload
-    payload["is_git"] = True
+    # M8-T957: the nine independent read-only git invocations dominated
+    # the digest's wall clock (subprocess spawn ≈ 100-150 ms each on this
+    # class of box — the single biggest lever). They are fully independent,
+    # so they run concurrently; each timeout still bounds its own work.
+    with ThreadPoolExecutor(max_workers=9) as pool:
+        futures = {
+            name: pool.submit(_git, root, args)
+            for name, args in (
+                ("inside", ["rev-parse", "--is-inside-work-tree"]),
+                ("branch", ["rev-parse", "--abbrev-ref", "HEAD"]),
+                ("head", ["rev-parse", "--short", "HEAD"]),
+                ("ahead_behind", ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"]),
+                ("status", ["status", "--porcelain=v1", "-uall"]),
+                ("commits", ["rev-list", "--count", "HEAD"]),
+                ("first", ["log", "--max-parents=0", "-n", "1", "--format=%cI", "HEAD"]),
+                ("ls", ["ls-files"]),
+                ("recent", ["log", "-n", "12", "--format=%h%x1f%cI%x1f%s%x1e"]),
+            )
+        }
+        inside = futures["inside"].result()
+        if inside is None or inside.strip() != "true":
+            return payload
+        payload["is_git"] = True
 
-    branch = _git(root, ["rev-parse", "--abbrev-ref", "HEAD"])
-    payload["branch"] = branch.strip() if branch else None
+        branch = futures["branch"].result()
+        payload["branch"] = branch.strip() if branch else None
+        head = futures["head"].result()
+        payload["head_short"] = head.strip() if head else None
+        ahead_behind = futures["ahead_behind"].result()
+        status = futures["status"].result()
+        commits = futures["commits"].result()
+        first_stamp = futures["first"].result()
+        ls = futures["ls"].result()
+        raw = futures["recent"].result()
 
-    head = _git(root, ["rev-parse", "--short", "HEAD"])
-    payload["head_short"] = head.strip() if head else None
-
-    ahead_behind = _git(root, ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"])
     if ahead_behind:
         parts = ahead_behind.split()
         if len(parts) == 2 and all(part.isdigit() for part in parts):
             payload["upstream_behind"], payload["upstream_ahead"] = int(parts[0]), int(parts[1])
 
-    status = _git(root, ["status", "--porcelain=v1", "-uall"])
     if status is not None:
         payload["dirty_entries"] = sum(1 for line in status.splitlines() if line.strip())
 
-    commits = _git(root, ["rev-list", "--count", "HEAD"])
     if commits and commits.strip().isdigit():
         payload["total_commits"] = int(commits.strip())
 
-    # NOTE: ``git log --reverse -1`` limits the walk to one commit *before*
-    # the reversal — it returns HEAD, not the root. Ask for the root commits
-    # explicitly instead (multi-root histories answer several SHAs).
-    roots = _git(root, ["rev-list", "--max-parents=0", "HEAD"])
-    if roots:
-        root_sha = next((line.strip() for line in roots.splitlines() if line.strip()), "")
-        if root_sha:
-            stamp = _git(root, ["show", "-s", "--format=%cI", root_sha])
-            payload["first_commit_at"] = stamp.strip() if stamp and stamp.strip() else None
+    if first_stamp and first_stamp.strip():
+        payload["first_commit_at"] = first_stamp.strip()
 
     ls = _git(root, ["ls-files"])
     if ls is not None:

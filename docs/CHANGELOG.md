@@ -282,3 +282,5 @@
 - **火苗 · 连续完成天数，M8-T955**：`web/src/streak.js`——`#streakChip` 金焰 pill 常驻侧边栏（航行灯与工作区名之间），每天 ≥1 次真实任务完成即 +1；localStorage `minicc-streak-v1`，本地零网络、刷新即见（损坏数据按 0、缺席两天重置、当天重复不重复计）；`celebrate()` 开头点亮、与动效偏好解耦；新增 lucide `flame` 描边与 🔥 本地 glyph；i18n 581 keys 对齐；Playwright 三场景（新→1 / 昨日 4→5 / 3 天前过期 9→1）✓。
 
 - **年鉴卷十「未竟 / The Unfinished」，M8-T956**：`web/src/panels/almanac.js` 新增第十一卷——「这册子还没写完，它正在写」。仪器盘（提交总数 / 批次章节 / 当前北极星现场值）+ 按 digest 流式渲染的「最近的交付」(6 条真实提交）+ 双语正文：缺口编号不是葬送，是还没决定要盖什么。说明书/README 年鉴升至十一卷；almanac smoke 11 章全绿（marker 断言）；zh/en 真浏览器双验（hydrate 提交 1498 · 批次 275 · 当前 north star 9842116）。
+
+- **/api/digest 并发 git 探针，M8-T957**：`minicc/digest.py 的 build_digest` 的 9 个独立只读 git 子进程改为 `ThreadPoolExecutor(max_workers=9)` 并发 + 根提交用单次 `git log --max-parents=0 -n 1 --format=%cI HEAD`；cProfile 实测 wall clock 1.34s（87% 是 subprocess 等待）→ ~0.5–0.6s；`/api/digest` 现场连续 5 次 **0.59/0.59/0.67/0.61/0.58s**，payload 逐字段不变。
