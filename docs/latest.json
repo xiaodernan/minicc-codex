@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T20:19:22.663Z",
+  "generated_at": "2026-11-14T20:42:13.777Z",
   "branch": "main",
-  "head": "5225518",
-  "total_commits": 1518,
+  "head": "f7b20fd",
+  "total_commits": 1520,
   "recent_commits": [
+    {
+      "short": "f7b20fd",
+      "at": "2026-11-15T04:40:02+08:00",
+      "subject": "M8-T967: toggle in settings for mouse wheel direction - Windows/Linux default (swipe up = scroll up) stays, invert opt-in matches Mac natural-scroll; wheel-inve"
+    },
+    {
+      "short": "d940f1b",
+      "at": "2026-11-14T20:19:22Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5225518",
       "at": "2026-11-15T04:18:50+08:00",
@@ -19,23 +29,13 @@
       "short": "e9c6d63",
       "at": "2026-11-15T04:02:15+08:00",
       "subject": "M8-T965: almanac volume XI The Echo - git / audit / cache, three strings in three keys humming in one roof; instruments render live (commits 1514, batches 283, "
-    },
-    {
-      "short": "64b7526",
-      "at": "2026-11-14T19:46:11Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8fa4789",
-      "at": "2026-11-15T03:45:33+08:00",
-      "subject": "M8-T964: the '?' shortcut panel - grouped, sourced from one cheat-sheet-data home (manual chapter 4 now renders from it too), fully styled for the first time (."
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 285,
+  "roadmap_batches": 286,
   "changelog_entries": 1,
-  "roadmap_lines": 51932,
-  "tracked_files": 1054,
+  "roadmap_lines": 51956,
+  "tracked_files": 1055,
   "test_files": 702,
   "almanac_chapters": 12,
   "module_count": 14,
