@@ -52130,3 +52130,19 @@ M8-T971（`/api/rag/search`，BM25 检索）与 M8-T973（`/api/rag/query`，真
 - 索引为进程内单例，首搜约 2.5s（二元组后 token 数约 ×1.8）；命中缓存后 <0.1s。可后续引入 CJK 停用词/index 摘要化继续压延迟。
 - 真 E2E 走 wkapi.pro 真 key——每跑一次消耗一次 prompt（约 19k tokens）。面板本身不运行任何模型，仅转发用户主动提交的问题。
 - 未做 deep_merge/语义去重、未做 embedding 索引（embedding 是下一阶段候选，不在本批）。
+
+## 批次 968 - M8-T976：T974 CI 红灯的两处真实缺口 —— 用量记录越过 one-home、宽静默 except 未陈述边界
+
+### 1 背景
+
+M8-T974 的 CI（run 43646047068）实锤：`Python tests (windows/ubuntu)` 仍红；JavaScript syntax 已绿（`test:helpshortcuts` 重写有效）。失败的是两条手册两年前就竖立的门，都是 M8-T971 引入 `minicc/rag.py` 时漏掉的：
+
+1. `tests/test_the_measured_usage_have_one_home.py::test_the_record_is_spelled_exactly_once_in_the_package` — `minicc/rag.py:144` 手写了 `{"prompt_tokens","completion_tokens","total_tokens"}` 这个 wire 形状，而全包只允许 `minicc/llm/usage.py:48` 一处字面量。修法：`answer()` 改为对 `minicc.llm.usage.measured_usage(...)` 的调用（同文件内 `token_count` 读 counters，容错同 Anthropic normalizer）。门未放宽。
+2. `tests/test_broad_silent_handlers_state_a_reason.py` — 两个宽静默门（本门 + 其 mutation 兄弟 + 其 "unmutated tree" 守卫，三个测试全部报）把 `minicc/rag.py` 的 `load_config` except 判为「吞掉一切异常且不说为什么」。修法：在 except 体内陈述边界（route promises honest error payload, never a 500）。代码契约本就如此——把它写进代码里而不是留给猜测。
+
+### 2 验证
+
+- 包级 AST 仿真复核两道门：唯一的 measured-usage 字面量是 `minicc/llm/usage.py:48`；29 个宽静默 handler 全部有陈述理由；`test_the_package_does_not_define_what_the_repo_never_uses` 早一个 commit 已绿。
+- `pytest tests/test_rag_bm25_index.py tests/test_http_surface.py` → **91 passed**；Route Coverage 100%。
+- 真 key 经 `answer()` 复测：roundtrip 34.95s（gateway 侧抖动，此前 0.3s）、`usage` 如实回传 `prompt=4973 completion=19 total=4992`——`measured_usage` 的默认 total=sum 契约生效，total_tokens 与分项一致。
+- 边界声明：未把 CI 声称绿；本批 push 后的 run 以 `gh run` 实况为准。`Python tests` 在 runner 上 17 分钟；本地完整套件验证同口径迁移到门。

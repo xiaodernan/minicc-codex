@@ -128,6 +128,8 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
         try:
             config = load_config(workspace=Path("."))
         except Exception as exc:
+            # Boundary: the route answers with an honest error payload, never a
+            # 500 - a missing or invalid environment is surfaced to the caller.
             return {
                 "query": query,
                 "answer": "",
@@ -158,13 +160,15 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             max_tokens=max_output_tokens,
             temperature=0,
         )
+        from .llm.usage import measured_usage, token_count
+
         text = (response.choices[0].message.content or "").strip()
         usage_obj = getattr(response, "usage", None)
-        usage = {
-            "prompt_tokens": int(getattr(usage_obj, "prompt_tokens", 0) or 0),
-            "completion_tokens": int(getattr(usage_obj, "completion_tokens", 0) or 0),
-            "total_tokens": int(getattr(usage_obj, "total_tokens", 0) or 0),
-        }
+        usage = measured_usage(
+            token_count(getattr(usage_obj, "prompt_tokens", 0), 0) or 0,
+            token_count(getattr(usage_obj, "completion_tokens", 0), 0) or 0,
+            token_count(getattr(usage_obj, "total_tokens", None), None),
+        )
         # Note: /usage does not carry cached_tokens on chat/completions; it is
         # intentionally honest about that — we do not fabricate a cache hit rate.
         return {

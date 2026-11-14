@@ -314,3 +314,5 @@
 - **CI 红灯三连修（M8-T974）**：`Python tests`（windows/ubuntu）与 `JavaScript syntax` job 的 3 个真实失败面全部修掉而非绕过 —— INDEX.md「性能与测量」登记 LOAD_TESTING.md；re-aimed citation `minicc/web.py:1804` 随 T970 memoization 平移至 `:1809`（第二处 `:2315`），两篇引测 docstring 与 REPAIRED 名册同步；`frontend_help_shortcuts_one_home_smoke.mjs` 重写为 single-source 世界的等强断言（SHORTCUT_GROUPS 家 + main.js 绑定面全覆盖 + zh/en 双标签非空）；顺带删 `minicc/rag.py` 未被引用的 `_DOC_FILE`。门一格没放宽。
 
 - **「问仓库 / Ask the Docs」上线（M8-T975）**：新侧栏面板 + Ctrl/⌘K「问仓库」——BM25 top-k 检索本仓库 docs/README/CONTRIBUTING，交给你配置好的模型（`/api/rag/query`）只读着作答；sources 逐条可展开（file/score/原文）；usage 条如实显示网关回传的 prompt/completion/total tokens；模型不可达显示真实错误；key 不进 prompt、不被回显；手册第十章双语、首次 Playwright 真浏览器 E2E 验证（真 wkapi.pro「缓存命中率」问答引用 CACHE_AFFINITY_MATRIX/ROADMAP 作答）。顺带修掉中文 BM25 的召回缺陷：CJK 以二元字组索引（此前整句中文检索为空），`test_chinese_sentence_without_spaces_finds_docs` 固化。
+
+- **T974 CI 红灯两处收口（M8-T976）**：`minicc/rag.py` 手写的 measured-usage 三键记录改走 `minicc.llm.usage.measured_usage`（one-home 门复绿）；`load_config` 的宽静默 except 体内陈述边界（route promises honest error payload, never a 500）——三个宽静默门复绿。门未放宽一格；Route Coverage 100%。
