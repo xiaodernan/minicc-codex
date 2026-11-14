@@ -2917,7 +2917,8 @@
     { id: "arcade", roman: "\u4E94", romanEn: "5", title: "Playbook", titleZh: "\u6E38\u620F\u5385\u6559\u7A0B" },
     { id: "trouble", roman: "\u516D", romanEn: "6", title: "Troubleshooting", titleZh: "\u6392\u9519" },
     { id: "limits", roman: "\u4E03", romanEn: "7", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" },
-    { id: "philosophy", roman: "\u516B", romanEn: "8", title: "The Quiet Room", titleZh: "\u5B89\u9759\u7684\u623F\u95F4" }
+    { id: "vault", roman: "\u516B", romanEn: "8", title: "Keys & Vault", titleZh: "\u5BC6\u94A5\u4E0E\u91D1\u5E93" },
+    { id: "philosophy", roman: "\u4E5D", romanEn: "9", title: "The Quiet Room", titleZh: "\u5B89\u9759\u7684\u623F\u95F4" }
   ];
   function zhStart() {
     return `
@@ -3083,6 +3084,36 @@
     <p class="manual-footnote">Game code lives in <code>web/game.js</code> \u2014 pure frontend, no server round-trip whatsoever.</p>
   `;
   }
+  function zhVault() {
+    return `
+    <p class="manual-lede">\u5BC6\u94A5\u662F\u6574\u4E2A\u5DE5\u4F5C\u7A7A\u95F4\u552F\u4E00\u4E0D\u80FD\u5165\u5E93\u7684\u4E1C\u897F\u2014\u2014\u8FD9\u4E00\u9875\u8BB2\u7684\u662F\u5B83\u7684\u5168\u90E8\u65C5\u7A0B\uFF1A\u653E\u54EA\u3001\u600E\u4E48\u9A8C\u3001\u600E\u4E48\u8F6E\u6362\u3001\u600E\u4E48\u7701\u3002</p>
+    <div class="manual-trouble">
+      <div><strong>\u4E00\u3001\u5BC6\u94A5\u653E\u54EA</strong><span><code>.env</code> \u5DF2\u88AB git \u5FFD\u7565\uFF08\u4ED3\u5E93\u6839 <code>.gitignore</code>\uFF09\uFF0C\u590D\u5236 <code>minicc.config.example</code> \u586B\u5165 <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>\uFF1B\u4E0D\u8981\u63D0\u4EA4\u3001\u4E0D\u8981\u7C98\u8FDB\u804A\u5929\u3001\u4E0D\u8981\u85CF\u5728\u547D\u4EE4\u884C\u53C2\u6570\u91CC\uFF08<code>ps</code> \u770B\u5F97\u89C1\uFF09\u3002\u8F6E\u6362 = \u6539\u6587\u4EF6 + \u91CD\u542F\u8FDB\u7A0B\uFF0C\u4E00\u5904\u4FEE\u6539\u3001\u5168\u5C40\u751F\u6548\u3002</span></div>
+      <div><strong>\u4E8C\u3001\u7B2C\u4E00\u53E5\u9A8C\u8FDE\u63A5</strong><span><code>minicc --doctor</code> \u4F1A\u6253\u5370\u7F51\u5173\u3001\u534F\u8BAE\u3001\u5BC6\u94A5\u88C1\u5207\u4E0E\uFF08\u5F88\u91CD\u8981\u7684\uFF09\u300Cprefix cache: prompt_cache_key = explicit/derived\u300D\u4E00\u884C\u2014\u2014\u4E24\u6001\u90FD\u7B97\u6B63\u5E38\uFF0C\u4F46 <code>derived</code> \u610F\u5473\u7740\u4F60\u8FD8\u6CA1\u56FA\u5B9A\u4EB2\u548C\u952E\uFF1B\u540C\u4E00\u7F51\u5173\u4E0B\u6362 workspace \u4ECD\u7136\u7A33\u5B9A\u3002</span></div>
+      <div><strong>\u4E09\u3001\u6362\u7F51\u5173\u4E0D\u51B7\u573A</strong><span>\u7EF4\u62A4\u4E24\u4EFD\u914D\u7F6E\u6587\u4EF6\uFF0C\u628A <code>MINICC_PROMPT_CACHE_KEY</code> \u8BBE\u4E3A<em>\u540C\u503C</em>\u2014\u2014\u7F13\u5B58\u4EB2\u548C\u968F key \u8FC1\u79FB\uFF0C\u5386\u53F2\u8EAB\u4EF7\uFF0890%+ \u70ED\u547D\u4E2D\uFF09\u4E0D\u84B8\u53D1\uFF1B\u6362 key \u5219\u7B49\u4E8E\u6362\u673A\u5668\uFF0C\u524D\u7F00 KV \u7F13\u5B58\u91CD\u65B0\u70E7\u94B1\u3002</span></div>
+      <div><strong>\u56DB\u3001\u770B\u6E05\u4E86\u82B1\u4E86\u591A\u5C11\u94B1</strong><span><code>minicc --stats</code> \u672B\u5C3E\u4E00\u884C <code>llm cache:</code> \u7ED9\u51FA\u547D\u4E2D\u7387\uFF08\u672C\u5DE5\u4F5C\u533A\u3001\u542B\u6240\u6709\u4EFB\u52A1\u5FEB\u7167\uFF09\uFF1B<code>[usage]</code> \u884C\u6BCF\u8F6E\u6253\u5370 <code>cache_hit_pct</code>\uFF1B\u300C\u8109\u640F\u300D\u9762\u677F\u753B\u7684\u662F<em>\u9010 turn \u547D\u4E2D\u706B\u82B1\u7EBF</em>\uFF0C\u54EA\u4E00\u4E0D\u5728\u71C3\u70E7\u4E00\u76EE\u4E86\u7136\uFF1B\u65E0\u4EFB\u52A1\u5904\u6C38\u8FDC\u4E0D\u4F1A\u6709\u5047 0%\u3002</span></div>
+      <div><strong>\u4E94\u3001\u6210\u672C\u8D26\u76EE</strong><span><code>/api/metrics</code> \u8FD4\u56DE <code>cost_is_partial</code>\u2014\u2014\u672A\u6CE8\u518C\u5355\u4EF7\u7684\u6A21\u578B\uFF0C\u5176\u6210\u672C\u6309 0 \u4F30\u7B97\u4E14<em>\u5982\u5B9E</em>\u6807\u6CE8\u90E8\u5206\u7F3A\u5B57\uFF1B\u5DF2\u5B9A\u4EF7\u7684\u4EFB\u52A1\u9010\u6A21\u578B\u5206\u89E3\uFF08<code>by_model</code>\uFF09\uFF0C\u6BCF\u4E2A\u6570\u5B57\u53EF\u88AB <code>/api/tasks</code> \u5FEB\u7167\u590D\u6838\u3002</span></div>
+      <div><strong>\u516D\u3001Anthropic \u8DEF\u5F84\u4E5F\u6709\u7F13\u5B58</strong><span><code>MINICC_PROVIDER_TYPE=anthropic</code> \u65F6\uFF0Csystem \u4E0E\u5DE5\u5177\u96C6\u5934\u9876\u653E\u7F6E\u4E86 cache_control \u65AD\u70B9\u2014\u2014\u8DE8\u8F6E\u547D\u4E2D\u76F4\u63A5\u843D\u8D26\u672C\uFF1B<code>MINICC_ANTHROPIC_BASE_URL</code> \u6307\u5411\u79C1\u6709/\u81EA\u5EFA\u7F51\u5173\u65F6\uFF0C\u6CE8\u610F\u7F51\u5173\u5EF6\u8FDF\u800C\u975E\u534F\u8BAE\u5DEE\u5F02\uFF0C\u7F13\u5B58\u8BA1\u8D39\u903B\u8F91\u4E00\u81F4\u3002</span></div>
+      <div><strong>\u4E03\u3001\u5F52\u6863\u4E0E\u91CD\u7F6E</strong><span>\u6570\u636E\u5168\u843D\u5728 <code>.minicc/</code>\uFF08<code>tasks.sqlite3</code> \u4EFB\u52A1\u5FEB\u7167\u3001<code>audit.jsonl</code> \u5BA1\u8BA1\u7EBF\u3001<code>sessions/</code> \u4F1A\u8BDD\u3001<code>llm_cache</code> \u7528\u91CF\uFF09\u3002\u9700\u8981\u51CF\u80A5\uFF1A\u5148 <code>minicc --stats</code> \u770B\u5360\u6BD4\uFF0C\u518D\u6309\u6587\u4EF6\u590D\u5236\u5907\u4EFD\uFF0C\u5220\u9664\u662F\u4F60\u81EA\u5DF1\u7684\u51B3\u5B9A\u2014\u2014\u8FD9\u4E2A\u76EE\u5F55\u662F\u4ED3\u5E93\u7684\u5DE5\u4F5C\u533A\u79C1\u6709\u6570\u636E\uFF0C\u4E0D\u662F\u52A8\u6001\u3002</span></div>
+    </div>
+    <p class="manual-footnote">\u8FD9\u4E00\u7AE0\u7684\u6BCF\u4E00\u53E5\u90FD\u80FD\u5728\u6587\u6863\u6216 CLI \u91CC\u88AB\u9A8C\u8BC1\uFF1B\u5199\u5B83\u7684\u4EBA\u62D2\u7EDD\u5728\u8D26\u672C\u4E0A\u865A\u6784\u4EFB\u4F55\u6570\u5B57\u3002</p>
+  `;
+  }
+  function enVault() {
+    return `
+    <p class="manual-lede">The one thing this workbench can never check into a ledger \u2014 the key. Its whole journey: where it lives, how to verify it, how to rotate it, and how to see what it costs.</p>
+    <div class="manual-trouble">
+      <div><strong>1. Where the key lives</strong><span><code>.env</code> is git-ignored (repo-root <code>.gitignore</code>). Copy <code>minicc.config.example</code> and fill <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>; never commit it, never paste it into chat, never pass via argv (that <code>ps</code> wins). Rotating = edit the file + restart the process; change once, effect everywhere.</span></div>
+      <div><strong>2. The first reach</strong><span><code>minicc --doctor</code> reports gateway, protocol, key masks and \u2014 the line worth watching \u2014 <code>prefix cache: prompt_cache_key = explicit/derived</code>. Both modes are healthy, but <code>derived</code> means the affinity key is not pinned yet; it stays stable per workspace across restarts anyway.</span></div>
+      <div><strong>3. Switching gateways without going cold</strong><span>Two config files, same <code>MINICC_PROMPT_CACHE_KEY</code> \u2014 cache affinity migrates with the key, warm numbers (90%+ hits) survive the move; a fresh key is a fresh machine, prefix KV warms up from zero.</span></div>
+      <div><strong>4. See what you actually spent</strong><span><code>minicc --stats</code> ends with <code>llm cache:</code> hit rate (this workspace, across every task snapshot); the <code>[usage]</code> line prints <code>cache_hit_pct</code> per turn; the pulse panel draws a per-turn cache sparkline so a cold streak is unmistakable; fake 0% never happens, missing numbers never fabricate.</span></div>
+      <div><strong>5. The bill's fine print</strong><span><code>/api/metrics</code> returns <code>cost_is_partial</code> \u2014 unpriced models estimate at 0 and are <em>labelled</em> partial, nothing floats silently; priced tasks split by model (<code>by_model</code>), every number auditable through <code>/api/tasks</code> snapshots.</span></div>
+      <div><strong>6. Anthropic path also caches</strong><span>With <code>MINICC_PROVIDER_TYPE=anthropic</code>, system and tool-set headers carry cache_control breakpoints; hits land in the same ledger; a private <code>MINICC_ANTHROPIC_BASE_URL</code> fails on latency, never on protocol \u2014 cache accounting behaves.</span></div>
+      <div><strong>7. Archive or wipe</strong><span>Everything lives under <code>.minicc/</code> (<code>tasks.sqlite3</code> snapshots, <code>audit.jsonl</code> lines, <code>sessions/</code> ids, cache usage). Before trimming: <code>minicc --stats</code> shows the footprint; <code>cp -a</code> first, deletion is your call \u2014 this directory is workspace-private data, nothing else.</span></div>
+    </div>
+    <p class="manual-footnote">Every sentence here is checkable in the docs or the CLI; the writer refuses to invent a single figure on the books.</p>
+  `;
+  }
   function zhPhilosophy() {
     return `
     <p class="manual-lede">\u8FD9\u4E2A\u623F\u95F4\u4E3A\u4EC0\u4E48\u8FD9\u6837\u88AB\u9020\u2014\u2014</p>
@@ -3167,6 +3198,7 @@
     arcade: { zh: zhArcade, en: enArcade },
     trouble: { zh: zhTrouble, en: enTrouble },
     limits: { zh: zhLimits, en: enLimits },
+    vault: { zh: zhVault, en: enVault },
     philosophy: { zh: zhPhilosophy, en: enPhilosophy }
   };
   function chapterMarkup2(chapter) {
@@ -3188,7 +3220,7 @@
     const body = (zh7 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
     slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh7 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapter.title)}</div>
+      <div class="manual-kicker">${zh7 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapterTitle(chapter))}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;

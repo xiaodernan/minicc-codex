@@ -20,7 +20,8 @@ const CHAPTERS = [
   { id: "arcade", roman: "五", romanEn: "5", title: "Playbook", titleZh: "游戏厅教程" },
   { id: "trouble", roman: "六", romanEn: "6", title: "Troubleshooting", titleZh: "排错" },
   { id: "limits", roman: "七", romanEn: "7", title: "Honest Limits", titleZh: "边界与范围" },
-  { id: "philosophy", roman: "八", romanEn: "8", title: "The Quiet Room", titleZh: "安静的房间" },
+  { id: "vault", roman: "八", romanEn: "8", title: "Keys & Vault", titleZh: "密钥与金库" },
+  { id: "philosophy", roman: "九", romanEn: "9", title: "The Quiet Room", titleZh: "安静的房间" },
 ];
 
 function zhStart() {
@@ -197,6 +198,38 @@ function enArcade() {
   `;
 }
 
+function zhVault() {
+  return `
+    <p class="manual-lede">密钥是整个工作空间唯一不能入库的东西——这一页讲的是它的全部旅程：放哪、怎么验、怎么轮换、怎么省。</p>
+    <div class="manual-trouble">
+      <div><strong>一、密钥放哪</strong><span><code>.env</code> 已被 git 忽略（仓库根 <code>.gitignore</code>），复制 <code>minicc.config.example</code> 填入 <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>；不要提交、不要粘进聊天、不要藏在命令行参数里（<code>ps</code> 看得见）。轮换 = 改文件 + 重启进程，一处修改、全局生效。</span></div>
+      <div><strong>二、第一句验连接</strong><span><code>minicc --doctor</code> 会打印网关、协议、密钥裁切与（很重要的）「prefix cache: prompt_cache_key = explicit/derived」一行——两态都算正常，但 <code>derived</code> 意味着你还没固定亲和键；同一网关下换 workspace 仍然稳定。</span></div>
+      <div><strong>三、换网关不冷场</strong><span>维护两份配置文件，把 <code>MINICC_PROMPT_CACHE_KEY</code> 设为<em>同值</em>——缓存亲和随 key 迁移，历史身价（90%+ 热命中）不蒸发；换 key 则等于换机器，前缀 KV 缓存重新烧钱。</span></div>
+      <div><strong>四、看清了花了多少钱</strong><span><code>minicc --stats</code> 末尾一行 <code>llm cache:</code> 给出命中率（本工作区、含所有任务快照）；<code>[usage]</code> 行每轮打印 <code>cache_hit_pct</code>；「脉搏」面板画的是<em>逐 turn 命中火花线</em>，哪一不在燃烧一目了然；无任务处永远不会有假 0%。</span></div>
+      <div><strong>五、成本账目</strong><span><code>/api/metrics</code> 返回 <code>cost_is_partial</code>——未注册单价的模型，其成本按 0 估算且<em>如实</em>标注部分缺字；已定价的任务逐模型分解（<code>by_model</code>），每个数字可被 <code>/api/tasks</code> 快照复核。</span></div>
+      <div><strong>六、Anthropic 路径也有缓存</strong><span><code>MINICC_PROVIDER_TYPE=anthropic</code> 时，system 与工具集头顶放置了 cache_control 断点——跨轮命中直接落账本；<code>MINICC_ANTHROPIC_BASE_URL</code> 指向私有/自建网关时，注意网关延迟而非协议差异，缓存计费逻辑一致。</span></div>
+      <div><strong>七、归档与重置</strong><span>数据全落在 <code>.minicc/</code>（<code>tasks.sqlite3</code> 任务快照、<code>audit.jsonl</code> 审计线、<code>sessions/</code> 会话、<code>llm_cache</code> 用量）。需要减肥：先 <code>minicc --stats</code> 看占比，再按文件复制备份，删除是你自己的决定——这个目录是仓库的工作区私有数据，不是动态。</span></div>
+    </div>
+    <p class="manual-footnote">这一章的每一句都能在文档或 CLI 里被验证；写它的人拒绝在账本上虚构任何数字。</p>
+  `;
+}
+
+function enVault() {
+  return `
+    <p class="manual-lede">The one thing this workbench can never check into a ledger — the key. Its whole journey: where it lives, how to verify it, how to rotate it, and how to see what it costs.</p>
+    <div class="manual-trouble">
+      <div><strong>1. Where the key lives</strong><span><code>.env</code> is git-ignored (repo-root <code>.gitignore</code>). Copy <code>minicc.config.example</code> and fill <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>; never commit it, never paste it into chat, never pass via argv (that <code>ps</code> wins). Rotating = edit the file + restart the process; change once, effect everywhere.</span></div>
+      <div><strong>2. The first reach</strong><span><code>minicc --doctor</code> reports gateway, protocol, key masks and — the line worth watching — <code>prefix cache: prompt_cache_key = explicit/derived</code>. Both modes are healthy, but <code>derived</code> means the affinity key is not pinned yet; it stays stable per workspace across restarts anyway.</span></div>
+      <div><strong>3. Switching gateways without going cold</strong><span>Two config files, same <code>MINICC_PROMPT_CACHE_KEY</code> — cache affinity migrates with the key, warm numbers (90%+ hits) survive the move; a fresh key is a fresh machine, prefix KV warms up from zero.</span></div>
+      <div><strong>4. See what you actually spent</strong><span><code>minicc --stats</code> ends with <code>llm cache:</code> hit rate (this workspace, across every task snapshot); the <code>[usage]</code> line prints <code>cache_hit_pct</code> per turn; the pulse panel draws a per-turn cache sparkline so a cold streak is unmistakable; fake 0% never happens, missing numbers never fabricate.</span></div>
+      <div><strong>5. The bill's fine print</strong><span><code>/api/metrics</code> returns <code>cost_is_partial</code> — unpriced models estimate at 0 and are <em>labelled</em> partial, nothing floats silently; priced tasks split by model (<code>by_model</code>), every number auditable through <code>/api/tasks</code> snapshots.</span></div>
+      <div><strong>6. Anthropic path also caches</strong><span>With <code>MINICC_PROVIDER_TYPE=anthropic</code>, system and tool-set headers carry cache_control breakpoints; hits land in the same ledger; a private <code>MINICC_ANTHROPIC_BASE_URL</code> fails on latency, never on protocol — cache accounting behaves.</span></div>
+      <div><strong>7. Archive or wipe</strong><span>Everything lives under <code>.minicc/</code> (<code>tasks.sqlite3</code> snapshots, <code>audit.jsonl</code> lines, <code>sessions/</code> ids, cache usage). Before trimming: <code>minicc --stats</code> shows the footprint; <code>cp -a</code> first, deletion is your call — this directory is workspace-private data, nothing else.</span></div>
+    </div>
+    <p class="manual-footnote">Every sentence here is checkable in the docs or the CLI; the writer refuses to invent a single figure on the books.</p>
+  `;
+}
+
 function zhPhilosophy() {
   return `
     <p class="manual-lede">这个房间为什么这样被造——</p>
@@ -286,6 +319,7 @@ const BODIES = {
   arcade: { zh: zhArcade, en: enArcade },
   trouble: { zh: zhTrouble, en: enTrouble },
   limits: { zh: zhLimits, en: enLimits },
+  vault: { zh: zhVault, en: enVault },
   philosophy: { zh: zhPhilosophy, en: enPhilosophy },
 };
 
@@ -310,7 +344,7 @@ function renderChapter(id) {
   const body = (zh ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
   slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh ? `第${chapter.roman}章` : `Chapter ${chapter.romanEn}`} · ${escapeHtml(chapter.title)}</div>
+      <div class="manual-kicker">${zh ? `第${chapter.roman}章` : `Chapter ${chapter.romanEn}`} · ${escapeHtml(chapterTitle(chapter))}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;

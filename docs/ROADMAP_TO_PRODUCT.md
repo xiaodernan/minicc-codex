@@ -51793,3 +51793,22 @@ M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第�
   - `/` → 输入 `Inspect` → Enter → 工作区切换到该任务会话，无 page errors ✓
 - 几何 trace：`.thread-list` 高度 0 → 156px；`.sidebar-bottom` 下移至 899px；sidebar 可纵向滚动 ✓
 - `npm run test:web` ✓ · `npm run test:almanac`（11 章 marker 断言）✓ · `npm run test:i18n`（583/219）✓ · `npm run check:web` ✓ · doc_pointers ✓
+
+## 批次 955 - M8-T961：说明书第九章「密钥与金库 / Keys & Vault」——凭据的完整旅程，写进小册子
+
+### 1 背景
+
+说明书总共八章，讲了怎么用、怎么玩、怎么躲，却没讲「密钥从生到死」的全程——唯一不能入库的东西，反而没有专章。新用户最容易卡的就是这块：`MINICC_API_KEY` 放哪、换了网关为什么一切断、为什么 cache 突然全冷、`--stats` 那行 ln 命中率意味着什么。
+
+### 2 变更
+
+- `web/src/panels/manual.js`：新增章节「密钥与金库 / Keys & Vault」（id `vault`，roman 「八」），顺序在「诚实边界」之后、「安静的房间」之前——信条压轴不变。正文中英双语逐字对应、七个部分：密钥放哪（.env gitignored、不进聊天、不进 argv、轮换=改文件+重启）、第一句验连接（`minicc --doctor` 的 `prefix cache:` 行）、换网关不冷场（同一个 `MINICC_PROMPT_CACHE_KEY` 保留缓存亲和）、看清花了多少钱（`[usage]` 行 `cache_hit_pct` + 脉搏逐 turn 命中火花线）、成本账目（`/api/metrics` 的 `cost_is_partial` + `by_model` 分解、`/api/tasks` 快照复核）、Anthropic 路径的缓存断点、归档与重置（`.minicc/` 目录全部成分逐一列出、先看占比再动手）。
+- 章节 kicker 双语对账：canvas 渲染时 kicker 也改为 locale-aware（此前 zh 模式下仍打英文大写标题——中英混杂漏洞，本批一并修掉）——
+  zh：「第七章 · 边界与范围」、en：「Chapter 8 · Keys & Vault」。
+  9 章 zh 全部纯中文、9 章 en 全部纯英文（Playwright 逐章验证零 CJK/零混杂）。
+- README 说明书 8 章 → 9 章。
+
+### 3 验证
+
+- Playwright 真浏览器（fake provider）：模块轨 9 章完整；`vault` 章 zh 中文零干扰、en 零 CJK；kicker 文案 zh/en 逐字对账 ✓
+- `npm run test:web`（product path）✓ · `npm run test:almanac`（11 章 marker 断言，无混语）✓ · `npm run test:i18n`（583/219）✓ · `npm run check:web` ✓ · doc_pointers rc=0 ✓
