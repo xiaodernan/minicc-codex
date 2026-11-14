@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:25:55.660Z",
+  "generated_at": "2026-11-14T17:44:57.609Z",
   "branch": "main",
-  "head": "99e13cb",
-  "total_commits": 1490,
+  "head": "d898da0",
+  "total_commits": 1492,
   "recent_commits": [
+    {
+      "short": "d898da0",
+      "at": "2026-11-15T01:44:38+08:00",
+      "subject": "M8-T954: cache affinity matrix measured 2026-11-15 - Responses both modes report cached_tokens (94.5->100%), chat/completions silent on stream-without-key, both"
+    },
+    {
+      "short": "ff2b240",
+      "at": "2026-11-14T17:25:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "99e13cb",
       "at": "2026-11-15T01:25:36+08:00",
@@ -19,23 +29,13 @@
       "short": "8fc2197",
       "at": "2026-11-15T01:23:43+08:00",
       "subject": "M8-T952b: restore LF line endings for the consolidation report (content byte-identical modulo EOL)"
-    },
-    {
-      "short": "5c707c7",
-      "at": "2026-11-15T01:23:06+08:00",
-      "subject": "M8-T952: 2026-11-15 re-audit of the consolidation report - four unmerged branches revalidated by patch-id, two origin branches confirmed fully absorbed by main,"
-    },
-    {
-      "short": "01e4489",
-      "at": "2026-11-14T17:22:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 273,
+  "roadmap_batches": 274,
   "changelog_entries": 1,
-  "roadmap_lines": 51656,
-  "tracked_files": 1050,
+  "roadmap_lines": 51691,
+  "tracked_files": 1051,
   "test_files": 702,
   "almanac_chapters": 10,
   "module_count": 14,
