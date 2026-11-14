@@ -36,6 +36,7 @@ function zhStart() {
       <strong>不想读字？直接看一遍。</strong>
       <p>点下面这个按钮，工作台会现场演示一次完整 Agent 任务：输入 → 计划 → 工具调用 → 测试验证 → 交付总结——看完你就会用了。</p>
       <button type="button" class="manual-demo-run" data-manual-demo>运行一次完整演示</button>
+      <p class="manual-sidenote">第一次打开工作台时右下角会长出一枚「上手演练」按钮：6 步带你把工作台走一遍；⌘K 搜「tour」随时重来。</p>
     </div>
     <p>不想打开浏览器？命令行也能直接用：<code>minicc "读 README 并总结"</code>，或 <code>minicc --stats</code> 看工作区体征。</p>
   `;
@@ -55,6 +56,7 @@ function enStart() {
       <strong>Would rather watch than read?</strong>
       <p>Click the button below and the workbench will run a full agent task for you, live: intake → plan → tool calls → test verification → delivery summary. Watch it once and you know the product.</p>
       <button type="button" class="manual-demo-run" data-manual-demo>Run the live demo</button>
+      <p class="manual-sidenote">First time here? A “Start tour” pill grows in the bottom-right corner — six steps, two minutes. Search “tour” in ⌘K to replay it anytime.</p>
     </div>
     <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;

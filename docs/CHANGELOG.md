@@ -250,3 +250,5 @@
 - **展示页事实包覆盖十二模块 + 特性数实时渲染，M8-T939**：`scripts/update-latest-json.mjs` 的 `feature_surface` 改为真实十二个模块，新增 `module_count: 12`；展示页 minicc 卡片的"特性面"由硬编码 `13 项` 改为读事实包现场渲染（`ml-features` ← `d.module_count ?? d.feature_surface.length`）；事实包继续每次含 docs 的 push 自动刷新。
 
 - **第十三板块「档案馆」 + 只读 /api/roadmap，M8-T940**：`minicc/roadmap_archive.py` 解析 `## 批次` 章节（双划线/全半角冒号兼容），`Service.roadmap()` + `GET /api/roadmap` 路由（`test_get_roadmap_answers_the_archive` 已钉契约，route_coverage 绿）。面板按世纪分 4 组、257 条手绘时间轴、⌘K 可搜、现场过滤；章节名字原样如实展示；页脚注明"本馆从第 601 批起还原，早期以里程碑/进度日志形式存在，不伪造完整度"。en 实测零 CJK。顺手记录本轮真实 API 测量：cold 0% → warm **98.3%**（wkapi.pro 同模型同提示词三轮一致）。
+
+- **上手演练（Onboarding tour），M8-T941**：新用户两分钟产品演练——首次到访右下角长出"第一次来？"按钮，6 步（welcome → 侧边控台 → 输入框 → 演示流程 → 年鉴 → 完成）zh/en 全双语；聚光灯 + 呼吸光晕高亮 + 下沉叙事卡；Esc 随时退出；⌘K 搜 `tour` 随时重开；完成即记忆，不再占右下角。README 模块清单新增上手演练条目；真浏览器 zh/en 双侧验证（offer 出现 → 6 步 → minicc-tour-v1=done → 刷新不再出现）。

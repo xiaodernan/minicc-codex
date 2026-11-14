@@ -831,7 +831,8 @@
       "palette.cmd.journal": "\u6253\u5F00\u5DE5\u7A0B\u65E5\u5FD7",
       "nav.archive": "\u6863\u6848\u9986",
       "archive.title": "\u6863\u6848\u9986",
-      "palette.cmd.archive": "\u6253\u5F00\u6863\u6848\u9986"
+      "palette.cmd.archive": "\u6253\u5F00\u6863\u6848\u9986",
+      "palette.cmd.tour": "\u4E0A\u624B\u6F14\u7EC3"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1404,7 +1405,8 @@
       "palette.cmd.journal": "Open the journal",
       "nav.archive": "Archive",
       "archive.title": "Archive",
-      "palette.cmd.archive": "Open the archive"
+      "palette.cmd.archive": "Open the archive",
+      "palette.cmd.tour": "Start the tour"
     }
   };
   function t(key) {
@@ -1854,10 +1856,10 @@
   // web/src/core/task-reducer.js
   var sequenceOf = (value) => Math.max(0, Number(value) || 0);
   var boundedAdd = (previous, value) => {
-    const next = new Set(previous || []);
-    if (value) next.add(value);
-    while (next.size > MAX_SEEN_EVENT_KEYS) next.delete(next.values().next().value);
-    return next;
+    const next2 = new Set(previous || []);
+    if (value) next2.add(value);
+    while (next2.size > MAX_SEEN_EVENT_KEYS) next2.delete(next2.values().next().value);
+    return next2;
   };
   function reduceTaskEvent(binding, envelope) {
     if (!binding || !envelope || typeof envelope !== "object") return null;
@@ -2021,38 +2023,38 @@
 
   // web/src/chat/timeline-dom.js
   var keyOf = (node) => node.nodeType === 1 ? [node.tagName, node.dataset.agentRound || node.dataset.agentItem || node.dataset.toolEvent || node.dataset.stageCode || ""].join(":") : "";
-  function patchNode(current, next) {
-    if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
-      current.replaceWith(next);
-      return next;
+  function patchNode(current, next2) {
+    if (current.nodeType !== next2.nodeType || current.nodeName !== next2.nodeName) {
+      current.replaceWith(next2);
+      return next2;
     }
     if (current.nodeType !== 1) {
-      if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+      if (current.nodeValue !== next2.nodeValue) current.nodeValue = next2.nodeValue;
       return current;
     }
-    for (const attr of [...current.attributes]) if (attr.name !== "open" && !next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
-    for (const attr of next.attributes) if (attr.name !== "open" && current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
-    patchChildren(current, next);
+    for (const attr of [...current.attributes]) if (attr.name !== "open" && !next2.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+    for (const attr of next2.attributes) if (attr.name !== "open" && current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
+    patchChildren(current, next2);
     return current;
   }
   function patchChildren(parent, nextParent) {
     const keyed = new Map([...parent.children].map((node) => [keyOf(node), node]).filter(([key]) => key && !key.endsWith(":")));
     let position = parent.firstChild;
-    for (const next of [...nextParent.childNodes]) {
-      const key = keyOf(next);
+    for (const next2 of [...nextParent.childNodes]) {
+      const key = keyOf(next2);
       let current = key && !key.endsWith(":") ? keyed.get(key) : position;
       if (!current || key && !key.endsWith(":") && keyOf(current) !== key) {
-        parent.insertBefore(next, position);
+        parent.insertBefore(next2, position);
         continue;
       }
       if (current !== position) parent.insertBefore(current, position);
-      const updated = patchNode(current, next);
+      const updated = patchNode(current, next2);
       position = updated.nextSibling;
     }
     while (position) {
-      const next = position.nextSibling;
+      const next2 = position.nextSibling;
       position.remove();
-      position = next;
+      position = next2;
     }
   }
   function reconcileTimeline(timeline, markup) {
@@ -2172,26 +2174,26 @@
   function applyTaskEvent(taskId, envelope) {
     const binding = runningTasks.get(taskId);
     if (!binding || !envelope || typeof envelope !== "object") return null;
-    const next = reduceTaskEvent(binding, envelope);
-    if (!next) return null;
-    Object.assign(binding, next);
-    const data = next.data;
+    const next2 = reduceTaskEvent(binding, envelope);
+    if (!next2) return null;
+    Object.assign(binding, next2);
+    const data = next2.data;
     updateBoundTask(taskId, data, { skipSnapshotMerge: true });
     return data;
   }
   function updateBoundTask(taskId, data, options = {}) {
     const binding = runningTasks.get(taskId);
     if (!binding) return;
-    const next = options.skipSnapshotMerge ? { ...data, session_id: data.session_id || binding.sessionId, workspace_path: data.workspace_path || binding.workspacePath } : applyTaskSnapshot(binding, data, { replaceEvents: true });
-    binding.data = next;
-    syncApprovalRequests(next.events);
-    if (isCurrentTaskScope(next)) {
-      syncTodoPanelFromEvents(next.events);
-      if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, next, { scrollToLatest: false });
-      updateLiveTask(binding.loadingId, next);
+    const next2 = options.skipSnapshotMerge ? { ...data, session_id: data.session_id || binding.sessionId, workspace_path: data.workspace_path || binding.workspacePath } : applyTaskSnapshot(binding, data, { replaceEvents: true });
+    binding.data = next2;
+    syncApprovalRequests(next2.events);
+    if (isCurrentTaskScope(next2)) {
+      syncTodoPanelFromEvents(next2.events);
+      if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, next2, { scrollToLatest: false });
+      updateLiveTask(binding.loadingId, next2);
     }
-    if (Array.isArray(next.events) && next.events.some((event) => ["write_file", "edit_file", "move", "delete"].includes(event.name))) scheduleChangesRefresh();
-    return next;
+    if (Array.isArray(next2.events) && next2.events.some((event) => ["write_file", "edit_file", "move", "delete"].includes(event.name))) scheduleChangesRefresh();
+    return next2;
   }
   function finishLiveTask(loadingId) {
     const stream = liveStreamStates.get(loadingId);
@@ -2211,8 +2213,8 @@
     const binding = runningTasks.get(taskId) || { taskId, sessionId: state.sessionId, workspacePath: state.workspacePath, loadingId };
     finishLiveTask(binding.loadingId || loadingId);
     stopTaskTimer(taskId);
-    const zh5 = state.locale === "zh";
-    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh5 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh5 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
+    const zh6 = state.locale === "zh";
+    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh6 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh6 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
     cacheTaskDetail(finalData);
     runningTasks.delete(taskId);
     if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
@@ -2770,6 +2772,7 @@
       <strong>\u4E0D\u60F3\u8BFB\u5B57\uFF1F\u76F4\u63A5\u770B\u4E00\u904D\u3002</strong>
       <p>\u70B9\u4E0B\u9762\u8FD9\u4E2A\u6309\u94AE\uFF0C\u5DE5\u4F5C\u53F0\u4F1A\u73B0\u573A\u6F14\u793A\u4E00\u6B21\u5B8C\u6574 Agent \u4EFB\u52A1\uFF1A\u8F93\u5165 \u2192 \u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u6D4B\u8BD5\u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u2014\u2014\u770B\u5B8C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002</p>
       <button type="button" class="manual-demo-run" data-manual-demo>\u8FD0\u884C\u4E00\u6B21\u5B8C\u6574\u6F14\u793A</button>
+      <p class="manual-sidenote">\u7B2C\u4E00\u6B21\u6253\u5F00\u5DE5\u4F5C\u53F0\u65F6\u53F3\u4E0B\u89D2\u4F1A\u957F\u51FA\u4E00\u679A\u300C\u4E0A\u624B\u6F14\u7EC3\u300D\u6309\u94AE\uFF1A6 \u6B65\u5E26\u4F60\u628A\u5DE5\u4F5C\u53F0\u8D70\u4E00\u904D\uFF1B\u2318K \u641C\u300Ctour\u300D\u968F\u65F6\u91CD\u6765\u3002</p>
     </div>
     <p>\u4E0D\u60F3\u6253\u5F00\u6D4F\u89C8\u5668\uFF1F\u547D\u4EE4\u884C\u4E5F\u80FD\u76F4\u63A5\u7528\uFF1A<code>minicc "\u8BFB README \u5E76\u603B\u7ED3"</code>\uFF0C\u6216 <code>minicc --stats</code> \u770B\u5DE5\u4F5C\u533A\u4F53\u5F81\u3002</p>
   `;
@@ -2788,6 +2791,7 @@
       <strong>Would rather watch than read?</strong>
       <p>Click the button below and the workbench will run a full agent task for you, live: intake \u2192 plan \u2192 tool calls \u2192 test verification \u2192 delivery summary. Watch it once and you know the product.</p>
       <button type="button" class="manual-demo-run" data-manual-demo>Run the live demo</button>
+      <p class="manual-sidenote">First time here? A \u201CStart tour\u201D pill grows in the bottom-right corner \u2014 six steps, two minutes. Search \u201Ctour\u201D in \u2318K to replay it anytime.</p>
     </div>
     <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;
@@ -2972,10 +2976,10 @@
     limits: { zh: zhLimits, en: enLimits }
   };
   function chapterMarkup2(chapter) {
-    const zh5 = state.locale === "zh";
-    const title = zh5 ? chapter.titleZh : chapter.title;
+    const zh6 = state.locale === "zh";
+    const title = zh6 ? chapter.titleZh : chapter.title;
     return `<button class="manual-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
-            <span class="manual-chapter-roman">${escapeHtml(zh5 ? chapter.roman : chapter.romanEn)}</span>
+            <span class="manual-chapter-roman">${escapeHtml(zh6 ? chapter.roman : chapter.romanEn)}</span>
             <span class="manual-chapter-body"><strong>${escapeHtml(title)}</strong></span>
           </button>`;
   }
@@ -2986,11 +2990,11 @@
     const slot = $("#manualCanvas");
     const chapter = CHAPTERS2.find((c) => c.id === id) ?? CHAPTERS2[0];
     if (!slot) return;
-    const zh5 = state.locale === "zh";
-    const body = (zh5 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
+    const zh6 = state.locale === "zh";
+    const body = (zh6 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
     slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh5 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapter.title)}</div>
+      <div class="manual-kicker">${zh6 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapter.title)}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;
@@ -3001,7 +3005,7 @@
     refreshIcons();
   }
   async function openManualPanel() {
-    const zh5 = state.locale === "zh";
+    const zh6 = state.locale === "zh";
     const current = beginPanelRequest(t("manual.title"));
     try {
       const rail = CHAPTERS2.map(chapterMarkup2).join("");
@@ -3394,7 +3398,7 @@
         closeSource();
         pollTask(taskId).then(resolve, reject);
       };
-      const finish = async (data) => {
+      const finish2 = async (data) => {
         if (settled || !isTerminalTask(data)) return;
         settled = true;
         closeSource();
@@ -3413,7 +3417,7 @@
           receivedSnapshot = true;
           reconnectAttempts = 0;
           const latest = updateBoundTask(taskId, data);
-          if (isTerminalTask(latest || data)) finish(latest || data);
+          if (isTerminalTask(latest || data)) finish2(latest || data);
         } catch {
         }
       };
@@ -3422,7 +3426,7 @@
           const data = applyTaskEvent(taskId, JSON.parse(event.data));
           if (data) {
             reconnectAttempts = 0;
-            if (isTerminalTask(data)) finish(data);
+            if (isTerminalTask(data)) finish2(data);
           }
         } catch {
         }
@@ -3434,7 +3438,7 @@
           if (settled) return;
           const current = updateBoundTask(taskId, latest);
           if (isTerminalTask(current || latest)) {
-            finish(current || latest);
+            finish2(current || latest);
             return;
           }
           scheduleReconnect();
@@ -3611,13 +3615,13 @@
     }
   }
   function resetTask() {
-    const next = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const next2 = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     state.activeTaskId = null;
     state.lastTask = null;
-    taskHistoryBySession.delete(next);
-    taskHistoryListBySession.delete(next);
-    renderedHistoryKeys.delete(next);
-    setSession(next);
+    taskHistoryBySession.delete(next2);
+    taskHistoryListBySession.delete(next2);
+    renderedHistoryKeys.delete(next2);
+    setSession(next2);
     const dock = $("#taskDock");
     if (dock) {
       dock.hidden = true;
@@ -4086,55 +4090,55 @@
     return { gateway: "wkapi.pro" };
   }
   function openTemplatesPanel() {
-    const zh5 = state.locale === "zh";
+    const zh6 = state.locale === "zh";
     const cards = [
       {
         icon: "file-search-2",
-        title: zh5 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
-        subtitle: zh5 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
-        prompt: zh5 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
+        title: zh6 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
+        subtitle: zh6 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
+        prompt: zh6 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
       },
       {
         icon: "shield-check",
-        title: zh5 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
-        subtitle: zh5 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
-        prompt: zh5 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
+        title: zh6 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
+        subtitle: zh6 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
+        prompt: zh6 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
       },
       {
         icon: "git-compare",
-        title: zh5 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
-        subtitle: zh5 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
-        prompt: zh5 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
+        title: zh6 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
+        subtitle: zh6 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
+        prompt: zh6 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
       },
       {
         icon: "book-open",
-        title: zh5 ? "\u751F\u6210 README" : "Write README",
-        subtitle: zh5 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
-        prompt: zh5 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
+        title: zh6 ? "\u751F\u6210 README" : "Write README",
+        subtitle: zh6 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
+        prompt: zh6 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
       },
       {
         icon: "globe-2",
-        title: zh5 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
-        subtitle: zh5 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
-        prompt: zh5 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
+        title: zh6 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
+        subtitle: zh6 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
+        prompt: zh6 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
       },
       {
         icon: "refresh-cw",
-        title: zh5 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
-        subtitle: zh5 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
-        prompt: zh5 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
+        title: zh6 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
+        subtitle: zh6 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
+        prompt: zh6 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
       },
       {
         icon: "sparkles",
-        title: zh5 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
-        subtitle: zh5 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
-        prompt: zh5 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
+        title: zh6 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
+        subtitle: zh6 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
+        prompt: zh6 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
       },
       {
         icon: "list-checks",
-        title: zh5 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
-        subtitle: zh5 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
-        prompt: zh5 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
+        title: zh6 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
+        subtitle: zh6 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
+        prompt: zh6 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
       }
     ];
     const zhCards = cards;
@@ -4766,17 +4770,17 @@
     const previousCursor = eventSequence(binding.cursor || previous.event_cursor);
     const incomingCursor = eventSequence(incoming.event_cursor);
     if (previousCursor && incomingCursor && incomingCursor < previousCursor) return previous;
-    const next = { ...previous, ...incoming };
+    const next2 = { ...previous, ...incoming };
     if (Array.isArray(incoming.events)) {
-      next.events = replaceEvents ? incoming.events.filter((event) => event && typeof event === "object").map((event) => ({ ...event })) : mergeTimelineEvents(previous.events, incoming.events);
+      next2.events = replaceEvents ? incoming.events.filter((event) => event && typeof event === "object").map((event) => ({ ...event })) : mergeTimelineEvents(previous.events, incoming.events);
     }
     binding.cursor = Math.max(previousCursor, incomingCursor);
-    next.event_cursor = binding.cursor;
-    next.session_id = next.session_id || binding.sessionId;
-    next.workspace_path = next.workspace_path || binding.workspacePath;
-    binding.data = next;
-    markBindingEvents(binding, next.events);
-    return next;
+    next2.event_cursor = binding.cursor;
+    next2.session_id = next2.session_id || binding.sessionId;
+    next2.workspace_path = next2.workspace_path || binding.workspacePath;
+    binding.data = next2;
+    markBindingEvents(binding, next2.events);
+    return next2;
   }
   function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
     if (!task?.task_id) return null;
@@ -4851,12 +4855,12 @@
       networkCheckbox.disabled = state.permissionMode === "yolo";
       networkCheckbox.closest(".safe-toggle")?.classList.toggle("locked", networkCheckbox.disabled);
     }
-    const zh5 = state.locale === "zh";
+    const zh6 = state.locale === "zh";
     const write = effective.mode === "acceptEdits" || effective.allowChanges;
     const command = effective.allowChanges;
     const label2 = $("#modeLabel");
     if (label2) label2.textContent = t("capability.executeToggle");
-    const summary = zh5 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
+    const summary = zh6 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
     $("#permissionHint").textContent = summary;
     $("#permissionSummary").textContent = summary;
     $("#modeBadge").textContent = t(`perm.${effective.mode}`);
@@ -4876,13 +4880,13 @@
     if (hint) hint.textContent = t(`perm.${state.permissionMode}Hint`);
   }
   function setPermissionMode(mode) {
-    const next = PERMISSION_MODES.includes(mode) ? mode : "default";
-    const changed = next !== state.permissionMode;
-    state.permissionMode = next;
-    localStorage.setItem("minicc-permission-mode", next);
+    const next2 = PERMISSION_MODES.includes(mode) ? mode : "default";
+    const changed = next2 !== state.permissionMode;
+    state.permissionMode = next2;
+    localStorage.setItem("minicc-permission-mode", next2);
     updateMode();
     if (changed) {
-      showToast(state.locale === "zh" ? `\u6743\u9650\u6A21\u5F0F\uFF1A${t(`perm.${next}`)}` : `Permission mode: ${t(`perm.${next}`)}`);
+      showToast(state.locale === "zh" ? `\u6743\u9650\u6A21\u5F0F\uFF1A${t(`perm.${next2}`)}` : `Permission mode: ${t(`perm.${next2}`)}`);
     }
   }
   function normalizeTodoEntries(rawTodos) {
@@ -5288,8 +5292,8 @@
     const value = String(input.value || "");
     const caret = input.selectionStart ?? value.length;
     const insert = mentionState.mode === "command" ? `/${option.name} ` : `@${option.path} `;
-    const next = value.slice(0, mentionState.matchStart) + insert + value.slice(caret);
-    input.value = next;
+    const next2 = value.slice(0, mentionState.matchStart) + insert + value.slice(caret);
+    input.value = next2;
     const nextCaret = mentionState.matchStart + insert.length;
     input.setSelectionRange(nextCaret, nextCaret);
     closeMentionPopover();
@@ -5328,15 +5332,15 @@
     const epoch = Date.parse(String(value || ""));
     if (!Number.isFinite(epoch)) return "--";
     const seconds = Math.max(0, Math.round((Date.now() - epoch) / 1e3));
-    const zh5 = state.locale === "zh";
-    if (seconds < 60) return zh5 ? "\u521A\u521A" : "just now";
+    const zh6 = state.locale === "zh";
+    if (seconds < 60) return zh6 ? "\u521A\u521A" : "just now";
     const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return zh5 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
+    if (minutes < 60) return zh6 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return zh5 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
+    if (hours < 24) return zh6 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
     const days = Math.round(hours / 24);
-    if (days < 30) return zh5 ? `${days} \u5929\u524D` : `${days}d ago`;
-    return new Date(epoch).toLocaleDateString(zh5 ? "zh-CN" : "en-US");
+    if (days < 30) return zh6 ? `${days} \u5929\u524D` : `${days}d ago`;
+    return new Date(epoch).toLocaleDateString(zh6 ? "zh-CN" : "en-US");
   }
   function highlightSearchText(text, query) {
     const escaped = escapeHtml(String(text || ""));
@@ -5552,9 +5556,9 @@
     const target = $("#verificationList");
     if (!target) return;
     const events = (data?.events || []).filter((event) => /verification_|completion_assessed/.test(event.code || ""));
-    const zh5 = state.locale === "zh";
+    const zh6 = state.locale === "zh";
     if (!events.length) {
-      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh5 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh5 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
+      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh6 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh6 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
       return;
     }
     target.innerHTML = events.slice(-12).reverse().map((event) => `<details class="verification-card" data-status="${escapeHtml(event.status || "pending")}"><summary>${icon(event.status === "error" ? "alert-circle" : "list-checks")}<span>${escapeHtml(event.summary || traceLabel(event))}</span></summary><pre>${escapeHtml(JSON.stringify(event.detail || {}, null, 2))}</pre></details>`).join("");
@@ -6772,6 +6776,203 @@
     return promise;
   }
 
+  // web/src/panels/onboarding.js
+  var SEEN_KEY = "minicc-tour-v1";
+  var zh5 = () => state.locale === "zh";
+  var STEPS = [
+    {
+      id: "welcome",
+      anchor: null,
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 1 / 6 \u6B65", title: "\u6B22\u8FCE\u6765\u5230 minicc", body: "\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u5DE5\u4F5C\u53F0\u3002\u63A5\u4E0B\u6765\u4E24\u5206\u949F\u6211\u4F1A\u5E26\u4F60\u770B\u516D\u4E2A\u5730\u65B9\u3002Esc \u53EF\u968F\u65F6\u9000\u51FA\uFF1B\u2318K \u91CC\u641C\u300Ctour\u300D\u53EF\u968F\u65F6\u518D\u6765\u3002" },
+      en: { kicker: "Start here \xB7 Step 1 of 6", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past six places worth knowing. Esc exits anytime; search \u201Ctour\u201D in the palette to come back." }
+    },
+    {
+      id: "sidebar",
+      anchor: "#sidebar",
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 2 / 6 \u6B65", title: "\u5DE6\u4FA7\u662F\u8FD9\u53F0\u673A\u5668\u7684\u63A7\u53F0", body: "\u4EFB\u52A1\u3001\u6D3B\u52A8\u3001\u8D26\u672C\u3001\u6A21\u677F\u3001\u8BF4\u660E\u4E66\u3001\u5E74\u9274\u3001\u94C1\u5F8B\u3001\u65E5\u5FD7\u3001\u6863\u6848\u9986\u2014\u2014\u4EA7\u54C1\u7684\u5168\u90E8\u9762\u677F\u90FD\u4ECE\u8FD9\u91CC\u6253\u5F00\uFF0C\u4E2D\u6587\u82F1\u6587\u4E24\u5957\u7248\u672C\u6C38\u8FDC\u540C\u65F6\u6709\u6548\u3002" },
+      en: { kicker: "Start here \xB7 Step 2 of 6", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive \u2014 every panel of the product opens from here, in Chinese or English, always in parity." }
+    },
+    {
+      id: "composer",
+      anchor: "#promptInput",
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 3 / 6 \u6B65", title: "\u8BF4\u4EBA\u8BDD\u5C31\u884C", body: "\u8BD5\u8BD5\u5199\u4E00\u6B21\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u2014\u2014\u56DE\u8F66\u53D1\u9001\u3002\u5B83\u4F1A\u771F\u7684\u8BFB\u6587\u4EF6\u3001\u771F\u7684\u8DD1\u5DE5\u5177\u3001\u628A\u5E26\u8BC1\u636E\u7684\u7B54\u6848\u4EA4\u56DE\u7ED9\u4F60\u3002" },
+      en: { kicker: "Start here \xB7 Step 3 of 6", title: "Just say what you want", body: "Try typing \u201CRead README.md and tell me what this project does\u201D and press Enter. It will actually read the files, actually run the tools, and hand you an evidence-backed answer." }
+    },
+    {
+      id: "demo",
+      anchor: "#demoFlowButton",
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 4 / 6 \u6B65", title: "\u4E0D\u60F3\u6253\u5B57\uFF1F\u770B\u5B83\u73B0\u573A\u6F14\u4E00\u6B21", body: "\u70B9\u300C\u6F14\u793A\u6D41\u7A0B\u300D\uFF0C60 \u79D2\u770B\u5B83\u5B8C\u6574\u8DD1\u4E00\u904D\uFF1A\u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u3002\u4EB2\u773C\u770B\u5B8C\uFF0C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002" },
+      en: { kicker: "Start here \xB7 Step 4 of 6", title: "Prefer to watch?", body: "Hit \u201CDemo flow\u201D and watch a full pass in sixty seconds: plan \u2192 tools \u2192 verification \u2192 delivery. See it once and you know the product." }
+    },
+    {
+      id: "almanac",
+      anchor: '.nav-item[data-view="almanac"]',
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 / 6 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u4E5D\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u5219\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
+      en: { kicker: "Start here \xB7 Step 5 of 6", title: "The Almanac \u2014 a museum in nine halls", body: "Nine chapters of museum-grade narrative, every figure read live from this repository. The Manual covers how to play, how to debug, and where the honest limits are." }
+    },
+    {
+      id: "done",
+      anchor: null,
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 6 / 6 \u6B65", title: "\u597D\u4E86\uFF0C\u4F60\u53EF\u4EE5\u4E86", body: "\u81EA\u5DF1\u53D1\u4E00\u6761\u4EFB\u52A1\u8BD5\u8BD5\uFF1B\u9047\u4E8B\u6309\u300C\uFF1F\u300D\u770B\u5FEB\u6377\u952E\uFF1B\u9047\u4E8B\u4E0D\u4F1A\u6309\u2318K \u641C\u4E00\u5207\u3002\u6B22\u8FCE\u6765\u5230 minicc\u3002" },
+      en: { kicker: "Start here \xB7 Step 6 of 6", title: "That's it, you know it now", body: "Send your first real task next. Whenever you're stuck, press \u201C?\u201D for the shortcut reference \u2014 or \u201C\u2318/Ctrl K\u201D to search everything. Welcome to minicc." }
+    }
+  ];
+  var $tour = {};
+  var $overlayParts = () => ({
+    overlay: $tour.overlay,
+    spot: $tour.spot,
+    card: $tour.card
+  });
+  function rectFor(selector) {
+    const node = selector ? document.querySelector(selector) : null;
+    if (!node) return null;
+    const rect = node.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    return rect;
+  }
+  function positionSpotlight(rect) {
+    const { spot } = $overlayParts();
+    if (!spot) return;
+    if (!rect) {
+      spot.hidden = true;
+      return;
+    }
+    spot.hidden = false;
+    const pad = 10;
+    spot.style.left = `${Math.max(0, rect.left - pad)}px`;
+    spot.style.top = `${Math.max(0, rect.top - pad)}px`;
+    spot.style.width = `${rect.width + pad * 2}px`;
+    spot.style.height = `${rect.height + pad * 2}px`;
+  }
+  function renderStep(index) {
+    const { overlay, card } = $overlayParts();
+    const step = STEPS[index];
+    const local = zh5() ? step.zh : step.en;
+    const rect = rectFor(step.anchor);
+    positionSpotlight(rect);
+    card.querySelector(".tour-step").textContent = local.kicker;
+    card.querySelector(".tour-title").textContent = local.title;
+    card.querySelector(".tour-body").textContent = local.body;
+    const back2 = card.querySelector(".tour-back");
+    const next2 = card.querySelector(".tour-next");
+    back2.hidden = index === 0;
+    back2.textContent = zh5() ? "\u4E0A\u4E00\u6B65" : "Back";
+    next2.textContent = index === STEPS.length - 1 ? zh5() ? "\u5F00\u59CB\u5E72\u6D3B" : "Start building" : zh5() ? "\u4E0B\u4E00\u6B65" : "Next";
+    const skip = card.querySelector(".tour-skip");
+    skip.textContent = zh5() ? "\u8DF3\u8FC7" : "Skip tour";
+    refreshIcons();
+  }
+  function teardown(outcome) {
+    const { overlay } = $overlayParts();
+    if (!overlay) return;
+    overlay.remove();
+    $tour.overlay = null;
+    $tour.spot = null;
+    $tour.card = null;
+    $tour.currentStep = null;
+    if (outcome === "done") {
+      try {
+        localStorage.setItem(SEEN_KEY, "done");
+      } catch {
+      }
+      showToast(zh5() ? "\u8F9B\u82E6\u4E86\u2014\u2014\u53BB\u505A\u70B9\u771F\u4E8B\u5427" : "You're ready \u2014 go build something real");
+    } else if (outcome === "skipped") {
+      try {
+        localStorage.setItem(SEEN_KEY, "skipped");
+      } catch {
+      }
+    }
+    window.removeEventListener("resize", reposition, true);
+    window.removeEventListener("keydown", onKeydown, true);
+  }
+  function reposition() {
+    if ($tour.currentStep == null) return;
+    positionSpotlight(rectFor(STEPS[$tour.currentStep].anchor));
+  }
+  function finish() {
+    teardown("done");
+  }
+  function next() {
+    $tour.currentStep += 1;
+    if ($tour.currentStep >= STEPS.length) {
+      finish();
+      return;
+    }
+    renderStep($tour.currentStep);
+  }
+  function back() {
+    if ($tour.currentStep <= 0) return;
+    $tour.currentStep -= 1;
+    renderStep($tour.currentStep);
+  }
+  function onKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      teardown("skipped");
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      next();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      back();
+    }
+  }
+  function startTour() {
+    if ($("#tourOverlay")) return;
+    const overlay = document.createElement("div");
+    overlay.id = "tourOverlay";
+    overlay.setAttribute("role", "presentation");
+    overlay.innerHTML = `
+    <div class="tour-dim"></div>
+    <div class="tour-spot" hidden></div>
+    <div class="tour-card" role="dialog" aria-modal="true" aria-label="${escapeHtmlAttr(zh5() ? "\u4E0A\u624B\u6F14\u7EC3" : "Product tour")}">
+      <div class="tour-step"></div>
+      <h3 class="tour-title"></h3>
+      <p class="tour-body"></p>
+      <div class="tour-actions">
+        <button type="button" class="tour-skip"></button>
+        <div class="tour-nav">
+          <button type="button" class="tour-back"></button>
+          <button type="button" class="tour-next"></button>
+        </div>
+      </div>
+    </div>`;
+    document.body.append(overlay);
+    $tour.overlay = overlay;
+    $tour.spot = overlay.querySelector(".tour-spot");
+    $tour.card = overlay.querySelector(".tour-card");
+    $tour.currentStep = 0;
+    overlay.querySelector(".tour-skip").addEventListener("click", () => teardown("skipped"));
+    overlay.querySelector(".tour-back").addEventListener("click", back);
+    overlay.querySelector(".tour-next").addEventListener("click", next);
+    window.addEventListener("resize", reposition, true);
+    window.addEventListener("keydown", onKeydown, true);
+    renderStep(0);
+  }
+  function escapeHtmlAttr(value) {
+    return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+  function maybeOfferTour() {
+    if (localStorage.getItem(SEEN_KEY)) return;
+    if ($("#tourOffer")) return;
+    if (window.innerWidth < 900) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "tourOffer";
+    button.className = "tour-offer";
+    button.innerHTML = `<i data-lucide="sparkles"></i><span>${escapeHtmlAttr(zh5() ? "\u7B2C\u4E00\u6B21\u6765\uFF1F2 \u5206\u949F\u5E26\u4F60\u8FC7\u4E00\u904D" : "First visit? Two minutes, I've got you")}</span>`;
+    document.body.append(button);
+    button.addEventListener("click", () => {
+      button.remove();
+      startTour();
+    });
+    refreshIcons();
+  }
+
   // web/src/core/locale.js
   function applyLocale() {
     document.documentElement.lang = state.locale === "zh" ? "zh-CN" : "en";
@@ -6841,15 +7042,15 @@
     const sidebarButton = $("#sidebarOpen");
     const inspectorButton = $("#inspectorToggle");
     if (sidebarButton && desktop) {
-      const zh5 = state.locale === "zh";
-      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh5 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh5 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
-      sidebarButton.title = state.sidebarCollapsed ? zh5 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh5 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
+      const zh6 = state.locale === "zh";
+      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh6 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh6 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
+      sidebarButton.title = state.sidebarCollapsed ? zh6 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh6 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
       sidebarButton.innerHTML = icon(state.sidebarCollapsed ? "panel-left-open" : "panel-left-close");
     }
     if (inspectorButton && desktop) {
-      const zh5 = state.locale === "zh";
-      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh5 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh5 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
-      inspectorButton.title = state.inspectorCollapsed ? zh5 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh5 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
+      const zh6 = state.locale === "zh";
+      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh6 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh6 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
+      inspectorButton.title = state.inspectorCollapsed ? zh6 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh6 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
       inspectorButton.innerHTML = icon(state.inspectorCollapsed ? "panel-right-open" : "panel-right-close");
     }
     refreshIcons();
@@ -7069,7 +7270,7 @@
     return translated === id ? fallback : translated;
   }
   function commands() {
-    const zh5 = state.locale === "zh";
+    const zh6 = state.locale === "zh";
     const themeTarget = state.theme === "dark" ? label("palette.toLight", "Switch to light theme") : label("palette.toDark", "Switch to dark theme");
     return [
       { id: "newTask", glyph: "plus", group: "palette.group.task", run: () => resetTask() },
@@ -7084,6 +7285,7 @@
       { id: "axioms", glyph: "scroll-text", group: "palette.group.task", run: () => openAxiomsPanel() },
       { id: "journal", glyph: "notebook-pen", group: "palette.group.task", run: () => openJournalPanel() },
       { id: "archive", glyph: "archive", group: "palette.group.task", run: () => openArchivePanel() },
+      { id: "tour", glyph: "sparkles", group: "palette.group.surface", run: () => startTour() },
       { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
       { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
       { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },
@@ -7091,7 +7293,7 @@
       { id: "help", glyph: "circle-help", group: "palette.group.surface", run: () => openHelpPanel() },
       { id: "arcade", glyph: "gamepad-2", group: "palette.group.surface", run: () => openArcade() },
       { id: "theme", glyph: "moon-star", group: "palette.group.surface", labelOverride: themeTarget, run: () => setTheme(state.theme === "dark" ? "light" : "dark") },
-      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh5 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh5 ? "en" : "zh") },
+      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh6 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh6 ? "en" : "zh") },
       { id: "sidebar", glyph: "panel-left", group: "palette.group.surface", run: () => setSidebarCollapsed(!state.sidebarCollapsed) },
       { id: "inspector", glyph: "panel-right", group: "palette.group.surface", run: () => setInspectorCollapsed(!state.inspectorCollapsed) },
       { id: "focus", glyph: "scan-line", group: "palette.group.surface", run: () => setFocusMode(!state.focusMode) },
@@ -7162,8 +7364,8 @@
   }
   function move(delta) {
     if (!filtered.length) return;
-    const next = (activeIndex + delta + filtered.length) % filtered.length;
-    setActive(next);
+    const next2 = (activeIndex + delta + filtered.length) % filtered.length;
+    setActive(next2);
   }
   function setActive(index) {
     activeIndex = index;
@@ -7332,8 +7534,8 @@
         timer = null;
       }
     }
-    function setPlaying(next) {
-      playing = next;
+    function setPlaying(next2) {
+      playing = next2;
       playButton.innerHTML = playing ? icon("pause") : icon("play");
       refreshIcons();
       clearTimer();
@@ -7352,16 +7554,16 @@
     }
     function close() {
       clearTimer();
-      document.removeEventListener("keydown", onKeydown, true);
+      document.removeEventListener("keydown", onKeydown2, true);
       overlay.remove();
     }
-    function onKeydown(event) {
+    function onKeydown2(event) {
       if (event.key === "Escape") {
         event.preventDefault();
         close();
       }
     }
-    document.addEventListener("keydown", onKeydown, true);
+    document.addEventListener("keydown", onKeydown2, true);
     overlay.addEventListener("click", (event) => {
       const target = event.target.closest("[data-replay-action]");
       if (!target) return;
@@ -7586,9 +7788,9 @@
       const index = tabs.indexOf(document.activeElement);
       if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowLeft" ? -1 : 1) + tabs.length) % tabs.length;
-      tabs[next].click();
-      tabs[next].focus();
+      const next2 = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowLeft" ? -1 : 1) + tabs.length) % tabs.length;
+      tabs[next2].click();
+      tabs[next2].focus();
     });
     $("#fileList").addEventListener("click", (event) => {
       const target = event.target.closest("[data-open-diff]");
@@ -7989,6 +8191,8 @@
       window.setTimeout(finishStartupSplash, 420);
     });
     if (document.documentElement.dataset.arcade === "1") openArcade().catch((error) => showToast(error.message));
+    window.startTour = startTour;
+    maybeOfferTour();
     updateRunningLight();
     updateRunningLightDigest();
     window.setInterval(() => {

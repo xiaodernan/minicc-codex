@@ -51362,3 +51362,39 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 
 - 本馆展示的是启发式解析后的标题原文，不做归一化改写；章节内容本身不复刻——全内容仍以
   ROADMAP_TO_PRODUCT.md 为权威（一显示、一来源，无漂移）。
+
+## 批次 936 - M8-T941：上手演练——两分钟，六步，不读说明书也会用
+
+### 1 背景
+
+用户反复要求：为新用户准备一个简单快速的新手教程 + 快速上手演示。
+说明书解决了"完整详述"，但第一流的入口应该是一枚按钮、六步、两分钟就懂。
+
+### 2 变更
+
+- 新增 `web/src/panels/onboarding.js`：首次访问时右下角长出一枚「第一次来？」按钮，
+  点击进入 6 步产品演练：
+  welcome → 侧边控台 → 输入框 → 演示流程按钮 → 年鉴 → 完成。
+  Esc 随时退出；⌘K 搜 `tour` 随时重来；完成后 `localStorage minicc-tour-v1=done`，
+  之后不再自动出现；宽 <900px 时不出现。
+- 高亮聚光灯用 `box-shadow: 0 0 0 9999px + 呼吸光晕` 实现，叙事卡下沉居中、进度条不依赖任何新 HTML 骨架；
+  文案 zh/en 全双语。
+- `web/src/main.js`：boot 时 `maybeOfferTour()` + `window.startTour` 暴露；command palette 新增
+  `tour` 命令（surface 组）。
+- `web/src/panels/manual.js`：五分钟上手章节末尾补上"首次到访会长出上手演练按钮"说明。
+- `README.md`：模块清单补入「上手演练」。bundle 重建（app.js 500094 chars）；check:web ✓；i18n 572 keys ✓。
+
+### 3 验证
+
+- 真浏览器（zh 全程）：
+  - offer pill「第一次来？2 分钟带你过一遍」出现 ✓
+  - 点击 → overlay 可见 → 连续点击 6 次，逐步 kicker 递增，全程无功能性错误 ✓
+  - 到终局 → overlay 关闭 → localStorage `minicc-tour-v1=done` ✓
+  - 刷新页面 → offer 不再出现 ✓
+- en 全链路：offer "First visit? Two minutes, I've got you"、步骤全部英文渲染、同一套 Done 行为 ✓
+- ⌘K 搜 `tour` → "Start the tour" 命中 ✓
+- `npm run test:i18n` → 572 keys、216 literal t() 全解析 ✓
+
+### 4 遗留
+
+- 演练只面向首访；老用户不想看可跳过并记忆；⌘K 随时重开不依赖用户状态。
