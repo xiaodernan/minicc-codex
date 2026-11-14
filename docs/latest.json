@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T18:51:54.836Z",
+  "generated_at": "2026-11-14T19:07:44.005Z",
   "branch": "main",
-  "head": "49335be",
-  "total_commits": 1507,
+  "head": "a032ad8",
+  "total_commits": 1509,
   "recent_commits": [
+    {
+      "short": "a032ad8",
+      "at": "2026-11-15T03:07:05+08:00",
+      "subject": "M8-T962: sidebar top search now plugs into the global search panel (Enter seeds it with the current query, Esc clears - it was a dead input) + compact sidebar l"
+    },
+    {
+      "short": "7dbe13d",
+      "at": "2026-11-14T18:51:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "49335be",
       "at": "2026-11-15T02:51:33+08:00",
@@ -19,22 +29,12 @@
       "short": "9277dc3",
       "at": "2026-11-15T02:42:36+08:00",
       "subject": "M8-T960: '/' filters the recent-task list in the sidebar - live debounced search, Enter opens first match, Esc clears, MutationObserver re-applies across the hi"
-    },
-    {
-      "short": "ccedb4e",
-      "at": "2026-11-14T18:21:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e60c415",
-      "at": "2026-11-15T02:21:30+08:00",
-      "subject": "M8-T958: almanac hydrates in two waves - metrics+digest re-render immediately, stats lands whenever it lands; tap-to-numbers from ~9.8s to ~1.7s measured on the"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 280,
+  "roadmap_batches": 281,
   "changelog_entries": 1,
-  "roadmap_lines": 51815,
+  "roadmap_lines": 51836,
   "tracked_files": 1053,
   "test_files": 702,
   "almanac_chapters": 11,
