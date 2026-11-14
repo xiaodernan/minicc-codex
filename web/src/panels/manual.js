@@ -326,7 +326,7 @@ function enAskDocs() {
     </ol>
     <div class="manual-callout">
       <strong>The honest part</strong>
-      <p>BM25 is lexical, not semantic: it is excellent at exact phrases (“缓存命中率” lands dead-center) and average at paraphrase. <code>chat/completions</code> never carries <code>cached_tokens</code>, so the usage pill reports only the fields the gateway really gives — no invented hit rate. The api_key never enters the prompt nor is echoed.</p>
+      <p>BM25 is lexical, not semantic: it is excellent at exact phrases ("cache hit rate" lands dead-center) and average at paraphrase. <code>chat/completions</code> never carries <code>cached_tokens</code>, so the usage pill reports only the fields the gateway really gives — no invented hit rate. The api_key never enters the prompt nor is echoed.</p>
     </div>
   `;
 }

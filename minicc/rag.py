@@ -144,8 +144,9 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
     api_key = str(getattr(config, "api_key", "") or "")
 
     prompt = (
-        "You answer only from the documents below. Copy the language of the query.\n"
-        "If the docs do not answer the question, reply: 文档里没有直接答案 — I cannot find it in the docs.\n\n"
+        "You answer only from the documents below. Copy the language of the question.\n"
+        "Answer briefly and cite the source numbers like [1], [2] for the facts you use.\n"
+        "If and only if the documents do not cover the question, reply with one short sentence in the same language as the question saying the documents do not directly answer it — do not mix languages in that sentence.\n\n"
         + "\n\n".join(
             f"[{index + 1}] file: {item['source']}\n{item['chunk']}" for index, item in enumerate(sources)
         )

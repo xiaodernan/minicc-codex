@@ -641,7 +641,7 @@
     </ol>
     <div class="manual-callout">
       <strong>The honest part</strong>
-      <p>BM25 is lexical, not semantic: it is excellent at exact phrases (\u201C\u7F13\u5B58\u547D\u4E2D\u7387\u201D lands dead-center) and average at paraphrase. <code>chat/completions</code> never carries <code>cached_tokens</code>, so the usage pill reports only the fields the gateway really gives \u2014 no invented hit rate. The api_key never enters the prompt nor is echoed.</p>
+      <p>BM25 is lexical, not semantic: it is excellent at exact phrases ("cache hit rate" lands dead-center) and average at paraphrase. <code>chat/completions</code> never carries <code>cached_tokens</code>, so the usage pill reports only the fields the gateway really gives \u2014 no invented hit rate. The api_key never enters the prompt nor is echoed.</p>
     </div>
   `}var _a={start:{zh:Do,en:Ao},workbench:{zh:vo,en:yo},modules:{zh:ko,en:bo},keys:{zh:wo,en:_o},arcade:{zh:$o,en:xo},trouble:{zh:Io,en:Ro},limits:{zh:No,en:Po},vault:{zh:So,en:To},philosophy:{zh:Mo,en:Lo},askdocs:{zh:zo,en:jo}};function qo(e){const u=r.locale==="zh",t=u?e.titleZh:e.title;return`<button class="manual-chapter" data-chapter="${n(e.id)}" role="tab">
             <span class="manual-chapter-roman">${n(u?e.roman:e.romanEn)}</span>

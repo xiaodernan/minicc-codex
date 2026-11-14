@@ -52146,3 +52146,20 @@ M8-T974 的 CI（run 43646047068）实锤：`Python tests (windows/ubuntu)` 仍�
 - `pytest tests/test_rag_bm25_index.py tests/test_http_surface.py` → **91 passed**；Route Coverage 100%。
 - 真 key 经 `answer()` 复测：roundtrip 34.95s（gateway 侧抖动，此前 0.3s）、`usage` 如实回传 `prompt=4973 completion=19 total=4992`——`measured_usage` 的默认 total=sum 契约生效，total_tokens 与分项一致。
 - 边界声明：未把 CI 声称绿；本批 push 后的 run 以 `gh run` 实况为准。`Python tests` 在 runner 上 17 分钟；本地完整套件验证同口径迁移到门。
+
+## 批次 969 - M8-T977：RAG 提示语去双语混用 —— en 模式下的 CJK 兜底句
+
+### 1 背景
+
+M8-T975/976 的面板真 E2E 实测（en locale）：模型在「文档不回答」时按旧 prompt 固定回复 `文档里没有直接答案 — I cannot find it in the docs.`，把中文残留进 en 模式。用户对两语一致的强制要求（"原生英文的内容也得全部翻译成中文 在中文模式下面 … 不要中英文夹杂"）要求 prompt 不得硬编码任何语言。
+
+### 2 做了什么
+
+- `minicc/rag.py::answer` 的 system prompt 改为单语约束：复制问题语言、brief+cite、仅当文档确实不覆盖时才用同语言一句短话说明、该句不得混语。不再内置任何双语兜底句串。
+- `web/src/panels/manual.js` 的 `enAskDocs` 去掉整句中文术语「缓存命中率」，改 `"cache hit rate"`——en playbook 人读屏测出此处 CJK 残留。`npm run build:web` 重建 `web/app.js`/`web/assets/*`，`check:web` 干净。
+- en 复测（真 wkapi.pro）：`How do I run the load test?` → 答案 `Start a minicc web instance, then run scripts/load-test.mjs … [1] [2]`，零 CJK。zh 复测不退化：仍为中文、带 `[3]` 引用、不含英文混杂。EN 手册第十章零 CJK（`Chapter 10 · Ask the Repo`）。
+
+### 3 验证
+
+- 两语 E2E（Playwright + 真 key）双向通过；`doc_pointers` rc=0；`check:web` 干净；`test_rag_bm25_index.py` 8 passed（未动检索层）。
+- 边界：未把 CI 声称绿——本批 push 后以 `gh run` 实况为准。
