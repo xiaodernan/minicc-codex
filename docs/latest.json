@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T19:46:11.483Z",
+  "generated_at": "2026-11-14T20:02:36.844Z",
   "branch": "main",
-  "head": "8fa4789",
-  "total_commits": 1514,
+  "head": "e9c6d63",
+  "total_commits": 1516,
   "recent_commits": [
+    {
+      "short": "e9c6d63",
+      "at": "2026-11-15T04:02:15+08:00",
+      "subject": "M8-T965: almanac volume XI The Echo - git / audit / cache, three strings in three keys humming in one roof; instruments render live (commits 1514, batches 283, "
+    },
+    {
+      "short": "64b7526",
+      "at": "2026-11-14T19:46:11Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8fa4789",
       "at": "2026-11-15T03:45:33+08:00",
@@ -19,25 +29,15 @@
       "short": "4c3acf7",
       "at": "2026-11-14T19:33:55Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d942584",
-      "at": "2026-11-15T03:33:29+08:00",
-      "subject": "M8-T963: live-prove the Spring Cloud plane's two pub/sub and cache rails - CacheInvalidationRoundTripLiveTest green against docker RabbitMQ, Redis token bucket "
-    },
-    {
-      "short": "dc99e4b",
-      "at": "2026-11-14T19:07:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 283,
+  "roadmap_batches": 284,
   "changelog_entries": 1,
-  "roadmap_lines": 51889,
+  "roadmap_lines": 51911,
   "tracked_files": 1054,
   "test_files": 702,
-  "almanac_chapters": 11,
+  "almanac_chapters": 12,
   "module_count": 14,
   "feature_surface": [
     "workbench",
