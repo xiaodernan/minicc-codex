@@ -2117,7 +2117,8 @@
     { id: "bloom", roman: "\u7B2C\u56DB\u7AE0", title: "The Bloom", subtitle: "\u5DE5\u4F5C\u53F0\u672C\u8EAB\u5C31\u662F\u8BC1\u8BCD" },
     { id: "hand", roman: "\u7B2C\u4E94\u7AE0", title: "The Open Road", subtitle: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9" },
     { id: "gate", roman: "\u5377\u516D", title: "The Gate", subtitle: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934" },
-    { id: "mesh", roman: "\u5377\u4E03", title: "The Mesh", subtitle: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6" }
+    { id: "mesh", roman: "\u5377\u4E03", title: "The Mesh", subtitle: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6" },
+    { id: "witness", roman: "\u5377\u516B", title: "The Witness", subtitle: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E" }
   ];
   function chapterMarkup(chapter) {
     return `<button class="almanac-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
@@ -2129,7 +2130,54 @@
           </button>`;
   }
   var digestCache = null;
+  var statsCache = null;
   var currentChapter = "prologue";
+  function witnessMarkup() {
+    const s = statsCache;
+    const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "\u2014";
+    const sessions = s?.sessions && typeof s?.sessions?.count === "number" ? String(s.sessions.count) : "\u2014";
+    const messages = s?.sessions && typeof s?.sessions?.messages === "number" ? String(s.sessions.messages) : "\u2014";
+    const rows = [
+      ["provider_retry", "\u7F51\u5173\u7684\u8010\u5FC3\u2014\u2014\u6BCF\u4E00\u6B21\u91CD\u8BD5\u8BA1\u6570\u90FD\u662F\u7F51\u5173\u4E0E\u6A21\u578B\u4E4B\u95F4\u7684\u4E00\u6B21\u63E1\u624B"],
+      ["tool_round_finished", "\u5DE5\u5177\u56DE\u5408\u7684\u5B8C\u6574\u7B7E\u540D\u2014\u2014\u53C2\u6570\u591A\u5C11\u5B57\u7B26\uFF0C\u4E00\u6B21\u90FD\u4E0D\u5C11"],
+      ["completion_assessed", "\u5B8C\u6210\u843D\u69CC\u6216\u5224\u5B9A\u843D\u69CC\u2014\u2014never \u6765\u81EA\u9759\u9ED8\u8DF3\u8FC7"],
+      ["approval_requested", "\u8D8A\u6743\u8FB9\u7F18\u7684\u505C\u4E0B\u4E0E\u7B49\u5F85\u2014\u2014\u4F60\u8BF4\u4E86\u7B97\uFF0C\u5B83\u505C\u7740"],
+      ["audit", "\u88AB\u5199\u4E0B\u6765\u7684\uFF0C\u90FD\u80FD\u88AB\u8BFB\u56DE\u53BB\u2014\u2014\u5305\u62EC\u8FD9\u53E5\u8BDD\u672C\u8EAB"]
+    ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
+    return `
+    <div class="almanac-canvas almanac-witness">
+      <div class="almanac-kicker">\u5377\u516B \xB7 Chapter VIII \u2014 The Witness</div>
+      <h1 class="almanac-title almanac-title-sm">\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C<br/><span class="almanac-title-accent">\u4F46\u7B14\u5F55\u4E0D\u8BF4\u8C0E\u3002</span></h1>
+      <div class="almanac-body">
+        <p>
+          \u8FD9\u4E2A\u9879\u76EE\u4E0D\u4FE1\u4EFB\u53D9\u8FF0\uFF0C\u5B83\u76F8\u4FE1\u7B14\u5F55\u3002\u6BCF\u4E00\u6B21\u5DE5\u5177\u8C03\u7528\u3001\u6BCF\u4E00\u6B21\u91CD\u8BD5\u3001\u6BCF\u4E00\u6B21\u5B8C\u6210\u5224\u5B9A\uFF0C
+          \u90FD\u88AB\u5199\u8FDB\u5BA1\u8BA1\u65E5\u5FD7\u2014\u2014\u6309\u987A\u5E8F\u3001\u5E26\u5E8F\u53F7\u3001\u5E26\u65F6\u95F4\u6233\u3002
+        </p>
+        <p>
+          \u5BC6\u94A5\u6C38\u8FDC\u4E0D\u843D\u76D8\uFF1A\u6240\u6709\u51FA\u7AD9\u5185\u5BB9\u90FD\u7ECF\u8FC7\u8131\u654F\u624D\u5199\u5165\u65E5\u5FD7\u3002
+          \u4F60\u80FD\u5728\u8FD9\u91CC\u770B\u5230\u7684\uFF0C\u662F\u52A8\u8BCD\u548C\u8DEF\u5F84\uFF0C\u4ECE\u6765\u4E0D\u662F\u51ED\u636E\u3002
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">\u5BA1\u8BA1\u884C\u6570 \xB7 Audit lines</div>
+          <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u4F1A\u8BDD \xB7 Sessions</div>
+          <div class="almanac-instrument-value">${escapeHtml(sessions)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u6D88\u606F \xB7 Messages</div>
+          <div class="almanac-instrument-value">${escapeHtml(messages)}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${rows}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        \u5F53\u4F60\u4E0D\u77E5\u9053 agent \u505A\u8FC7\u4EC0\u4E48\uFF0C\u6253\u5F00\u5BA1\u8BA1\u3002\u5B83\u4E0D\u89E3\u91CA\uFF0C\u4F46\u5B83\u6309\u987A\u5E8F\u4EA4\u51FA\u4E8B\u5B9E\u3002
+      </p>
+    </div>`;
+  }
   function digestInstrumentMarkup(digest) {
     if (!digest || digest.is_git !== true) return "";
     const date = String(digest.first_commit_at || "").slice(0, 10);
@@ -2393,16 +2441,19 @@
     bloom: () => bloomMarkup(),
     hand: () => handMarkup(),
     gate: () => gateMarkup(digestCache),
-    mesh: () => meshMarkup()
+    mesh: () => meshMarkup(),
+    witness: () => witnessMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
     if (!slot) return;
-    const [metrics, digest] = await Promise.all([
+    const [metrics, digest, stats] = await Promise.all([
       requestJson("/api/metrics").catch(() => null),
-      requestJson("/api/digest").catch(() => null)
+      requestJson("/api/digest").catch(() => null),
+      requestJson("/api/stats").catch(() => null)
     ]);
     digestCache = digest;
+    statsCache = stats;
     const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = renderer(metrics);
     refreshIcons();

@@ -25,6 +25,7 @@ const CHAPTERS = [
   { id: "hand", roman: "第五章", title: "The Open Road", subtitle: "纸上画下的远方" },
   { id: "gate", roman: "卷六", title: "The Gate", subtitle: "每一道门都点了头" },
   { id: "mesh", roman: "卷七", title: "The Mesh", subtitle: "六个服务，一个国家" },
+  { id: "witness", roman: "卷八", title: "The Witness", subtitle: "笔录不说话，但不说谎" },
 ];
 
 function chapterMarkup(chapter) {
@@ -38,7 +39,55 @@ function chapterMarkup(chapter) {
 }
 
 let digestCache = null;
+let statsCache = null;
 let currentChapter = "prologue";
+
+function witnessMarkup() {
+  const s = statsCache;
+  const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "—";
+  const sessions = s?.sessions && typeof s?.sessions?.count === "number" ? String(s.sessions.count) : "—";
+  const messages = s?.sessions && typeof s?.sessions?.messages === "number" ? String(s.sessions.messages) : "—";
+  const rows = [
+    ["provider_retry", "网关的耐心——每一次重试计数都是网关与模型之间的一次握手"],
+    ["tool_round_finished", "工具回合的完整签名——参数多少字符，一次都不少"],
+    ["completion_assessed", "完成落槌或判定落槌——never 来自静默跳过"],
+    ["approval_requested", "越权边缘的停下与等待——你说了算，它停着"],
+    ["audit", "被写下来的，都能被读回去——包括这句话本身"],
+  ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
+  return `
+    <div class="almanac-canvas almanac-witness">
+      <div class="almanac-kicker">卷八 · Chapter VIII — The Witness</div>
+      <h1 class="almanac-title almanac-title-sm">笔录不说话，<br/><span class="almanac-title-accent">但笔录不说谎。</span></h1>
+      <div class="almanac-body">
+        <p>
+          这个项目不信任叙述，它相信笔录。每一次工具调用、每一次重试、每一次完成判定，
+          都被写进审计日志——按顺序、带序号、带时间戳。
+        </p>
+        <p>
+          密钥永远不落盘：所有出站内容都经过脱敏才写入日志。
+          你能在这里看到的，是动词和路径，从来不是凭据。
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">审计行数 · Audit lines</div>
+          <div class="almanac-instrument-value">${escapeHtml(audit)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">会话 · Sessions</div>
+          <div class="almanac-instrument-value">${escapeHtml(sessions)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">消息 · Messages</div>
+          <div class="almanac-instrument-value">${escapeHtml(messages)}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${rows}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        当你不知道 agent 做过什么，打开审计。它不解释，但它按顺序交出事实。
+      </p>
+    </div>`;
+}
 
 function digestInstrumentMarkup(digest) {
   if (!digest || digest.is_git !== true) return "";
@@ -318,16 +367,19 @@ const CHAPTER_RENDERERS = {
   hand: () => handMarkup(),
   gate: () => gateMarkup(digestCache),
   mesh: () => meshMarkup(),
+  witness: () => witnessMarkup(),
 };
 
 async function loadChapter(id) {
   const slot = $("#almanacCanvas");
   if (!slot) return;
-  const [metrics, digest] = await Promise.all([
+  const [metrics, digest, stats] = await Promise.all([
     requestJson("/api/metrics").catch(() => null),
     requestJson("/api/digest").catch(() => null),
+    requestJson("/api/stats").catch(() => null),
   ]);
   digestCache = digest;
+  statsCache = stats;
   const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = renderer(metrics);
   refreshIcons();

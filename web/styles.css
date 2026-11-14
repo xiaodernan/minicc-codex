@@ -3616,6 +3616,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-gate .almanac-instrument-double { grid-template-columns: repeat(3, auto); gap: 14px 34px; }
 .almanac-instrument-triple { grid-template-columns: repeat(3, auto); gap: 14px 34px; }
 .almanac-mesh .almanac-gate-list li { border-left-color: var(--coral); }
+.almanac-witness .almanac-gate-list li { border-left-color: var(--blue); }
 @media (max-width: 760px) {
   .almanac-instrument-triple { grid-template-columns: 1fr; }
   .almanac-mesh .almanac-gate-list li { grid-template-columns: 1fr; gap: 2px; }

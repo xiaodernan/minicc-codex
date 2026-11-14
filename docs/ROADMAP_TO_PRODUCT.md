@@ -50779,3 +50779,31 @@ M8-T914 是一场在本机打响的实弹演习：120 并发、25×200、60×429
 
 `web/index.html`、`web/src/panels/index.js`、`web/src/main.js`、`web/src/core/i18n.js`、`web/styles.css`、
 `web/app.js`、`web/asset-manifest.json`、content-addressed bundle
+
+## 批次 917 - M8-T917：「年鉴」新增第八卷《The Witness · 笔录不说话，但笔录不说谎》— 审计日志进入叙事
+
+### 1 为什么
+
+年鉴已有 Spark / Depth / Sentry / Bloom / Open Road / Gate / Mesh 七卷，但缺少这个项目
+**最安静、最基础、最诚实的角色——审计日志**。它按顺序记录每一次工具调用、每一次重试、
+每一次完成落槌；密钥永远不落盘；你能看到的只有动词和路径。这一卷讲"笔录"。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` — 新增章节 `witness`（卷八 · The Witness，副题「笔录不说话，但不说谎」）：
+  - 仪表（全部来自 `/api/stats` 现场读数，`/api/stats` 不可用时对应格显示 `—`）：
+    审计行数 `1463` / 会话数 `115` / 消息数 `2385`（本机真实读数）；
+  - 证词清单五行：`provider_retry`（网关的耐心）/ `tool_round_finished`（工具回合完整签名）/
+    `completion_assessed`（never 来自静默跳过）/ `approval_requested`（越权边缘）/ `audit`（被写下的都能被读回去）；
+  - 铭文："当你不知道 agent 做过什么，打开审计。它不解释，但它按顺序交出事实。"
+  - `loadChapter` 现在并行拉取 metrics+digest+stats 三个端点。
+- `web/styles.css` — `.almanac-witness` 左色条换蓝（--blue，与笔录的冷静色调同源）；复用既有 triple 仪表与 gate-list。
+
+### 3 验证
+
+- 真实浏览器探针（chromium headless + route 拦截）：rail 显示全部 9 章（序章 → 卷八），
+  witness 章节正文 / 三格仪表（1463 / 115 / 2385）/ 五行证词全部渲染，控制台零 pageerror
+
+### 4 文件
+
+`web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
