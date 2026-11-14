@@ -226,7 +226,7 @@ function zhTrouble() {
   return `
     <div class="manual-trouble">
       <div><strong>我看到「未连接」</strong><span>检查 <code>MINICC_API_KEY</code>/<code>MINICC_BASE_URL</code>，或跑 <code>minicc --doctor</code>——其中一项会给你写明是密钥、是网络还是证书。</span></div>
-      <div><strong>缓存命中率低</strong><span>不是 bug，是前缀亲和：带上 <code>MINICC_PROMPT_CACHE_KEY</code>（或让自动派生生效）就能拿到 90%+ 的热命中率。显示流/非流都有缓存；注意非流线 (chat/completions) 在部分网关不上报 <code>cached_tokens</code>。</span></div>
+      <div><strong>缓存命中率低</strong><span>先上证据再下结论。2026-11-15 在同一把 key、同一条 ~5.5k-token 前缀上实测（wkapi.pro · gpt-6-sol）：Responses 流式 94.5% → 100%（热）、流式无 key 的 chat/completions <em>永不上报</em> cached_tokens；带 key 后 chat 流式/非流式都报（5376/5509 = 97.5%）。minicc 始终自动派生 <code>prompt_cache_key</code>——浏览器里跑 agentic 任务实测 81~98%。「显示非流」是上次事故后的恢复锁已被移除（M8-T879/897/900）；「命中率低」则是 chat 流式不回 cached_tokens 的显示产物，不是缓存没生效。</span></div>
       <div><strong>任务卡住</strong><span>Ctrl/⌘+C 在终端里，或工作台「重置」按钮。恢复机制会把上下文压缩成 checkpoint，任务可以续上，不会丢失已完成的写入文件。</span></div>
       <div><strong>工作区不可写</strong><span>默认本地沙箱需要写权限。你也可以选 process 或 docker 模式（<code>MINICC_SANDBOX</code>）。</span></div>
       <div><strong>SSE 断开</strong><span>关掉代理里的 request body 缓冲（Spring Cloud plane 里对应 <code>X-Accel-Buffering: no</code>）。本地直连不会遇到。</span></div>
@@ -239,7 +239,7 @@ function enTrouble() {
   return `
     <div class="manual-trouble">
       <div><strong>I see “Disconnected”</strong><span>Check <code>MINICC_API_KEY</code>/<code>MINICC_BASE_URL</code>, or run <code>minicc --doctor</code> — it tells you whether it is the key, the network or the certificate.</span></div>
-      <div><strong>Cache hit rate looks low</strong><span>Not a bug — prefix affinity. Set <code>MINICC_PROMPT_CACHE_KEY</code> (or let the auto-derived key ride) and you will see 90%+ warm hits. Streaming or not does not matter; note chat/completions on some gateways never reports <code>cached_tokens</code>.</span></div>
+      <div><strong>Cache hit rate looks low</strong><span>Evidence first. Measured 2026-11-15 on this gateway (same key, same ~5.5k-token prefix): Responses streaming 94.5% → 100% (warm); chat/completions streaming <em>without</em> a key never reports <code>cached_tokens</code>; with a key both chat modes report it (5376/5509 = 97.5%). minicc always rides an auto-derived <code>prompt_cache_key</code> — agentic tasks measured 81~98%. “Shows non-stream” was the recovery lock, removed in M8-T879/897/900; “low hit rate” is the chat-stream non-report, not a failed cache.</span></div>
       <div><strong>Task appears stuck</strong><span>Ctrl/⌘+C in the terminal, or the Reset button in the workbench. The recovery path compacts a checkpoint — completed writes survive, the context continues.</span></div>
       <div><strong>Workspace not writable</strong><span>The default local sandbox needs write permission. You can also pick process or docker mode (<code>MINICC_SANDBOX</code>).</span></div>
       <div><strong>SSE drops</strong><span>Disable request-body buffering in your proxy (<code>X-Accel-Buffering: no</code> on the Spring Cloud plane). Direct local connections do not hit this.</span></div>

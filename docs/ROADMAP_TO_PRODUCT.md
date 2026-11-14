@@ -51653,3 +51653,38 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
 
 - `node scripts/update-latest-json.mjs` → `almanac_chapters: 10` ✓（`docs/latest.json` 由 bot 负责，未提交，保持机器所有）
 - doc_pointers ✓
+
+## 批次 949 - M8-T954：缓存亲矩阵实测固化 2026-11-15 —— 逐格重跑，三个误解结案
+
+### 1 背景
+
+用户再次报告："调用我的 OpenAI 大模型 API 时缓存命中率这么低，而且一直显示非流；好像显示流的时候缓存命中率好的多，肯定是调用方法出了问题。进行深度修正并且实测。" 2026-11-10 的 M8-T878 基线矩阵已定性，但用户要今天真烧并且要续。
+
+### 2 复核实测（wkapi.pro · gpt-6-sol · 真 key · 真烧）
+
+同一稳定前缀、temperature=0、逐格：
+
+| 线路 | stream=true | stream=false |
+| --- | --- | --- |
+| Responses（minicc 默认） | 18459/19526 = **94.5%**（冷）→ 19523/19526 = **100%**（热） | 18457/19524 = **94.5%** → 19521/19524 = **100%** |
+| Chat Completions 无 key | cached=**None**（3/3 从不上报） | 19584/19587 = **100.0%** |
+| Chat Completions 带 key（`minicc-measurement-lane-key-01`） | 冷 → 5376/5509 = **97.5%** | 5376/5509 = **97.5%** |
+| 直连 urllib（非 SDK） | HTTP **403 Forbidden**（TLS 指纹/UA 拒） | HTTP **403 Forbidden** |
+
+结论：
+1. 命中率「低」= chat 流式不回 cached_tokens 的显示产物，缓存实际在工作（延迟 9.9s→2.4s 证明）；
+2. 「显示非流」= 上次瞬态故障恢复锁，M8-T879 已永久移除；进度通道亦已按协议对称补齐（M8-T897/M8-T900）；
+3. 「显示流更好」此次**反证**：Responses 两路都上报且一致（94.5→100）；
+4. minicc 始终自动派生 `prompt_cache_key`（`sha256(base|model)`，跨进程稳定），真实 agentic 任务实测 **81~98%**；
+5. `completion_judge` 回合是结构性 0%（前缀独有证据包，不可共享 KV）——不应伪造共享前缀自评，这份 0% 如实保留。
+
+### 3 变更
+
+- 新增 `docs/CACHE_AFFINITY_MATRIX.md`：完整实测矩阵、复现配方（key 不入文档）、误解三条结案、`--doctor`/`--stats` 排查清单、与 T878/T879/T897/T900/T904 的血缘。
+- `web/src/panels/manual.js`（排错章节，双语逐字对应）：「缓存命中率低」条目更新为实测结论（2026-11-15 数据 + 3 条结论 + 恢复锁/T879-900 修复回溯）。
+- bundle 重建；i18n 579/218 ✓；check:web ✓。
+
+### 4 验证
+
+- 说明书真浏览器 zh/en 渲染更新后的「缓存命中率低 / Cache hit rate looks low」条目，无 console page errors ✓
+- `npm run test:i18n` ✓ · bundle 构建 + `check:web` ✓ · doc_pointers ✓

@@ -276,3 +276,5 @@
 - **集大成复核 2026-11-15，M8-T952**：`docs/CONSOLIDATION_REPORT.md` 增附录六——四条未合并分支与 2026-11-12 的处置结论逐条吻合（patch-id 差集实测）；`origin/m8-t537` 与 `origin/integration/m8-t537-to-main` 被确认为纯子集，已吸收入 `main`；`consolidated/*` 标签 7 枚原样存在；M8-T945–T951 全部落入 `origin/main`（最新 `7307cea`）。结论：`main` 就是汇集后的主分支，不造空 merge、不删 worktree。
 
 - **事实包年鉴章节数按源码计数，M8-T953**：`scripts/update-latest-json.mjs` 的 `almanac_chapters: 9` 字面量腐坏已根治——改为从 `web/src/panels/almanac.js` 数 `roman:`（真章数），展示页所见现在等于真年鉴卷数（10）。
+
+- **缓存亲矩阵实测固化，M8-T954**：docs/CACHE_AFFINITY_MATRIX.md——wkapi.pro · gpt-6-sol · 真 key 逐格（2026-11-15）：Responses 流/非流 94.5%→100% 都如实上报；chat/completions 无 key 流式永不回 cached_tokens（3/3），带 key 后两路都报（5376/5509=97.5%）；直连 urllib 被 403（TLS 指纹）。三误解结案：「命中率低」= 流式不上报的显示产物（缓存实际在工作）、「显示非流」= 已移除的恢复锁、judge 0% 属结构性（前缀独有，不自评）。说明书排错条目同步为实测结论（双语逐字对应）。
