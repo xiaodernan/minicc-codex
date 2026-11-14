@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T22:03:41.174Z",
+  "generated_at": "2026-11-14T22:31:51.436Z",
   "branch": "main",
-  "head": "61357a0",
-  "total_commits": 1530,
+  "head": "bc60608",
+  "total_commits": 1532,
   "recent_commits": [
+    {
+      "short": "bc60608",
+      "at": "2026-11-15T06:31:21+08:00",
+      "subject": "M8-T975: 'Ask the Repo' panel - BM25 top-k over repo docs + real model answer via /api/rag/query (chunk citation, real usage, no fabricated cached_tokens); Chin"
+    },
+    {
+      "short": "c40d20d",
+      "at": "2026-11-14T22:03:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "61357a0",
       "at": "2026-11-15T06:03:20+08:00",
@@ -19,24 +29,14 @@
       "short": "47ac03a",
       "at": "2026-11-15T05:48:00+08:00",
       "subject": "M8-T973: /api/rag/query - full RAG pipeline (BM25 top-k + wkapi.pro chat completions); real-key measured roundtrip 280ms, 19k tokens prompt, sources hit CHANGEL"
-    },
-    {
-      "short": "7d7b929",
-      "at": "2026-11-14T21:22:36Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9f285a9",
-      "at": "2026-11-15T05:22:06+08:00",
-      "subject": "M8-T971: /api/rag/search - in-process Okapi BM25 over the repo-docs corpus, zero deps, lazy index (0.49s load / 0.08s cached), route coverage 25/25; 94 http_sur"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 291,
+  "roadmap_batches": 292,
   "changelog_entries": 1,
-  "roadmap_lines": 52104,
-  "tracked_files": 1059,
-  "test_files": 703,
+  "roadmap_lines": 52133,
+  "tracked_files": 1061,
+  "test_files": 704,
   "almanac_chapters": 12,
   "module_count": 14,
   "feature_surface": [
