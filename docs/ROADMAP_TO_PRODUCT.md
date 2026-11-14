@@ -50940,3 +50940,32 @@ CI 两条 Python 腿无限期挂在 `Run test suite`（直到本批之前从未�
 
 `minicc/web.py`、`minicc/webserver.py`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、
 content-addressed bundle
+
+## 批次 923 - M8-T923：route_coverage 门红 → 绿 — `/api/stats` 有专门的行为级用例
+
+### 1 起因（CI T922b 的 Claim checkers）
+
+`scripts/route_coverage.py --check` 跑被门控的两条 HTTP 测试模块时红：
+`test_every_api_route_is_named_by_a_python_test`——本批新增的 `/api/stats` 路由在
+`tests/` 里没有被任何测试文件具名，`tests/test_http_surface.py:1006` 断言失败。
+`route_coverage` 是 claim 检查的一环（doc pointers + route coverage + impact floor），
+每加一条精确 `/api/` 路由都必须在 Python 侧有具名化证据。
+
+### 2 做了什么
+
+- `tests/test_http_surface.py` — 新增 `test_get_stats_answers_the_operational_inventory`
+  （独立具名 `/api/stats`）：HTTP 200、`state_dir_present=false`（全新 tmp 工作区）、
+  `audit.present=false`、`tasks.present=false`、`sessions.count=0`、`disk_bytes=0`、
+  `cache.live_backend=false`、`local_capacity=4096`、`llm_cache` 在场。
+  因并行会话一度把本文件截断为 0 字节，`git checkout HEAD -- tests/test_http_surface.py`
+  复原后**重新落笔**，diff 严格 +16 行。
+
+### 3 验证
+
+- `pytest tests/test_http_surface.py -k stats` → **1 passed**
+- 按 CI 命令原样复跑 `python scripts/route_coverage.py --check` →
+  **91 passed + 100% GET / POST dispatch sites entered (22/22 / 14/14)，exit 0**
+
+### 4 文件
+
+`tests/test_http_surface.py`

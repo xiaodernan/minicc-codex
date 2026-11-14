@@ -694,6 +694,22 @@ def test_api_rpc_notification_returns_204(live: _LiveServer, tmp_path: Path) -> 
 # ---------------------------------------------------------------------------
 
 
+def test_get_stats_answers_the_operational_inventory(live: _LiveServer) -> None:
+    """M8-T922: the HTTP twin of `minicc --stats` — the route the pulse
+    panel has been calling for months, finally real."""
+    status, _, body = _request(f"{live.url}/api/stats", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["state_dir_present"] is False  # fresh tmp workspace has no .minicc
+    assert payload["audit"]["present"] is False
+    assert payload["tasks"]["present"] is False
+    assert payload["sessions"]["count"] == 0
+    assert payload["disk_bytes"] == 0
+    assert payload["cache"]["live_backend"] is False
+    assert payload["cache"]["local_capacity"] == 4096
+    assert "llm_cache" in payload
+
+
 def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:
     status, _, body = _request(f"{live.url}/api/models", method="GET")
     assert status == 200
