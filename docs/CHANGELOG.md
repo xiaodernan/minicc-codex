@@ -284,3 +284,5 @@
 - **年鉴卷十「未竟 / The Unfinished」，M8-T956**：`web/src/panels/almanac.js` 新增第十一卷——「这册子还没写完，它正在写」。仪器盘（提交总数 / 批次章节 / 当前北极星现场值）+ 按 digest 流式渲染的「最近的交付」(6 条真实提交）+ 双语正文：缺口编号不是葬送，是还没决定要盖什么。说明书/README 年鉴升至十一卷；almanac smoke 11 章全绿（marker 断言）；zh/en 真浏览器双验（hydrate 提交 1498 · 批次 275 · 当前 north star 9842116）。
 
 - **/api/digest 并发 git 探针，M8-T957**：`minicc/digest.py 的 build_digest` 的 9 个独立只读 git 子进程改为 `ThreadPoolExecutor(max_workers=9)` 并发 + 根提交用单次 `git log --max-parents=0 -n 1 --format=%cI HEAD`；cProfile 实测 wall clock 1.34s（87% 是 subprocess 等待）→ ~0.5–0.6s；`/api/digest` 现场连续 5 次 **0.59/0.59/0.67/0.61/0.58s**，payload 逐字段不变。
+
+- **年鉴数字两波刷新，M8-T958**：`web/src/panels/almanac.js` 的 `loadChapter` 拆为 two waves——fast：等 metrics+digest（<1s）立即重渲染；slow：stats 到了同章刷新、异章丢弃。切章到数字可见从 ~9.8s → **~1.7s**（实测切片：0.66 占位 → 1.67 digest 数字 → 5.68 stats 数字）；M8-T951 的 60s TTL 与切换即时性不受影响。

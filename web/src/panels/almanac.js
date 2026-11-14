@@ -602,16 +602,19 @@ async function loadChapter(id) {
   const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = renderer(metricsCache);
   refreshIcons();
-  // Phase 2: fetch fresh numbers (cache-per-minute); re-render only if the
-  // user is still on this chapter. /api/stats can take seconds on a big
-  // .minicc tree — 20s is deliberate, phase 1 already rendered.
+  // Phase 2: fetch metrics+digest (the fast path) and stats (the slow
+  // path) separately — metrics and digest are usually < 1s, /api/stats
+  // can take seconds on a big .minicc tree; the panel must never hold
+  // digest-driven numbers hostage to stats' latency.
   const now = Date.now();
   const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
   const wantStats = statsCache == null || now - statsFetchedAt > HYDRATE_TTL_MS;
-  const [metrics, digest, stats] = await Promise.all([
+  const statsPromise = wantStats
+    ? requestJson("/api/stats", {}, 20000).catch(() => null)
+    : Promise.resolve(null);
+  const [metrics, digest] = await Promise.all([
     requestJson("/api/metrics", {}, 15000).catch(() => null),
     wantDigest ? requestJson("/api/digest", {}, 20000).catch(() => null) : Promise.resolve(null),
-    wantStats ? requestJson("/api/stats", {}, 20000).catch(() => null) : Promise.resolve(null),
   ]);
   if (currentChapter !== id) return;
   if (metrics) metricsCache = metrics;
@@ -619,12 +622,17 @@ async function loadChapter(id) {
     digestCache = digest;
     digestFetchedAt = Date.now();
   }
-  if (stats) {
-    statsCache = stats;
-    statsFetchedAt = Date.now();
-  }
-  const hydrated = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
-  slot.innerHTML = hydrated(metricsCache);
+  const fast = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+  slot.innerHTML = fast(metricsCache);
+  refreshIcons();
+  // The stats leg re-renders the same chapter with fresh numbers; any
+  // other chapter switch aborts it.
+  const maybeStats = await statsPromise;
+  if (!maybeStats || currentChapter !== id) return;
+  statsCache = maybeStats;
+  statsFetchedAt = Date.now();
+  const slow = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+  slot.innerHTML = slow(metricsCache);
   refreshIcons();
 }
 

@@ -2847,10 +2847,10 @@
     const now = Date.now();
     const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
     const wantStats = statsCache == null || now - statsFetchedAt > HYDRATE_TTL_MS;
-    const [metrics, digest, stats] = await Promise.all([
+    const statsPromise = wantStats ? requestJson("/api/stats", {}, 2e4).catch(() => null) : Promise.resolve(null);
+    const [metrics, digest] = await Promise.all([
       requestJson("/api/metrics", {}, 15e3).catch(() => null),
-      wantDigest ? requestJson("/api/digest", {}, 2e4).catch(() => null) : Promise.resolve(null),
-      wantStats ? requestJson("/api/stats", {}, 2e4).catch(() => null) : Promise.resolve(null)
+      wantDigest ? requestJson("/api/digest", {}, 2e4).catch(() => null) : Promise.resolve(null)
     ]);
     if (currentChapter !== id) return;
     if (metrics) metricsCache = metrics;
@@ -2858,12 +2858,15 @@
       digestCache = digest;
       digestFetchedAt = Date.now();
     }
-    if (stats) {
-      statsCache = stats;
-      statsFetchedAt = Date.now();
-    }
-    const hydrated = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
-    slot.innerHTML = hydrated(metricsCache);
+    const fast = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+    slot.innerHTML = fast(metricsCache);
+    refreshIcons();
+    const maybeStats = await statsPromise;
+    if (!maybeStats || currentChapter !== id) return;
+    statsCache = maybeStats;
+    statsFetchedAt = Date.now();
+    const slow = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+    slot.innerHTML = slow(metricsCache);
     refreshIcons();
   }
   async function openAlmanacPanel() {

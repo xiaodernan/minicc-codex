@@ -51751,3 +51751,22 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
 - 连续 5 次 `/api/digest`（fake provider，loopback）：**0.59 / 0.59 / 0.67 / 0.61 / 0.58 秒**；对比优化前 ~1.3–2s；payload 一致（head=7ccdf97 · commits=1499 · batches=276 · test_files=702）
 - cProfile 对比：`cumtime` 从 1.34s → ~0.5s，全程 0 个 subprocess 等锁（线程直接消费）
 - 失败路径行为不变：非 git 工作区/缺失二进制仍然 fail-close 到 `null` 字段
+
+## 批次 953 - M8-T958：年鉴数字分两波 —— digest 1.7s 见屏，stats 随后补
+
+### 1 背景
+
+M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第一次依然被 `/api/stats` 钉死——digest 和 stats 在 `Promise.all` 里回车，stats 在这个 .minicc 上 4–14s，整个数字块必须等它。新近把 digest 从 1.3s 压到 ~0.6s（M8-T957）之后，原因就只剩一条：stats 是 long pole，合并等待等于把快填慢等。
+
+### 2 变更
+
+- `web/src/panels/almanac.js`：phase-2 拆成两波
+  - **fast wave**：等 `/api/metrics` + `/api/digest`（各 <1s）→ 立刻重渲染（提交 / 批次 / HEAD / 最近提交 shipments / 仪器盘）
+  - **slow wave**：等 `/api/stats` → 同一章节再用最新数字刷新一次；用户如果已经切到别章就直接丢弃
+- hydrate TTL（60s）不变；切章节即时性不变；不新增字典键。
+- 真实前端（fake provider 真浏览器）：切「技艺」章后 **t=0.66s** 先见占位（em-dash），**t=1.67s** digest 数字全部到位（提交 1501 · 批次 277 · 跟踪 1052 · 测试 702），**t=5.68s** 审计 1468 补上。从「点→数字」从 ~9.8s 降至 ~1.7s（可见）+ stats 尾波。
+
+### 3 验证
+
+- 真浏览器时间线探针（8 个时间切片）：0.66 → 1.67 → 3.18 → 5.68 → 9.69…s 逐段赋值 ✓
+- `npm run test:almanac`（11 章、双语、marker 断言，无混语）✓ · `npm run test:web` ✓ · `npm run test:i18n`（581/218）✓ · `npm run check:web` ✓
