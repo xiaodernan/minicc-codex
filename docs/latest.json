@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T19:07:44.005Z",
+  "generated_at": "2026-11-14T19:33:55.526Z",
   "branch": "main",
-  "head": "a032ad8",
-  "total_commits": 1509,
+  "head": "d942584",
+  "total_commits": 1511,
   "recent_commits": [
+    {
+      "short": "d942584",
+      "at": "2026-11-15T03:33:29+08:00",
+      "subject": "M8-T963: live-prove the Spring Cloud plane's two pub/sub and cache rails - CacheInvalidationRoundTripLiveTest green against docker RabbitMQ, Redis token bucket "
+    },
+    {
+      "short": "dc99e4b",
+      "at": "2026-11-14T19:07:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a032ad8",
       "at": "2026-11-15T03:07:05+08:00",
@@ -19,22 +29,12 @@
       "short": "49335be",
       "at": "2026-11-15T02:51:33+08:00",
       "subject": "M8-T961: The Keys & Vault chapter - the full credential journey in the manual (gitignored .env, --doctor, affinity-safe gateway switch, hit_pct receipts, cost_i"
-    },
-    {
-      "short": "bee4176",
-      "at": "2026-11-14T18:43:00Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9277dc3",
-      "at": "2026-11-15T02:42:36+08:00",
-      "subject": "M8-T960: '/' filters the recent-task list in the sidebar - live debounced search, Enter opens first match, Esc clears, MutationObserver re-applies across the hi"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 281,
+  "roadmap_batches": 282,
   "changelog_entries": 1,
-  "roadmap_lines": 51836,
+  "roadmap_lines": 51868,
   "tracked_files": 1053,
   "test_files": 702,
   "almanac_chapters": 11,
