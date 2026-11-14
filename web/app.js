@@ -733,6 +733,18 @@
       "nav.almanac": "\u5E74\u9274",
       "panel.canvas": "\u8FD4\u56DE",
       "send": "\u53D1\u9001",
+      "replay.action": "\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1",
+      "replay.back": "\u8FD4\u56DE\u8BE6\u60C5",
+      "replay.close": "\u5173\u95ED\u56DE\u653E",
+      "replay.tokens": "tokens",
+      "replay.rows": "\u4E8B\u4EF6",
+      "replay.tokensLive": "\u7D2F\u8BA1 tokens",
+      "replay.progress": "\u64AD\u653E\u8FDB\u5EA6",
+      "replay.done": "\u56DE\u653E\u5B8C\u6210",
+      "replay.empty": "\u8FD9\u4E2A\u4EFB\u52A1\u6CA1\u6709\u53EF\u56DE\u653E\u7684\u4E8B\u4EF6\u8BB0\u5F55\u3002",
+      "replay.toggle": "\u64AD\u653E / \u6682\u505C",
+      "replay.scrub": "\u62D6\u62FD\u8FDB\u5EA6",
+      "replay.aria": "\u4EFB\u52A1\u56DE\u653E",
       "pulse.timelineOld": "\u8F83\u65E9",
       "pulse.timelineNew": "\u6700\u65B0",
       "pulse.timelineEmpty": "\u8FD8\u6CA1\u6709\u53EF\u753B\u7684\u65F6\u95F4\u8F74"
@@ -1210,6 +1222,18 @@
       "nav.almanac": "Almanac",
       "panel.canvas": "Back",
       "send": "Send",
+      "replay.action": "Replay the run",
+      "replay.back": "Back to task",
+      "replay.close": "Close replay",
+      "replay.tokens": "tokens",
+      "replay.rows": "events",
+      "replay.tokensLive": "Accumulated tokens",
+      "replay.progress": "Progress",
+      "replay.done": "Replay complete",
+      "replay.empty": "No replayable event history for this task.",
+      "replay.toggle": "Play / pause",
+      "replay.scrub": "Seek",
+      "replay.aria": "Task replay",
       "pulse.timelineOld": "older",
       "pulse.timelineNew": "latest",
       "pulse.timelineEmpty": "No timeline yet"
@@ -2895,7 +2919,7 @@
       const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>` : "";
       const restore = `<button class="panel-secondary" data-restore-task="${escapeHtml(task.task_id)}">${icon("rotate-ccw")} ${escapeHtml(t("restore.action"))}</button>`;
       const attachments = attachmentMarkup(task.attachments || []);
-      openPanel(`${t("tasks.open")} \xB7 ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+      openPanel(`${t("tasks.open")} \xB7 ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button><button class="panel-secondary" data-replay-task="${escapeHtml(task.task_id)}">${icon("play")} ${escapeHtml(t("replay.action"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
     } catch (error) {
       if (!current()) return;
       openPanel(t("tasks.open"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
@@ -6202,6 +6226,166 @@
     });
   }
 
+  // web/src/panels/replay.js
+  var MAX_ROWS = 60;
+  var DELAYS = { 1: 650, 2: 320, 4: 160 };
+  function tokenTotalOf(task) {
+    const total = Number(task?.tokens_used?.total_tokens ?? task?.metrics?.budget?.tokens ?? 0);
+    return Number.isFinite(total) ? Math.max(0, total) : 0;
+  }
+  function eventRow(event, index) {
+    const code = String(event?.code ?? "") || String(event?.kind ?? "") || "event";
+    const summary = String(event?.summary ?? event?.detail?.text ?? "").trim();
+    const kind = String(event?.kind ?? "");
+    const tone = kind === "status" || kind === "result" ? "status" : kind === "usage" ? "usage" : "step";
+    return `<li class="replay-row replay-row-${tone}" style="--row-index:${index}"><span class="replay-row-index">#${String(index + 1).padStart(2, "0")}</span><code class="replay-row-code">${escapeHtml(code)}</code><span class="replay-row-text">${escapeHtml(summary)}</span></li>`;
+  }
+  function openReplayView(task, onBack) {
+    const events = compactModelUpdateEvents(Array.isArray(task.events) ? task.events : []);
+    const totalTokens = tokenTotalOf(task);
+    const capped = events.length > MAX_ROWS ? events.slice(-MAX_ROWS) : events;
+    const rows = capped.length ? capped.map((event, index2) => eventRow(event, index2)).join("") : `<li class="replay-row replay-row-empty"><span class="replay-row-text">${escapeHtml(t("replay.empty"))}</span></li>`;
+    const title = String(task.preview || task.prompt || task.task_id || "").slice(0, 90);
+    const total = capped.length;
+    const overlay = document.createElement("div");
+    overlay.className = "replay-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", t("replay.aria"));
+    overlay.innerHTML = `
+    <header class="replay-head">
+      <div class="replay-head-copy">
+        <span class="replay-kicker">REPLAY \xB7 ${escapeHtml(String(task.task_id ?? ""))}</span>
+        <h2 class="replay-title">${escapeHtml(title)}</h2>
+        <div class="replay-sub">${compactNumber(totalTokens)} ${escapeHtml(t("replay.tokens"))} \xB7 ${escapeHtml(t("replay.rows"))}: ${total}</div>
+      </div>
+      <div class="replay-head-actions">
+        <button type="button" class="panel-secondary" data-replay-action="back">${icon("arrow-left")} ${escapeHtml(t("replay.back"))}</button>
+        <button type="button" class="icon-button" aria-label="${escapeHtml(t("replay.close"))}" data-replay-action="close">${icon("x")}</button>
+      </div>
+    </header>
+    <div class="replay-stage">
+      <ol class="replay-log" id="replayLog">${rows}</ol>
+      <aside class="replay-side" aria-hidden="true">
+        <div class="replay-big" id="replayTokens">0</div>
+        <div class="replay-label">${escapeHtml(t("replay.tokensLive"))}</div>
+        <div class="replay-turn"><span id="replayStep">0</span><span class="replay-turn-total">/ ${total}</span></div>
+        <div class="replay-label">${escapeHtml(t("replay.progress"))}</div>
+        <div class="replay-stamp" id="replayStamp" hidden>${icon("check-circle-2")} ${escapeHtml(t("replay.done"))}</div>
+      </aside>
+    </div>
+    <footer class="replay-foot">
+      <button type="button" class="replay-play" id="replayPlayButton" data-replay-action="toggle" aria-label="${escapeHtml(t("replay.toggle"))}">${icon("play")}</button>
+      <input type="range" class="replay-scrub" id="replayScrub" min="0" max="${total}" value="0" step="1" aria-label="${escapeHtml(t("replay.scrub"))}">
+      <button type="button" class="replay-speed" data-replay-action="speed" id="replaySpeed">1\xD7</button>
+      <div class="replay-count"><span id="replayCount">0</span> / ${total}</div>
+    </footer>
+  `;
+    document.body.appendChild(overlay);
+    refreshIcons();
+    const log = overlay.querySelector("#replayLog");
+    const rowsEl = [...log.querySelectorAll(".replay-row")];
+    const tokensEl = overlay.querySelector("#replayTokens");
+    const stepEl = overlay.querySelector("#replayStep");
+    const countEl = overlay.querySelector("#replayCount");
+    const stampEl = overlay.querySelector("#replayStamp");
+    const scrubEl = overlay.querySelector("#replayScrub");
+    const playButton = overlay.querySelector("#replayPlayButton");
+    const speedButton = overlay.querySelector("#replaySpeed");
+    let index = 0;
+    let playing = true;
+    let speed = 1;
+    let timer = null;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    function paint(through) {
+      rowsEl.forEach((row, rowIndex) => {
+        row.classList.toggle("replay-row-visible", rowIndex < through);
+      });
+      const fraction = total > 0 ? through / total : 0;
+      tokensEl.textContent = compactNumber(Math.round(totalTokens * fraction));
+      stepEl.textContent = String(through);
+      countEl.textContent = String(through);
+      scrubEl.value = String(through);
+      if (through >= total) stampEl.hidden = false;
+      else stampEl.hidden = true;
+      const last = log.querySelector(".replay-row-visible:last-child");
+      if (last && !reducedMotion) last.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    function clearTimer() {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+    function setPlaying(next) {
+      playing = next;
+      playButton.innerHTML = playing ? icon("pause") : icon("play");
+      refreshIcons();
+      clearTimer();
+      if (!playing) return;
+      timer = setInterval(() => {
+        if (index >= total) {
+          clearTimer();
+          playButton.innerHTML = icon("rotate-ccw");
+          refreshIcons();
+          playing = false;
+          return;
+        }
+        index += 1;
+        paint(index);
+      }, DELAYS[speed]);
+    }
+    function close() {
+      clearTimer();
+      document.removeEventListener("keydown", onKeydown, true);
+      overlay.remove();
+    }
+    function onKeydown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+    }
+    document.addEventListener("keydown", onKeydown, true);
+    overlay.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-replay-action]");
+      if (!target) return;
+      const action = target.getAttribute("data-replay-action");
+      if (action === "close") close();
+      else if (action === "back") {
+        close();
+        if (typeof onBack === "function") onBack();
+      } else if (action === "toggle") {
+        if (index >= total && !playing) {
+          index = 0;
+          paint(0);
+          setPlaying(true);
+          return;
+        }
+        setPlaying(!playing);
+      } else if (action === "speed") {
+        speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
+        speedButton.textContent = `${speed}\xD7`;
+        if (playing) setPlaying(true);
+      }
+    });
+    scrubEl.addEventListener("input", () => {
+      clearTimer();
+      playing = false;
+      playButton.innerHTML = icon("play");
+      refreshIcons();
+      index = Number(scrubEl.value) || 0;
+      paint(index);
+    });
+    paint(0);
+    setPlaying(total > 0);
+    playButton.focus({ preventScroll: true });
+  }
+  async function openReplayForTask(taskId, onBack) {
+    const task = await requestJson(`/api/tasks/${encodeURIComponent(String(taskId ?? ""))}`);
+    openReplayView(task, onBack);
+  }
+
   // web/src/main.js
   function bindUI() {
     window.addEventListener("minicc-auth-required", showAuthModal);
@@ -6550,8 +6734,16 @@
         openFilePreview(pathNode.textContent.trim());
         return;
       }
-      const target = event.target.closest("[data-cancel-task], [data-resume-task], [data-open-task], [data-open-detail], [data-select-workspace], [data-remove-worktree], [data-set-locale], [data-switch-session], [data-panel-action]");
+      const target = event.target.closest("[data-cancel-task], [data-resume-task], [data-open-task], [data-open-detail], [data-replay-task], [data-select-workspace], [data-remove-worktree], [data-set-locale], [data-switch-session], [data-panel-action]");
       if (!target) return;
+      if (target.dataset.replayTask) {
+        try {
+          await openReplayForTask(target.dataset.replayTask, () => openTaskDetail(target.dataset.replayTask));
+        } catch (error) {
+          showToast(error.message);
+        }
+        return;
+      }
       if (target.dataset.openDetail) {
         openTaskDetail(target.dataset.openDetail);
         return;

@@ -11,6 +11,7 @@ import { copyFilePreviewContent, looksLikeWorkspacePath, openFilePreview } from 
 import { applyIcons, icon, refreshIcons } from "./icons.js";
 import { bindCommandPalette, closeCommandPalette, openCommandPalette } from "./core/command-palette.js";
 import { handleFileTreeKeydown } from "./panels/index.js";
+import { openReplayForTask } from "./panels/replay.js";
 import { PERMISSION_MODES, addAssistantMessage, addLoadingMessage, addUserMessage, applyMentionOption, assistantMessageMarkup, bindRunningTask, closeMentionPopover, effectiveTaskPermissions, eventTimelineMarkup, handleMentionKeydown, mentionState, openGlobalSearchPanel, refreshFileTree, scrollChat, setBusy, setPermissionMode, setSession, showAuthModal, showToast, stopTaskTimer, submitAuthToken, taskSessionKey, toggleFileDir, toggleTodoSection, updateChatFollowState, updateMentionPopover, updateMode, updateReasoningControl, updateTaskDock, visibleAgentEvents } from "./panels/index.js";
 
 export function bindUI() {
@@ -307,8 +308,9 @@ export function bindUI() {
       openFilePreview(pathNode.textContent.trim());
       return;
     }
-    const target = event.target.closest("[data-cancel-task], [data-resume-task], [data-open-task], [data-open-detail], [data-select-workspace], [data-remove-worktree], [data-set-locale], [data-switch-session], [data-panel-action]");
+    const target = event.target.closest("[data-cancel-task], [data-resume-task], [data-open-task], [data-open-detail], [data-replay-task], [data-select-workspace], [data-remove-worktree], [data-set-locale], [data-switch-session], [data-panel-action]");
     if (!target) return;
+    if (target.dataset.replayTask) { try { await openReplayForTask(target.dataset.replayTask, () => openTaskDetail(target.dataset.replayTask)); } catch (error) { showToast(error.message); } return; }
     if (target.dataset.openDetail) { openTaskDetail(target.dataset.openDetail); return; }
     if (target.dataset.resumeTask) {
       try {

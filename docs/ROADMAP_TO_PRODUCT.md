@@ -50596,3 +50596,44 @@ M8-T898 的年鉴序章问的是"这个世界是什么"——却只有文字。M
 ### 4 文件
 
 `web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
+
+## 批次 912 - M8-T912：「回放 · Replay the Run」— 任务详情里的整段影片：整场任务 intake→deliver 可像电影一样重播
+
+### 1 为什么
+
+年鉴第七页讲过一句话："video remembering —— 每个任务从 intake 到 deliver 的完整时间轴，已经是了。"
+但那时它只是详情模态里的一串静态事件行。M8-T912 把它做成真的回放：
+**任务详情 → 「回放整个任务」按钮 → 全屏放映席**——事件逐行浮现、tokens 累加动画、进度可拖、速度可调。
+交付过程不再是一份日志，而是一部可以重播的电影。
+
+### 2 做了什么
+
+- **`web/src/panels/replay.js`（新增）** — 完整的回放模块：
+  - 数据：复用 `compactModelUpdateEvents(task.events)`（与聊天时间轴同一可见性口径，model_update 折叠策略
+    一致），老快照无事件时诚实显示空态（`t("replay.empty")`）；
+  - 渲染：每行 `#序 · code 徽章 · summary`，按事件类型左色条（step=coral / status=mint / usage=amber），
+    入场动画 translateY+fade（`prefers-reduced-motion` 下禁用），自动滚动；
+  - 侧栏读数：累计 tokens（按已播进度线性填充，tabular-nums 等宽数字）、步数进度、完成蜡封
+    （`#replayStamp`，全程通关后亮相，mint 描边 + 入场弹簧动画）；
+  - 控制台：播放/暂停、scrubber（拖拽即跳转，暂停并重绘）、倍速循环 1×→2×→4×、返回详情（回调重开 detail 面板）、
+    Esc 关闭（自挂 keydown，关闭时卸载）；全部走既有 `requestJson("/api/tasks/<id>")`，零新后端；
+  - 行数上限 60（`MAX_ROWS`，超出取最近 60 行），防止超长任务撑爆 DOM。
+- **任务详情模态**（`web/src/chat/stream.js`）：顶部操作区新增「▶ 回放整个任务」（`data-replay-task`）。
+- **入口委托**（`web/src/main.js`）：`data-replay-task` 加入全局点击委托；`openReplayForTask` 拉取详情后开罩，
+  `onBack` 回调用 `openTaskDetail` 原路返回——回放与详情之间零状态分叉。
+- **i18n**：`replay.*` 12 个键 × zh/en 全量（含 aria 标签）。
+- **样式**：`.replay-*` 一整套（fixed 全屏 ink→coral 径向光场、左栏事件流 + 右栏读数、
+  底部拟真 transport 控制台、980/700px 两级响应式、reduced-motion 降级）。
+
+### 3 验证
+
+- **真实浏览器探针**（chromium headless）：活动→任务详情→点「回放整个任务」→
+  自动播放 0→2 行、tokens 读数 3.5k→与全程对比 ✓、scrub 拖到末尾 10/10 行全显 + 完成蜡封亮起 ✓、
+  「返回详情」→ 详情模态重开、罩层移除 ✓、重开后 Esc 关闭 ✓、零 pageerror
+- 全部 22 个 `npm run test:*` 门绿（含新接入的 prefixstrip），`npm run check:web` up to date
+- `node --check` 传、`test:i18n`（12 新键双语对齐）绿
+
+### 4 文件
+
+`web/src/panels/replay.js`（新增）、`web/src/chat/stream.js`、`web/src/main.js`、`web/src/core/i18n.js`、
+`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
