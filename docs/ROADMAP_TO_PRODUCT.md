@@ -51578,3 +51578,22 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 - `npm run test:almanac` → `almanac smoke passed: 10 chapters render fully bilingual, chapter switching verified, no mixed-language prose` ✓
 - 真实 fake-provider 浏览器换章探针：`craft` →「卷九 · 技艺」/ `witness` →「卷八 · 证人」/ `spark` →「卷一 · 火种」，均即时渲染 ✓
 - `npm run test:web` → web smoke passed ✓ · `npm run check:web` → bundle + assets clean ✓
+
+## 批次 945 - M8-T950：/api/stats 磁盘统计两分钟一读 + 测试按机器隔离
+
+### 1 背景
+
+M8-T949 把年鉴换章改成两阶段渲染后，`/api/stats` 仍以「每次请求全盘 os.walk 322MB」为代价，322MB / 8240 文件走一遍实测 **2.76s**（这台机器更高，首次 14.5s）。脉搏/年鉴/CLI --stats 都在轮询它；连续慢请求会在单 worker 上叠压。另一个事实：`test_an_absent_store_is_reported_absent_and_not_created` 在任何跑过真实任务的开发机上必红——它把 `workspace=cwd` 留空，让共享 home 存储里的 17 条真实任务行把「absent」报告成「present」，而 runner 上是绿的。
+
+### 2 变更
+
+- `minicc/stats.py`：`_disk_bytes` 加 **120s monotonic TTL 缓存**（按 `str(path)` 键），`/api/stats` 的硬盘部分不再每次请求重复全盘扫描；审计行/任务/会话等实时部分不缓存。实测首问 14.47s（这台机器抖动值）→ 次问 **1.22s**，byte 数一致。
+- `tests/test_a_session_cost_that_cannot_open_its_store_is_not_a_session_without_tasks.py`：`_task_stats(state)` → `_task_stats(state, tmp_path)`，测试主题「absent 就是 absent、不创建文件」不变，只把工作区根钉到 tmp 目录里——机器共有的 home store 再填满也不会污染。
+- `README.md`：年鉴 9→10 卷（含 Craft）、档案馆 257→269 批次章节、删除重复的档案馆条目——全部对上现场事实。
+
+### 3 验证
+
+- `pytest tests/test_a_session_cost_that_cannot_open_its_store_is_not_a_session_without_tasks.py` → **9 passed** ✓
+- `pytest tests/test_http_surface.py -k stats` → **1 passed** ✓
+- `minicc.stats.gather('.')` 连调两次：第二次 1.22s、disk_bytes 一致 ✓
+- doc_pointers ✓

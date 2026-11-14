@@ -197,7 +197,11 @@ def test_an_absent_store_is_reported_absent_and_not_created(tmp_path: Path) -> N
     state = tmp_path / "state"
     state.mkdir()
 
-    reported = _task_stats(state)
+    # Hermetic: pin the workspace root to this tmp dir — without it the probe
+    # falls back to the developer's cwd and answers "present" from matching
+    # rows in the shared home store (which hard-fails on a machine that ran
+    # real work), while staying green on a clean runner.
+    reported = _task_stats(state, tmp_path)
 
     assert reported["present"] is False, reported
     assert reported["total"] == 0, reported

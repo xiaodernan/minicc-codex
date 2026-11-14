@@ -268,3 +268,5 @@
 - **手册游戏厅章 · 冲关心法，M8-T948**：新手册「wave-by-wave」条目按实际 `WAVE_TARGET(wave,'hard')` 直录 Wave 1–10 目标数：walker 1–9 / conehead+buckethead 6–9 / Wave 10 Gargantuar；economy 条揭露阳光 2–4/s、wallnut 吸收 3–4 波、撑杆跳只越第一个 plant、magnetshroom 拔锥桶、squash 强制击杀。中英并行，en 不混 CJK。
 
 - **年鉴卷九「技艺 / The Craft」+ 换章两阶段渲染 + palette 门修复，M8-T949**：新增年鉴卷九——提交数 / 批次章节 / 审计行数 / 跟踪文件 / 测试文件从现场 digest+stats 读出（"没有草图，只有舰艏字。"）。换章 bug 真因定位：`loadChapter` 等待 `/api/stats`（322MB 状态目录上可超时）才注入 innerHTML——改为两阶段：先用缓存即时渲染，新数字 8s 超时兜底、仅当用户仍停留在本章时刷新；`/api/stats` 孤立慢点不再冻结整个面板。almanac smoke 加 `craft` + 每章 marker 断言（canvas 必须渲染本章，根治「冻结伪装通过」）。palette 门修复：8 个 celebration-spark 运行时 CSS 变量登记豁免（均有 `setProperty` 书写证据，门不弱化），删除死属性 `--hue`；`test_the_palette_has_one_home` → 5 passed。
+
+- **/api/stats 磁盘统计 TTL 缓存 + 测试隔离，M8-T950**：`minicc/stats.py 的 _disk_bytes` 加 120s monotonic TTL 缓存（首问抖动 2.8–14.5s → 次问 1.22s，byte 计数一致）；`test_an_absent_store_*` 改为钉住 `tmp_path` 工作区根——此前在任何跑过真实任务的开发机上会被共享 home store 污染成失败（runner 上是绿的）；README 年鉴 9→10 卷、档案馆 257→269 批次章节并删除重复条目。

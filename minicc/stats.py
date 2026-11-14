@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -176,7 +177,23 @@ def _llm_cache_stats(state: Path, workspace: Path | None = None) -> dict[str, An
     return out
 
 
+_DISK_TTL_SECONDS = 120.0
+# Monotonic-clock cache of the "walk .minicc and count bytes" scan. The
+# tree routinely holds 322MB in thousands of files and the walk is the
+# slowest part of the inventory; every caller polling /api/stats for
+# dashboard freshness was paying it back-to-back. Counted bytes change
+# slowly; a two-minute answer is honest about being a two-minute answer.
+_disk_cache: dict[str, tuple[float, int]] = {}
+
+
 def _disk_bytes(path: Path) -> int:
+    key = str(path)
+    now = time.monotonic()
+    cached = _disk_cache.get(key)
+    if cached is not None:
+        at, total = cached
+        if now - at < _DISK_TTL_SECONDS:
+            return total
     total = 0
     for dirpath, _dirs, files in os.walk(path):
         for name in files:
@@ -185,7 +202,8 @@ def _disk_bytes(path: Path) -> int:
             except OSError:
                 # A file vanished mid-walk; count what we saw, skip silently.
                 continue
-    return total
+    _disk_cache[key] = (now, total)
+    return _disk_cache[key][1]
 
 
 def _cache_stats() -> dict[str, Any]:
