@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:24:05.098Z",
+  "generated_at": "2026-11-14T17:25:55.660Z",
   "branch": "main",
-  "head": "5c707c7",
-  "total_commits": 1487,
+  "head": "99e13cb",
+  "total_commits": 1490,
   "recent_commits": [
+    {
+      "short": "99e13cb",
+      "at": "2026-11-15T01:25:36+08:00",
+      "subject": "M8-T953: derive almanac_chapters from the yearbook rail (was hardcoded 9 - now counts CHAPTERS entries, 10)"
+    },
+    {
+      "short": "b161c50",
+      "at": "2026-11-14T17:24:05Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "8fc2197",
+      "at": "2026-11-15T01:23:43+08:00",
+      "subject": "M8-T952b: restore LF line endings for the consolidation report (content byte-identical modulo EOL)"
+    },
     {
       "short": "5c707c7",
       "at": "2026-11-15T01:23:06+08:00",
@@ -14,30 +29,15 @@
       "short": "01e4489",
       "at": "2026-11-14T17:22:03Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7307cea",
-      "at": "2026-11-15T01:19:08+08:00",
-      "subject": "M8-T951: almanac hydration gets a 60s cache and a 20s budget - phase 2 was dying at the 8s timeout on a busy .minicc tree and Chapter IX rendered dashes forever"
-    },
-    {
-      "short": "44a1e02",
-      "at": "2026-11-14T17:05:47Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c1326ab",
-      "at": "2026-11-15T01:04:34+08:00",
-      "subject": "M8-T950: /api/stats disk scan is TTL-cached (120s, was a full 322MB walk per poll) and the absent-store test is hermetic (pinned to tmp_path); README catch-up ("
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 272,
+  "roadmap_batches": 273,
   "changelog_entries": 1,
-  "roadmap_lines": 51641,
+  "roadmap_lines": 51656,
   "tracked_files": 1050,
   "test_files": 702,
-  "almanac_chapters": 9,
+  "almanac_chapters": 10,
   "module_count": 14,
   "feature_surface": [
     "workbench",
