@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DOC_PATH = join(ROOT, "docs", "ROADMAP_TO_PRODUCT.md");
+const ALMANAC_PATH = join(ROOT, "web", "src", "panels", "almanac.js");
 const CHANGE_PATH = join(ROOT, "docs", "CHANGELOG.md");
 const OUT_PATH = join(ROOT, "docs", "latest.json");
 
@@ -60,6 +61,10 @@ const changelogEntries = (changelog.match(/^## /gm) ?? []).length;
 const trackedFiles = (sh("git ls-files") ?? "").split("\n").filter((l) => l.trim()).length;
 const testFiles = (sh("git ls-files tests/") ?? "").split("\n").filter((l) => /\.(py|mjs)$/.test(l)).length;
 const roadmapLines = roadmap.split("\n").length;
+// Count the yearbook chapters straight out of the rail — a hardcoded number
+// has now lied twice (9 after the tenth chapter landed). Matches CHAPTERS entries.
+const almanacSource = readFileSync(ALMANAC_PATH, "utf-8");
+const almanacChapters = (almanacSource.match(/roman:\s*\{\s*zh:/g) ?? []).length;
 
 const payload = {
   schema_version: "minicc.latest.v1",
@@ -74,7 +79,7 @@ const payload = {
   roadmap_lines: roadmapLines,
   tracked_files: trackedFiles,
   test_files: testFiles,
-  almanac_chapters: 9,
+  almanac_chapters: almanacChapters,
   module_count: 14,
   feature_surface: [
     "workbench",

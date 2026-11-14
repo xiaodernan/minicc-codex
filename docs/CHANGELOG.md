@@ -274,3 +274,5 @@
 - **年鉴 hydrate 60s TTL + 20s 预算，M8-T951**：phase-2 在繁忙 `.minicc` 上被压出 8s 超时而永远显示「—」——现改为 60s 内复用 digest/stats 缓存（章节切换从不重问）+ metrics 15s / digest、stats 20s 实际预算（phase 1 已秒开，时间不该从用户口袋里出）。实测换章 9s 出现 `提交 1483 · 批次 270 · 审计 1468 · 文件 1050/702`。
 
 - **集大成复核 2026-11-15，M8-T952**：`docs/CONSOLIDATION_REPORT.md` 增附录六——四条未合并分支与 2026-11-12 的处置结论逐条吻合（patch-id 差集实测）；`origin/m8-t537` 与 `origin/integration/m8-t537-to-main` 被确认为纯子集，已吸收入 `main`；`consolidated/*` 标签 7 枚原样存在；M8-T945–T951 全部落入 `origin/main`（最新 `7307cea`）。结论：`main` 就是汇集后的主分支，不造空 merge、不删 worktree。
+
+- **事实包年鉴章节数按源码计数，M8-T953**：`scripts/update-latest-json.mjs` 的 `almanac_chapters: 9` 字面量腐坏已根治——改为从 `web/src/panels/almanac.js` 数 `roman:`（真章数），展示页所见现在等于真年鉴卷数（10）。

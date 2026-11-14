@@ -51638,3 +51638,18 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
 
 - 每个分支的 `git cherry` / `git log main..X` / `git branch --no-merged main` 输出见报告附录六（本文档同一次提交写入）
 - doc_pointers ✓
+
+## 批次 948 - M8-T953：事实包的年鉴章节数从源码数，不再手写
+
+### 1 背景
+
+展示页始终展示 `docs/latest.json` 事实包。M8-T949 给年鉴加了卷九「技艺」之后，事实包仍印着 `almanac_chapters: 9`——手写的数字又骗了一次人（与 T945 的 `module_count: 14` 同一类腐坏）。检查发现该值是字面量。
+
+### 2 变更
+
+- `scripts/update-latest-json.mjs`：`almanac_chapters` 改为从 `web/src/panels/almanac.js` 实时推断（`roman:` 数册数），删掉 9 的字面量；`ALMANAC_PATH` 常量补上。
+
+### 3 验证
+
+- `node scripts/update-latest-json.mjs` → `almanac_chapters: 10` ✓（`docs/latest.json` 由 bot 负责，未提交，保持机器所有）
+- doc_pointers ✓
