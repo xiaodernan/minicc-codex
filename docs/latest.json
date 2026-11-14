@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T19:33:55.526Z",
+  "generated_at": "2026-11-14T19:46:11.483Z",
   "branch": "main",
-  "head": "d942584",
-  "total_commits": 1511,
+  "head": "8fa4789",
+  "total_commits": 1514,
   "recent_commits": [
+    {
+      "short": "8fa4789",
+      "at": "2026-11-15T03:45:33+08:00",
+      "subject": "M8-T964: the '?' shortcut panel - grouped, sourced from one cheat-sheet-data home (manual chapter 4 now renders from it too), fully styled for the first time (."
+    },
+    {
+      "short": "9a5bbb5",
+      "at": "2026-11-15T03:34:59+08:00",
+      "subject": "M8-T963b: INDEX.md now lists CACHE_AFFINITY_MATRIX.md - CI's every-doc-is-reachable gate caught the omission; both OS runners now have zero failures from it"
+    },
+    {
+      "short": "4c3acf7",
+      "at": "2026-11-14T19:33:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d942584",
       "at": "2026-11-15T03:33:29+08:00",
@@ -14,28 +29,13 @@
       "short": "dc99e4b",
       "at": "2026-11-14T19:07:44Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a032ad8",
-      "at": "2026-11-15T03:07:05+08:00",
-      "subject": "M8-T962: sidebar top search now plugs into the global search panel (Enter seeds it with the current query, Esc clears - it was a dead input) + compact sidebar l"
-    },
-    {
-      "short": "7dbe13d",
-      "at": "2026-11-14T18:51:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "49335be",
-      "at": "2026-11-15T02:51:33+08:00",
-      "subject": "M8-T961: The Keys & Vault chapter - the full credential journey in the manual (gitignored .env, --doctor, affinity-safe gateway switch, hit_pct receipts, cost_i"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 282,
+  "roadmap_batches": 283,
   "changelog_entries": 1,
-  "roadmap_lines": 51868,
-  "tracked_files": 1053,
+  "roadmap_lines": 51889,
+  "tracked_files": 1054,
   "test_files": 702,
   "almanac_chapters": 11,
   "module_count": 14,
