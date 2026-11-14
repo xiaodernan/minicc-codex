@@ -17,7 +17,11 @@ import org.springframework.amqp.core.Message;
 
 /**
  * Opt-in live AMQP round trip for the invalidation path (skipped unless
- * {@code MINICC_TEST_RABBIT_URI} is set, e.g. {@code amqp://guest:guest@127.0.0.1:5672/}).
+ * {@code MINICC_TEST_RABBIT_URI} is set, e.g. {@code amqp://guest:guest@127.0.0.1:5672}).
+ *
+ * <p>Note the example deliberately has no trailing slash: a trailing {@code /}
+ * is parsed as an empty vhost name ("vhost  not found"), not as the default
+ * {@code /} — Spring's URI normalisation does not substitute defaults.
  *
  * <p>The mocked tests pin the key agreement and the evict decision; what they cannot
  * see is whether the exchange declaration, fanout binding, and header propagation

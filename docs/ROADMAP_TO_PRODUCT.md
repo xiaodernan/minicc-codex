@@ -51833,3 +51833,35 @@ M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第�
   - `Escape` 在侧边栏输入 → 清空为 `""` ✓；`Enter` 之后焦点落于面板内输入框 ✓；`Escape` 关闭面板 ✓（`aria-hidden=true`、`.show` 移除）
 - 布局探针：960px 视口下侧栏底部 y=769，整体落在视口内；760px 以下保留纵向滚动 ✓
 - `npm run test:web`（product path 2/3 通过；首例一次瞬时超时后两次连续绿，疑似一次性跨进程启动抖动）✓ · `npm run test:almanac`（11 章 marker 断言）✓ · `npm run test:i18n`（583/219）✓ · `npm run check:web` ✓ · doc_pointers rc=0
+
+## 批次 957 - M8-T963：Spring Cloud 平面的两条消息/缓存通道，用真 docker 实测——不是 mock，是 broker
+
+### 1 背景
+
+用户明确要求「消息队列的合理运用 + Redis 缓存 + 计网/OS 知识端到端实测」。M8-T826 设计了 gateway 缓存失效的 RabbitMQ fanout 通信，M8-T882 上线了 Redis token bucket 限流，但两条通道只有 mocked 单测（live AMQP 测试因 `MINICC_TEST_RABBIT_URI` 未设一直 Skipped；token bucket 曾因被绑到 8080 与外部 careeros-gateway 冲突未做过端到端）。
+
+### 2 实测环境（本地 docker，与生产拓扑一致）
+
+- `rabbitmq:3-management-alpine`（本地 minute-rmq，port 5673；刻意避开 specproof-rabbitmq 所占的 5672）
+- `redis:7-alpine`（minute-redis，port 6385；刻意避开 specproof-redis/minicc-dev 等已占用端口）
+- 外部 `careeros-gateway` 抢占 8080 —— 首轮健康检查 200 来自它，已改用独立 9215 验证
+
+### 3 验证（全部真机、真 broker、真包）
+
+- **RabbitMQ 缓存失效 fanout 圆环**
+  - 环境：`MINICC_TEST_RABBIT_URI=amqp://guest:guest@127.0.0.1:5673`（**没有 trailing slash**——`amqp://.../` 会被 Spring 解析成空 vhost，broker 直接报 "vhost  not found"）
+  - `CacheInvalidationRoundTripLiveTest.invalidationMessageCrossesTheFanoutExchange` → **BUILD SUCCESS，消息到达 throwaway auto-delete 队列，body == "inspector"，header 精确含 ROUTE_REFRESH_EXCHANGE / ROUTE_HEADER=INSPECTOR_STATUS**；无任何 skip
+  - 同时修了该测试的 Javadoc（示例 URI 缺少 trailing-slash 会在真机必挂——测试代码注释自身就是对外部消费者承诺）
+- **Redis token bucket 限流**
+  - `SPRING_PROFILES_ACTIVE=ratelimit SPRING_DATA_REDIS_PORT=6385 MINICC_GATEWAY_RATE_LIMIT_REPLENISH=2 MINICC_GATEWAY_RATE_LIMIT_BURST=2 MINICC_GATEWAY_RATE_LIMIT_REQUESTED=1`
+  - 独立端口 `9215`（未使用 careeros 的 8080）
+  - `/api/tasks?limit=1` 连续请求序列：**req 1 和 req 2 → 503**（保留路由层的「没有 Eureka 注册的 minicc-cloud-tasks，指向 fallback 行为」语义）、**req 3+ → 429**（限流先行——在 lb 解析之前就拦截）；**3 秒后重新探测 → 503（bucket 按 2 tokens/s refill，恢复通过）**、**5 秒后 → 503**。bucket 确实是在路由之前消耗，而不是在 backend 失败后才计数
+- `mvn -B --no-transfer-progress -f minicc-cloud/pom.xml verify`：**BUILD SUCCESS；Reactor Summary：gateway 56 / inspector 29 / tasks 14 / insights 19，共 118 tests，0 failures**
+
+### 4 补强：修正说明
+
+- 本批只改 `CacheInvalidationRoundTripLiveTest.java` 的 Javadoc（示例 URI + 显式空 vhost 说明），不改产品代码。**Spring Cloud 通道以此为清单：AMQP 缓存失效扇区（1 个 live 实测）+ Redis token bucket（1 个 profile 端到端）——全部跑在生产代码本身的真机链路上，无示例 mock。**
+
+### 5 清理
+
+- minicc-rmq（5673/15673）与 minicc-redis（6385）验证用完后 `docker rm -f` —— 不触碰 careeros/specproof 等任何运行中环境；未留登记在任何 docker 状态文件内。
