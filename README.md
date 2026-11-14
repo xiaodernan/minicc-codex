@@ -295,7 +295,21 @@ Invoke-RestMethod http://127.0.0.1:8765/api/audit?limit=500
 
 ## 参考仓库评估
 
-`D:\面试项目\specproof-reference` 是从 `xiaodernan/specproof` 克隆的只读参考副本。具体取舍见 [docs/SPECPROOF_ASSESSMENT.md](docs/SPECPROOF_ASSESSMENT.md)。当前判断是：复用其工程边界思想和小块算法有价值，直接搬整个平台没有价值，复杂度会把一个本地 agent 变成分布式验收产品。
+`D:\面试项目\specproof-reference` 是从 `xiaodernan/specproof` 克隆的只读参考副本。具体取舍见 [docs/SPECPROOF_ASSESSMENT.md](do## 工作台模块（产品界面一览）
+
+minicc 不只是 CLI——工作台本身也是一个被认真打磨的产品：
+
+- **账本（Ctrl/⌘L）** — 总 token 金句、缓存命中率圆环（hit/miss/write 拆分）、估算成本（未定价任务如实标注 `cost_is_partial`）、缓存后端状态（Redis 实时 / 本地 LRU）、状态 segmented bar、模型分解表
+- **脉搏** — 命中率 / 上下文占比 / 完成率三枚环 + 最近 12 个任务档案 + **逐次调用缓存火花线**（运行中每个 usage 事件重绘）
+- **年鉴（8 卷）** — 这个项目是什么的叙事宫殿：Spark / Depth / Sentry / Bloom / Open Road / Gate / Mesh / Witness；所有数字现场读取自 `/api/metrics` `/api/digest` `/api/stats`
+- **回放** — 任务详情「回放整个任务」：全屏电影席，事件逐行浮现、tokens 累加动画、可暂停 / 拖拽 scrub / 1×·2×·4× 倍速，Esc 关闭
+- **航行灯** — 侧边栏常驻一行「缓存 N% · 任务 M · 分支 @ HEAD」，四色温，点击直达账本
+- **模板库** — 8 张策划好的 prompt（项目体检 / 测试修复 / 安全审查 / 依赖现代化 / …），一键送进对话
+- **CLI 只读面板** — `minicc --digest`（仓库考古学读数）、`--digest --json`（与 `/api/digest` 同 schema）、`minicc --stats`（工作区现状）
+- **Spring Cloud plane（`minicc-cloud/`）** — Eureka 注册发现、配置下发、网关 `lb://` + RequestSize + Resilience4j 熔断、Redis token bucket 限流（`SPRING_PROFILES_ACTIVE=ratelimit`）、RabbitMQ 缓存失效广播、Micrometer `gateway.rate_limited{route}` 计数；`docker compose -f minicc-cloud/docker-compose.yml up -d` 可起全套（端口被占用时用 `MINICC_CLOUD_*_PORT` 覆盖）
+- **前缀缓存全链路可观测** — `prefix_fingerprint` 指纹链（system/msgs/tools 三个指纹逐轮演化）+ 任务详情「前缀指纹条」；`[usage]` 行直接显示 `cache_hit_pct`；`MINICC_PROMPT_CACHE_KEY` 可显式指定，缺省按 gateway+model 派生（wkapi.pro 实测热命中 **98.3%**）
+
+cs/SPECPROOF_ASSESSMENT.md)。当前判断是：复用其工程边界思想和小块算法有价值，直接搬整个平台没有价值，复杂度会把一个本地 agent 变成分布式验收产品。
 
 ## 面试讲解与公开调研
 

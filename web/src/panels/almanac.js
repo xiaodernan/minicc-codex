@@ -120,7 +120,7 @@ function prologueMarkup(digest) {
       </h1>
       <div class="almanac-body">
         <p class="almanac-lede">
-          2026 年春天，这个项目开始于一个问题：
+          2026 年夏天，这个项目开始于一个问题：
           <em>「能不能做一个人愿意每天使用的本地编程智能体？」</em>
         </p>
         <p>
@@ -150,7 +150,7 @@ function sparkMarkup() {
       </div>
       <div class="almanac-chapter-aside">
         <div class="almanac-step"><span class="almanac-step-index">01</span><div><strong>入口</strong><p>用户在 composer 里敲下一句话。系统读文件、读 git 状态、读会话内存。</p></div></div>
-        <div class="almanac-step"><span class="almanac-step-index">02</span><div><strong>计划</strong><p>模型在 zen plan / verify 循环里切分问题。每一步都得到一份证据或一种失败。</p></div></div>
+        <div class="almanac-step"><span class="almanac-step-index">02</span><div><strong>计划</strong><p>模型在 plan / verify 循环里切分问题。每一步都得到一份证据或一种失败。</p></div></div>
         <div class="almanac-step"><span class="almanac-step-index">03</span><div><strong>行动</strong><p>read_file / edit_file / bash 任一工具被调用，输出被验证后再进入下一轮。</p></div></div>
         <div class="almanac-step"><span class="almanac-step-index">04</span><div><strong>验收</strong><p>completion_assessment 或 verifier 放行答案。未通过则停在原地并报告。</p></div></div>
       </div>
@@ -266,7 +266,7 @@ function gateMarkup(digest) {
   const rows = [
     ["Python 双平台", "ubuntu-latest + windows-latest · 每推送一次全量跑，两个操作系统各自判卷"],
     ["Claim checkers", "doc pointers（悬空证据零容忍）· route coverage · impact floor（每个模块都要被测试够得着）"],
-    ["JavaScript syntax", "21 个语法/协议门 · 任一条不过，这扇门就不算过"],
+    ["JavaScript syntax", "22 个语法/协议门 · 任一条不过，这扇门就不算过"],
     ["Service plane", "mvn · 7 个 Spring Cloud 模块 · 网关 / 注册 / 配置 / 任务 / 洞察 / 巡检 / 桥接"],
     ["Playwright ×2", "真浏览器 · 含「不可达提供方必须失败」——门本身也被门守着"],
   ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
@@ -277,7 +277,7 @@ function gateMarkup(digest) {
       <div class="almanac-body">
         <p>
           这个项目最安静、也最诚实的角色是 CI。每一次提交都要经过同一排门：
-          双平台全量测试、文档门禁、路由覆盖率与模块引用面、21 个 JS 协议门、
+          双平台全量测试、文档门禁、路由覆盖率与模块引用面、22 个 JS 协议门、
           Spring Cloud plane 的 mvn 套件、真浏览器 ×2。
         </p>
         <p>

@@ -2204,7 +2204,7 @@
       </h1>
       <div class="almanac-body">
         <p class="almanac-lede">
-          2026 \u5E74\u6625\u5929\uFF0C\u8FD9\u4E2A\u9879\u76EE\u5F00\u59CB\u4E8E\u4E00\u4E2A\u95EE\u9898\uFF1A
+          2026 \u5E74\u590F\u5929\uFF0C\u8FD9\u4E2A\u9879\u76EE\u5F00\u59CB\u4E8E\u4E00\u4E2A\u95EE\u9898\uFF1A
           <em>\u300C\u80FD\u4E0D\u80FD\u505A\u4E00\u4E2A\u4EBA\u613F\u610F\u6BCF\u5929\u4F7F\u7528\u7684\u672C\u5730\u7F16\u7A0B\u667A\u80FD\u4F53\uFF1F\u300D</em>
         </p>
         <p>
@@ -2233,7 +2233,7 @@
       </div>
       <div class="almanac-chapter-aside">
         <div class="almanac-step"><span class="almanac-step-index">01</span><div><strong>\u5165\u53E3</strong><p>\u7528\u6237\u5728 composer \u91CC\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\u3002</p></div></div>
-        <div class="almanac-step"><span class="almanac-step-index">02</span><div><strong>\u8BA1\u5212</strong><p>\u6A21\u578B\u5728 zen plan / verify \u5FAA\u73AF\u91CC\u5207\u5206\u95EE\u9898\u3002\u6BCF\u4E00\u6B65\u90FD\u5F97\u5230\u4E00\u4EFD\u8BC1\u636E\u6216\u4E00\u79CD\u5931\u8D25\u3002</p></div></div>
+        <div class="almanac-step"><span class="almanac-step-index">02</span><div><strong>\u8BA1\u5212</strong><p>\u6A21\u578B\u5728 plan / verify \u5FAA\u73AF\u91CC\u5207\u5206\u95EE\u9898\u3002\u6BCF\u4E00\u6B65\u90FD\u5F97\u5230\u4E00\u4EFD\u8BC1\u636E\u6216\u4E00\u79CD\u5931\u8D25\u3002</p></div></div>
         <div class="almanac-step"><span class="almanac-step-index">03</span><div><strong>\u884C\u52A8</strong><p>read_file / edit_file / bash \u4EFB\u4E00\u5DE5\u5177\u88AB\u8C03\u7528\uFF0C\u8F93\u51FA\u88AB\u9A8C\u8BC1\u540E\u518D\u8FDB\u5165\u4E0B\u4E00\u8F6E\u3002</p></div></div>
         <div class="almanac-step"><span class="almanac-step-index">04</span><div><strong>\u9A8C\u6536</strong><p>completion_assessment \u6216 verifier \u653E\u884C\u7B54\u6848\u3002\u672A\u901A\u8FC7\u5219\u505C\u5728\u539F\u5730\u5E76\u62A5\u544A\u3002</p></div></div>
       </div>
@@ -2343,7 +2343,7 @@
     const rows = [
       ["Python \u53CC\u5E73\u53F0", "ubuntu-latest + windows-latest \xB7 \u6BCF\u63A8\u9001\u4E00\u6B21\u5168\u91CF\u8DD1\uFF0C\u4E24\u4E2A\u64CD\u4F5C\u7CFB\u7EDF\u5404\u81EA\u5224\u5377"],
       ["Claim checkers", "doc pointers\uFF08\u60AC\u7A7A\u8BC1\u636E\u96F6\u5BB9\u5FCD\uFF09\xB7 route coverage \xB7 impact floor\uFF08\u6BCF\u4E2A\u6A21\u5757\u90FD\u8981\u88AB\u6D4B\u8BD5\u591F\u5F97\u7740\uFF09"],
-      ["JavaScript syntax", "21 \u4E2A\u8BED\u6CD5/\u534F\u8BAE\u95E8 \xB7 \u4EFB\u4E00\u6761\u4E0D\u8FC7\uFF0C\u8FD9\u6247\u95E8\u5C31\u4E0D\u7B97\u8FC7"],
+      ["JavaScript syntax", "22 \u4E2A\u8BED\u6CD5/\u534F\u8BAE\u95E8 \xB7 \u4EFB\u4E00\u6761\u4E0D\u8FC7\uFF0C\u8FD9\u6247\u95E8\u5C31\u4E0D\u7B97\u8FC7"],
       ["Service plane", "mvn \xB7 7 \u4E2A Spring Cloud \u6A21\u5757 \xB7 \u7F51\u5173 / \u6CE8\u518C / \u914D\u7F6E / \u4EFB\u52A1 / \u6D1E\u5BDF / \u5DE1\u68C0 / \u6865\u63A5"],
       ["Playwright \xD72", "\u771F\u6D4F\u89C8\u5668 \xB7 \u542B\u300C\u4E0D\u53EF\u8FBE\u63D0\u4F9B\u65B9\u5FC5\u987B\u5931\u8D25\u300D\u2014\u2014\u95E8\u672C\u8EAB\u4E5F\u88AB\u95E8\u5B88\u7740"]
     ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
@@ -2354,7 +2354,7 @@
       <div class="almanac-body">
         <p>
           \u8FD9\u4E2A\u9879\u76EE\u6700\u5B89\u9759\u3001\u4E5F\u6700\u8BDA\u5B9E\u7684\u89D2\u8272\u662F CI\u3002\u6BCF\u4E00\u6B21\u63D0\u4EA4\u90FD\u8981\u7ECF\u8FC7\u540C\u4E00\u6392\u95E8\uFF1A
-          \u53CC\u5E73\u53F0\u5168\u91CF\u6D4B\u8BD5\u3001\u6587\u6863\u95E8\u7981\u3001\u8DEF\u7531\u8986\u76D6\u7387\u4E0E\u6A21\u5757\u5F15\u7528\u9762\u300121 \u4E2A JS \u534F\u8BAE\u95E8\u3001
+          \u53CC\u5E73\u53F0\u5168\u91CF\u6D4B\u8BD5\u3001\u6587\u6863\u95E8\u7981\u3001\u8DEF\u7531\u8986\u76D6\u7387\u4E0E\u6A21\u5757\u5F15\u7528\u9762\u300122 \u4E2A JS \u534F\u8BAE\u95E8\u3001
           Spring Cloud plane \u7684 mvn \u5957\u4EF6\u3001\u771F\u6D4F\u89C8\u5668 \xD72\u3002
         </p>
         <p>

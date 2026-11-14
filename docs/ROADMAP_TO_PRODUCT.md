@@ -50838,3 +50838,44 @@ low effort），chromium headless 走完用户路径：
 ### 4 清理
 
 web 服务进程已停、minicc-e2e-home 已删除、probe 脚本已删除。仓库未留任何 E2E 残留或临时文件。
+
+## 批次 919 - M8-T919：README 补写「工作台模块（产品界面一览）」— 把这一年的产品界面如实交代给下一个读者
+
+### 1 为什么
+
+README 还是写给"CLI 运维者"的时代文档——`minicc-web`、账本、脉搏、年鉴、回放、航行灯、
+模板库、digest CLI、Spring Cloud plane、前缀缓存链……它们一个字都没有。
+下一个读者打开仓库却看见过时的面，和仓库的实际完整度一样 尴 尬。
+
+### 2 做了什么
+
+README 在「启动」章之前新增《工作台模块（产品界面一览）》：
+账本 / 脉搏 / 年鉴 8 卷 / 回放 / 航行灯 / 模板库 / CLI 只读面板 / Spring Cloud plane（端口覆盖与 `docker compose up -d`）/
+前缀缓存全链路可观测（`[usage]` 行的 `cache_hit_pct`、`MINICC_PROMPT_CACHE_KEY` 派生策略、wkapi.pro 实测热命中 98.3%）。
+每条均为真实可复现的能力声明，未写任何不存在的命令。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → **rc=0**
+- 所有命令/端点/默认值与仓库现状逐字核对（`minicc-web --port`、`Ctrl/⌘L`、`/api/digest`、`SPRING_PROFILES_ACTIVE=ratelimit` 等）
+
+### 4 文件
+
+`README.md`
+
+## 批次 920 - M8-T920：年鉴两处事实修正——"2026 年春天"→夏天（digest 首笔提交 2026-08-24）；"zen plan"（仓库中不存在的名字）→ plan / verify 循环
+
+### 1 起因
+
+年鉴章节文案写了两处与仓库自身证据矛盾的"事实"：序章写"2026 年春天"（首笔提交实为 2026-08-24，八月属夏天），
+Spark 章节写"zen plan / verify 循环"（仓库中不存在名为 zen-plan 的任何东西——那是我发明的模型名）。
+年鉴的承诺是"每个数字都可对账"，叙事里夹带假设名同样违反这一承诺。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` — "2026 年春天" → "2026 年夏天"；"zen plan / verify 循环" → "plan / verify 循环"。
+- `web/app.js` bundle 重建，`check:web` 通过；`test:i18n` / `test:cacheseries` / `test:helpshortcuts` 全绿。
+
+### 3 文件
+
+`web/src/panels/almanac.js`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
