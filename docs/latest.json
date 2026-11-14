@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T21:22:36.454Z",
+  "generated_at": "2026-11-14T21:48:22.731Z",
   "branch": "main",
-  "head": "9f285a9",
-  "total_commits": 1526,
+  "head": "47ac03a",
+  "total_commits": 1528,
   "recent_commits": [
+    {
+      "short": "47ac03a",
+      "at": "2026-11-15T05:48:00+08:00",
+      "subject": "M8-T973: /api/rag/query - full RAG pipeline (BM25 top-k + wkapi.pro chat completions); real-key measured roundtrip 280ms, 19k tokens prompt, sources hit CHANGEL"
+    },
+    {
+      "short": "7d7b929",
+      "at": "2026-11-14T21:22:36Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9f285a9",
       "at": "2026-11-15T05:22:06+08:00",
@@ -19,22 +29,12 @@
       "short": "a2668a3",
       "at": "2026-11-15T05:08:13+08:00",
       "subject": "M8-T970: /api/stats+digest+roadmap per-PID memo (5s TTL) - 20-way concurrent crash-loop eliminated at c=8, /api/stats p50 43.9s->3.8s, /api/roadmap p50=3.12ms; "
-    },
-    {
-      "short": "417288c",
-      "at": "2026-11-14T20:59:11Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "6d8ecc4",
-      "at": "2026-11-15T04:58:51+08:00",
-      "subject": "M8-T968/969: /api/stats disk walk coalesced under a per-workspace lock (10 concurrent cold walkers: 7.55s wall, was 60-80s); load-test.mjs + docs/LOAD_TESTING.m"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 289,
+  "roadmap_batches": 290,
   "changelog_entries": 1,
-  "roadmap_lines": 52046,
+  "roadmap_lines": 52079,
   "tracked_files": 1059,
   "test_files": 703,
   "almanac_chapters": 12,
