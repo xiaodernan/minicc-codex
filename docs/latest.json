@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T22:54:51.395Z",
+  "generated_at": "2026-11-14T23:05:41.263Z",
   "branch": "main",
-  "head": "43d666c",
-  "total_commits": 1536,
+  "head": "5ac53b8",
+  "total_commits": 1538,
   "recent_commits": [
+    {
+      "short": "5ac53b8",
+      "at": "2026-11-15T07:05:22+08:00",
+      "subject": "M8-T978: almanac chapter XII 'Answer Back' - the project's RAG written into the museum (zero embeddings, real wkapi.pro roundtrip, the CJK bigram scar, cached_t"
+    },
+    {
+      "short": "f8ae023",
+      "at": "2026-11-14T22:54:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "43d666c",
       "at": "2026-11-15T06:54:29+08:00",
@@ -19,25 +29,15 @@
       "short": "4341c2a",
       "at": "2026-11-15T06:36:25+08:00",
       "subject": "M8-T976: T974 CI red-job gates met, no weakening - measured usage now built by minicc.llm.usage.measured_usage (one-home), load_config except states its boundar"
-    },
-    {
-      "short": "304d586",
-      "at": "2026-11-14T22:31:51Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "bc60608",
-      "at": "2026-11-15T06:31:21+08:00",
-      "subject": "M8-T975: 'Ask the Repo' panel - BM25 top-k over repo docs + real model answer via /api/rag/query (chunk citation, real usage, no fabricated cached_tokens); Chin"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 294,
+  "roadmap_batches": 295,
   "changelog_entries": 1,
-  "roadmap_lines": 52166,
+  "roadmap_lines": 52185,
   "tracked_files": 1061,
   "test_files": 704,
-  "almanac_chapters": 12,
+  "almanac_chapters": 13,
   "module_count": 14,
   "feature_surface": [
     "workbench",
