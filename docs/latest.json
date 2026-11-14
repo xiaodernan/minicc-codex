@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T23:31:14.296Z",
+  "generated_at": "2026-11-14T23:38:15.607Z",
   "branch": "main",
-  "head": "092617c",
-  "total_commits": 1542,
+  "head": "2b7a6fc",
+  "total_commits": 1544,
   "recent_commits": [
+    {
+      "short": "2b7a6fc",
+      "at": "2026-11-15T07:37:57+08:00",
+      "subject": "M8-T981: RAG lane prompt_cache_key (default minicc-<sha256(gateway|model)[:16]) - wkapi.pro real-key measured cached_tokens 19082/19085 = 99.98% (was unreported"
+    },
+    {
+      "short": "6e1e270",
+      "at": "2026-11-14T23:31:14Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "092617c",
       "at": "2026-11-15T07:30:54+08:00",
@@ -19,22 +29,12 @@
       "short": "617a320",
       "at": "2026-11-15T07:26:45+08:00",
       "subject": "M8-T979: 20-way HTTP failure mode attack - listen backlog 5->128 (kernel SYN drops gone), serve() prefetches stats/digest/roadmap cold caches at boot (--no-pref"
-    },
-    {
-      "short": "247ba4c",
-      "at": "2026-11-14T23:05:41Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5ac53b8",
-      "at": "2026-11-15T07:05:22+08:00",
-      "subject": "M8-T978: almanac chapter XII 'Answer Back' - the project's RAG written into the museum (zero embeddings, real wkapi.pro roundtrip, the CJK bigram scar, cached_t"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 297,
+  "roadmap_batches": 298,
   "changelog_entries": 1,
-  "roadmap_lines": 52235,
+  "roadmap_lines": 52254,
   "tracked_files": 1061,
   "test_files": 704,
   "almanac_chapters": 13,
