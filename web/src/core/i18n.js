@@ -131,6 +131,9 @@ export const I18N = {
     "nav.axioms": "铁律",
     "axioms.title": "铁律",
     "palette.cmd.axioms": "打开铁律",
+    "nav.journal": "日志",
+    "journal.title": "日志",
+    "palette.cmd.journal": "打开工程日志",
 
   },
   en: {
@@ -262,6 +265,9 @@ export const I18N = {
     "nav.axioms": "Axioms",
     "axioms.title": "Axioms",
     "palette.cmd.axioms": "Open the Axioms",
+    "nav.journal": "Journal",
+    "journal.title": "Journal",
+    "palette.cmd.journal": "Open the journal",
 
   },
 };

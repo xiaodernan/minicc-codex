@@ -4201,3 +4201,105 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 @media (prefers-reduced-motion: reduce) {
   .axioms-title-accent { animation: none; }
 }
+
+/* ============================================================
+   Journal — the repository's diary, field-notebook register.
+   Mint accent on ink; mono for hashes and specimen data.
+   ============================================================ */
+
+.journal-shell { max-width: 880px; margin: 0 auto; }
+.journal-canvas {
+  padding: 30px 36px 40px;
+  background: radial-gradient(1200px 600px at 20% -10%, color-mix(in srgb, var(--mint) 9%, transparent) 0%, transparent 55%),
+              radial-gradient(900px 700px at 110% 120%, color-mix(in srgb, var(--mint) 7%, transparent) 0%, transparent 55%);
+}
+.journal-kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--mint);
+  margin-bottom: 14px;
+}
+.journal-title {
+  margin: 0 0 22px;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 740;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  color: var(--text);
+}
+.journal-title-accent {
+  background: linear-gradient(140deg, var(--mint) 0%, color-mix(in srgb, var(--mint) 55%, #eafdf0) 55%, var(--mint) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+.journal-body { display: grid; gap: 26px; }
+.journal-section { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
+.journal-section:first-of-type { border-top: 0; padding-top: 0; }
+.journal-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  color: var(--muted);
+  text-transform: none;
+}
+.journal-section-note { margin: 0; font-size: 13px; color: var(--quiet); line-height: 1.7; }
+.journal-section-note strong { color: var(--text); }
+
+.journal-vitals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.journal-vital {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+.journal-vital-label { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.journal-vital-value { font-family: var(--font-mono, ui-monospace, monospace); font-size: 16px; color: var(--text); word-break: break-word; }
+
+.journal-commits { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.journal-commit {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+.journal-commit:hover { background: var(--surface-soft); }
+.journal-commit-today {
+  background: color-mix(in srgb, var(--mint) 10%, var(--surface-soft));
+  border-color: color-mix(in srgb, var(--mint) 32%, var(--line));
+  border-left: 3px solid var(--mint);
+}
+.journal-sha { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; color: var(--mint); }
+.journal-subject { font-size: 12.5px; color: var(--quiet); line-height: 1.6; word-break: break-word; }
+.journal-tag {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  color: var(--coral);
+  border: 1px solid color-mix(in srgb, var(--coral) 40%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.journal-empty { color: var(--muted); font-size: 13px; padding: 6px 12px; }
+
+.journal-quote {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+  font-style: italic;
+  letter-spacing: .01em;
+}
+
+@media (max-width: 900px) {
+  .journal-canvas { padding: 22px 20px 28px; }
+  .journal-vitals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .journal-commit { grid-template-columns: auto 1fr; }
+  .journal-tag { display: none; }
+}

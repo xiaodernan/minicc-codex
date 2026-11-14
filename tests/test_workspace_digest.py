@@ -118,3 +118,17 @@ def test_digest_missing_workspace_never_raises(tmp_path: Path) -> None:
     payload = build_digest(tmp_path / "does-not-exist")
     assert payload["is_git"] is False
     assert payload["workspace"].endswith("does-not-exist")
+
+
+def test_digest_carries_recent_commits_bounded(git_repo: Path) -> None:
+    payload = build_digest(git_repo)
+    assert payload["recent_commits"] is not None
+    recent = payload["recent_commits"]
+    assert len(recent) == 2
+    # newest first
+    assert recent[0]["subject"] == "second"
+    assert recent[1]["subject"] == "first"
+    for item in recent:
+        assert item["short"]
+        assert item["at"]
+        assert len(item["subject"]) <= 140

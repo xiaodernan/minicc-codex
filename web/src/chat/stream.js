@@ -2296,4 +2296,6 @@ import { openManualPanel } from "../panels/manual.js";
 export { openManualPanel };
 import { openAxiomsPanel } from "../panels/axioms.js";
 export { openAxiomsPanel };
+import { openJournalPanel } from "../panels/journal.js";
+export { openJournalPanel };
 

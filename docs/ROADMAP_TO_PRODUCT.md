@@ -51243,3 +51243,42 @@ M8-T930 给 arcade 加了键盘操作（1-9 选卡 / P 暂停 / E 铲子）之�
 ### 3 验证
 
 - 下一次 main 推送会走一遍完整的 bot 流程，日志可见 `From … ! [rejected]` 消失。
+
+## 批次 932 - M8-T937：digest 提供最近提交 + 第十二板块「工程日志」
+
+### 1 背景
+
+用户一直要求产品继续长大。本次补两个真实变更：一个读侧事实包的新字段（只追加、不破坏），
+一个全新「工程日志」板块——把仓库自己写在自己身上的故事，一页呈现。
+
+### 2 变更
+
+- `minicc/digest.py`：`build_digest` 新增 `recent_commits` 字段——12 条最近提交
+  （`%h / %cI / %s`，一条一条读），`None` 也会降级。`format_digest` 在 CLI 输出里追加同名清单。
+  固定参数列表、有界 12 条、绝不访问网络——与 digest 其余字段同一手法。
+  `minicc --digest` 实测打印最新一批（M8-T936 → M8-T928 12 条，全含 bot 刷新提交）。
+- `tests/test_workspace_digest.py`：新增 `test_digest_carries_recent_commits_bounded`
+  （新→旧排序、两条、subject 截断 ≤140、short/at 均非空）→ 6 passed。
+- 新增 `web/src/panels/journal.js`：第十二板块「工程日志」。
+  三段落：仓库体素（提交数 / 开张天数 / 批次数 / 文件数 / 测试数 / 分支@HEAD）
+  + 工作台体征（模型 / 会话 / 消息 / 审计 / tokens / 缓存命中）
+  + 最近 12 次提交列表（今天的提交左边 mint 条高亮、凡带 M8-Txxxx 的打标签）。
+  数字全部**现场读取** `/api/digest` `/api/stats` `/api/metrics`，零硬编码。
+- `web/index.html` 侧边新增「日志」入口；i18n：`nav.journal` / `journal.title` /
+  `palette.cmd.journal` ×2（568 keys parity / 215 literal t() 全可解析）；⌘K 可搜；
+  `.journal-*` 样式（田野笔记 × mint 点缀、等宽 SHA、今天提交左条）。
+- bundle 重建（app.js 483943 chars）；check:web ✓；`python scripts/doc_pointers.py --check` ✓
+
+### 3 验证
+
+- fake provider 真浏览器：
+  - zh 页面中文正常（`工程日志 · 记` + 中文段落），en 页面零 CJK（SMOKE 级）
+  - 12 个提交行全部出现且全部被识别为"今天"——与 digest 读数一致 ✓
+- `pytest tests/test_workspace_digest.py` → **6 passed**
+- `npm run test:i18n` → 568 keys ×2，215 literal t() 全解析 ✓
+- `npm run build:web` ✓
+
+### 4 遗留
+
+- 日志页只读，不会写任何状态——硬约束（与 digest 相同纪律）。
+- 工程日志不是"每日 18:00 生成"，而是"每次打开现场渲染"；不与真实时间挂钩更安全。

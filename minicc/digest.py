@@ -91,6 +91,11 @@ def format_digest(report: dict[str, Any], *, json_out: bool = False) -> str:
     lines.append(f"roadmap batches: {field(report.get('roadmap_batches'))}")
     lines.append(f"roadmap lines: {field(report.get('roadmap_lines'))}")
     lines.append(f"changelog lines: {field(report.get('changelog_lines'))}")
+    recent = report.get("recent_commits")
+    if recent:
+        lines.append("recent commits:")
+        for item in recent:
+            lines.append(f"  {field(item.get('short'))}  {field(item.get('subject'))}")
     return "\n".join(lines)
 
 
@@ -113,6 +118,7 @@ def build_digest(workspace: Path | str) -> dict[str, Any]:
         "changelog_lines": None,
         "tracked_files": None,
         "test_files": None,
+        "recent_commits": None,
     }
 
     if not root.is_dir():
@@ -167,4 +173,18 @@ def build_digest(workspace: Path | str) -> dict[str, Any]:
     payload["roadmap_batches"] = _count_batch_headings(roadmap)
     payload["roadmap_lines"] = _line_count(roadmap)
     payload["changelog_lines"] = _line_count(root / "docs" / "CHANGELOG.md")
+
+    # Twelve most recent commits: bounded, verbatim-ish (subject truncated to
+    # 140 chars), read with fixed arguments. This is the newest member of the
+    # fact pack and the raw material the Journal screen renders.
+    raw = _git(root, ["log", "-n", "12", "--format=%h%x1f%cI%x1f%s%x1e"])
+    if raw:
+        recent: list[dict[str, str]] = []
+        for chunk in raw.split("\x1e"):
+            parts = chunk.strip("\n").split("\x1f")
+            if len(parts) != 3:
+                continue
+            short, at, subject = parts
+            recent.append({"short": short, "at": at, "subject": subject[:140]})
+        payload["recent_commits"] = recent
     return payload
