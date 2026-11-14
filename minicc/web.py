@@ -3426,6 +3426,21 @@ class AgentService:
 
         return build_digest(self.workspace)
 
+    def stats(self) -> dict[str, Any]:
+        """The read-only operational inventory for ``/api/stats``.
+
+        M8-T922: the front end has called ``/api/stats`` since the pulse panel
+        was built, but the route never existed - every poll 404'd into the
+        ``catch(() => null)`` and the sessions/audit counters never rendered.
+        This is the same fact pack ``minicc --stats`` prints, answered over
+        HTTP: audit lines, sessions, task counters, disk, and the llm-cache
+        aggregate. Read-only; the same credential-free, never-raise contract
+        as ``digest()``.
+        """
+        from .stats import gather
+
+        return gather(self.workspace)
+
     def shutdown(self) -> None:
         # Unblock any agent threads parked on an approval prompt first, so
         # task workers can drain instead of hitting the 60s auto-deny.
