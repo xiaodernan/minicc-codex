@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T18:43:00.593Z",
+  "generated_at": "2026-11-14T18:51:54.836Z",
   "branch": "main",
-  "head": "9277dc3",
-  "total_commits": 1505,
+  "head": "49335be",
+  "total_commits": 1507,
   "recent_commits": [
+    {
+      "short": "49335be",
+      "at": "2026-11-15T02:51:33+08:00",
+      "subject": "M8-T961: The Keys & Vault chapter - the full credential journey in the manual (gitignored .env, --doctor, affinity-safe gateway switch, hit_pct receipts, cost_i"
+    },
+    {
+      "short": "bee4176",
+      "at": "2026-11-14T18:43:00Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9277dc3",
       "at": "2026-11-15T02:42:36+08:00",
@@ -19,22 +29,12 @@
       "short": "e60c415",
       "at": "2026-11-15T02:21:30+08:00",
       "subject": "M8-T958: almanac hydrates in two waves - metrics+digest re-render immediately, stats lands whenever it lands; tap-to-numbers from ~9.8s to ~1.7s measured on the"
-    },
-    {
-      "short": "4e66abd",
-      "at": "2026-11-14T18:17:22Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a82459c",
-      "at": "2026-11-15T02:16:43+08:00",
-      "subject": "M8-T957: /api/digest in parallel - the 9 read-only git probes now run concurrently; wall clock 1.34s -> ~0.6s, payload identical (measured gate: test_workspace_"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 279,
+  "roadmap_batches": 280,
   "changelog_entries": 1,
-  "roadmap_lines": 51796,
+  "roadmap_lines": 51815,
   "tracked_files": 1053,
   "test_files": 702,
   "almanac_chapters": 11,
