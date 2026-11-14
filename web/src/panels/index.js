@@ -1222,6 +1222,41 @@ export function updateInspectorMetrics(data) {
   }
 }
 
+// M8-T916: the running light — an ambient cache/task/branch strip pinned to
+// the sidebar bottom. Ambient data, on-demand truth: it polls the same
+// /api/metrics + /api/digest the panels use, and simply stays dim when the
+// backend cannot answer rather than inventing numbers.
+export async function updateRunningLight() {
+  const root = $("#runningLight");
+  if (!root) return;
+  try {
+    const data = await requestJson("/api/metrics");
+    const hit = data?.llm_cache?.cache_hit_rate;
+    const finite = typeof hit === "number" && Number.isFinite(hit);
+    const hitText = finite ? `${Math.round(hit * 1000) / 10}%` : "—";
+    const tasksEl = $("#runningLightTasks");
+    const cacheEl = $("#runningLightCache");
+    if (cacheEl) cacheEl.textContent = hitText;
+    if (tasksEl) tasksEl.textContent = String(Number(data?.task_count ?? 0));
+    root.dataset.tone = !finite ? "quiet" : hit >= 0.7 ? "high" : hit >= 0.4 ? "mid" : "low";
+  } catch {
+    // The light stays dim honestly — no numbers invented for a blind backend.
+  }
+}
+
+export async function updateRunningLightDigest() {
+  const branch = $("#runningLightBranch");
+  if (!branch) return;
+  try {
+    const digest = await requestJson("/api/digest");
+    const isGit = digest?.is_git === true;
+    branch.textContent = isGit && digest.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "—";
+    branch.title = isGit && digest.total_commits != null ? `${digest.total_commits} commits · ${digest.roadmap_batches ?? "—"} batches` : "";
+  } catch {
+    branch.textContent = "—";
+  }
+}
+
 // M8-T898: the provider now streams tool-call/reasoning progress on the
 // status channel (see M8-T897) - this chip makes it visible in the task
 // dock while a planning turn runs: `◌ read_file · 128 字符` with a pulse

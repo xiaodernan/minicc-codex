@@ -733,6 +733,9 @@
       "nav.almanac": "\u5E74\u9274",
       "panel.canvas": "\u8FD4\u56DE",
       "send": "\u53D1\u9001",
+      "light.title": "\u822A\u884C\u706F \xB7 \u70B9\u51FB\u6253\u5F00\u8D26\u672C",
+      "light.cache": "\u7F13\u5B58",
+      "light.tasks": "\u4EFB\u52A1",
       "replay.action": "\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1",
       "replay.back": "\u8FD4\u56DE\u8BE6\u60C5",
       "replay.close": "\u5173\u95ED\u56DE\u653E",
@@ -1222,6 +1225,9 @@
       "nav.almanac": "Almanac",
       "panel.canvas": "Back",
       "send": "Send",
+      "light.title": "Running light \xB7 open the ledger",
+      "light.cache": "cache",
+      "light.tasks": "tasks",
       "replay.action": "Replay the run",
       "replay.back": "Back to task",
       "replay.close": "Close replay",
@@ -4658,6 +4664,34 @@
       }
     }
   }
+  async function updateRunningLight() {
+    const root = $("#runningLight");
+    if (!root) return;
+    try {
+      const data = await requestJson("/api/metrics");
+      const hit = data?.llm_cache?.cache_hit_rate;
+      const finite = typeof hit === "number" && Number.isFinite(hit);
+      const hitText = finite ? `${Math.round(hit * 1e3) / 10}%` : "\u2014";
+      const tasksEl = $("#runningLightTasks");
+      const cacheEl = $("#runningLightCache");
+      if (cacheEl) cacheEl.textContent = hitText;
+      if (tasksEl) tasksEl.textContent = String(Number(data?.task_count ?? 0));
+      root.dataset.tone = !finite ? "quiet" : hit >= 0.7 ? "high" : hit >= 0.4 ? "mid" : "low";
+    } catch {
+    }
+  }
+  async function updateRunningLightDigest() {
+    const branch = $("#runningLightBranch");
+    if (!branch) return;
+    try {
+      const digest = await requestJson("/api/digest");
+      const isGit = digest?.is_git === true;
+      branch.textContent = isGit && digest.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "\u2014";
+      branch.title = isGit && digest.total_commits != null ? `${digest.total_commits} commits \xB7 ${digest.roadmap_batches ?? "\u2014"} batches` : "";
+    } catch {
+      branch.textContent = "\u2014";
+    }
+  }
   var TOOL_STREAM_CODES = /^(provider_tool_call_start|provider_tool_call_progress|provider_reasoning_progress)$/;
   function latestToolStreamEvent(data) {
     if (!ACTIVE_TASK_STATUSES.has(String(data?.status || ""))) return null;
@@ -7022,6 +7056,15 @@
       window.setTimeout(finishStartupSplash, 420);
     });
     if (document.documentElement.dataset.arcade === "1") openArcade().catch((error) => showToast(error.message));
+    updateRunningLight();
+    updateRunningLightDigest();
+    window.setInterval(() => {
+      if (!document.hidden) updateRunningLight();
+    }, 45e3);
+    window.setInterval(() => {
+      if (!document.hidden) updateRunningLightDigest();
+    }, 6e4);
+    $("#runningLight")?.addEventListener("click", () => openLedgerPanel());
     window.setInterval(() => {
       if (!document.hidden) loadTaskHistory();
     }, 5e3);

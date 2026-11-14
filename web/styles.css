@@ -3834,3 +3834,40 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .replay-row { transition: none; transform: none; }
   .replay-stamp { animation: none; }
 }
+
+/* ============================================================
+   M8-T916: the running light — an ambient cache/task/branch strip
+   pinned to the sidebar bottom. Ambient data, on-demand truth:
+   dims when the backend cannot answer, never invents numbers.
+   ============================================================ */
+.running-light {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  margin: 0 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  text-align: left;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+  width: calc(100% - 16px);
+}
+.running-light:hover { background: var(--surface-soft); border-color: var(--line-bright); color: var(--text); }
+.running-light-dot { background: var(--quiet); border-radius: 50%; flex-shrink: 0; height: 8px; width: 8px; }
+.running-light[data-tone="high"] .running-light-dot { animation: light-breathe 2.4s ease-in-out infinite; background: var(--mint); }
+.running-light[data-tone="mid"] .running-light-dot { background: var(--amber); }
+.running-light[data-tone="low"] .running-light-dot { background: var(--rose); }
+.running-light[data-tone="quiet"] .running-light-dot { background: var(--quiet); }
+@keyframes light-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mint) 45%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 14%, transparent); }
+}
+.running-light-text { align-items: baseline; color: var(--quiet); display: inline-flex; font-size: 10.5px; gap: 6px; min-width: 0; }
+.running-light-text b { color: var(--text); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-variant-numeric: tabular-nums; font-weight: 650; }
+.running-light-text i { color: var(--line-bright); font-style: normal; }
+.running-light-branch { color: var(--quiet); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-size: 10px; margin-left: auto; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .running-light[data-tone="high"] .running-light-dot { animation: none; } }

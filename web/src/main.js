@@ -12,6 +12,7 @@ import { applyIcons, icon, refreshIcons } from "./icons.js";
 import { bindCommandPalette, closeCommandPalette, openCommandPalette } from "./core/command-palette.js";
 import { handleFileTreeKeydown } from "./panels/index.js";
 import { openReplayForTask } from "./panels/replay.js";
+import { updateRunningLight, updateRunningLightDigest } from "./panels/index.js";
 import { PERMISSION_MODES, addAssistantMessage, addLoadingMessage, addUserMessage, applyMentionOption, assistantMessageMarkup, bindRunningTask, closeMentionPopover, effectiveTaskPermissions, eventTimelineMarkup, handleMentionKeydown, mentionState, openGlobalSearchPanel, refreshFileTree, scrollChat, setBusy, setPermissionMode, setSession, showAuthModal, showToast, stopTaskTimer, submitAuthToken, taskSessionKey, toggleFileDir, toggleTodoSection, updateChatFollowState, updateMentionPopover, updateMode, updateReasoningControl, updateTaskDock, visibleAgentEvents } from "./panels/index.js";
 
 export function bindUI() {
@@ -484,6 +485,12 @@ document.addEventListener("DOMContentLoaded", () => {
       window.setTimeout(finishStartupSplash, 420);
     });
   if (document.documentElement.dataset.arcade === "1") openArcade().catch((error) => showToast(error.message));
+  // M8-T916: the running light — ambient cache/task/branch strip in the sidebar.
+  updateRunningLight();
+  updateRunningLightDigest();
+  window.setInterval(() => { if (!document.hidden) updateRunningLight(); }, 45000);
+  window.setInterval(() => { if (!document.hidden) updateRunningLightDigest(); }, 60000);
+  $("#runningLight")?.addEventListener("click", () => openLedgerPanel());
   // Keep tasks created in another session or browser tab visible in the sidebar.
   window.setInterval(() => { if (!document.hidden) loadTaskHistory(); }, 5000);
   window.addEventListener("beforeunload", () => persistSessionView());

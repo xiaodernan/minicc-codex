@@ -50746,3 +50746,36 @@ M8-T914 是一场在本机打响的实弹演习：120 并发、25×200、60×429
 ### 4 文件
 
 `web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
+
+## 批次 916 - M8-T916：「航行灯 · Running Light」— 侧边栏常驻的缓存/任务/分支环境读数
+
+### 1 为什么
+
+产品有账本（ledger）、脉搏（pulse）、年鉴（almanac）、回放（replay）——但"每天打开工作台时"
+没有一个一眼能看的心跳。IDE 有状态栏，浏览器有标签页图标，minicc 应该有自己的「航行灯」：
+一眼知道缓存热不热、任务多不多、分支在哪。
+
+### 2 做了什么
+
+- `web/index.html` — sidebar-bottom 的 `.secondary-nav` 下方新增 `#runningLight` 按钮：
+  状态点 + 「缓存 N% · 任务 M」+ 右侧 mono 分支读数（`main @ 2e8dfb1`），整行可点。
+- `web/src/panels/index.js` — 导出两个环境读数器：
+  - `updateRunningLight()` — 读 `/api/metrics`（与账本/脉搏同源）：`llm_cache.cache_hit_rate`
+    与 `task_count`；tone 三档（≥70% high=mint 呼吸 / ≥40% mid=amber / <40% low=rose / 无数据 quiet 暗）；
+  - `updateRunningLightDigest()` — 读 `/api/digest`：branch @ HEAD 与 title=提交/批次计数；
+  - **诚实降级**：端点失败/无数据 → 显示 `—` 并保持 quiet 暗色，绝不伪造数字。
+- `web/src/main.js` — 启动时各拉一次 + 每 45/60 秒轮询（页面 hidden 时跳过）；点击按钮开账本总览（Ctrl/⌘+L 同入口）。
+- `web/src/core/i18n.js` — `light.title` / `light.cache` / `light.tasks` × zh/en 全量。
+- `web/styles.css` — `.running-light*`：等宽数字、mint 呼吸灯（仅 high 态）、quiet/amber/rose 三档色、
+  `prefers-reduced-motion` 降级；宽度贴合 sidebar（`calc(100% - 16px)`，margin 8px 对齐 nav）。
+
+### 3 验证
+
+- 真实浏览器探针（chromium headless + route 拦截 mock /api/metrics + /api/digest）：
+  `data-tone="high"`、文本渲染 `缓存 98.3% · 任务 1426 · main @ 2e8dfb1`、
+  点击后 `#panelModal.show` 打开账本总览，title=「总览」，控制台零 pageerror。
+
+### 4 文件
+
+`web/index.html`、`web/src/panels/index.js`、`web/src/main.js`、`web/src/core/i18n.js`、`web/styles.css`、
+`web/app.js`、`web/asset-manifest.json`、content-addressed bundle

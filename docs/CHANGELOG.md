@@ -208,3 +208,5 @@
 - **Plane 真实环境冒烟 + rabbitmq 4.0-alpine（M8-T914）**：docker-compose 从未在本机拉起——`rabbitmq:3-alpine` 在 Docker Desktop/WSL2 必崩（`.erlang.cookie` eacces），改用与本机在跑同族验证过的 `rabbitmq:4.0-alpine`。随后全平面替代端口真机验收：四个服务 UP、网关经 `lb://` 打通 `/api/insights/fleet`（M8-T906 端到端兑现）、120 并发 → 25×200/60×429/35×503、`gateway.rate_limited{route=insights}` 计数 60（M8-T888 兑现）、熔断 open→honest 503 fallback→半开→CLOSED 完整回环。5672/6379/8080/8761 全部避开（careeros/specproof 占用），验收后 `compose down` 清场。
 
 - **年鉴第七卷《The Mesh · 六个服务，一个国家》（M8-T915）**：把 M8-T914 的实弹演习写进叙事宫殿——120 并发、25×200/60×429/35×503、熔断器 31 次快开、≤15s 闭合恢复，五行门禁清单（Eureka/Gateway/Redis token bucket/Resilience4j/RabbitMQ）。rail 现共 8 章；仪表不留假数字，实弹数字标注日期与测量口径。
+
+- **「航行灯 · Running Light」上线（M8-T916）**：侧边栏底部常驻一枚环境读数——「缓存 98.3% · 任务 1426 · main @ 2e8dfb1」，mint/amber/rose/quiet 四档色温（high 态 mint 呼吸），数据与账本/脉搏同源（`/api/metrics` + `/api/digest`），45/60s 轮询（页面隐藏时暂停），点击直达账本总览。端点不可用时静默降级为 `—`，绝不伪造数字。i18n 双语全量；真实浏览器探针验证渲染与点击联动零 pageerror。
