@@ -302,3 +302,5 @@
 - **游戏厅最佳纪录，M8-T966**：`web/src/game.js` 把每场最好的击退（score）与最高连击（combo）写入 `localStorage:minicc-game-best`；HUD 增加「最佳/Best」与「连击/Combo」两格（`#gameBestScore` `#gameBestCombo`），`initGame` 与 `finishGame` 都刷新；跨会话永远保留真实历史（`{score: 128, combo: 6}` seeded 立得 `128/6`）；i18n 584 keys；web/arcade/almanac/i18n smoke 全绿 ✓
 
 - **鼠标滚轮方向可切换，M8-T967**：新增「鼠标滚轮 / Mouse wheel」设置块（`.wheel-invert[data-invert=on|off]`）——Windows/Linux 默认方向不变；切到「已反转」后与 Mac 自然滚动一致（`localStorage['minicc-invert-wheel']=1`），捕获 wheel 反算 `deltaY` 后写入 `.chat-area`/`.panel-body`/任何 `overflow:auto` 的祖先，`preventDefault` 仅在非默认时生效；跨面板重开可还原。i18n 589 keys；web/almanac/i18n smoke 全绿 ✓
+
+- **/api/stats 并发爆恐消化，M8-T968**：`minicc/stats.py 的 _disk_bytes` 加 per-workspace threading.Lock — 10 路冷 walk 序列化为 7.55 s（之前 60-80s 叠加）；`docs/LOAD_TESTING.md` 诚实钉出 pre-fix 探针（`/api/stats` p50=**43,946ms**，ThreadingHTTPServer+GIL 下 20 路并发每个都 walk 一遍）；`scripts/load-test.mjs` 留在仓库（n / errors / p50 / p95 / p99 / max）。`minicc --stats` CLI 与 `/api/stats` Web 同时受益。

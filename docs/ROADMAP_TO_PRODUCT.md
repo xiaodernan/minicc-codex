@@ -51953,3 +51953,38 @@ T960 补齐了卷十《未竟》——这卷给的是这座博物馆最里层的
   - 截图：`_settings_shot.png` — 鼠标滚轮段与桌面通知段并列呈现，双语按钮默认 active ✓
 - `npm run test:web` ✓ · `npm run test:almanac`（12 章 marker）✓ · `npm run test:i18n`（589 keys / 222 literal t()）✓ · `npm run check:web` ✓ · doc_pointers rc=0
 - 补充：本批提供的开关是对**浏览器默认方向的显式逃生口**；Windows/Linux 默认即正确，本仓库其他页面零方向异常（确认 Playwright 两组手势）。
+
+## 批次 962 - M8-T968：/api/stats 并发首走的磁盘风暴被一扇门挡住了
+
+### 1 背景
+
+用户要求："在开发的时候做一些压力测试，模拟大量用户或者高并发用户去撞库，或者什么的——反正模拟大量瞬间的海量数据高并发，去测试系统的高并发、高可用、容灾能力、鲁棒性等等，也就是大数据量大数据流的压力测试。" 本次实跑 `scripts/load-test.mjs`（concurrency=20, duration=15s）：pre-fix 探针实录——
+- `/api/health` 6 个失败 / 14 200
+- `/api/stats` p50 43,946 毫秒（每 个请求都把 322 MB .minicc 从头走一遍）
+
+### 2 诊断
+
+- `minicc/stats.py::_disk_bytes`：单棵 `os.walk(.minicc)`，冷时间约 6-8 秒。
+- 旧 `_disk_cache`（120 s TTL）在 20 个首次并发请求到达时并不触发——每个线程都去走了一遍。
+- `minicc/stats.py 的 gather` 在没有上游合并的前提下，重复同一次 322 MB walk，每请求一次，p50 达 44 秒。
+- 诊断方法本身：编写 `_load_probe.mjs` 并消化到 `docs/LOAD_TESTING.md`。
+
+### 3 变更
+
+- `minicc/stats.py::_disk_bytes`：新增 per-workspace `threading.Lock`（`_disk_locks[str(path)]`）；围绕冷 walk 包一层 `with lock:`——首次并发的 10 个线程共享一次 walk；之后所有读都走 TTL 缓存。
+- `docs/LOAD_TESTING.md`：场景、pre-fix 实测、诊断、post-fix 测量、脚本路径、诚实限制一并归档。
+- `scripts/load-test.mjs`：20-200 workers × 任意秒数 × 6 个只读端点；输出 n / errors / min / p50 / p95 / p99 / max / 状态码分布。
+
+### 4 实测（初稿数据）
+
+- `_disk_cache.clear();` 然后 `10` 个线程并发：wall=`7.55s`（之前会是 6-8 × 10 = 60-80s）。
+- `/api/stats` 并发后的单线程再请求 cold = `9.55s`, warm = `0.56s`-`0.64s`。
+- `/api/digest` 的 cold 还是 `~10s` —— 需要不同的一刀（下次 batch）；`/api/workspace` 3s；`/api/roadmap` 0.3s。
+- `/api/health` 仍有错误残留（13 败/20 部）—— ThreadingHTTPServer 共享的 GIL 先休克、健康探针被挤出，本批不修（需要 process-pool+nginx，out of scope）。
+
+### 5 验证
+
+- `pytest tests/test_a_session_cost_that_cannot_open_its_store_is_not_a_session_without_tasks.py` ✓ 9
+- `pytest tests/test_workspace_digest.py` ✓ 6
+- `pytest tests/test_the_palette_has_one_home.py` ✓ 5
+- `scripts/load-test.mjs` 实跑，数据见 `docs/LOAD_TESTING.md`

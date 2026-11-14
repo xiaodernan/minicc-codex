@@ -3,7 +3,7 @@ import { requestJson } from "../core/transport.js";
 import { activateDialog, deactivateDialog } from "../core/dialog.js";
 
 import { notificationsBlocked, notificationsEnabled, setNotificationsEnabled } from "../core/notify.js";
-import { initWheelToggle, wheelInverted, setWheelInverted } from "../core/wheel-invert.js";
+import { initWheelToggle, naturalScroll, setNaturalScroll } from "../core/wheel-invert.js";
 
 import { openArcade } from "../core/arcade.js";
 
@@ -1731,8 +1731,8 @@ export function openSettingsPanel() {
 
   const notifyBlock = "<div class=\"settings-block\"><span>" + t("notify.enable") + "</span><div class=\"settings-locale\"><button class=\"locale-option notify-toggle " + (notifyOn ? "active" : "") + "\" data-notify=\"on\" type=\"button\">" + t("notify.on") + "</button><button class=\"locale-option notify-toggle " + (notifyOn ? "" : "active") + "\" data-notify=\"off\" type=\"button\">" + t("notify.off") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("notify.enableHint")) + "</small></div>";
 
-  const wheelOn = wheelInverted();
-  const wheelBlock = "<div class=\"settings-block\"><span>" + t("scroll.title") + "</span><div class=\"settings-locale\"><button class=\"locale-option wheel-invert " + (wheelOn ? "active" : "") + "\" data-invert=\"on\" type=\"button\">" + t("scroll.invertOn") + "</button><button class=\"locale-option wheel-invert " + (wheelOn ? "" : "active") + "\" data-invert=\"off\" type=\"button\">" + t("scroll.invertOff") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("scroll.invertHint")) + "</small></div>";
+  const wheelNatural = naturalScroll();
+  const wheelBlock = "<div class=\"settings-block\"><span>" + t("scroll.title") + "</span><div class=\"settings-locale\"><button class=\"locale-option wheel-invert " + (wheelNatural ? "" : "active") + "\" data-scroll=\"classic\" type=\"button\">" + t("scroll.invertOn") + "</button><button class=\"locale-option wheel-invert " + (wheelNatural ? "active" : "") + "\" data-scroll=\"natural\" type=\"button\">" + t("scroll.invertOff") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("scroll.invertHint")) + "</small></div>";
 
 
 
@@ -1765,9 +1765,9 @@ export function openSettingsPanel() {
 
   document.querySelectorAll(".wheel-invert").forEach((button) => {
     button.addEventListener("click", () => {
-      const want = button.dataset.invert === "on";
-      setWheelInverted(want);
-      document.querySelectorAll(".wheel-invert").forEach((node) => node.classList.toggle("active", (node.dataset.invert === "on") === wheelInverted()));
+      const want = button.dataset.scroll === "natural";
+      setNaturalScroll(want);
+      document.querySelectorAll(".wheel-invert").forEach((node) => node.classList.toggle("active", (node.dataset.scroll === "natural") === naturalScroll()));
     });
   });
 

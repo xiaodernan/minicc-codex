@@ -686,10 +686,10 @@
       "notify.denied": "\u6D4F\u89C8\u5668\u5DF2\u62D2\u7EDD\u901A\u77E5\u6743\u9650\uFF0C\u8BF7\u5728\u7AD9\u70B9\u8BBE\u7F6E\u91CC\u653E\u884C",
       "notify.unsupported": "\u6B64\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u684C\u9762\u901A\u77E5",
       "scroll.title": "\u9F20\u6807\u6EDA\u8F6E",
-      "scroll.invert": "\u53CD\u8F6C\u6EDA\u8F6E\u65B9\u5411",
-      "scroll.invertHint": "\u9ED8\u8BA4\u65B9\u5411\uFF1A\u6ED1\u8F6E\u5411\u4E0A=\u5411\u4E0A\u770B\uFF08Windows/Linux\uFF09\u3002\u6253\u5F00\u540E\u53D8\u4E3A Mac \u81EA\u7136\u6EDA\u52A8\uFF1A\u624B\u52BF\u5411\u4E0A=\u5185\u5BB9\u5411\u4E0B\u6EDA\uFF08iOS \u5F0F\u8DDF\u624B\uFF09\u3002",
-      "scroll.invertOn": "\u5DF2\u53CD\u8F6C",
-      "scroll.invertOff": "\u9ED8\u8BA4\u65B9\u5411",
+      "scroll.invert": "\u6EDA\u52A8\u65B9\u5411",
+      "scroll.invertHint": "\u9ED8\u8BA4\uFF1A\u6ED1\u8F6E\u5411\u4E0A=\u5411\u4E0A\u770B\uFF08Windows/Linux \u4F20\u7EDF\u65B9\u5411\uFF09\u3002\u5207\u6210\u81EA\u7136\u65B9\u5411\uFF1A\u624B\u52BF\u5411\u4E0A=\u9875\u9762\u5185\u5BB9\u5411\u4E0B\u8DDF\u624B\uFF08macOS \u81EA\u7136\u6EDA\u52A8\uFF09\u3002",
+      "scroll.invertOn": "\u7ECF\u5178\u65B9\u5411",
+      "scroll.invertOff": "\u81EA\u7136\u65B9\u5411",
       "notify.completed": "\u4EFB\u52A1\u5B8C\u6210",
       "notify.failed": "\u4EFB\u52A1\u5931\u8D25",
       "notify.cancelled": "\u4EFB\u52A1\u5DF2\u53D6\u6D88",
@@ -1277,10 +1277,10 @@
       "notify.denied": "Notification permission was denied; allow it in site settings",
       "notify.unsupported": "This browser does not support notifications",
       "scroll.title": "Mouse wheel",
-      "scroll.invert": "Invert wheel direction",
-      "scroll.invertHint": "Default: wheel up = scroll up (Windows/Linux). On turns on macOS-style natural scroll \u2014 swipe up = content moves down.",
-      "scroll.invertOn": "Inverted",
-      "scroll.invertOff": "Default",
+      "scroll.invert": "Scroll direction",
+      "scroll.invertHint": "Default: wheel up = scroll up (Windows/Linux convention). Switch to Natural for macOS-style swipe \u2014 swipe up = content moves down.",
+      "scroll.invertOn": "Classic",
+      "scroll.invertOff": "Natural",
       "notify.completed": "Task completed",
       "notify.failed": "Task failed",
       "notify.cancelled": "Task cancelled",
@@ -1827,16 +1827,16 @@
   }
 
   // web/src/core/wheel-invert.js
-  var KEY = "minicc-invert-wheel";
+  var KEY = "minicc-scroll-natural";
   var wired = false;
-  function wheelInverted() {
+  function naturalScroll() {
     try {
       return localStorage.getItem(KEY) === "1";
     } catch {
       return false;
     }
   }
-  function setWheelInverted(on) {
+  function setNaturalScroll(on) {
     try {
       if (on) localStorage.setItem(KEY, "1");
       else localStorage.removeItem(KEY);
@@ -1856,14 +1856,11 @@
     return null;
   }
   function onWheel(event) {
-    if (!wheelInverted()) return;
     if (!event.deltaY) return;
     const target = findScrollable(event.target) ?? (document.scrollingElement ?? document.body);
-    const next2 = target.scrollTop - event.deltaY;
-    if (next2 > 0 || target.scrollTop > 0) {
-      target.scrollTop = next2;
-      event.preventDefault();
-    }
+    const next2 = naturalScroll() ? target.scrollTop - event.deltaY : target.scrollTop + event.deltaY;
+    event.preventDefault();
+    if (next2 !== target.scrollTop) target.scrollTop = next2;
   }
   function initWheelToggle() {
     if (wired) return;
@@ -4670,8 +4667,8 @@
     const sandboxBlock = '<div class="settings-block"><span>' + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "\u89C1\u5DE5\u4F5C\u533A\u9762\u677F" : "See Workspaces") + "</strong></div>";
     const notifyOn = notificationsEnabled();
     const notifyBlock = '<div class="settings-block"><span>' + t("notify.enable") + '</span><div class="settings-locale"><button class="locale-option notify-toggle ' + (notifyOn ? "active" : "") + '" data-notify="on" type="button">' + t("notify.on") + '</button><button class="locale-option notify-toggle ' + (notifyOn ? "" : "active") + '" data-notify="off" type="button">' + t("notify.off") + '</button></div><small class="settings-note">' + escapeHtml(t("notify.enableHint")) + "</small></div>";
-    const wheelOn = wheelInverted();
-    const wheelBlock = '<div class="settings-block"><span>' + t("scroll.title") + '</span><div class="settings-locale"><button class="locale-option wheel-invert ' + (wheelOn ? "active" : "") + '" data-invert="on" type="button">' + t("scroll.invertOn") + '</button><button class="locale-option wheel-invert ' + (wheelOn ? "" : "active") + '" data-invert="off" type="button">' + t("scroll.invertOff") + '</button></div><small class="settings-note">' + escapeHtml(t("scroll.invertHint")) + "</small></div>";
+    const wheelNatural = naturalScroll();
+    const wheelBlock = '<div class="settings-block"><span>' + t("scroll.title") + '</span><div class="settings-locale"><button class="locale-option wheel-invert ' + (wheelNatural ? "" : "active") + '" data-scroll="classic" type="button">' + t("scroll.invertOn") + '</button><button class="locale-option wheel-invert ' + (wheelNatural ? "active" : "") + '" data-scroll="natural" type="button">' + t("scroll.invertOff") + '</button></div><small class="settings-note">' + escapeHtml(t("scroll.invertHint")) + "</small></div>";
     const rewindBlock = '<div class="settings-block settings-rewind"><span>' + escapeHtml(t("rewind.advanced")) + '</span><form id="rewindForm" class="rewind-form"><label class="rewind-label"><span>' + escapeHtml(t("rewind.keepLabel")) + '</span><input id="rewindKeep" type="number" min="1" value="3" required aria-label="' + escapeHtml(t("rewind.keepLabel")) + '" /></label><button class="send-button rewind-button" type="submit">' + escapeHtml(t("rewind.action")) + '</button></form><small class="settings-note">' + escapeHtml(t("rewind.hint")) + "</small></div>";
     const allowlistBlock = '<div class="settings-block" id="allowlistEditor"><span>' + escapeHtml(t("allowlist.title")) + '</span><small class="settings-note">' + escapeHtml(t("allowlist.hint")) + '</small><form id="allowlistForm" class="allowlist-form"><label><span>' + escapeHtml(t("allowlist.commands")) + '</span><textarea id="allowlistCommands" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.paths")) + '</span><textarea id="allowlistPaths" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.tools")) + '</span><textarea id="allowlistTools" rows="2"></textarea></label><button class="send-button" type="submit">' + escapeHtml(t("allowlist.save")) + "</button></form></div>";
     openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + wheelBlock + rewindBlock + allowlistBlock);
@@ -4688,9 +4685,9 @@
     });
     document.querySelectorAll(".wheel-invert").forEach((button) => {
       button.addEventListener("click", () => {
-        const want = button.dataset.invert === "on";
-        setWheelInverted(want);
-        document.querySelectorAll(".wheel-invert").forEach((node) => node.classList.toggle("active", node.dataset.invert === "on" === wheelInverted()));
+        const want = button.dataset.scroll === "natural";
+        setNaturalScroll(want);
+        document.querySelectorAll(".wheel-invert").forEach((node) => node.classList.toggle("active", node.dataset.scroll === "natural" === naturalScroll()));
       });
     });
     const rewindForm = $("#rewindForm");

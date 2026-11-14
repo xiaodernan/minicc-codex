@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -183,27 +184,45 @@ _DISK_TTL_SECONDS = 120.0
 # slowest part of the inventory; every caller polling /api/stats for
 # dashboard freshness was paying it back-to-back. Counted bytes change
 # slowly; a two-minute answer is honest about being a two-minute answer.
+#
+# One lock per workspace both to dedupe the cold-walk AND to serialise
+# concurrent cold walks. Without it, the Web workbench's startup-burst of
+# parallel API requests each triggered the same 6-8s walk in parallel, dreamed alarming
+# at every latency probe; the lock makes the first walk's answer the one seen by the rest.
 _disk_cache: dict[str, tuple[float, int]] = {}
+_disk_locks: dict[str, threading.Lock] = {}
 
 
 def _disk_bytes(path: Path) -> int:
     key = str(path)
-    now = time.monotonic()
     cached = _disk_cache.get(key)
+    now = time.monotonic()
     if cached is not None:
-        at, total = cached
+        at, _ = cached
         if now - at < _DISK_TTL_SECONDS:
-            return total
-    total = 0
-    for dirpath, _dirs, files in os.walk(path):
-        for name in files:
-            try:
-                total += (Path(dirpath) / name).stat().st_size
-            except OSError:
-                # A file vanished mid-walk; count what we saw, skip silently.
-                continue
-    _disk_cache[key] = (now, total)
-    return _disk_cache[key][1]
+            return cached[1]
+
+    lock = _disk_locks.get(key)
+    if lock is None:
+        lock = threading.Lock()
+        _disk_locks[key] = lock
+
+    with lock:
+        # recheck under lock
+        cached = _disk_cache.get(key)
+        now = time.monotonic()
+        if cached is not None and now - cached[0] < _DISK_TTL_SECONDS:
+            return cached[1]
+        total = 0
+        for dirpath, _dirs, files in os.walk(path):
+            for name in files:
+                try:
+                    total += (Path(dirpath) / name).stat().st_size
+                except OSError:
+                    # A file vanished mid-walk; count what we saw, skip silently.
+                    continue
+        _disk_cache[key] = (now, total)
+        return total
 
 
 def _cache_stats() -> dict[str, Any]:
