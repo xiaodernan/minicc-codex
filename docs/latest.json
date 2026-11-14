@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T15:33:27.180Z",
+  "generated_at": "2026-11-14T15:52:45.718Z",
   "branch": "main",
-  "head": "d9998d8",
-  "total_commits": 1477,
+  "head": "b43044b",
+  "total_commits": 1479,
   "recent_commits": [
+    {
+      "short": "b43044b",
+      "at": "2026-11-14T23:51:06+08:00",
+      "subject": "M8-T948: arcade chapter - complete wave targets by hard difficulty, economy math, tactic notes (magnetshroom / squash / polejump) + bilingual parity"
+    },
+    {
+      "short": "460af86",
+      "at": "2026-11-14T15:33:27Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d9998d8",
       "at": "2026-11-14T23:32:53+08:00",
@@ -19,22 +29,12 @@
       "short": "cd6232b",
       "at": "2026-11-14T23:12:24+08:00",
       "subject": "M8-T946b: re-point the optimization smoke at the rebuilt empty canvas - the obsolete data-start-action selector kept the JS gate red for a full run"
-    },
-    {
-      "short": "21acf60",
-      "at": "2026-11-14T23:04:04+08:00",
-      "subject": "M8-T946: celebration burst on task completion - 26 particles from the bubble center (reduced-motion silient), live-completed path only, never on restore"
-    },
-    {
-      "short": "5654253",
-      "at": "2026-11-14T14:48:39Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 267,
+  "roadmap_batches": 268,
   "changelog_entries": 1,
-  "roadmap_lines": 51537,
+  "roadmap_lines": 51558,
   "tracked_files": 1050,
   "test_files": 702,
   "almanac_chapters": 9,
