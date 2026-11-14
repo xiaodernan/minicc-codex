@@ -232,3 +232,5 @@
 - **新手演示按钮 + 通关路线 + arcade 真键盘操作，M8-T930**：说明书五分钟上手章新增动作块「直接看一遍 / Would rather watch than read」，一个按钮现场运行 demo flow（intake → plan → tool → verify → deliver），中英两套；游戏厅教程章新增「第一局怎么赢（通关路线）」与「常用键位」（之前手册里描述的键盘操作游戏里并不存在——文档先于实现的事实错误，本批修正为真实现）：`web/src/game.js` 新增 `1-9` 按 DOM 顺序选卡、`P` 暂停/继续、`E` 铲子（仅在游戏弹窗打开且焦点不在输入框时生效）；真浏览器验证（zh/en 双语按钮均触达、`game.selected`/`pauseReasons`/`shovel` 全通）；`.manual-callout` + `.manual-demo-run`（CTA，focus-visible 就绪）；bundle 重建 ✓。
 
 - **分支并轨文件级复核，M8-T931**：逐一比对 dev/minicc-reliability-4ba3 / feature/minicc-cloud / consolidation/* / backup / archive / scratch / origin/integration/m8-t537-to-main / origin/m8-t537 与 main 的 src 级面——全部为领先关系；唯一“缺失”的 11 个文件是 8 个 hashed 构建产物（main 重新构建）+ 3 个早期 test 草稿（已被 main 的 fence/line ruler 套件覆盖）。结论同 M8-T924：没有任何分支携带 main 缺失的功能内容，不以形式合并倒退。
+
+- **almanac 双语回归门，M8-T932**：新增 `tests/almanac_smoke.mjs`——真浏览器逐章验证 almanac 九章：en 模式零 CJK、zh 模式必须渲染中文；`test:almanac` 入 `test:arcade`（game+codex+zombie+almanac）+ ci.yml syntax job 的 `node --check`；fake provider 服务器上本地通过。全内容双语不再是"修了就算"，而是每次 CI 强制验证。

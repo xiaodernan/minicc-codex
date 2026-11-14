@@ -51148,3 +51148,25 @@ roadmap 的并轨结论与 M8-T924 时一致，但现在有完整的文件级清
 
 - `git diff --name-status` 清单与此账本列出的 11 个文件一一对应；src 无遗漏文件。
 - doc_pointers 不改动任何可引用面——零风险。
+
+## 批次 928 - M8-T932：almanac 双语回归门——9 章逐章验证零中英夹杂
+
+### 1 背景
+
+说明书/图鉴/控制台 Chrome 的全内容双语已经修复（M8-T929/930），但没有任何测试兜底：
+年鉴一旦回归成中文正文 + 英文夹杂，没有 CI 一条线拦得住。本批次补上这条线。
+
+### 2 变更
+
+- 新增 `tests/almanac_smoke.mjs`：对 almanac 面板开合遍历全部 9 章
+  （prologue/spark/depth/sentry/bloom/hand/gate/mesh/witness），
+  逐章断言——en 模式 `innerText` 不含任何 CJK；zh 模式 `innerText` 必须含中文。
+  顺带在真实浏览器里拦住 "raw key 泄漏"（i18n 未覆盖的 t() 键）。
+- `package.json`：新增 `test:almanac`；`test:arcade` 扩展为 game + codex + zombie + almanac。
+- `.github/workflows/ci.yml`：syntax job 增加 `node --check tests/almanac_smoke.mjs`。
+
+### 3 验证
+
+- fake-provider 服务器上 `npm run test:almanac` →
+  "almanac smoke passed: 9 chapters render fully bilingual, no mixed-language prose"
+- `python scripts/doc_pointers.py --check` → rc 0

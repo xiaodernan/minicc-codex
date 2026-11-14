@@ -128,6 +128,7 @@ jobs:
           node --check tests/game_upgrade_smoke.mjs
           node --check tests/codex_smoke.mjs
           node --check tests/zombie_spawn_smoke.mjs
+          node --check tests/almanac_smoke.mjs
           node --check tests/frontend_phase_classes_smoke.mjs
           node --check tests/frontend_phase_one_home_smoke.mjs
           node --check tests/frontend_trace_code_one_home_smoke.mjs
@@ -211,7 +212,7 @@ jobs:
         env:
           MINICC_WEB_URL: http://127.0.0.1:8765
         run: npm run test:web
-      # M4-T8: the arcade Playwright suites (game/codex/zombie) were checked in
+      # M4-T8: the arcade Playwright suites (game/codex/zombie/almanac) were checked in
       # but never executed in CI — codex_smoke.mjs had no runner at all. They
       # are frontend-only and reuse the fake-provider server already up here.
       - name: Run arcade Playwright suites (game/codex/zombie)

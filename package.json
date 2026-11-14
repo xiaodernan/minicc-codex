@@ -29,7 +29,8 @@
     "test:todo": "node tests/frontend_todo_one_home_smoke.mjs",
     "test:approval": "node tests/frontend_approval_one_home_smoke.mjs && node tests/frontend_approval_timeout_one_home_smoke.mjs && node tests/frontend_approval_frame_kinds_one_home_smoke.mjs",
     "test:scale": "node tests/frontend_scale_smoke.mjs",
-    "test:arcade": "npm run test:game && npm run test:codex && npm run test:zombie",
+    "test:almanac": "node tests/almanac_smoke.mjs",
+    "test:arcade": "npm run test:game && npm run test:codex && npm run test:zombie && npm run test:almanac",
     "test:all": "npm run test:web && npm run test:arcade",
     "build:web": "node scripts/build-web.mjs",
     "check:web": "node scripts/build-web.mjs --check"
