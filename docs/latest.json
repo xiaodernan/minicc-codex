@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T20:59:11.433Z",
+  "generated_at": "2026-11-14T21:08:33.283Z",
   "branch": "main",
-  "head": "6d8ecc4",
-  "total_commits": 1522,
+  "head": "a2668a3",
+  "total_commits": 1524,
   "recent_commits": [
+    {
+      "short": "a2668a3",
+      "at": "2026-11-15T05:08:13+08:00",
+      "subject": "M8-T970: /api/stats+digest+roadmap per-PID memo (5s TTL) - 20-way concurrent crash-loop eliminated at c=8, /api/stats p50 43.9s->3.8s, /api/roadmap p50=3.12ms; "
+    },
+    {
+      "short": "417288c",
+      "at": "2026-11-14T20:59:11Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "6d8ecc4",
       "at": "2026-11-15T04:58:51+08:00",
@@ -19,22 +29,12 @@
       "short": "f7b20fd",
       "at": "2026-11-15T04:40:02+08:00",
       "subject": "M8-T967: toggle in settings for mouse wheel direction - Windows/Linux default (swipe up = scroll up) stays, invert opt-in matches Mac natural-scroll; wheel-inve"
-    },
-    {
-      "short": "d940f1b",
-      "at": "2026-11-14T20:19:22Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5225518",
-      "at": "2026-11-15T04:18:50+08:00",
-      "subject": "M8-T966: arcade Hall of Fame - personal bests for score and combo persist across sessions (localStorage 'minicc-game-best'), rendered in the HUD next to the liv"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 287,
+  "roadmap_batches": 288,
   "changelog_entries": 1,
-  "roadmap_lines": 51991,
+  "roadmap_lines": 52016,
   "tracked_files": 1057,
   "test_files": 702,
   "almanac_chapters": 12,
