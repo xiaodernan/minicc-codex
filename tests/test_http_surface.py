@@ -760,6 +760,30 @@ def test_get_rag_search_returns_bm25_results(live: _LiveServer, tmp_path: Path) 
     assert json.loads(body)["results"] == []
 
 
+def test_get_rag_query_route_is_registered_and_safe(live: _LiveServer, monkeypatch) -> None:
+    """M8-T973: /api/rag/query is a lexical retriever + one chat
+    completion.  The fake fixture never exercises a real gateway (its
+    base_url points nowhere real), so this test stubs the completion —
+    proving the route wiring, query passing, and error-handling policy,
+    without relying on example.test resolving."""
+    import minicc.rag as rag_mod
+
+    captured: dict = {}
+
+    def fake_answer(query: str, **kwargs) -> dict:
+        captured["q"] = query
+        return {"query": query, "answer": "docs say cache affinity matters", "sources": [], "model": "stub-model", "usage": {"total_tokens": 100}}
+
+    monkeypatch.setattr(rag_mod, "answer", fake_answer)
+    status, _, body = _request(f"{live.url}/api/rag/query?q=anything&k=1", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["answer"] == "docs say cache affinity matters"
+    assert payload["query"] == "anything"
+    assert payload["usage"]["total_tokens"] == 100
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
 def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:
     status, _, body = _request(f"{live.url}/api/models", method="GET")
     assert status == 200

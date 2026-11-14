@@ -424,6 +424,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - read-only path, never 500s
                 self._json({"q": "", "results": [], "error": f"{type(exc).__name__}: {exc}"})
             return
+        if path == "/api/rag/query":
+            # M8-T973: full RAG — retrieve top-k docs BM25, then ask the configured
+            # chat model with the retrieved chunks as evidence. Pure lexical→chat;
+            # never runs an unknown model; reports usage when the gateway gives it.
+            try:
+                query = parse_qs(parsed.query)
+                q = (query.get("q") or [""])[0].strip()
+                try:
+                    limit = int((query.get("k") or ["4"])[0])
+                except ValueError:
+                    limit = 4
+                limit = max(1, min(8, limit))
+                from .rag import answer as _rag_answer
+
+                body = _rag_answer(q, limit=limit)
+                self._json(body)
+            except Exception as exc:  # noqa: BLE001
+                self._json({"q": "", "answer": "", "error": f"{type(exc).__name__}: {exc}"})
+            return
         if path == "/api/roadmap":
             # M8-T940: the ledger, parsed - every batch heading, verbatim,
             # bounded titles, grouped into hundred-epoch eras.

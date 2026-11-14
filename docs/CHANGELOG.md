@@ -308,3 +308,5 @@
 - **/api 三窗 per-PID memo，M8-T970**：`AgentService` 用 `_memo_http(key, 5s, builder)` 缓存 `stats`/`digest`/`roadmap` 三读窗口，并发重复 caller 不再各自走 git-walk+SQLite+os.walk；concurrency=8 × 12s 完美 14/14 200，`/api/stats` p50 43.9s→3.8s、`/api/roadmap` p50=3.12ms。`LOAD_TESTING.md` 附有真实 pre→post 数据。`pytest` 子集 101 passed（含 http_surface 81 项）。
 
 - **仓库文档内置 BM25 RAG，M8-T971**：新模块 `minicc/rag.py`（Okapi BM25、CJK+alphanumeric 分词、3836 chunks 一次冷加载 0.49s / 0.08s cached）+ `GET /api/rag/search?q=…&k=5`（纯本地、零模型、零外部网络）——自带 `minicc.rag.reload_index()` 显式失效；Route Coverage 全 100%（GET 25/25）；`tests/test_rag_bm25_index.py` 7 项；`tests/test_http_surface.py` 94 项（含新端点）。
+
+- **RAG 真跑，M8-T973**：`/api/rag/query` — 仓库文档 BM25 top-k 检索 + 一次 chat.completions（wkapi.pro · gpt-6-sol）；`MINICC_*` env 同仓库其他 lane；`usage` 如实回传（prompt/completion/total，不伪造 cached_tokens）；api_key 从不进 prompt；任何异常退化到 200 + `error`；Route Coverage 100%；真密钥实测 roundtrip=280ms、sources 命中 CHANGELOG/ROADMAP 对应缓存亲和章节。

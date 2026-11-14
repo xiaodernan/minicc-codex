@@ -91,6 +91,94 @@ def reload_index() -> int:
     return len(_LazyIndex.get().docs)
 
 
+def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_tokens: int = 700) -> dict[str, Any]:
+    """One-shot RAG over the repo docs: retrieve, then ask the configured model.
+
+    Uses the same provider settings as the rest of minicc (MINICC_* env). Returns a
+    dict with ``sources`` (the retrieved documents), ``answer`` (the model's text),
+    and ``usage`` (token counters when the gateway provides them).
+    Never leaks the api_key; the base_url in the result is the public host only.
+    """
+    sources = search(query, limit=limit)
+    if not sources:
+        return {"query": query, "answer": "", "sources": [], "model": None, "usage": None}
+
+    from .config import load_config
+    from openai import OpenAI
+
+    if config is None:
+        try:
+            config = load_config(workspace=Path("."))
+        except Exception as exc:
+            return {
+                "query": query,
+                "answer": "",
+                "sources": sources,
+                "model": None,
+                "usage": None,
+                "error": f"config-unavailable: {type(exc).__name__}: {exc}",
+            }
+    if config is None:
+        return {
+            "query": query,
+            "answer": "",
+            "sources": sources,
+            "model": None,
+            "usage": None,
+            "error": "config-unavailable",
+        }
+
+    # Headers carry the key as a constant; never insert it into the prompt.
+    model_name = str(getattr(config, "model", "gpt-6-sol") or "gpt-6-sol")
+    base_url = str(getattr(config, "base_url", "https://wkapi.pro/v1") or "https://wkapi.pro/v1")
+    api_key = str(getattr(config, "api_key", "") or "")
+
+    prompt = (
+        "You answer only from the documents below. Copy the language of the query.\n"
+        "If the docs do not answer the question, reply: 文档里没有直接答案 — I cannot find it in the docs.\n\n"
+        + "\n\n".join(
+            f"[{index + 1}] file: {item['source']}\n{item['chunk']}" for index, item in enumerate(sources)
+        )
+        + f"\n\nQuestion: {query}"
+    )
+    messages = [{"role": "user", "content": prompt}]
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=45, max_retries=0)
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            max_tokens=max_output_tokens,
+            temperature=0,
+        )
+        text = (response.choices[0].message.content or "").strip()
+        usage_obj = getattr(response, "usage", None)
+        usage = {
+            "prompt_tokens": int(getattr(usage_obj, "prompt_tokens", 0) or 0),
+            "completion_tokens": int(getattr(usage_obj, "completion_tokens", 0) or 0),
+            "total_tokens": int(getattr(usage_obj, "total_tokens", 0) or 0),
+        }
+        # Note: /usage does not carry cached_tokens on chat/completions; it is
+        # intentionally honest about that — we do not fabricate a cache hit rate.
+        return {
+            "query": query,
+            "answer": text,
+            "model": model_name,
+            "base_url": base_url,
+            "usage": usage,
+            "sources": sources,
+        }
+    except Exception as exc:  # noqa: BLE001 - surface the failure to the caller, not a stack trace
+        return {
+            "query": query,
+            "answer": "",
+            "model": model_name,
+            "base_url": base_url,
+            "usage": None,
+            "sources": sources,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
 class BM25Index:
     """Minimal Okapi BM25 over (source, chunk) pairs."""
 

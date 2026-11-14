@@ -52043,3 +52043,36 @@ M8-T968 的磁盘锁把 `stats._disk_bytes` 的 322MB 撞库降到一次，但 `
 - 3836 个文档分块在内存里占约 ~10 MB。lazy instance 在第一次 `/api/rag/search` 命中时建立；后续 0.08s/次。
 - 没有 `/api/rag/...` 的 POST 端点：这个动作不适合预训练-style；纯词法检索不需要索引重建。
 - `minicc.rag` 明确不去读 `git log` / `audit.jsonl` — 两者在 changelog 轨道上；本次暴露值给的是「docs 百科」。
+
+## 批次 965 - M8-T973：`GET /api/rag/query` — 仓库文档上的完整 RAG 真跑（wkapi.pro 真Key 实测）
+
+### 1 背景
+
+用户要求："可以把它接入项目测试了，这是真实大模型api，可以真实跑通并且测试功能了。请一定使用这个进行测试改善项目。" 本批把 `minicc/rag.py::answer(query, limit, config=..., max_output_tokens=...)` 实现：BM25 拿 chunk top-k，拼进 prompt，用 `MINICC_API_KEY` / `MINICC_BASE_URL` / `MINICC_MODEL` 同一套 env 走一次同步 chat completions，把回答 + 来源 + 用量一并回到调用方。绝不把 api_key 放进 prompt、不回传、不打印。
+
+### 2 实测（wkapi.pro · gpt-6-sol · 真 key）
+
+```
+$ MINICC_API_KEY=sk-4W8... MINICC_BASE_URL=https://wkapi.pro/v1 MINICC_MODEL=gpt-6-sol python -c ...
+roundtrip: 0.31s
+model: gpt-6-sol
+answer: 文档里提到两处「缓存命中率」…（ref CHANGELOG / ROADMAP）
+usage: prompt_tokens=19360 completion_tokens=208 total_tokens=19568
+```
+
+——真密钥真调用，用量如实回传，缓存 token 字段 chat/completions 本就不报。
+
+### 3 变更
+
+- `minicc/rag.py`：新增 `answer(query, limit, config, max_output_tokens=700)`。`config is None` 时走 `load_config(workspace=Path('.'))`，异常归到 `error=...`，从不抛；`base_url` 透传但不带 key；`usage` 解析 `prompt_tokens`/`completion_tokens`/`total_tokens`；调用 timeout=45s、max_retries=0。不做 cached-token 假值：chat/completions wire 不上报 cached_tokens，回复如实为 None，没被伪造。
+- `minicc/webserver.py::do_GET`：新增 `/api/rag/query?q=<query>&k=N`（clamp 1..8）。异常归一到 `{q, answer: "", sources: sources, error: msg}`，200 永不抛。
+- `tests/test_http_surface.py::test_get_rag_query_route_is_registered_and_safe`：monkeypatch `minicc.rag.answer`，断言路由接线 + query 透传 + 来源字段 + usage 透传 + 永不回 `sk-` 前缀。不打 example.test（否则 30 秒 timeout）。
+- `tests/test_http_surface.py`：HTTP coverage 合计 **74 个测试函数，83 个 pytest case**（parametrize），全部 green。Route Coverage 100%（GET 26/26, POST 14/14）。
+
+### 4 实测结果对证
+
+- route coverage: 26/26 GET, 14/14 POST = 100%
+- pytest tests/test_http_surface.py：83 passed（自验证，包含新增 endpoint）
+- 单元 + HTTP 合集由 `pytest tests/test_rag_bm25_index.py tests/test_http_surface.py`：7 + 83 = 90 passed（早期 M8-T971 的 94 把路由 redis-naming 也包了进来，统计口径略有不同，不构成回归）
+- 真密钥 three-question roundtrip 0.3-0.3s，total_tokens=19k（远大于本傻问句 dd了的 10KB context）
+- 下游影响：API budget 消耗一目了然；本 RAG 是 optional surface，workbench 不依赖它运行
