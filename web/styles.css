@@ -4647,3 +4647,47 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.05) rotate(var(--spin)); }
 }
 @media (prefers-reduced-motion: reduce) { .celebration-layer { display: none; } }
+
+/* ============================================================
+   Streak chip — a day-flame that remembers showing up.
+   M8-T955: ambient, local-only, one flame per calendar day.
+   ============================================================ */
+
+.streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  width: max-content;
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  letter-spacing: .02em;
+  color: #fbbf24;
+  border: 1px solid color-mix(in srgb, #f97316 55%, transparent);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, #f97316 22%, transparent), transparent 65%),
+    radial-gradient(120% 140% at 0% 100%, color-mix(in srgb, #fbbf24 18%, transparent), transparent 60%);
+  box-shadow:
+    0 0 18px color-mix(in srgb, #f97316 26%, transparent) inset,
+    0 4px 14px color-mix(in srgb, #f97316 18%, transparent);
+}
+.streak-chip i, .streak-chip svg { width: 14px; height: 14px; }
+.streak-chip b { color: #ffe3b3; font-weight: 600; font-variant-numeric: tabular-nums; }
+.streak-chip span { color: color-mix(in srgb, #fbbf24 85%, #fff 15%); }
+@media (prefers-reduced-motion: no-preference) {
+  .streak-chip { animation: streak-breathe 3.4s ease-in-out infinite; }
+}
+@keyframes streak-breathe {
+  0%, 100% {
+    box-shadow:
+      0 0 18px color-mix(in srgb, #f97316 22%, transparent) inset,
+      0 4px 14px color-mix(in srgb, #f97316 16%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 26px color-mix(in srgb, #f97316 40%, transparent) inset,
+      0 4px 22px color-mix(in srgb, #f97316 28%, transparent);
+  }
+}

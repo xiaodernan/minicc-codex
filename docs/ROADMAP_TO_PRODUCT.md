@@ -51688,3 +51688,24 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
 
 - 说明书真浏览器 zh/en 渲染更新后的「缓存命中率低 / Cache hit rate looks low」条目，无 console page errors ✓
 - `npm run test:i18n` ✓ · bundle 构建 + `check:web` ✓ · doc_pointers ✓
+
+## 批次 950 - M8-T955：火苗——连续完成任务的天数，侧边栏常驻金焰
+
+### 1 背景
+
+工作台已有完成庆祝彩带（M8-T946），但「连续」是另一种仪式——用户每天打开项目到底做了多少天的问题没有被任何面板回答。侧边栏常驻一枚金焰（localStorage，本地零网络），一天至少一次完成即点亮，断更两天即重置。
+
+### 2 变更
+
+- 新增 `web/src/streak.js`：`dayKey` 本地日期键、`parseStored` 防腐读取（损坏数据按 0 处理、缺席两天重置）、`updateStreakChip`（渲染/隐藏）、`markTaskCompletedForStreak`（每天首次调用=+1，当天重复不重复计）。
+- `web/src/celebration.js`：`celebrate()` 开头（motion-independent）先点亮火苗，然后才看 `prefers-reduced-motion`。
+- `web/index.html`（CRLF 逐字节插入）：`#streakChip` 位于航行灯按钮与 workspace-mini 之间，flame 图标 + 天数 + 文案，`role="status"`，`hidden` 未点亮自隐。
+- `web/src/icons.js`：新增 lucide `flame` 描边路径 + 本地 glyph 🔥。
+- `web/src/main.js`：启动时 `updateStreakChip()`；i18n「streak.title / streak.days」中英（581 keys 对齐 ✓）。
+- CSS `.streak-chip`（金焰渐变描边 + 内发光 + `streak-breathe` 3.4s 呼吸，`prefers-reduced-motion: no-preference` 下开，降级时静止）。
+
+### 3 验证
+
+- Playwright 真浏览器 3 场景：全新 WS 完成 → streak **1**；昨日 seed 4 → 完成后 **5**；3 天前 seed 9（过期）→ 启动隐藏、完成后重建 **1** ✓
+- 侧边栏局部截图：金焰 pill、数字 + 「天连击」清晰可读，无 console errors ✓
+- `npm run test:web` ✓（product path 完好）· `npm run test:i18n` → 581 keys ✓ · bundle 重建 + `check:web` ✓ · `web/index.html` CRLF 保留 ✓

@@ -3,10 +3,15 @@
 // One home, fired only from the live completion path in core/api.js —
 // never on history restore, never on failure. Brings a little of the
 // celebration that every finished minicc task deserves.
+import { markTaskCompletedForStreak } from "./streak.js";
+
 const PALETTE = ["#34d399", "#fbbf24", "#a78bfa", "#60a5fa", "#f472b6", "#f97316"];
 
 export function celebrate(anchor) {
   try {
+    // The streak is motion-independent: count the completed day first,
+    // then decide whether the user sees particles.
+    markTaskCompletedForStreak();
     // Reduced motion: no particles at all. The completion toast and the
     // timestamp on the bubble are already the visible celebration.
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;

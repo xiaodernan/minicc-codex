@@ -739,6 +739,8 @@
       "light.title": "\u822A\u884C\u706F \xB7 \u70B9\u51FB\u6253\u5F00\u8D26\u672C",
       "light.cache": "\u7F13\u5B58",
       "light.tasks": "\u4EFB\u52A1",
+      "streak.title": "\u8FDE\u7EED\u5B8C\u6210\u4EFB\u52A1\u7684\u6D3B\u8DC3\u5929\u6570\u2014\u2014\u5B8C\u6210\u5373\u70B9\u4EAE\uFF0C\u672C\u5730\u4FDD\u5B58\uFF0C\u4E0D\u51FA\u7F51",
+      "streak.days": "\u5929\u8FDE\u51FB",
       "replay.action": "\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1",
       "replay.back": "\u8FD4\u56DE\u8BE6\u60C5",
       "replay.close": "\u5173\u95ED\u56DE\u653E",
@@ -1320,6 +1322,8 @@
       "light.title": "Running light \xB7 open the ledger",
       "light.cache": "cache",
       "light.tasks": "tasks",
+      "streak.title": "Days in a row with at least one completed task \u2014 live, local-only, never leaves this machine",
+      "streak.days": "day streak",
       "replay.action": "Replay the run",
       "replay.back": "Back to task",
       "replay.close": "Close replay",
@@ -1499,7 +1503,8 @@
     eraser: "\u232B",
     download: "\u2193",
     "minimize-2": "\u2199",
-    bell: "\u{1F514}"
+    bell: "\u{1F514}",
+    flame: "\u{1F525}"
   };
   var ICONS = {
     "panel-left": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>',
@@ -1538,6 +1543,7 @@
     "chevrons-down": '<path d="m7 13 5 5 5-5"/><path d="m7 6 5 5 5-5"/>',
     "chevrons-up": '<path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/>',
     sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     ledger: '<path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M9 7h6"/><path d="M9 12h6"/><path d="M9 17h4"/>',
     "alert-triangle": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
     "alert-circle": '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
@@ -4712,10 +4718,66 @@
     });
   }
 
+  // web/src/streak.js
+  var KEY = "minicc-streak-v1";
+  function dayKey(d) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  function parseStored() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.count !== "number" || !parsed?.day) return null;
+      if (!Number.isFinite(parsed.count) || parsed.count < 1) return null;
+      return { day: String(parsed.day), count: Math.floor(parsed.count) };
+    } catch {
+      return null;
+    }
+  }
+  function currentCount(stored) {
+    if (!stored) return 0;
+    const today = dayKey(/* @__PURE__ */ new Date());
+    if (stored.day === today) return stored.count;
+    const yesterday = /* @__PURE__ */ new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (stored.day === dayKey(yesterday)) return stored.count;
+    return 0;
+  }
+  function updateStreakChip() {
+    const chip = document.getElementById("streakChip");
+    if (!chip) return;
+    const days = currentCount(parseStored());
+    const countEl = document.getElementById("streakCount");
+    if (countEl) countEl.textContent = String(days);
+    chip.hidden = days <= 0;
+  }
+  function markTaskCompletedForStreak() {
+    const today = dayKey(/* @__PURE__ */ new Date());
+    const stored = parseStored();
+    let next2;
+    if (stored && stored.day === today) {
+      next2 = stored;
+    } else if (stored) {
+      const yesterday = /* @__PURE__ */ new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      next2 = stored.day === dayKey(yesterday) ? { day: today, count: stored.count + 1 } : { day: today, count: 1 };
+    } else {
+      next2 = { day: today, count: 1 };
+    }
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next2));
+    } catch {
+    }
+    updateStreakChip();
+  }
+
   // web/src/celebration.js
   var PALETTE = ["#34d399", "#fbbf24", "#a78bfa", "#60a5fa", "#f472b6", "#f97316"];
   function celebrate(anchor) {
     try {
+      markTaskCompletedForStreak();
       if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
       if (!anchor || typeof anchor.getBoundingClientRect !== "function") return;
       const rect = anchor.getBoundingClientRect();
@@ -8431,6 +8493,7 @@
     maybeOfferTour();
     updateRunningLight();
     updateRunningLightDigest();
+    updateStreakChip();
     window.setInterval(() => {
       if (!document.hidden) updateRunningLight();
     }, 45e3);

@@ -13,6 +13,7 @@ const LOCAL_ICON_GLYPHS = {
   file: "▪", copy: "⧉", moon: "☾", minimize: "↙", "panel-left-open": "›", "panel-right-open": "‹",
   "loader-circle": "◌", "arrow-up-right": "↗", "arrow-right": "→", "arrow-left": "←",
   "trash-2": "🗑", eraser: "⌫", download: "↓", "minimize-2": "↙", bell: "🔔",
+  flame: "🔥",
 };
 
 const ICONS = {
@@ -52,6 +53,7 @@ const ICONS = {
   "chevrons-down": '<path d="m7 13 5 5 5-5"/><path d="m7 6 5 5 5-5"/>',
   "chevrons-up": '<path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/>',
   sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
   ledger: '<path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M9 7h6"/><path d="M9 12h6"/><path d="M9 17h4"/>',
   "alert-triangle": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   "alert-circle": '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',

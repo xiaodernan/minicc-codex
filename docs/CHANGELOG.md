@@ -278,3 +278,5 @@
 - **事实包年鉴章节数按源码计数，M8-T953**：`scripts/update-latest-json.mjs` 的 `almanac_chapters: 9` 字面量腐坏已根治——改为从 `web/src/panels/almanac.js` 数 `roman:`（真章数），展示页所见现在等于真年鉴卷数（10）。
 
 - **缓存亲矩阵实测固化，M8-T954**：docs/CACHE_AFFINITY_MATRIX.md——wkapi.pro · gpt-6-sol · 真 key 逐格（2026-11-15）：Responses 流/非流 94.5%→100% 都如实上报；chat/completions 无 key 流式永不回 cached_tokens（3/3），带 key 后两路都报（5376/5509=97.5%）；直连 urllib 被 403（TLS 指纹）。三误解结案：「命中率低」= 流式不上报的显示产物（缓存实际在工作）、「显示非流」= 已移除的恢复锁、judge 0% 属结构性（前缀独有，不自评）。说明书排错条目同步为实测结论（双语逐字对应）。
+
+- **火苗 · 连续完成天数，M8-T955**：`web/src/streak.js`——`#streakChip` 金焰 pill 常驻侧边栏（航行灯与工作区名之间），每天 ≥1 次真实任务完成即 +1；localStorage `minicc-streak-v1`，本地零网络、刷新即见（损坏数据按 0、缺席两天重置、当天重复不重复计）；`celebrate()` 开头点亮、与动效偏好解耦；新增 lucide `flame` 描边与 🔥 本地 glyph；i18n 581 keys 对齐；Playwright 三场景（新→1 / 昨日 4→5 / 3 天前过期 9→1）✓。
