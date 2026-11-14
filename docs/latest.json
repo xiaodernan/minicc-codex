@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:05:47.458Z",
+  "generated_at": "2026-11-14T17:22:03.435Z",
   "branch": "main",
-  "head": "c1326ab",
-  "total_commits": 1483,
+  "head": "7307cea",
+  "total_commits": 1485,
   "recent_commits": [
+    {
+      "short": "7307cea",
+      "at": "2026-11-15T01:19:08+08:00",
+      "subject": "M8-T951: almanac hydration gets a 60s cache and a 20s budget - phase 2 was dying at the 8s timeout on a busy .minicc tree and Chapter IX rendered dashes forever"
+    },
+    {
+      "short": "44a1e02",
+      "at": "2026-11-14T17:05:47Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c1326ab",
       "at": "2026-11-15T01:04:34+08:00",
@@ -19,22 +29,12 @@
       "short": "2759254",
       "at": "2026-11-15T00:58:26+08:00",
       "subject": "M8-T949: almanac volume IX The Craft + two-phase chapter switching (was frozen on /api/stats) + palette gate real fix (8 JS-written runtime tokens exempted, dea"
-    },
-    {
-      "short": "4a010c7",
-      "at": "2026-11-14T15:52:46Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b43044b",
-      "at": "2026-11-14T23:51:06+08:00",
-      "subject": "M8-T948: arcade chapter - complete wave targets by hard difficulty, economy math, tactic notes (magnetshroom / squash / polejump) + bilingual parity"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 270,
+  "roadmap_batches": 271,
   "changelog_entries": 1,
-  "roadmap_lines": 51600,
+  "roadmap_lines": 51622,
   "tracked_files": 1050,
   "test_files": 702,
   "almanac_chapters": 9,
