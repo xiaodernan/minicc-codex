@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:44:57.609Z",
+  "generated_at": "2026-11-14T17:45:46.291Z",
   "branch": "main",
-  "head": "d898da0",
-  "total_commits": 1492,
+  "head": "e323ed3",
+  "total_commits": 1494,
   "recent_commits": [
+    {
+      "short": "e323ed3",
+      "at": "2026-11-15T01:45:28+08:00",
+      "subject": "M8-T954b: README cache-affinity line points at the measured matrix doc"
+    },
+    {
+      "short": "8e50416",
+      "at": "2026-11-14T17:44:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d898da0",
       "at": "2026-11-15T01:44:38+08:00",
@@ -19,16 +29,6 @@
       "short": "99e13cb",
       "at": "2026-11-15T01:25:36+08:00",
       "subject": "M8-T953: derive almanac_chapters from the yearbook rail (was hardcoded 9 - now counts CHAPTERS entries, 10)"
-    },
-    {
-      "short": "b161c50",
-      "at": "2026-11-14T17:24:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8fc2197",
-      "at": "2026-11-15T01:23:43+08:00",
-      "subject": "M8-T952b: restore LF line endings for the consolidation report (content byte-identical modulo EOL)"
     }
   ],
   "first_commit_at": "2026-08-24",
