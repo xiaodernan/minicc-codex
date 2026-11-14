@@ -51619,3 +51619,22 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
   - 切页 9s → `提交 1483 · 批次章节 270 · 审计行 1468 · 跟踪文件 1050 · 测试文件 702` —— 全部来自实时 `/api/digest` + `/api/stats` ✓
 - `npm run test:almanac` → `almanac smoke passed: 10 chapters render fully bilingual, chapter switching verified, no mixed-language prose` ✓
 - `npm run test:web` ✓ · `npm run test:i18n`（579/218）✓ · `npm run check:web` ✓
+
+## 批次 947 - M8-T952：集大成复核 2026-11-15 —— 事实上 main 已是全量汇集
+
+### 1 背景
+
+用户长期指令：「尽量把项目的多个工作分支 各种 worktree之类的 合并起来 综合集大成 合并到一个主分支 汇集所有内容」。本报告（docs/CONSOLIDATION_REPORT.md）基线为 M8-T820（2026-11-12），之后仓库又推进了 +130 批次，旧结论需要逐条复核而非复读。
+
+### 2 复核事实（全部 git 实测）
+
+- `git branch --no-merged main` 现存且仅存：`archive/read-failure-chain-t566-t574` / `backup/local-line-batches70-75` / `consolidation/read-failure-chain` / `dev/minicc-reliability-4ba3`——与 2026-11-12 的处置结论**逐条吻合**。patch-id 差集实测：archive = 3（`3c5c8cf` 已进 main `PREIMAGE_NOT_IN_WINDOW` + `_AUDIT_RECOVERY_BYTES`，只是被 byte-window 强化实现；`9baf31d` 由 M8-T774 重实现；`95d7143` 无产品差异）、read-failure-chain = 1（`ca872c9` 的 `_AUDIT_RECOVERY_BYTES` 已进 main）、dev = §2.3（无 merge-base，标签兜底）、backup = 2（不合决策不变）。
+- 本报告写就后出现的两个远端分支 `origin/m8-t537` 与 `origin/integration/m8-t537-to-main`：`git log main..` 均为空——**已被 main 吸收**，零操作。
+- `consolidated/*` 归档标签 7 枚原样存在。
+- M8-T945 ~ T951 全部落入 `origin/main`（最新 `7307cea`）。
+- 结论与边界不变：不造空 merge、不删 worktree——若汇集需要的是「全部内容进了一个主分支」，**这一个主分支是 `main`，它已经是事实上的集大成者**。
+
+### 3 验证
+
+- 每个分支的 `git cherry` / `git log main..X` / `git branch --no-merged main` 输出见报告附录六（本文档同一次提交写入）
+- doc_pointers ✓

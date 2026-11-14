@@ -71,3 +71,16 @@ git tag -n1 'consolidated/*'
 - `origin/main` 落后本地 2 个提交（T817/T820），未擅自推送到远端（需 SSH 凭据，且推远端属外部动作）。
 - `docs/INTEGRATION_STRATEGY.md`、`docs/SERVICE_PLANE_PLAN.md` 早前的"车道接管/不合"决策是本报告的判据之一，未推翻，只补齐了逐提交的复核证据。
 - 与正在进行的并轨会话并发：`minicc/agent/tool_policy.py`、`minicc/audit.py`、`minicc/tools/{git,__init__}.py` 等为对方未提交改动，本报告与 tag 均未触碰；审计期间工作区出现的所有未跟踪临时文件也未纳入。
+
+---
+
+## 六、2026-11-15 复核（M8-T952）
+
+复盘点：`origin/main` 已多个批次超过 T820——以 `7307cea`（M8-T951）为准，重新跑一遍集大成核算：
+
+- `git branch --no-merged main` 仅四条：`archive/read-failure-chain-t566-t574`（§2.1 结论不变，14 个提交 patch-id 差集 = 3，`3c5c8cf` 与 `9baf31d` 均已进 main 的强化实现、`95d7143` 无产品差异）、`backup/local-line-batches70-75`（§2.2 不合决策不变）、`consolidation/read-failure-chain`（唯一独有 patch `ca872c9`，`_AUDIT_RECOVERY_BYTES` 已进 main 的 `minicc/changes.py`）、`dev/minicc-reliability-4ba3`（§2.3 无 merge-base，车道接管结论不变）。
+- 两个在本报告写就后才出现的远端分支——`origin/m8-t537` 与 `origin/integration/m8-t537-to-main`：`git log main..<branch>` 结果为空，两分支所有提交均已被 main 吸收，无需操作。
+- 归档标签 `consolidated/*` 七枚原样存在。
+- 本轮所有批次均已落入 `origin/main`：M8-T945（事实包最近提交）、M8-T946（完成庆祝彩带）、M8-T946b（optimization smoke 重定向至空画布芯片）、M8-T947（说明书第八章「安静的房间」）、M8-T948（说明书游戏厅章·冲关心法）、M8-T949（年鉴卷九「技艺」+ 换章两阶段渲染 + palette 门真修）、M8-T950（/api/stats 磁盘统计 TTL）、M8-T951（年鉴 hydrate 60s TTL + 20s 预算）。
+- 本报告基线 T820 的「origin/main 落后本地 2 个提交」一条已过时——T820 之后的所有批次包括本批均已推送。
+- 并轨会话所有权：`minicc/llm/*`、`minicc/session.py`、`minicc/tools/registry.py` 仍属对方所有——本复核与本轮（T949–T952）均未触碰。
