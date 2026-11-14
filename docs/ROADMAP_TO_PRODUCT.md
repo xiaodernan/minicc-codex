@@ -50903,3 +50903,40 @@ CI 两条 Python 腿无限期挂在 `Run test suite`（直到本批之前从未�
 ### 3 文件
 
 `tests/test_the_package_does_not_define_what_the_repo_never_uses.py`（仅扩充 skip 集合一行）
+
+## 批次 922 - M8-T922：两个 CI "failure" 各自揪出真实的系统性 bug，一并闭合
+
+### 1 起因（CI T921 双腿全红）
+
+- `tests/test_every_colour_pair_clears_aa.py::test_a_chrome_token_is_never_used_as_text`：
+  `.running-light-text i`（航行灯里分隔符 `·`）用 `--line-bright` 上色——而 `--line` / `--line-bright`
+  是 hairline chrome token，按项目契约不得当 text 用（glyph 会变成 1px 发丝）。
+- `tests/test_readme_capability_claims.py::test_every_endpoint_the_readme_names_is_routed`：
+  README（本人新增的《工作台模块（产品界面一览）》里提到 `/api/stats`）声称存在的端点——
+  而 `/api/stats` 在整个 Python 源码里一次都没出现过。
+
+### 2 根因与修复
+
+- **`/api/stats` 是悬空的承诺**：web 前端（pulse 等）早已调用它，每个请求都落到 `catch(() => null)`
+  里——会话数、audit 行数、disk、llm_cache 拓扑等从未真正渲染过。修的是**产品代码不是 README**：
+  - `minicc/web.py` — `AgentService.stats()`：HTTP 面与 `minicc --stats` 同一事实包
+    （`minicc.stats.gather`），只读、免凭据、绝不抛出（任何环境下都回 200）；
+  - `minicc/webserver.py` — `GET /api/stats` 路由（无参）。
+- **`.running-light-text i` 改用 `var(--quiet)`**（真 text token），色板门全绿。
+
+### 3 验证
+
+- `pytest tests/test_http_route_inventory.py` → **12 passed**（新增 GET 路由自动覆盖）
+- `pytest tests/test_stats.py` → **8 passed**
+- `pytest tests/test_readme_capability_claims.py` → **8 passed**
+- `pytest tests/test_every_colour_pair_clears_aa.py` → 5 测试逐一单独跑全绿
+  （combined runner 偶发静默退出——全部测例单独执行均 <3s 且结果可见）
+- `node scripts/build-web.mjs` + `check:web` 绿；`test:i18n`/`test:cacheseries`/`test:timeline`/`test:lifecycle`/`test:helpshortcuts` 全绿
+- `minicc.stats.gather(<repo>)` 实测：audit.lines=1464、
+  sessions={count,messages}、disk_bytes=310848903、cache={live_backend:false, local_units:0/4096}、
+  llm_cache 在场；`json.dumps(..., ensure_ascii=False, default=str)` 无异常
+
+### 4 文件
+
+`minicc/web.py`、`minicc/webserver.py`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、
+content-addressed bundle

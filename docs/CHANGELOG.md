@@ -220,3 +220,5 @@
 - **年鉴事实修正（M8-T920）**："2026 年春天"→夏天（digest 首笔提交 2026-08-24）；"zen plan"（仓库中不存在）→ plan / verify 循环；"21 个" JS 协议门→22 个（与 ci.yml 实际执行的 22 个 `npm run test:*` 对齐）。年鉴的"每个数字可对账"承诺对叙事文案同样生效。
 
 - **`test_no_constant_is_defined_without_any_repository_reference` 卡死修复（M8-T921）**：根门禁射程误把 `.venv` 也裹进来（数万第三方 .py 的 AST 解析 → 本地 OOM/无限挂起、CI Python 双腿无限 in_progress）。本批仅将 `.venv`/缓存目录/dist/output/.playwright-cli 加入既有 skip 集合——射程回到门禁本来的名字（"repository"），信号零削弱。**267 秒通过**。
+
+- **两个 CI 红各自揪出一个真 bug（M8-T922）**：航行灯分隔符 `.running-light-text i` 用了 hairline `--line-bright` 当字体色——改为 `--quiet`（色板门修）；README 提到的 `/api/stats` 从来不存在，但 web 早在调它（pulse 的会话/audit/disk/cache 拓扑因为每次 404 一直没渲染上）——新增 `GET /api/stats`（`AgentService.stats()`，与 CLI `--stats` 同事实包，只读免凭据不抛错）。12+8+8+5 项门测全绿，重建 bundle 验收通过。

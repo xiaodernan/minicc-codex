@@ -3869,6 +3869,6 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 }
 .running-light-text { align-items: baseline; color: var(--quiet); display: inline-flex; font-size: 10.5px; gap: 6px; min-width: 0; }
 .running-light-text b { color: var(--text); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-variant-numeric: tabular-nums; font-weight: 650; }
-.running-light-text i { color: var(--line-bright); font-style: normal; }
+.running-light-text i { color: var(--quiet); font-style: normal; }
 .running-light-branch { color: var(--quiet); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-size: 10px; margin-left: auto; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .running-light[data-tone="high"] .running-light-dot { animation: none; } }
