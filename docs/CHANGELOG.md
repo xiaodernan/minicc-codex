@@ -286,3 +286,5 @@
 - **/api/digest 并发 git 探针，M8-T957**：`minicc/digest.py 的 build_digest` 的 9 个独立只读 git 子进程改为 `ThreadPoolExecutor(max_workers=9)` 并发 + 根提交用单次 `git log --max-parents=0 -n 1 --format=%cI HEAD`；cProfile 实测 wall clock 1.34s（87% 是 subprocess 等待）→ ~0.5–0.6s；`/api/digest` 现场连续 5 次 **0.59/0.59/0.67/0.61/0.58s**，payload 逐字段不变。
 
 - **年鉴数字两波刷新，M8-T958**：`web/src/panels/almanac.js` 的 `loadChapter` 拆为 two waves——fast：等 metrics+digest（<1s）立即重渲染；slow：stats 到了同章刷新、异章丢弃。切章到数字可见从 ~9.8s → **~1.7s**（实测切片：0.66 占位 → 1.67 digest 数字 → 5.68 stats 数字）；M8-T951 的 60s TTL 与切换即时性不受影响。
+
+- **任务筛选（/），M8-T960**：侧边栏「最近任务」上方新增筛选输入（`/` 全局聚焦、不抢面板与输入区）——160ms 防抖实时筛选、Enter 直达首个匹配项、Esc 清空失焦；零网络往返；历史轮询重绘时由 MutationObserver 自动重刷。**附带修复被真实浏览器戳出的布局 bug**：`.thread-list` 在 32px 筛选行挤压下塌缩到 `min-height: 0` → 改 `min-height: 156px` + sidebar 纵向可滚动，24 行历史恢复正常交互。删除死掉的 `#threadSearch` handler；i18n 583 keys；web/almanac/i18n smoke 全绿。

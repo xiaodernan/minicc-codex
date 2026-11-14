@@ -51770,3 +51770,26 @@ M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第�
 
 - 真浏览器时间线探针（8 个时间切片）：0.66 → 1.67 → 3.18 → 5.68 → 9.69…s 逐段赋值 ✓
 - `npm run test:almanac`（11 章、双语、marker 断言，无混语）✓ · `npm run test:web` ✓ · `npm run test:i18n`（581/218）✓ · `npm run check:web` ✓
+
+## 批次 954 - M8-T960：`/` 全局唤起——最近任务一行式筛选 + 修布局挤占 bug
+
+### 1 背景
+
+侧边栏「最近任务」一长串会被过去的实验污染——一百多条真实任务记录堆叠其中，查找一个就是翻名单。快捷键是用户最期待的一等输入方式；而同一时间 Playwright 实测戳了一个结构性布局 bug：添加了 32px 筛选行之后，`.thread-list` 被 flex 压缩到 0px，全部 24 行历史任务被挤到侧边栏底部去（`sidebar-bottom` 遮住、交互全部被拦截）。
+
+### 2 变更
+
+- 新增 `web/src/thread-filter.js`：注入式筛选器——`input` 监听（160ms 防抖）、`Enter` 打开当前首个匹配、`Esc` 清空并失焦、全局 `/` 聚焦（输入区/面板/弹窗不抢）；MutationObserver 在历史轮询重绘时自动重刷过滤器；空态 element `.thread-filter-empty` 零匹配自显。
+- `web/index.html`（CRLF 逐字节插入）：`.thread-filter-row`（search 图标 + 输入框 + `/` kbd 提示），位置紧邻「最近任务」标签与列表之上。
+- `web/styles.css`：筛选行样式（暗色 pill + 暖焦点环 + `/kbd` 提示）；**`.thread-list` 的 `min-height` 从 `0` 提升到 `156px`**（三行可见 + 滚动），`.sidebar` 改 `overflow-y: auto` 让长历史可滚——顺手修掉被 Playwright 戳出来的 `.thread-list` 0 高度布局 bug。
+- `web/src/main.js`：删除已被取代的死掉 `#threadSearch` handler（从未有对应 DOM，永不触发）；boot 期 `initThreadFilter()` 启动一次。
+- i18n：`tasks.filter` + `tasks.filterEmpty`（zh/en，583 keys ✓）。
+
+### 3 验证
+
+- Playwright 真浏览器桩：
+  - 24 行历史 → 输入 `zzqxjklmn` → **0 行可见 + 空态自显** ✓；Esc 恢复 24 行 ✓
+  - `/` 从 body → 焦点落 `#threadFilter` ✓；`/` 在面板内 → 焦点不被夺取 ✓
+  - `/` → 输入 `Inspect` → Enter → 工作区切换到该任务会话，无 page errors ✓
+- 几何 trace：`.thread-list` 高度 0 → 156px；`.sidebar-bottom` 下移至 899px；sidebar 可纵向滚动 ✓
+- `npm run test:web` ✓ · `npm run test:almanac`（11 章 marker 断言）✓ · `npm run test:i18n`（583/219）✓ · `npm run check:web` ✓ · doc_pointers ✓

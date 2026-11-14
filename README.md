@@ -312,6 +312,7 @@ minicc 不只是 CLI——工作台本身也是一个被认真打磨的产品：
 - **回放** — 任务详情「回放整个任务」：全屏电影席，事件逐行浮现、tokens 累加动画、可暂停 / 拖拽 scrub / 1×·2×·4× 倍速，Esc 关闭
 - **航行灯** — 侧边栏常驻一行「缓存 N% · 任务 M · 分支 @ HEAD」，四色温，点击直达账本
 - **火苗** — 连续完成任务的天数计数：今天完成过即点亮快照，两天未完成即重置；本地保存、刷新即见（localStorage，不出网）；金焰色呼吸光晕常驻侧边栏
+- **任务筛选（/）** — 侧边栏「最近任务」上方一行小而明的搜索框：输入即筛选、Enter 直达第一个匹配项、Esc 清空；`/` 全局唤起搜索框（输入区/面板不抢）；筛选全在本地，无网络往返；历史刷新重绘时自动补防御（MutationObserver），永不抢屏
 - **模板库** — 8 张策划好的 prompt（项目体检 / 测试修复 / 安全审查 / 依赖现代化 / …），一键送进对话
 - **CLI 只读面板** — `minicc --digest`（仓库考古学读数）、`--digest --json`（与 `/api/digest` 同 schema）、`minicc --stats`（工作区现状）
 - **Spring Cloud plane（`minicc-cloud/`）** — Eureka 注册发现、配置下发、网关 `lb://` + RequestSize + Resilience4j 熔断、Redis token bucket 限流（`SPRING_PROFILES_ACTIVE=ratelimit`）、RabbitMQ 缓存失效广播、Micrometer `gateway.rate_limited{route}` 计数；`docker compose -f minicc-cloud/docker-compose.yml up -d` 可起全套（端口被占用时用 `MINICC_CLOUD_*_PORT` 覆盖）

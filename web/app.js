@@ -741,6 +741,8 @@
       "light.tasks": "\u4EFB\u52A1",
       "streak.title": "\u8FDE\u7EED\u5B8C\u6210\u4EFB\u52A1\u7684\u6D3B\u8DC3\u5929\u6570\u2014\u2014\u5B8C\u6210\u5373\u70B9\u4EAE\uFF0C\u672C\u5730\u4FDD\u5B58\uFF0C\u4E0D\u51FA\u7F51",
       "streak.days": "\u5929\u8FDE\u51FB",
+      "tasks.filter": "\u7B5B\u9009\u6700\u8FD1\u7684\u4EFB\u52A1\u2026",
+      "tasks.filterEmpty": "\u6CA1\u6709\u5339\u914D\u7684\u4EFB\u52A1\u2014\u2014\u6362\u4E2A\u8BCD\uFF0C\u6216\u6309 Esc \u6E05\u7A7A",
       "replay.action": "\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1",
       "replay.back": "\u8FD4\u56DE\u8BE6\u60C5",
       "replay.close": "\u5173\u95ED\u56DE\u653E",
@@ -1324,6 +1326,8 @@
       "light.tasks": "tasks",
       "streak.title": "Days in a row with at least one completed task \u2014 live, local-only, never leaves this machine",
       "streak.days": "day streak",
+      "tasks.filter": "Filter recent tasks\u2026",
+      "tasks.filterEmpty": "Nothing matches \u2014 try another word, or press Esc to clear",
       "replay.action": "Replay the run",
       "replay.back": "Back to task",
       "replay.close": "Close replay",
@@ -7788,6 +7792,67 @@
     });
   }
 
+  // web/src/thread-filter.js
+  var DEBOUNCE_MS = 160;
+  function initThreadFilter() {
+    const input = document.getElementById("threadFilter");
+    const list = document.getElementById("threadList");
+    if (!input || !list) return;
+    let timer = 0;
+    const apply = () => {
+      const query = input.value.trim().toLowerCase();
+      let visible = 0;
+      list.querySelectorAll(".thread-item").forEach((button) => {
+        const match = !query || (button.textContent ?? "").toLowerCase().includes(query);
+        button.hidden = !match;
+        if (match) visible += 1;
+      });
+      let empty = list.querySelector(".thread-filter-empty");
+      if (query && visible === 0 && list.querySelector(".thread-item")) {
+        if (!empty) {
+          empty = document.createElement("div");
+          empty.className = "thread-empty thread-filter-empty";
+          empty.textContent = t("tasks.filterEmpty");
+          list.append(empty);
+        } else {
+          empty.hidden = false;
+        }
+      } else if (empty) {
+        empty.hidden = true;
+      }
+    };
+    input.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(apply, DEBOUNCE_MS);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        input.value = "";
+        apply();
+        input.blur();
+        event.stopPropagation();
+        return;
+      }
+      if (event.key === "Enter") {
+        const first = list.querySelector(".thread-item:not([hidden])");
+        if (first) first.click();
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement;
+      const tag = active?.tagName?.toUpperCase();
+      const editable = active?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (editable) return;
+      if (active?.closest?.(".panel, .dialog, .modal, #arcadeModal")) return;
+      event.preventDefault();
+      input.focus();
+    });
+    const observer = new MutationObserver(() => apply());
+    observer.observe(list, { childList: true });
+    apply();
+  }
+
   // web/src/panels/replay.js
   var MAX_ROWS = 60;
   var DELAYS = { 1: 650, 2: 320, 4: 160 };
@@ -8504,12 +8569,6 @@
       if (item.dataset.taskId) openTaskInWorkspace(item.dataset.taskId);
       else setSession(item.dataset.session);
     });
-    $("#threadSearch").addEventListener("input", (event) => {
-      const query = event.target.value.toLowerCase();
-      document.querySelectorAll(".thread-item").forEach((item) => {
-        item.hidden = !item.textContent.toLowerCase().includes(query);
-      });
-    });
     const authForm = $("#authForm");
     if (authForm) authForm.addEventListener("submit", submitAuthToken);
   }
@@ -8552,6 +8611,7 @@
     updateRunningLight();
     updateRunningLightDigest();
     updateStreakChip();
+    initThreadFilter();
     window.setInterval(() => {
       if (!document.hidden) updateRunningLight();
     }, 45e3);

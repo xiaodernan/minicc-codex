@@ -275,7 +275,7 @@ button { color: inherit; }
 :root[data-focus-mode="true"] .app-shell { grid-template-columns: minmax(0, 1fr); }
 :root[data-focus-mode="true"] .sidebar, :root[data-focus-mode="true"] .inspector { display: none; }
 .sidebar, .inspector { background: var(--sidebar); min-height: 0; min-width: 0; }
-.sidebar { border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; padding: 16px 12px 12px; }
+.sidebar { border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; padding: 16px 12px 12px; }
 .brand-row { align-items: center; display: flex; gap: 10px; padding: 0 8px 16px; }
 .brand-mark { align-items: center; background: var(--coral); border-radius: 7px; color: var(--ink); display: flex; font-size: 20px; font-weight: 800; height: 32px; justify-content: center; letter-spacing: -1px; width: 32px; }
 .brand-mark span { color: #fff5e9; font-size: 12px; margin: 0 1px; }
@@ -311,7 +311,7 @@ button { color: inherit; }
 .nav-item.arcade-nav { display: none; }
 :root[data-arcade="1"] .nav-item.arcade-nav { display: flex; }
 .section-label { align-items: center; color: var(--quiet); display: flex; font-size: 12px; font-weight: 700; justify-content: space-between; letter-spacing: .7px; margin: 20px 8px 7px; text-transform: uppercase; }
-.thread-list { display: grid; flex: 1 1 auto; gap: 3px; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; }
+.thread-list { display: grid; flex: 1 1 auto; gap: 3px; min-height: 156px; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; align-content: start; }
 .thread-list::-webkit-scrollbar { width: 6px; }
 .thread-list::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 6px; }
 .thread-empty { border: 1px dashed var(--line); border-radius: 6px; color: var(--quiet); font-size: 12px; padding: 13px 9px; text-align: center; }
@@ -4694,3 +4694,59 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 
 /* M8-T956: almanac chapter X — the unfinished wall, amber left edge. */
 .almanac-backlog .almanac-gate-list li { border-left-color: var(--amber); }
+
+/* ============================================================
+   Thread filter — the "/" key over the recent-task list.
+   ============================================================ */
+
+.thread-filter-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.thread-filter-row svg {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+.thread-filter-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 30px 0 30px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.thread-filter-input::placeholder { color: var(--quiet); }
+.thread-filter-input:focus {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--coral) 28%, transparent);
+}
+.thread-filter-hint {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.thread-filter-input:not(:placeholder-shown) + .thread-filter-hint { display: none; }
+.thread-item[hidden] { display: none; }
+.thread-filter-empty { border-style: dashed; }

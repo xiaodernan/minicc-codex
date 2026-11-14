@@ -13,6 +13,7 @@ import { applyIcons, icon, refreshIcons } from "./icons.js";
 import { bindCommandPalette, closeCommandPalette, openCommandPalette } from "./core/command-palette.js";
 import { handleFileTreeKeydown } from "./panels/index.js";
 import { updateStreakChip } from "./streak.js";
+import { initThreadFilter } from "./thread-filter.js";
 import { openReplayForTask } from "./panels/replay.js";
 import { updateRunningLight, updateRunningLightDigest } from "./panels/index.js";
 import { PERMISSION_MODES, addAssistantMessage, addLoadingMessage, addUserMessage, applyMentionOption, assistantMessageMarkup, bindRunningTask, closeMentionPopover, effectiveTaskPermissions, eventTimelineMarkup, handleMentionKeydown, mentionState, openGlobalSearchPanel, refreshFileTree, scrollChat, setBusy, setPermissionMode, setSession, showAuthModal, showToast, stopTaskTimer, submitAuthToken, taskSessionKey, toggleFileDir, toggleTodoSection, updateChatFollowState, updateMentionPopover, updateMode, updateReasoningControl, updateTaskDock, visibleAgentEvents } from "./panels/index.js";
@@ -457,10 +458,6 @@ export function bindUI() {
     if (item.dataset.taskId) openTaskInWorkspace(item.dataset.taskId);
     else setSession(item.dataset.session);
   });
-  $("#threadSearch").addEventListener("input", (event) => {
-    const query = event.target.value.toLowerCase();
-    document.querySelectorAll(".thread-item").forEach((item) => { item.hidden = !item.textContent.toLowerCase().includes(query); });
-  });
   const authForm = $("#authForm");
   if (authForm) authForm.addEventListener("submit", submitAuthToken);
 }
@@ -509,6 +506,8 @@ document.addEventListener("DOMContentLoaded", () => {
   updateRunningLightDigest();
   // M8-T955: the daily flame chip — visible only when a streak is alive.
   updateStreakChip();
+  // M8-T960: the "/" key + live filter on the recent-task list.
+  initThreadFilter();
   window.setInterval(() => { if (!document.hidden) updateRunningLight(); }, 45000);
   window.setInterval(() => { if (!document.hidden) updateRunningLightDigest(); }, 60000);
   $("#runningLight")?.addEventListener("click", () => openLedgerPanel());
