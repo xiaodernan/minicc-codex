@@ -51476,3 +51476,20 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
   - 新 orbit SVG 渲染、Google Fonts 未被触碰、reduced-motion 已降级 ✓
 - bundle 重建（app.js 506407 chars / game.js 不变）、check:web ✓
 - `npm run test:i18n` → 583 keys ×2 对齐，217 literal t() 全可解析 ✓
+
+## 批次 940 - M8-T945：事实包带最近提交——展示页把最新历史都亮出来了
+
+### 1 背景
+
+展示页 minicc 卡片现在是“静止数字 + 现场抓取 latest.json”，访客看不到正在推进哪些工作。升级到展示样本含最新提交信息，就是让每次访问都是一份新的故事。
+
+### 2 变更
+
+- `scripts/update-latest-json.mjs`：`recent_commits` —— 5 条最新提交（short / at / subject，subject 截断 160）。
+- 事实包 schema 保持 `minicc.latest.v1`（新增字段，不 break 下游）。
+- 展示页 `xiaodernan.github.io` 的 minicc 卡片新增 `.minicc-latest-commits` 渲染器（top 5 提交，commit short 等宽 coral 标识 + 原始中文 subject）。
+
+### 3 验证
+
+- 本地 `node scripts/update-latest-json.mjs` 输出 `recent_commits` 正确 ✓
+- `.github/workflows/update-latest.yml` 在推送后自动刷新事实包（`main` 含该脚本 → 触发一次新的 bot refresh）。

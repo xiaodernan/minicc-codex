@@ -258,3 +258,5 @@
 - **展示页事实包追上 14 个模块，M8-T943**：`scripts/update-latest-json.mjs` 的 `module_count: 14`，`feature_surface` 增加 `archive` 与 `recent`（17 项）；展示页 minicc 卡片说明已同步为「侧边十四块」；事实包随每次含 docs 的 push 自动刷新。
 
 - **空台焕新（M8-T944）**：`web/src/chat/markdown.js` 的 `emptySessionMarkup()` 重做——环形轨道（orbit）+ 碑记 M 徽标 + 涟漪微动 + 三枚一键 pills（读 README / 跑测试 / 审 diff，中英同版，i18n 双语），按钮 click 即填入 composer；`web/index.html` 静态占位空台同步；M8-T892 时代 `.empty-mark` / `.empty-actions` 死规则清理；空台 chip 绑定改为 `#messageList` 委托；Playwright zh/en 双路验证渲染与填入。
+
+- **事实包带最近提交 + 展示页最近提交条，M8-T945**：`scripts/update-latest-json.mjs` 新增 `recent_commits`（5 条最新，schema 保持 `minicc.latest.v1`，新增不破）；`xiaodernan.github.io` 的 minicc 卡片新增 `.minicc-latest-commits` 渲染器，按事实包实时渲染（5 行 coral 等宽 short + 原始 subject）——访客每次进卡片看到最新的开发故事，不再只有数字。

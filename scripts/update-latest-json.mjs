@@ -26,11 +26,25 @@ function sh(command) {
   }
 }
 
-function gitDateOfRoot() {
+const gitDateOfRoot = () => {
   const root = sh("git rev-list --max-parents=0 HEAD")?.split("\n")[0]?.trim();
   if (!root) return "";
   return sh(`git show -s --format=%cI ${root}`) ?? "";
-}
+};
+const recentCommits = (() => {
+  const out = sh("git log -n 5 --format=%h%x1f%cI%x1f%s");
+  if (!out) return [];
+  return out
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split("\x1f");
+      const [short = "", at = "", subject = ""] = parts;
+      return { short: short.trim(), at: at.trim(), subject: subject.trim().slice(0, 160) };
+    })
+    .filter((entry) => entry.short && entry.subject);
+})();
 
 const head = sh("git rev-parse HEAD") ?? "";
 const headShort = head.slice(0, 7);
@@ -53,6 +67,7 @@ const payload = {
   branch,
   head: headShort,
   total_commits: totalCommits,
+  recent_commits: recentCommits,
   first_commit_at: firstCommitDate,
   roadmap_batches: batchSections,
   changelog_entries: changelogEntries,
