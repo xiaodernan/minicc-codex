@@ -345,7 +345,7 @@ export function readImageFile(file) {
 
     const reader = new FileReader();
 
-    reader.onerror = () => reject(new Error(`无法读取图片：${file.name}`));
+    reader.onerror = () => reject(new Error(state.locale === "zh" ? `读取失败: ${file.name}` : `Failed to read: ${file.name}`));
 
     reader.onload = () => resolve(String(reader.result || ""));
 
@@ -979,9 +979,9 @@ export function openPanel(title, body, options = {}) {
 
     expand.hidden = false;
 
-    expand.title = "展开全屏";
+    expand.title = state.locale === "zh" ? "展开全屏" : "Expand fullscreen";
 
-    expand.setAttribute("aria-label", "展开全屏");
+    expand.setAttribute("aria-label", state.locale === "zh" ? "展开全屏" : "Expand fullscreen");
 
     expand.innerHTML = icon("maximize-2");
 
@@ -1045,7 +1045,7 @@ export function togglePanelFullscreen() {
 
   if (!button) return;
 
-  button.title = fullscreen ? "退出全屏" : "展开全屏";
+  button.title = fullscreen ? (state.locale === "zh" ? "退出全屏" : "Collapse fullscreen") : (state.locale === "zh" ? "展开全屏" : "Expand fullscreen");
 
   button.setAttribute("aria-label", button.title);
 
