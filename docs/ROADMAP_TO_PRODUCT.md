@@ -51534,3 +51534,24 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
   - en：「The Quiet Room」标题，CJK **零**；rail 条目数 = 8 ✓
 - `npm run test:i18n` → 579 keys ×2 对齐，218 literal t() 全可解析 ✓
 - bundle 重建 · check:web ✓ · 8 章中文序号完整（一到八）✓
+
+## 批次 943 - M8-T948：手册游戏厅章——从打开到吃掉 10 波
+
+### 1 背景
+
+说明书游戏厅章之前只讲了怎么进游戏、技能和图鉴。用户一开始打开游戏时最需要的知识：**每一波僵尸怎么分布、阳光怎么算、巨人怎么躲**。本批次把游戏厅章补齐为一本真的冲关手册。
+
+### 2 变更
+
+- `web/src/panels/manual.js`：游戏厅章 + 英文对称版新增：
+  - 「Wave-by-wave（高压难度）」：Wave 1–5 walker / 6–9 conehead+buckethead / 10 gargantuar——每波事实上的目标数量（基于 `WAVE_TARGET`）
+  - 「Plainspoken economy」/「植物经济学」：阳光 2–4/s、wallnut 吸收前锋线、撑杆跳只越第一个 plant、磁力菇拔锥桶、squash 强制击杀。
+- 不新增任何 i18n key；章节文案由 zh/en 两套分支携带。
+
+### 3 验证
+
+- Playwright zh/en 真浏览器：八章 rail 渲染正常，数据、指标沿用 defaults，`console.errors` 零条 ✓
+  - zh：`Wave-by-wave` 段读出 `æ³é é ...` 真实字符 ✓
+  - en：`gar-g-g-gantuar` / `cherry-bomb` / `Jalapeño` 原样 ✓
+  - `console.errors` = none ✓
+- bundle 重建 · `node --check web/app.js` ✓ · check:web ✓

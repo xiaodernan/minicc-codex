@@ -264,3 +264,5 @@
 - **任务完成庆祝彩带，M8-T946**：新增 `web/src/celebration.js`——26 枚彩色火花从气泡中心向外飞散（`prefers-reduced-motion` 完全不渲染）；`addAssistantMessage` 只在 live + `status==='completed'` 的路径上触发，restore / 失败 / 非当前任务路径不变。首次证明“做完一件事给用户一个让人需要太久的呼气”。
 
 - **说明书第八章「安静的房间 / The Quiet Room」，M8-T947**：说明书扩展为 8 章——这一章讲「为什么这间屋子这样被造」：没有甲方 / 没有专有智慧 / 没有表演型智能体 / 没有「THE PLAN」/ 每件事都会回来。中文版与英文版同故事，铁证入后证据：命令行、沙箱、门电路、`/api/stats` 现场数值、缓存命中率——没有不可检验的领袖性短语。真浏览器 zh/en 验证（en chrome 零 CJK，rail 8 项完整）。
+
+- **手册游戏厅章 · 冲关心法，M8-T948**：新手册「wave-by-wave」条目按实际 `WAVE_TARGET(wave,'hard')` 直录 Wave 1–10 目标数：walker 1–9 / conehead+buckethead 6–9 / Wave 10 Gargantuar；economy 条揭露阳光 2–4/s、wallnut 吸收 3–4 波、撑杆跳只越第一个 plant、magnetshroom 拔锥桶、squash 强制击杀。中英并行，en 不混 CJK。
