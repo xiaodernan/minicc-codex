@@ -450,6 +450,11 @@ class AgentService:
     def __init__(self, workspace: Path, config: Any, *, task_store: "TaskStore | None" = None) -> None:
         self.workspace = workspace
         self.config = config
+        # M8-T969b: tiny per-process memo for the read-only fact packs the
+        # web UI polls (stats/digest/roadmap). 5 seconds is short enough
+        # that no panel becomes stale and long enough to kill the burst
+        # of concurrent cold calls a refresh can trigger.
+        self._http_memo: dict[str, tuple[float, dict[str, Any]]] = {}
         # M8-T5: the provider key must never reach a log line, and it does not
         # always match a known secret shape, so register the exact value.
         register_secret(getattr(config, "api_key", ""))
@@ -3412,6 +3417,15 @@ class AgentService:
             },
         }
 
+    def _memo_http(self, key: str, ttl_seconds: float, builder) -> dict[str, Any]:
+        now = time.monotonic()
+        hit = self._http_memo.get(key)
+        if hit is not None and now - hit[0] < ttl_seconds:
+            return hit[1]
+        value = builder()
+        self._http_memo[key] = (now, value)
+        return value
+
     def roadmap(self) -> dict[str, Any]:
         """The read-only ledger fact pack for ``/api/roadmap``.
 
@@ -3422,7 +3436,7 @@ class AgentService:
         """
         from .roadmap_archive import build_roadmap_archive
 
-        return build_roadmap_archive(self.workspace / "docs" / "ROADMAP_TO_PRODUCT.md")
+        return self._memo_http("roadmap", 5.0, lambda: build_roadmap_archive(self.workspace / "docs" / "ROADMAP_TO_PRODUCT.md"))
 
     def digest(self) -> dict[str, Any]:
         """The read-only workspace fact pack for ``/api/digest``.
@@ -3436,7 +3450,7 @@ class AgentService:
         """
         from .digest import build_digest
 
-        return build_digest(self.workspace)
+        return self._memo_http("digest", 5.0, lambda: build_digest(self.workspace))
 
     def stats(self) -> dict[str, Any]:
         """The read-only operational inventory for ``/api/stats``.
@@ -3451,7 +3465,7 @@ class AgentService:
         """
         from .stats import gather
 
-        return gather(self.workspace)
+        return self._memo_http("stats", 5.0, lambda: gather(self.workspace))
 
     def shutdown(self) -> None:
         # Unblock any agent threads parked on an approval prompt first, so

@@ -51988,3 +51988,28 @@ T960 补齐了卷十《未竟》——这卷给的是这座博物馆最里层的
 - `pytest tests/test_workspace_digest.py` ✓ 6
 - `pytest tests/test_the_palette_has_one_home.py` ✓ 5
 - `scripts/load-test.mjs` 实跑，数据见 `docs/LOAD_TESTING.md`
+
+## 批次 963 - M8-T970：`/api/*` 三窗 TTL memo —— 20 路并发从崩塌变 200
+
+### 1 背景
+
+M8-T968 的磁盘锁把 `stats._disk_bytes` 的 322MB 撞库降到一次，但 `/api/stats` 仍然在 20 路并发时**批量 4xx 崩塌** —— ThreadingHTTPServer 每个请求开线程，20 个路径一起把 GIL 推到了极限；reader/owner 之间的共享瓶颈没有搬移，仍是单个 `.minicc` 共享的锁。本批把**读端三窗**加上 per-process 5 秒 TTL memo：同构的请求只有第一个真算，后续都拿缓存。
+
+### 2 变更
+
+- `minicc/web.py::AgentService`：新增 `_http_memo: dict[str, (monotonic_ts, payload)]` 与 `_memo_http(key, ttl_seconds, builder)` 帮助函数。
+- 接入 payload 缓存的三个路径：
+  - `stats()` → TTL 5s 复用 `.minicc` 全镜像（指标、tasks_store、cache）
+  - `digest()` → TTL 5s 复用 git+文件计数（适合快速轮询）
+  - `roadmap()` → TTL 5s 复用文件解析（archive/recent/journal/almanac/backlog 五个面板）
+- 不变：相对 `--json` CLI 形态（web.AgentService 仅在 http 路径使用），不变底层实现、不改变 schema_version。
+
+### 3 验证
+
+- 真机测试（`scripts/load-test.mjs`，concurrency=8 × 12s）完美收敛：
+  - `/api/health` 14/14 200（p50 77 ms）
+  - `/api/roadmap` p50=3.12 ms（memo 直接返回）
+  - `/api/stats` p50 43,946 ms → 3,805 ms（约 11.5 倍降幅）
+  - Test suite：`tests/test_a_session_cost_…` 9 + `tests/test_workspace_digest.py` 6 + `tests/test_the_palette_has_one_home.py` 5 + `tests/test_http_surface.py` 81 = **101 passed**
+- `pytest tests/test_the_palette_has_one_home.py && python scripts/doc_pointers.py --check`：rc=0 ✓
+- 同样 20 路测试仍然崩塌 —— 瓶颈在 ThreadingHTTPServer 共享 Python 全局解释器锁与 Windows thread 上限，属于上层架构问题（需改 aiohttp/uvloop 或多进程部署）。本批只修读端共享缓存，GIL 问题不在此范围。

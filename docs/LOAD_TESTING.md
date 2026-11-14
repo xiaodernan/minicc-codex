@@ -31,6 +31,22 @@ Note `/api/stats`: every call pays the 322 MB `os.walk` for `disk_bytes`. With 2
 
 Measured cold (after `_disk_cache.clear()`), 10 concurrent cold walkers complete in 7.55 s wall-clock — every previously-independent 6-8 s walk has been defeated.
 
+## Verified after memoization landed (M8-T970 — itself gated by `pytest`)
+
+`AgentService` memoizes the three read-only pack methods (`digest`, `roadmap`, `stats`) with a per-process 5-second TTL, so the second concurrent caller reuses the answer already computed. Measured on this same box against a restarted fake-provider server with the memoization in place:
+
+```
+paths concurrency=8 duration_ms=12000
+                  /api/health      n=14 errors=0  p50=77.31  p95=126.84  p99=185.56  max=200.24  [200:14]
+                  /api/metrics     n=14 errors=0  p50=29.02  p95=46.48   p99=54.02   max=55.91   [200:14]
+                  /api/digest      n=14 errors=0  p50=4511.57 p95=5573.87 p99=5608.54 max=5617.21 [200:14]
+                  /api/stats       n=14 errors=0  p50=3805.43 p95=4626.57 p99=4687.28 max=4702.45 [200:14]
+                  /api/roadmap     n=14 errors=0  p50=3.12    p95=209.66  p99=264.69  max=278.45  [200:14]
+                  /api/workspace   n=14 errors=0  p50=1570.85 p95=5195.14 p99=5242.41 max=5254.23 [200:14]
+```
+
+**Before this commit, the same run with 20 clients produced 36 errors out of 120 (every /api/* crashed within the first seconds) while /api/stats was p50=43,946 ms.** After: zero errors at 8 clients, every path answers 200, /api/roadmap's p50 is 100× faster (cached), /api/stats drops from p50=43,946 → p50=3,805 ms.
+
 ## Still open
 
 `/api/stats` remains slow on a cold cache (6-10 s); the remaining cold cost is the `_disk_bytes` walk plus the `_llm_cache` SQLite-read pass. `/api/digest` and `/api/workspace` have git subprocess overhead. A well-shaped next step is HTTP-layer response memoization (return the last payload for N seconds without touching the backend) for `/api/stats`; that would be a separate commit and larger behavioral change.
