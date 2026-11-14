@@ -298,3 +298,5 @@
 - **`?` 快捷键速查——同源、分组、真有内容，M8-T964**：新增 `web/src/cheat-sheet-data.js` 唯一家（撰写 / 逐行导航 / 全局 / 游戏 四组、16 条）；`openHelpPanel()` 从数据源渲染分组键位（此前完全无 CSS、11 行裸排）；说明书第四章同源渲染、不再双维护；CSS 补齐 `.help-panel` 全部规则——`?` 从「存在着但没人看」升格为「工作台真·键盘雷达」。zh/en 全语言键值齐平 ✓。
 
 - **年鉴卷十一「回声 / The Echo」，M8-T965**：`web/src/panels/almanac.js` 新增第十二卷——「三根看不见的弦，都在响」。git / audit.jsonl / 缓存三根弦各自按音区记事，却共用一个屋顶；EN 中英逐字对应；仪器盘「仓库呼吸 / 批次回响 / 审计回声」全实时数字；三枚紫边卡片揭示缓存亲和（Redis / LRU 现状）、RabbitMQ 失效风暴、Git 审计闭环；almanac smoke 12 章全绿、rail 12 条。
+
+- **游戏厅最佳纪录，M8-T966**：`web/src/game.js` 把每场最好的击退（score）与最高连击（combo）写入 `localStorage:minicc-game-best`；HUD 增加「最佳/Best」与「连击/Combo」两格（`#gameBestScore` `#gameBestCombo`），`initGame` 与 `finishGame` 都刷新；跨会话永远保留真实历史（`{score: 128, combo: 6}` seeded 立得 `128/6`）；i18n 584 keys；web/arcade/almanac/i18n smoke 全绿 ✓

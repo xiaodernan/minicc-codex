@@ -337,6 +337,7 @@ function updateGameHud(force = true) {
   game.hudAt = now;
   $("#gameSun").textContent = String(game.sun);
   $("#gameScore").textContent = String(game.score);
+  updateBestHud();
   $("#gameWave").textContent = `${Math.min(game.wave, MAX_WAVES)}/${MAX_WAVES}`;
   $("#gameTime").textContent = formatGameTime(game.elapsed);
   const pressure = `${t("game.threat")}: ${game.waveSpawned}/${game.waveTarget}`;
@@ -507,9 +508,52 @@ function setGameVolume(value) { game.volume = Math.max(0, Math.min(100, Number(v
 function toggleGameSound() { game.musicOn = !game.musicOn; localStorage.setItem("minicc-game-sound", game.musicOn ? "on" : "off"); if (game.audio?.master) game.audio.master.gain.setTargetAtTime(gameVolume(), game.audio.ctx.currentTime, .02); if (game.musicOn && game.volume) { playGameSound("collect"); startGameMusic(); } else stopGameMusic(); updateSoundButton(); }
 function setGameStatus(key) { $("#gameStatus").textContent = t(key); }
 function setGamePaused(paused) { setGamePauseReason("visibility", paused); }
+const GAME_BEST_KEY = "minicc-game-best";
+function readGameBest() {
+  try {
+    const raw = localStorage.getItem(GAME_BEST_KEY);
+    if (!raw) return { score: 0, combo: 0 };
+    const parsed = JSON.parse(raw);
+    return {
+      score: Math.max(0, Number(parsed?.score || 0) || 0),
+      combo: Math.max(0, Number(parsed?.combo || 0) || 0),
+    };
+  } catch {
+    return { score: 0, combo: 0 };
+  }
+}
+
+function writeGameBest() {
+  try {
+    localStorage.setItem(GAME_BEST_KEY, JSON.stringify({ score: gameBest.score, combo: gameBest.combo }));
+  } catch {
+    // a full localStorage is not user-facing fatality
+  }
+}
+
+// Seeded at load; refreshed live whenever a record falls (score or combo).
+let gameBest = readGameBest();
+
+function updateBestHud() {
+  const scoreEl = $("#gameBestScore");
+  const comboEl = $("#gameBestCombo");
+  if (scoreEl) scoreEl.textContent = String(gameBest.score);
+  if (comboEl) comboEl.textContent = String(gameBest.combo);
+}
+
+function bumpBestHud() {
+  const beforeScore = gameBest.score;
+  const beforeCombo = gameBest.combo;
+  gameBest.score = Math.max(gameBest.score, game.score);
+  gameBest.combo = Math.max(gameBest.combo, game.bestCombo || 0);
+  if (gameBest.score !== beforeScore || gameBest.combo !== beforeCombo) writeGameBest();
+  updateBestHud();
+}
+
 function finishGame(statusKey) {
   game.running = false;
   stopGameMusic();
+  bumpBestHud();
   setGameStatus(statusKey);
   if (statusKey === "game.victory") playGameSound("victory");
   else if (statusKey === "game.gameOver") playGameSound("gameover");

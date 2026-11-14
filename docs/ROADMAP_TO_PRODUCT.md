@@ -51908,3 +51908,24 @@ T960 补齐了卷十《未竟》——这卷给的是这座博物馆最里层的
 - Playwright 真浏览器 zh/en 双端：rail 12 条、`echo` 章 zh 中文 CJK=true / en 零 CJK，console errors = none ✓
 - 仪器盘 live：`仓库呼吸 1514 · 批次回响 283 · 审计回声 1468` ✓
 - `npm run test:almanac`（12 章 marker 断言，无混语）✓ · `npm run test:web` ✓ · `npm run test:i18n` ✓ · `npm run check:web` ✓ · doc_pointers ✓
+
+## 批次 960 - M8-T966：游戏厅最佳纪录——跨会话永远记你最好的一场
+
+### 1 背景
+
+游戏厅「波次 / 击退 / 连击」每场重新计算，比赛结束就忘了上一场的；最好的成绩也永远是写在 localStorage 里 0 的。本批次把「最佳得分/最高连击」拿出来单列：每次结束结算时对比入库，跨会话永远可见，不依赖任何后端。
+
+### 2 变更
+
+- `web/index.html`（CRLF 逐字节插入）：HUD 增加「最佳 · 连击」两列（`#gameBestScore` `#gameBestCombo`），沿「击退」列右侧；`data-i18n="game.best"` —— 注入最佳得分（不重复「连击」）。
+- `web/src/game.js`：`GAME_BEST_KEY="minicc-game-best"`，`readGameBest`（corrupt-fail-safe zero）、`writeGameBest`（try/catch silently — localStorage is not fatality）、`gameBest` seeded at load、`updateBestHud()`（initGame 与 updateGameHud 每轮调用）、`bumpBestHud()`（finishGame 结算时 bump：`max(score)` + `max(combo)` + 变化才写回 + HUD 重绘）。
+- `web/src/core/i18n.js`：`game.best`（zh「最佳」/en「Best」）——584 keys 对齐 ✓
+- `web/styles.css`：`.game-best span/strong` amber/soft-white + tabular-nums（与 Garage 里数字字体类一致）。
+- HUD 在每个 game 合法帧上更新，reduce-motion 无额外动效。
+
+### 3 验证
+
+- Playwright：
+  - A-fresh（空 storage）→ `#gameBestScore=0`、`#gameBestCombo=0` ✓
+  - B-seeded（localStorage 预埋 `{score:128, combo:6}`）→ 打开游戏厅立刻看见 `128` / `6` ✓
+- `npm run test:arcade` ✓ · `npm run test:almanac`（12 章 marker）✓ · `npm run test:web` ✓ · `npm run test:i18n`（584 keys）✓ · `npm run check:web` ✓ · doc_pointers ✓

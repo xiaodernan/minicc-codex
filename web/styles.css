@@ -4824,3 +4824,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 
 /* M8-T965: almanac chapter XI — the echo, violet hint left edge. */
 .almanac-echo .almanac-gate-list li { border-left-color: var(--purple); }
+
+/* M8-T966: the arcade HUD best-score chip. */
+.game-best span { color: var(--amber); }
+.game-best strong { color: #ffe7b0; font-variant-numeric: tabular-nums; }

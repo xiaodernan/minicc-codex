@@ -612,6 +612,7 @@
       "game.mowers": "\u9632\u7EBF",
       "game.combo": "\u8FDE\u51FB",
       "game.energy": "\u6218\u672F\u80FD\u91CF",
+      "game.best": "\u6700\u4F73",
       "game.skillPulse": "\u5BD2\u51B0\u8109\u51B2",
       "game.skillPulseHint": "\u51BB\u7ED3\u5E76\u9707\u51FB\u5168\u573A\u50F5\u5C38",
       "game.skillSun": "\u9633\u5149\u7206\u53D1",
@@ -1197,6 +1198,7 @@
       "game.mowers": "Mowers",
       "game.combo": "Combo",
       "game.energy": "Tactical energy",
+      "game.best": "Best",
       "game.skillPulse": "Frost Pulse",
       "game.skillPulseHint": "Freeze and shock every zombie",
       "game.skillSun": "Sun Burst",
@@ -3100,7 +3102,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E00\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u300A\u672A\u7ADF\u300B\uFF0C\u8BB2\u7684\u662F\u7F16\u53F7\u7F3A\u53E3\u4E0E\u6301\u7EED\u4EA4\u4ED8\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E8C\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E00\u300A\u56DE\u58F0\u300B\uFF0C\u8BB2\u7684\u662F git / audit / \u7F13\u5B58\u4E09\u6839\u5F26\u4E92\u4E0D\u76F8\u6270\u5374\u5171\u632F\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -3115,7 +3117,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in eleven chapters (the newest, Chapter X \u201CThe Unfinished\u201D, on numbered gaps and continuous delivery), every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in twelve chapters (the newest, Chapter XI \u201CThe Echo\u201D, on the three strings \u2014 git / audit / cache \u2014 that resonate in their own mediums), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
