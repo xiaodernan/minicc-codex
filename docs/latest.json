@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T18:02:53.375Z",
+  "generated_at": "2026-11-14T18:17:22.153Z",
   "branch": "main",
-  "head": "7ccdf97",
-  "total_commits": 1499,
+  "head": "a82459c",
+  "total_commits": 1501,
   "recent_commits": [
+    {
+      "short": "a82459c",
+      "at": "2026-11-15T02:16:43+08:00",
+      "subject": "M8-T957: /api/digest in parallel - the 9 read-only git probes now run concurrently; wall clock 1.34s -> ~0.6s, payload identical (measured gate: test_workspace_"
+    },
+    {
+      "short": "04276fb",
+      "at": "2026-11-14T18:02:53Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7ccdf97",
       "at": "2026-11-15T02:02:28+08:00",
@@ -19,22 +29,12 @@
       "short": "bfa18c3",
       "at": "2026-11-14T17:54:03Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "93e1b78",
-      "at": "2026-11-15T01:53:44+08:00",
-      "subject": "M8-T955: the flame chip - daily streak counter for completed tasks (localStorage, zero network, per-calendar-day +1, two-day gap resets), flame icon added, bili"
-    },
-    {
-      "short": "e389b6e",
-      "at": "2026-11-14T17:45:46Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 276,
+  "roadmap_batches": 277,
   "changelog_entries": 1,
-  "roadmap_lines": 51735,
+  "roadmap_lines": 51754,
   "tracked_files": 1052,
   "test_files": 702,
   "almanac_chapters": 11,
