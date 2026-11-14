@@ -47,6 +47,12 @@ function chapterMarkup(chapter) {
 let digestCache = null;
 let statsCache = null;
 let metricsCache = null;
+let statsFetchedAt = 0;
+let digestFetchedAt = 0;
+// Chapter switching must never re-fetch fresh data per click — the full
+// fetch pays real latency on a busy .minicc tree, and every extra round
+// trip was stale-by-definition anyway. Reuse numbers for a minute.
+const HYDRATE_TTL_MS = 60_000;
 let currentChapter = "prologue";
 
 function witnessMarkup() {
@@ -538,16 +544,27 @@ async function loadChapter(id) {
   const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = renderer(metricsCache);
   refreshIcons();
-  // Phase 2: fetch fresh numbers; re-render only if still on this chapter.
+  // Phase 2: fetch fresh numbers (cache-per-minute); re-render only if the
+  // user is still on this chapter. /api/stats can take seconds on a big
+  // .minicc tree — 20s is deliberate, phase 1 already rendered.
+  const now = Date.now();
+  const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
+  const wantStats = statsCache == null || now - statsFetchedAt > HYDRATE_TTL_MS;
   const [metrics, digest, stats] = await Promise.all([
-    requestJson("/api/metrics", {}, 8000).catch(() => null),
-    requestJson("/api/digest", {}, 8000).catch(() => null),
-    requestJson("/api/stats", {}, 8000).catch(() => null),
+    requestJson("/api/metrics", {}, 15000).catch(() => null),
+    wantDigest ? requestJson("/api/digest", {}, 20000).catch(() => null) : Promise.resolve(null),
+    wantStats ? requestJson("/api/stats", {}, 20000).catch(() => null) : Promise.resolve(null),
   ]);
   if (currentChapter !== id) return;
   if (metrics) metricsCache = metrics;
-  if (digest) digestCache = digest;
-  if (stats) statsCache = stats;
+  if (digest) {
+    digestCache = digest;
+    digestFetchedAt = Date.now();
+  }
+  if (stats) {
+    statsCache = stats;
+    statsFetchedAt = Date.now();
+  }
   const hydrated = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = hydrated(metricsCache);
   refreshIcons();
@@ -575,6 +592,7 @@ export async function openAlmanacPanel() {
     requestJson("/api/digest")
       .then((digest) => {
         digestCache = digest;
+        digestFetchedAt = Date.now();
         if (currentChapter !== "prologue") return;
         const slot = $("#almanacCanvas");
         if (!slot) return;

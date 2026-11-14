@@ -2316,6 +2316,9 @@
   var digestCache = null;
   var statsCache = null;
   var metricsCache = null;
+  var statsFetchedAt = 0;
+  var digestFetchedAt = 0;
+  var HYDRATE_TTL_MS = 6e4;
   var currentChapter = "prologue";
   function witnessMarkup() {
     const s = statsCache;
@@ -2782,15 +2785,24 @@
     const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = renderer(metricsCache);
     refreshIcons();
+    const now = Date.now();
+    const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
+    const wantStats = statsCache == null || now - statsFetchedAt > HYDRATE_TTL_MS;
     const [metrics, digest, stats] = await Promise.all([
-      requestJson("/api/metrics", {}, 8e3).catch(() => null),
-      requestJson("/api/digest", {}, 8e3).catch(() => null),
-      requestJson("/api/stats", {}, 8e3).catch(() => null)
+      requestJson("/api/metrics", {}, 15e3).catch(() => null),
+      wantDigest ? requestJson("/api/digest", {}, 2e4).catch(() => null) : Promise.resolve(null),
+      wantStats ? requestJson("/api/stats", {}, 2e4).catch(() => null) : Promise.resolve(null)
     ]);
     if (currentChapter !== id) return;
     if (metrics) metricsCache = metrics;
-    if (digest) digestCache = digest;
-    if (stats) statsCache = stats;
+    if (digest) {
+      digestCache = digest;
+      digestFetchedAt = Date.now();
+    }
+    if (stats) {
+      statsCache = stats;
+      statsFetchedAt = Date.now();
+    }
     const hydrated = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = hydrated(metricsCache);
     refreshIcons();
@@ -2816,6 +2828,7 @@
       refreshIcons();
       requestJson("/api/digest").then((digest) => {
         digestCache = digest;
+        digestFetchedAt = Date.now();
         if (currentChapter !== "prologue") return;
         const slot = $("#almanacCanvas");
         if (!slot) return;

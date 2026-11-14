@@ -51597,3 +51597,25 @@ M8-T949 把年鉴换章改成两阶段渲染后，`/api/stats` 仍以「每次�
 - `pytest tests/test_http_surface.py -k stats` → **1 passed** ✓
 - `minicc.stats.gather('.')` 连调两次：第二次 1.22s、disk_bytes 一致 ✓
 - doc_pointers ✓
+
+## 批次 946 - M8-T951：年鉴按需 hydrate——数字活了，切换从不等 8 秒
+
+### 1 背景
+
+M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api/*` 的延迟：phase-2 的 fetch 被压到 8s 超时，数字永远是「—」。这次把数字的生命周期写明白：60 秒内同一个数字只问一次，超时上限给到 20s（phase 1 已经渲染，时间不该由用户出）。
+
+### 2 变更
+
+- `web/src/panels/almanac.js`：
+  - `HYDRATE_TTL_MS = 60_000`：`digestFetchedAt` / `statsFetchedAt` 两节水表；60 秒内的 chapter 切换直接复用 `digestCache` / `statsCache`（`/api/stats` 的硬盘统计服务器侧另有 120s TTL 兜底，见 M8-T950）。
+  - phase-2 超时 8s → **metrics 15s / digest 20s / stats 20s**；phase 1 依旧秒开。
+  - 面板打开时的 `/api/digest` 回填同步记账 `digestFetchedAt`，一气呵成。
+- 前端没有新增字典键；bundle 重建。
+
+### 3 验证
+
+- 假 provider 真浏览器、轮询中的页面：换 `craft` 章
+  - 切页 1.5s → 文案即现（数字「—」等 hydrate）
+  - 切页 9s → `提交 1483 · 批次章节 270 · 审计行 1468 · 跟踪文件 1050 · 测试文件 702` —— 全部来自实时 `/api/digest` + `/api/stats` ✓
+- `npm run test:almanac` → `almanac smoke passed: 10 chapters render fully bilingual, chapter switching verified, no mixed-language prose` ✓
+- `npm run test:web` ✓ · `npm run test:i18n`（579/218）✓ · `npm run check:web` ✓
