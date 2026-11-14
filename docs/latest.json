@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T23:47:08.450Z",
+  "generated_at": "2026-11-14T23:55:48.233Z",
   "branch": "main",
-  "head": "5c8cfd7",
-  "total_commits": 1546,
+  "head": "abd1a71",
+  "total_commits": 1549,
   "recent_commits": [
+    {
+      "short": "abd1a71",
+      "at": "2026-11-15T07:55:10+08:00",
+      "subject": "M8-T983: manual chapter 11 'Load & Capacity' - bilingual: local-first model, load-test recipe, 2026-11-15 real numbers (c=50, 2490x200, 0 errors), three defense"
+    },
+    {
+      "short": "8a1af4c",
+      "at": "2026-11-15T07:47:56+08:00",
+      "subject": "chore: remove _cjk_scan.py dev artifact committed by mistake in M8-T982"
+    },
+    {
+      "short": "c58db88",
+      "at": "2026-11-14T23:47:08Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5c8cfd7",
       "at": "2026-11-15T07:46:49+08:00",
@@ -14,28 +29,13 @@
       "short": "c9ad2fa",
       "at": "2026-11-14T23:38:15Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "2b7a6fc",
-      "at": "2026-11-15T07:37:57+08:00",
-      "subject": "M8-T981: RAG lane prompt_cache_key (default minicc-<sha256(gateway|model)[:16]) - wkapi.pro real-key measured cached_tokens 19082/19085 = 99.98% (was unreported"
-    },
-    {
-      "short": "6e1e270",
-      "at": "2026-11-14T23:31:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "092617c",
-      "at": "2026-11-15T07:30:54+08:00",
-      "subject": "M8-T980: /api/workspace memoized (10s TTL, single-flight) - cold 1.1s to warm ~100ms; c=20 x 15s: every path 1497x200, 0 errors, p50 <= 22ms; 117 tests green"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 299,
+  "roadmap_batches": 300,
   "changelog_entries": 1,
-  "roadmap_lines": 52279,
-  "tracked_files": 1062,
+  "roadmap_lines": 52301,
+  "tracked_files": 1061,
   "test_files": 704,
   "almanac_chapters": 13,
   "module_count": 14,
