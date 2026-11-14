@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:22:03.435Z",
+  "generated_at": "2026-11-14T17:24:05.098Z",
   "branch": "main",
-  "head": "7307cea",
-  "total_commits": 1485,
+  "head": "5c707c7",
+  "total_commits": 1487,
   "recent_commits": [
+    {
+      "short": "5c707c7",
+      "at": "2026-11-15T01:23:06+08:00",
+      "subject": "M8-T952: 2026-11-15 re-audit of the consolidation report - four unmerged branches revalidated by patch-id, two origin branches confirmed fully absorbed by main,"
+    },
+    {
+      "short": "01e4489",
+      "at": "2026-11-14T17:22:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7307cea",
       "at": "2026-11-15T01:19:08+08:00",
@@ -19,22 +29,12 @@
       "short": "c1326ab",
       "at": "2026-11-15T01:04:34+08:00",
       "subject": "M8-T950: /api/stats disk scan is TTL-cached (120s, was a full 322MB walk per poll) and the absent-store test is hermetic (pinned to tmp_path); README catch-up ("
-    },
-    {
-      "short": "8ec0f9c",
-      "at": "2026-11-14T17:00:19Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "2759254",
-      "at": "2026-11-15T00:58:26+08:00",
-      "subject": "M8-T949: almanac volume IX The Craft + two-phase chapter switching (was frozen on /api/stats) + palette gate real fix (8 JS-written runtime tokens exempted, dea"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 271,
+  "roadmap_batches": 272,
   "changelog_entries": 1,
-  "roadmap_lines": 51622,
+  "roadmap_lines": 51641,
   "tracked_files": 1050,
   "test_files": 702,
   "almanac_chapters": 9,
