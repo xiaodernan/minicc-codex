@@ -4691,3 +4691,6 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
       0 4px 22px color-mix(in srgb, #f97316 28%, transparent);
   }
 }
+
+/* M8-T956: almanac chapter X — the unfinished wall, amber left edge. */
+.almanac-backlog .almanac-gate-list li { border-left-color: var(--amber); }

@@ -29,6 +29,7 @@ const CHAPTERS = [
   { id: "mesh", roman: { zh: "卷七", en: "Chapter VII" }, title: { zh: "星网", en: "The Mesh" }, subtitle: { zh: "六个服务，一个国家", en: "Six services, one country" } },
   { id: "witness", roman: { zh: "卷八", en: "Chapter VIII" }, title: { zh: "证人", en: "The Witness" }, subtitle: { zh: "笔录不说话，但不说谎", en: "The record does not speak, but it does not lie" } },
   { id: "craft", roman: { zh: "卷九", en: "Chapter IX" }, title: { zh: "技艺", en: "The Craft" }, subtitle: { zh: "一件件作品在同样的手里被磨", en: "Every detail ground by the same hand" } },
+  { id: "backlog", roman: { zh: "卷十", en: "Chapter X" }, title: { zh: "未竟", en: "The Unfinished" }, subtitle: { zh: "这册子还没写完，它正在写", en: "This wing is still being written" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -522,6 +523,62 @@ function craftMarkup() {
     </div>`;
 }
 
+function backlogMarkup() {
+  const d = digestCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
+  const head = d?.head_short ? escapeHtml(String(d.head_short)) : "—";
+  const shipments = Array.isArray(d?.recent_commits) ? d.recent_commits.slice(0, 6) : [];
+  const shipmentRows = shipments.length
+    ? shipments
+        .map((c) => `<li><strong>${escapeHtml(c.short || "")}</strong><span>${escapeHtml(c.subject || "")}</span></li>`)
+        .join("")
+    : `<li><strong>${zh() ? "暂无" : "none"}</strong><span>${zh() ? "最近一次交付在这里，只等下一笔提交。" : "The next delivery lands here after the next push."}</span></li>`;
+  return `
+    <div class="almanac-canvas almanac-backlog">
+      <div class="almanac-kicker">${zh() ? "卷十 · 未竟" : "Chapter X · The Unfinished"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '没有「完工」的横幅<br/>只有<span class="almanac-title-accent">正在砌的墙。</span>' : 'No banner says finished<br/>only a <span class="almanac-title-accent">wall going up.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          这个展厅不陈列死物。每一次 <code>push</code> 都是一块石头，每一个 M8 批次都是一道小门楣——
+          这张册子上写的不是「完成」，而是「又交付了一点」。
+        </p>
+        <p>
+          编号里的空壁不是丢了——它们是还没有决定要盖什么的位置。被删掉的门、被合并的路、
+          被 re-排序的计划，境遇都在账上，找不到就是找不到；找得到的都在档案馆里排列成列。
+        </p>` : `<p>
+          This wing holds no lifeless exhibits. Every <code>push</code> is a stone,
+          every M8 batch a small lintel — this page records not "done", but
+          "one more thing delivered".
+        </p>
+        <p>
+          The gaps in the batch numbering are not lost records. They are positions
+          whose purpose has not been decided yet. Doors that were removed, roads
+          that were merged, plans that were re-ordered — all accounted for; what
+          cannot be found is said to be unfound, and what can is set in order inside the archive.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "提交总数" : "Commits"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "批次章节" : "Batch chapters"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "当前北极星" : "Current HEAD"}</div>
+          <div class="almanac-instrument-value">${head}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${shipmentRows}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "如果有一天有人翻到这一页说：从这里开始的每一步都能看得见——那本书就完整了。" : "If someone reads this page one day and says every step from here on can be seen — that is the whole book."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -533,6 +590,7 @@ const CHAPTER_RENDERERS = {
   mesh: () => meshMarkup(),
   witness: () => witnessMarkup(),
   craft: () => craftMarkup(),
+  backlog: () => backlogMarkup(),
 };
 
 async function loadChapter(id) {

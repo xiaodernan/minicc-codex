@@ -97,7 +97,7 @@ function zhModules() {
     <ul class="manual-chapter-list">
       <li><strong>账本 · Ledger</strong> — ⌘L 打开：总 token 金句、缓存命中率圆环（hit/miss/write 拆分）、成本与未定价标注、模型分解表、状态 segmented bar。一切数字来自真实任务快照。</li>
       <li><strong>脉搏 · Pulse</strong> — 三环（命中率/上下文占比/完成率）+ 最近 12 个任务档案 + 逐次调用缓存火花线；实时增长，关了再开也读数。</li>
-      <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：九卷博物馆级叙事，把这个产品的设计决策按章讲述，每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
+      <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：十一卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷十《未竟》，讲的是编号缺口与持续交付），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -113,7 +113,7 @@ function enModules() {
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> — ⌘L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> — three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in nine chapters, every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in eleven chapters (the newest, Chapter X “The Unfinished”, on numbered gaps and continuous delivery), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>

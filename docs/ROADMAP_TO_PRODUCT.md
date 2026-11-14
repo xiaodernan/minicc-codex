@@ -51709,3 +51709,26 @@ M8-T949 的两阶段渲染在繁忙的 `.minicc`（322MB）上仍会败给 `/api
 - Playwright 真浏览器 3 场景：全新 WS 完成 → streak **1**；昨日 seed 4 → 完成后 **5**；3 天前 seed 9（过期）→ 启动隐藏、完成后重建 **1** ✓
 - 侧边栏局部截图：金焰 pill、数字 + 「天连击」清晰可读，无 console errors ✓
 - `npm run test:web` ✓（product path 完好）· `npm run test:i18n` → 581 keys ✓ · bundle 重建 + `check:web` ✓ · `web/index.html` CRLF 保留 ✓
+
+## 批次 951 - M8-T956：年鉴卷十「未竟 / The Unfinished」——展厅的缺口，讲的就是我们还在盖
+
+### 1 背景
+
+年鉴收尾于卷九「技艺」——它讲完了「是怎么磨的」，却没有一卷正面回答「编号里的缺口是什么」「为什么这里从来没有『完工』的横幅」。卷十《未竟》是这座博物馆面向施工现场的玻璃幕墙：每一块石头都是一次 push，每一个门楣都是一个 M8 批次，缺口不是丢失，是未被决定。
+
+### 2 变更
+
+- `web/src/panels/almanac.js`：CHAPTERS 新增 `backlog`（卷十 · 未竟 / Chapter X · The Unfinished，「这册子还没写完，它正在写」）；新增 `backlogMarkup()`——
+  - 主体双语两段：每个 push 一块石头、每个 M8 一个门楣，记录的不是「完成」而是「又交付了一点」；编号缺口不是葬送——是还没决定要盖什么；被删掉的门、被合并的路、被重排的计划，都在账里，找不到就是找不到，找得到的都在档案馆成列。
+  - 仪器盘：提交总数 / 批次章节 / 当前北极星（`head_short`，现场实时）。
+  - 「最近的交付」——digest 里最近 6 笔真实提交（short sha + subject）实时流式渲染，带 `almanac-gate-list` 样式（琥珀左缘 `.almanac-backlog` 变种）。
+- `web/styles.css`：`.almanac-backlog` 左缘琥珀色变体。
+- `tests/almanac_smoke.mjs`：加 `backlog` + `["未竟", "The Unfinished"]`，rail → 11 章。
+- `README.md`：年鉴 10 → 11 卷（追加 Backlog）、手册 modules 章节「九卷」→「十一卷」。
+- 说明书 modules 章（中英逐字对应）：「十一卷博物馆级叙事」+ 卷十一句话定位。
+
+### 3 验证
+
+- 真浏览器 zh/en：rail 11 条、切换即时、卷十 zh 中文渲染 CJK=true / en 零 CJK ✓
+- hydrate 后仪器盘实时：`提交总数 1498 · 批次章节 275 · 当前北极星 9842116` + 6 条最近交付（本地 git head），head 北极星现场可见 ✓
+- `npm run test:almanac` → `almanac smoke passed: 11 chapters ... verified` ✓ · `test:web` ✓ · `test:i18n`（581/218）✓ · `check:web` ✓ · doc_pointers ✓

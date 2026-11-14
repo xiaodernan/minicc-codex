@@ -2305,7 +2305,8 @@
     { id: "gate", roman: { zh: "\u5377\u516D", en: "Chapter VI" }, title: { zh: "\u5173\u5361", en: "The Gate" }, subtitle: { zh: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934", en: "Every gate said yes" } },
     { id: "mesh", roman: { zh: "\u5377\u4E03", en: "Chapter VII" }, title: { zh: "\u661F\u7F51", en: "The Mesh" }, subtitle: { zh: "\u516D\u4E2A\u670D\u52A1\uFF0C\u4E00\u4E2A\u56FD\u5BB6", en: "Six services, one country" } },
     { id: "witness", roman: { zh: "\u5377\u516B", en: "Chapter VIII" }, title: { zh: "\u8BC1\u4EBA", en: "The Witness" }, subtitle: { zh: "\u7B14\u5F55\u4E0D\u8BF4\u8BDD\uFF0C\u4F46\u4E0D\u8BF4\u8C0E", en: "The record does not speak, but it does not lie" } },
-    { id: "craft", roman: { zh: "\u5377\u4E5D", en: "Chapter IX" }, title: { zh: "\u6280\u827A", en: "The Craft" }, subtitle: { zh: "\u4E00\u4EF6\u4EF6\u4F5C\u54C1\u5728\u540C\u6837\u7684\u624B\u91CC\u88AB\u78E8", en: "Every detail ground by the same hand" } }
+    { id: "craft", roman: { zh: "\u5377\u4E5D", en: "Chapter IX" }, title: { zh: "\u6280\u827A", en: "The Craft" }, subtitle: { zh: "\u4E00\u4EF6\u4EF6\u4F5C\u54C1\u5728\u540C\u6837\u7684\u624B\u91CC\u88AB\u78E8", en: "Every detail ground by the same hand" } },
+    { id: "backlog", roman: { zh: "\u5377\u5341", en: "Chapter X" }, title: { zh: "\u672A\u7ADF", en: "The Unfinished" }, subtitle: { zh: "\u8FD9\u518C\u5B50\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u5B83\u6B63\u5728\u5199", en: "This wing is still being written" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -2773,6 +2774,57 @@
       </p>
     </div>`;
   }
+  function backlogMarkup() {
+    const d = digestCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
+    const head = d?.head_short ? escapeHtml(String(d.head_short)) : "\u2014";
+    const shipments = Array.isArray(d?.recent_commits) ? d.recent_commits.slice(0, 6) : [];
+    const shipmentRows = shipments.length ? shipments.map((c) => `<li><strong>${escapeHtml(c.short || "")}</strong><span>${escapeHtml(c.subject || "")}</span></li>`).join("") : `<li><strong>${zh() ? "\u6682\u65E0" : "none"}</strong><span>${zh() ? "\u6700\u8FD1\u4E00\u6B21\u4EA4\u4ED8\u5728\u8FD9\u91CC\uFF0C\u53EA\u7B49\u4E0B\u4E00\u7B14\u63D0\u4EA4\u3002" : "The next delivery lands here after the next push."}</span></li>`;
+    return `
+    <div class="almanac-canvas almanac-backlog">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341 \xB7 \u672A\u7ADF" : "Chapter X \xB7 The Unfinished"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u6CA1\u6709\u300C\u5B8C\u5DE5\u300D\u7684\u6A2A\u5E45<br/>\u53EA\u6709<span class="almanac-title-accent">\u6B63\u5728\u780C\u7684\u5899\u3002</span>' : 'No banner says finished<br/>only a <span class="almanac-title-accent">wall going up.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u8FD9\u4E2A\u5C55\u5385\u4E0D\u9648\u5217\u6B7B\u7269\u3002\u6BCF\u4E00\u6B21 <code>push</code> \u90FD\u662F\u4E00\u5757\u77F3\u5934\uFF0C\u6BCF\u4E00\u4E2A M8 \u6279\u6B21\u90FD\u662F\u4E00\u9053\u5C0F\u95E8\u6963\u2014\u2014
+          \u8FD9\u5F20\u518C\u5B50\u4E0A\u5199\u7684\u4E0D\u662F\u300C\u5B8C\u6210\u300D\uFF0C\u800C\u662F\u300C\u53C8\u4EA4\u4ED8\u4E86\u4E00\u70B9\u300D\u3002
+        </p>
+        <p>
+          \u7F16\u53F7\u91CC\u7684\u7A7A\u58C1\u4E0D\u662F\u4E22\u4E86\u2014\u2014\u5B83\u4EEC\u662F\u8FD8\u6CA1\u6709\u51B3\u5B9A\u8981\u76D6\u4EC0\u4E48\u7684\u4F4D\u7F6E\u3002\u88AB\u5220\u6389\u7684\u95E8\u3001\u88AB\u5408\u5E76\u7684\u8DEF\u3001
+          \u88AB re-\u6392\u5E8F\u7684\u8BA1\u5212\uFF0C\u5883\u9047\u90FD\u5728\u8D26\u4E0A\uFF0C\u627E\u4E0D\u5230\u5C31\u662F\u627E\u4E0D\u5230\uFF1B\u627E\u5F97\u5230\u7684\u90FD\u5728\u6863\u6848\u9986\u91CC\u6392\u5217\u6210\u5217\u3002
+        </p>` : `<p>
+          This wing holds no lifeless exhibits. Every <code>push</code> is a stone,
+          every M8 batch a small lintel \u2014 this page records not "done", but
+          "one more thing delivered".
+        </p>
+        <p>
+          The gaps in the batch numbering are not lost records. They are positions
+          whose purpose has not been decided yet. Doors that were removed, roads
+          that were merged, plans that were re-ordered \u2014 all accounted for; what
+          cannot be found is said to be unfound, and what can is set in order inside the archive.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-triple">
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570" : "Commits"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u6279\u6B21\u7AE0\u8282" : "Batch chapters"}</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">${zh() ? "\u5F53\u524D\u5317\u6781\u661F" : "Current HEAD"}</div>
+          <div class="almanac-instrument-value">${head}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${shipmentRows}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u5982\u679C\u6709\u4E00\u5929\u6709\u4EBA\u7FFB\u5230\u8FD9\u4E00\u9875\u8BF4\uFF1A\u4ECE\u8FD9\u91CC\u5F00\u59CB\u7684\u6BCF\u4E00\u6B65\u90FD\u80FD\u770B\u5F97\u89C1\u2014\u2014\u90A3\u672C\u4E66\u5C31\u5B8C\u6574\u4E86\u3002" : "If someone reads this page one day and says every step from here on can be seen \u2014 that is the whole book."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -2783,7 +2835,8 @@
     gate: () => gateMarkup(digestCache),
     mesh: () => meshMarkup(),
     witness: () => witnessMarkup(),
-    craft: () => craftMarkup()
+    craft: () => craftMarkup(),
+    backlog: () => backlogMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -2929,7 +2982,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u4E5D\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E00\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u300A\u672A\u7ADF\u300B\uFF0C\u8BB2\u7684\u662F\u7F16\u53F7\u7F3A\u53E3\u4E0E\u6301\u7EED\u4EA4\u4ED8\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -2944,7 +2997,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in nine chapters, every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in eleven chapters (the newest, Chapter X \u201CThe Unfinished\u201D, on numbered gaps and continuous delivery), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>

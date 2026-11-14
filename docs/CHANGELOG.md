@@ -280,3 +280,5 @@
 - **缓存亲矩阵实测固化，M8-T954**：docs/CACHE_AFFINITY_MATRIX.md——wkapi.pro · gpt-6-sol · 真 key 逐格（2026-11-15）：Responses 流/非流 94.5%→100% 都如实上报；chat/completions 无 key 流式永不回 cached_tokens（3/3），带 key 后两路都报（5376/5509=97.5%）；直连 urllib 被 403（TLS 指纹）。三误解结案：「命中率低」= 流式不上报的显示产物（缓存实际在工作）、「显示非流」= 已移除的恢复锁、judge 0% 属结构性（前缀独有，不自评）。说明书排错条目同步为实测结论（双语逐字对应）。
 
 - **火苗 · 连续完成天数，M8-T955**：`web/src/streak.js`——`#streakChip` 金焰 pill 常驻侧边栏（航行灯与工作区名之间），每天 ≥1 次真实任务完成即 +1；localStorage `minicc-streak-v1`，本地零网络、刷新即见（损坏数据按 0、缺席两天重置、当天重复不重复计）；`celebrate()` 开头点亮、与动效偏好解耦；新增 lucide `flame` 描边与 🔥 本地 glyph；i18n 581 keys 对齐；Playwright 三场景（新→1 / 昨日 4→5 / 3 天前过期 9→1）✓。
+
+- **年鉴卷十「未竟 / The Unfinished」，M8-T956**：`web/src/panels/almanac.js` 新增第十一卷——「这册子还没写完，它正在写」。仪器盘（提交总数 / 批次章节 / 当前北极星现场值）+ 按 digest 流式渲染的「最近的交付」(6 条真实提交）+ 双语正文：缺口编号不是葬送，是还没决定要盖什么。说明书/README 年鉴升至十一卷；almanac smoke 11 章全绿（marker 断言）；zh/en 真浏览器双验（hydrate 提交 1498 · 批次 275 · 当前 north star 9842116）。

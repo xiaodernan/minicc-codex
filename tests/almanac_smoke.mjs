@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog"];
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
@@ -14,6 +14,7 @@ const CHAPTER_MARKERS = {
   mesh: ["星网", "The Mesh"],
   witness: ["证人", "The Witness"],
   craft: ["技艺", "The Craft"],
+  backlog: ["未竟", "The Unfinished"],
 };
 const CJK = /[\u4e00-\u9fff]/;
 
@@ -48,5 +49,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 10 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
+console.log("almanac smoke passed: 11 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
 process.exit(0);
