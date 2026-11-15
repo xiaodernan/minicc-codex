@@ -98,6 +98,7 @@ const payload = {
     "redis-cache",
     "cached-first-call",
     "doctor-panel",
+    "dockyard-panel",
     "prefix-cache-keeper",
     "workspace-vitals",
     "upstream-echo",

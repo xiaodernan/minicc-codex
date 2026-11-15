@@ -1,6 +1,6 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:55:51.286Z",
+  "generated_at": "2026-11-15T08:56:07.197Z",
   "branch": "main",
   "head": "bb558b4",
   "total_commits": 1595,
@@ -56,6 +56,7 @@
     "redis-cache",
     "cached-first-call",
     "doctor-panel",
+    "dockyard-panel",
     "prefix-cache-keeper",
     "workspace-vitals",
     "upstream-echo",
