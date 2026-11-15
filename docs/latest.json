@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T10:40:10.712Z",
+  "generated_at": "2026-11-15T10:40:48.911Z",
   "branch": "main",
-  "head": "ba7e255",
-  "total_commits": 1616,
+  "head": "f091560",
+  "total_commits": 1617,
   "recent_commits": [
+    {
+      "short": "f091560",
+      "at": "2026-11-15T18:40:22+08:00",
+      "subject": "chore(latest): fact pack refresh at ba7e255 - M8-T1014 admin panel"
+    },
     {
       "short": "ba7e255",
       "at": "2026-11-15T18:39:58+08:00",
@@ -24,11 +29,6 @@
       "short": "655b2a6",
       "at": "2026-11-15T09:35:11Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8ca28e8",
-      "at": "2026-11-15T17:34:55+08:00",
-      "subject": "M8-T1012: manual smoke test added - all 13 chapters render fully bilingual, no mixed-language prose, any uncaught pageerror counted as failure; test:manual wire"
     }
   ],
   "first_commit_at": "2026-08-24",
