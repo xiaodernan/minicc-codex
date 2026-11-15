@@ -1173,7 +1173,17 @@ export function taskMetrics(data) {
   const tokenText = `${estimated ? "~" : ""}${compactNumber(tokens)} ${t("tasks.tokens")}`;
   const cost = typeof data.cost_usd === "number" ? data.cost_usd : NaN;
   const costText = Number.isFinite(cost) ? ` · $${cost.toFixed(cost < 0.01 ? 4 : 2)}` : "";
-  return `${tokenText}${costText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} · ${t("tasks.cache")} ${cacheMetric(data)}`;
+  const prose = `${tokenText}${costText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} · ${t("tasks.cache")} ${cacheMetric(data)}`;
+  // M8-T988: render as an SVG arc gauge + identical prose. The prose is
+  // the attestation (tokens/cost/context/cache), the ring is the meter;
+  // neither is allowed to lie about the other.
+  const ratio = limit > 0 ? Math.min(1, context / limit) : 0;
+  const R = 8;
+  const C = 2 * Math.PI * R;
+  const offset = C * (1 - ratio);
+  const tone = ratio < 0.7 ? "" : ratio < 0.9 ? " ctx-warn" : " ctx-danger";
+  const ring = `<svg class="ctx-ring${tone}" viewBox="0 0 22 22" width="22" height="22" aria-hidden="true"><circle class="ctx-track" cx="11" cy="11" r="8" fill="none" stroke-width="3.4"/><circle class="ctx-fill" cx="11" cy="11" r="8" fill="none" stroke-width="3.4" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" stroke-linecap="round"/></svg>`;
+  return `${ring}<span class="ctx-prose">${escapeHtml(prose)}</span>`;
 }
 
 export function renderVerification(data = state.lastTask) {
@@ -1211,7 +1221,7 @@ export function updateInspectorMetrics(data) {
   $("#contextMetric").textContent = `${compactNumber(context)}/${compactNumber(limit)}`;
   $("#cacheMetric").innerHTML = cacheDonut(data, 26);
   $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
-  $("#contextCount").textContent = taskMetrics(data);
+  $("#contextCount").innerHTML = taskMetrics(data);
   // M8-T902: the pulse card carries the per-call cache series live - each
   // usage event from the SSE stream grows the sparkline while the task runs,
   // so "call #1 paid full price" is visible in real time, not just in the

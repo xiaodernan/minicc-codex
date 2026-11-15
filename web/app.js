@@ -6332,7 +6332,14 @@
     const tokenText = `${estimated ? "~" : ""}${compactNumber(tokens)} ${t("tasks.tokens")}`;
     const cost = typeof data.cost_usd === "number" ? data.cost_usd : NaN;
     const costText = Number.isFinite(cost) ? ` \xB7 $${cost.toFixed(cost < 0.01 ? 4 : 2)}` : "";
-    return `${tokenText}${costText} \xB7 ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} \xB7 ${t("tasks.cache")} ${cacheMetric(data)}`;
+    const prose = `${tokenText}${costText} \xB7 ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} \xB7 ${t("tasks.cache")} ${cacheMetric(data)}`;
+    const ratio = limit > 0 ? Math.min(1, context / limit) : 0;
+    const R = 8;
+    const C = 2 * Math.PI * R;
+    const offset = C * (1 - ratio);
+    const tone = ratio < 0.7 ? "" : ratio < 0.9 ? " ctx-warn" : " ctx-danger";
+    const ring = `<svg class="ctx-ring${tone}" viewBox="0 0 22 22" width="22" height="22" aria-hidden="true"><circle class="ctx-track" cx="11" cy="11" r="8" fill="none" stroke-width="3.4"/><circle class="ctx-fill" cx="11" cy="11" r="8" fill="none" stroke-width="3.4" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" stroke-linecap="round"/></svg>`;
+    return `${ring}<span class="ctx-prose">${escapeHtml(prose)}</span>`;
   }
   function renderVerification(data = state.lastTask) {
     const target = $("#verificationList");
@@ -6363,7 +6370,7 @@
     $("#contextMetric").textContent = `${compactNumber(context)}/${compactNumber(limit)}`;
     $("#cacheMetric").innerHTML = cacheDonut(data, 26);
     $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
-    $("#contextCount").textContent = taskMetrics(data);
+    $("#contextCount").innerHTML = taskMetrics(data);
     const slot = $("#pulseCacheSeries");
     if (slot) {
       const markup = cacheTurnSparkline(data.usage_by_turn);

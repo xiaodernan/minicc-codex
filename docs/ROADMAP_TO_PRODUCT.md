@@ -52382,3 +52382,22 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - `pytest tests/test_rag_rate_limit.py` → **7 passed**；`pytest tests/test_http_surface.py tests/test_rag_bm25_index.py` → **91 passed**；Route Coverage **26/26 GET + 14/14 POST = 100%**；包级静默处理 sim 32/32 均陈述边界（0 offenders）；RAG 路由默认行为不变。
 - 面板行为：用量页若收到 `rate_limited: true` 会为真实用户显示 `RAG rate limit exceeded; retry shortly.`，不将其伪装成「模型错误」。
 - 边界：客户端 key 为 `client_address[0]`（源 IP）；IPv6 作为 key 原样使用（不解析、不二次哈希）；反向代理统一视为单一 IP——刻意简化，对单用户单机语义无影响。
+
+## 批次 980 - M8-T988：composer 登峰造极 —— 三件套命令甲板
+
+### 1 背景
+
+「前端的魅力程度登峰造极」——送出提示词的那一条命令通道是每天最多经过的触点。本批把它提到博物馆级，不碰行为边界：
+
+1. **hairline 金顶**（`glass-card::before`：琥珀→薄荷→琥珀渐变发丝线贯穿卡面顶端 + 更深的投影）；
+2. **权限模式组 = 分段控制器**（`:has()` + `translateX()`，零 JS）：四档（默认/计划/自动写/全自动）滑块琥珀光带，ARIA radio 原语不变、键盘 tab-ring 语义原样；
+3. **上下文计数 → SVG 圆环仪表**：`taskMetrics` 现在输出 `<svg class="ctx-ring">`（track + fill + 30 fps 缓动过渡）+ **完全相同的 attestation 文本**（tokens/cost/context/cache 一个字不丢），`context/limit` 比率驱动圆环渐变（mint→amber→coral）。JS 改动 ≤ 12 行、markdown 未动、audible。
+
+### 2 发件按钮
+
+`.send-button` → **amvered gradient orb**：54px、18px 圆角、琥珀渐变（高 82%→#ffe9b0 → 58% #f59e0b 档 → 82% #b45309）、双层 inset 顶光、`send-breathe` 3.2s 呼吸亮度循环、hover 浮起放大 1.04、active 下压 0.96、amber halo shadow；图标加粗 2.2。
+
+### 3 验证
+
+- Playwright 真浏览器（zh/en 双模式）截图 `output/composer_{zh,en}.png`：zh 模式「默认」档激活滑块正确定位、淡入 dash-circle 0%；action chips = 6；mode = 默认/Default；EN 模式零 CJK（沿用既有 i18n gate）。
+- `npm run build:web` 后 `check:web` 干净；askdocs/helpshortcuts smoke PASS；`doc_pointers` rc=0；`git status` 只含本批改动。
