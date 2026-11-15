@@ -52503,7 +52503,7 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 
 ### 2 做了什么
 
-- 新增 `minicc/worldpulse.py`：`fetch_worldpulse(force_refresh=False)` —— urllib 命中 `api.github.com/repos/xiaodernan/minicc-codex`（User-Agent: `minicc/worldpulse`、8s 超时）；成功后写 `default_cache["minicc:worldpulse:github"]`（TTL=300s）；**失败 fail-open**返回 `{live: false, github: null, error: ...}`，不会让工作台因为网络抖动而 500。
+- 新增 `minicc/worldpulse.py`：`fetch_worldpulse(force_refresh=False)` —— urllib 命中 `api.github.com/repos/xiaodernan/minicc-codex`（User-Agent: `minicc-worldpulse`、8s 超时）；成功后写 `default_cache["minicc:worldpulse:github"]`（TTL=300s）；**失败 fail-open**返回 `{live: false, github: null, error: ...}`，不会让工作台因为网络抖动而 500。
 - 新路由 `GET /api/worldpulse`：唯读、复用 `default_cache`、5 分钟共享缓存、AST walker 自动看到 → **GET 26→27**。
 - `tests/test_http_surface.py::test_get_worldpulse_returns_live_or_honest_failure` —— stubbed 形状验证（不燃网，测试 fully in-memory）：断言 `status==200`、`live==True`、`github.stars==1`、响应不含 `sk-`。
 - 年鉴第十六卷「曦 / First Light」：整章全部从 `/api/worldpulse` + `digest` 读（live GitHub  estrellas/watchers/forks/issues/pushed_at/default_branch + 提交总数）；并点出"数据 = witness"，不做一次营销口号。

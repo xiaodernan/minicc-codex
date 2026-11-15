@@ -27,7 +27,7 @@ _API_URL = "https://api.github.com/repos/xiaodernan/minicc-codex"
 
 
 def _fetch_github() -> dict[str, Any]:
-    req = urllib.request.Request(_API_URL, headers={"User-Agent": "minicc/worldpulse", "Accept": "application/vnd.github+json"})
+    req = urllib.request.Request(_API_URL, headers={"User-Agent": "minicc-worldpulse", "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 - public, read-only, documented
         data = json.loads(resp.read().decode("utf-8"))
     return {
