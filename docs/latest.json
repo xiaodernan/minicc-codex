@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:39:16.716Z",
+  "generated_at": "2026-11-15T14:39:58.332Z",
   "branch": "main",
-  "head": "069e36a",
-  "total_commits": 1642,
+  "head": "82d276c",
+  "total_commits": 1643,
   "recent_commits": [
+    {
+      "short": "82d276c",
+      "at": "2026-11-15T22:39:18+08:00",
+      "subject": "M8-T1027: admin_smoke wired into test:arcade - Playwright end to end: locked by default -> 123 unlocks -> totals live (>0) -> >=1 tool bar, >=1 recent task, >=1"
+    },
     {
       "short": "069e36a",
       "at": "2026-11-15T14:34:03Z",
@@ -24,18 +29,13 @@
       "short": "659d3e9",
       "at": "2026-11-15T22:24:00+08:00",
       "subject": "M8-T1025: README tracks the current shape - almanac 21 volumes; feature list gains Admin (123 shared door, real stats + trend + forecast + interrupt-cause bucke"
-    },
-    {
-      "short": "a9e4cbd",
-      "at": "2026-11-15T22:05:07+08:00",
-      "subject": "fix(index.html): restore pinned CRLF - _fix_index.py had silently re-written index.html with LF (0x0A)-only endings, tripping toolstream_chip_answers_its_own_ke"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 341,
   "changelog_entries": 1,
   "roadmap_lines": 53209,
-  "tracked_files": 1078,
+  "tracked_files": 1076,
   "test_files": 711,
   "almanac_chapters": 21,
   "module_count": 14,
