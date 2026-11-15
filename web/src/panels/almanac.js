@@ -44,6 +44,7 @@ export const CHAPTERS = [
   { id: "fence", roman: { zh: "卷二十一", en: "Chapter XXI" }, title: { zh: "篱笆", en: "The Fence" }, subtitle: { zh: "一个语言时代只有一种语言", en: "One era of language, one language" } },
   { id: "compass", roman: { zh: "卷二十二", en: "Chapter XXII" }, title: { zh: "罗经仪", en: "The Compass" }, subtitle: { zh: "引导不是兜底，是建筑", en: "Guidance is not a parachute, it is architecture" } },
   { id: "deepfield", roman: { zh: "卷二十三", en: "Chapter XXIII" }, title: { zh: "深空", en: "The Deep Field" }, subtitle: { zh: "勘完不是终点，是望远镜的起点", en: "Finish the chart, then point the telescope deeper" } },
+  { id: "lawn", roman: { zh: "卷二十四", en: "Chapter XXIV" }, title: { zh: "翠茵", en: "The Lawn" }, subtitle: { zh: "先给草插上旗子，再让僵尸来", en: "Plant the flag before the zombie learns the gate" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1630,6 +1631,78 @@ function deepfieldMarkup() {
     </div>`;
 }
 
+function lawnMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-lawn">
+      <div class="almanac-kicker">${zh() ? "卷二十四 · 翠茵" : "Chapter XXIV · The Lawn"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `先给草插上旗子，<br/><span class="almanac-title-accent">再让僵尸来。</span>`
+        : `Plant the flag first,<br/><span class="almanac-title-accent">before the zombie arrives.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月，四个批次落进同一件事里——<strong>游戏厅先学会让你赢，才开始让你打。</strong>
+          M8-T1042 那晚，游戏模态框右上角长出一枚 60 秒的《草坪保卫战作战手册》按钮：经济优先 → 前后配齐 → 爆炸是清场 → 读祭草坪 → 节省技能能量 → 撑过第 10 波。
+        </p>
+        <p>
+          同一晚，<strong>M8-T1043</strong> 把 <code>plantAt</code> 之前那道 <code>game.running === true</code> 的栅栏拆了。
+          开局先按向日葵——175 → 75——向日葵扎根，Zombie 还没上路。下一次你按「开始游戏」时棋盘上已经站了它需要的哨兵。
+        </p>
+        <p>
+          第二天 <strong>M8-T1044</strong> 把 Wayfinder 演练推到了第十步，「侧边栏小游戏」正式钉入第八站。composer 和 demo 两只一直沉默到第 3 步就哑火的演示按钮，这次也自动前进了——这不是一个单点 bug，是一条 6 步走着走着忽然变成 9 步、又忽然变成 10 步的过路。
+        </p>
+        <p>
+          又一天 <strong>M8-T1045</strong> 立的规矩：岛屿色 <code>--island-tint</code> 不再是只存在 JavaScript 里的幽灵，它在 <code>.atlas-island-dot</code> 行签上自己的名字。一个静态门永远看不见的东西，从此有自己的 legal home。
+        </p>
+        <p>
+          一切的终点都不是「好看」。教程讲得对，教学就是对。机制挡得严，门就立起来。<strong>先给草插上旗子——</strong>旗下是你自己的 175 阳光，不多，也不少。
+        </p>` : `<p>
+          Three quiet evenings in November, four batches landed saying the same thing — the game learned to win for you before it asked you to win.
+          M8-T1042 — <strong>Field Manual button in the corner, sixty seconds to learn to defend the lawn.</strong> Economy first, wall-nuts front, everything else behind.
+        </p>
+        <p>
+          The same night, <strong>M8-T1043</strong> — the gate that kept you from planting before the zombie came went down. <code>plantAt</code> no longer asks <code>game.running</code> first. You seed your sunflowers while it is quiet; when they finally walk, your board is already awake.
+        </p>
+        <p>
+          M8-T1044 grew the Wayfinder to ten stops — the Arcade earned its seat at step eight, quietly earning the seat it was already filling; composer and demo step-siblings were finally taught how to advance.
+        </p>
+        <p>
+          M8-T1045 tore down the wall behind <code>--island-tint</code> — no longer a ghost only JavaScript could see. The static CSS gate finally caught up with the world map.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "演练步数" : "tour steps"}</div><div class="almanac-instrument-value">10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "教程 · 每语" : "Tutorial copy"}</div><div class="almanac-instrument-value">60s</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "开局阳光" : "Opening sun"}</div><div class="almanac-instrument-value">175</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">56</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">25 / 25</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["Six trusts from the tutorial", "经济 / 前列 / 爆炸 / 阅读 / 能量 / 第 10 波——每条都亲自打过"],
+        ["game.running is gone", "M8-T1043 把 gate 挪到了正确的位置"],
+        ["ten seats on the tour", "Composer + demo 终于往前走，第 3 步不卡"],
+        ["--island-tint has a home", "静态门看得见，变量不再漏写"],
+        ["175 is not a typo", "阳光永远先于打击——这里没有一个凑整的数字"],
+      ] : [
+        ["Six honest trusts", "every tutorial line wires back to a value the game enforces — nothing was invented"],
+        ["game.running gate opened", "M8-T1043 removed the silent barrier; pre-game planting is real"],
+        ["ten seats on the tour", "composer and demo auto-advance now; the tour was never a lie, it just stalled"],
+        ["--island-tint has a home", "the CSS gate finally sees the tint the map uses at every zoom level"],
+        ["175 is not a typo", "the starting economy was never rounded — sun was always 175"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "有时候让你赢的，是草先长。"
+          : "Winning, this time, is the lawn growing first."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1655,6 +1728,7 @@ const CHAPTER_RENDERERS = {
   fence: () => fenceMarkup(),
   compass: () => compassMarkup(),
   deepfield: () => deepfieldMarkup(),
+  lawn: () => lawnMarkup(),
 };
 
 async function loadChapter(id) {

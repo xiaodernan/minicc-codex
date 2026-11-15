@@ -53501,3 +53501,16 @@ M8-T1039 commit 里，`.atlas-island-dot { background: var(--island-tint, var(--
 
 - **`web/styles.css`** — `.atlas-island-dot { --island-tint: var(--amber); ... }` 自己为它声明 primal 默认值（inline style 仍然覆盖为每座岛的色值，amber 默认是温暖、低饱和、与 `@media (max-width:900px)` 的折叠面板行为一致）；`var(--island-tint, var(--amber))` 双参数兜底移除——现在就是一个单纯的 `var(--island-tint)`。
 - **门禁**：`test_the_palette_has_one_home.py` 5 passed（本地执行）；`test_the_toolstream_chip_answers_its_own_keys.py` 6 passed；CRLF gates 全绿；两 leg CI 红的唯一根因消除。
+## 批次 1031 - M8-T1046: 年鉴卷二十四「翠茵 / The Lawn」— 一卷专门讲"游戏先学会赢再发出挑战"的叙事；atlas 长到 56 坐标
+
+### 目的
+
+三个独立的脆弱动作——教你怎么赢的 60 秒；不让种子落地的栅栏拆掉；演练从 9 步悄悄到 10 步——这一切讲了同一件事。这个卷就是把这件事放进博物馆的最好形态。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `lawn`（卷二十四 · 翠茵 / Chapter XXIV · The Lawn）；新增 `lawnMarkup()`：story 叙事（zh/en 并排），instrument 格（演练步数 10 · 教程 60s · 开局阳光 175 · commits live · tasks live · recent commits 12 · atlas coordinates 56 · volumes 25/25）；gate-list 五条「六条信任」；CHAPTER_RENDERERS 登记。
+- **atlas 世界 56 坐标**（18+25+13）— `ATLAS_TOTAL` 自动推算（ALL_NODES.length）；`atlas_smoke 55→56`；onboarding / manual / README / index.html 占位符全部同步。Manual 与 Almanac 最新卷指向卷二十四《翠茵》；onboarding 教程仍然到 Step 10（Arcade）不变。
+- **25 卷年鉴**——`almanac_smoke.chapters` + `CHAPTER_MARKERS` 双侧扩；log 行 24→25。
+- **深度语义** — 每一行都不是装饰：175、60s、M8-T1042/43/44/45 的 batch id、`--island-tint` 的 static/动态对仗。舱读完，任何一口气换气到下一章都会接受「garden grows before zombie」这条律令。
+- **门禁验证**：`almanac_smoke` — 25 chapters bilingual pass；`atlas_smoke` — 56-coordinate contract；`parity` — 全部通读零撒粉；manual / admin / en_cjk / CRLF 全绿。
