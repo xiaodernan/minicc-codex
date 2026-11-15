@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:35:11.487Z",
+  "generated_at": "2026-11-15T09:45:28.047Z",
   "branch": "main",
-  "head": "8ca28e8",
-  "total_commits": 1612,
+  "head": "a117bdd",
+  "total_commits": 1614,
   "recent_commits": [
+    {
+      "short": "a117bdd",
+      "at": "2026-11-15T17:44:58+08:00",
+      "subject": "M8-T1013: ledger records run 43699944605 - full CI green pass (Claim checkers/Python tests windows+ubuntu/Java Syntax/Service plane mvn/M1 probe/PR eval/Playwri"
+    },
+    {
+      "short": "655b2a6",
+      "at": "2026-11-15T09:35:11Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8ca28e8",
       "at": "2026-11-15T17:34:55+08:00",
@@ -19,22 +29,12 @@
       "short": "ef5d2f8",
       "at": "2026-11-15T17:31:24+08:00",
       "subject": "README: manual now thirteen chapters (added Full Stack chapter XII+XIII)"
-    },
-    {
-      "short": "423c42e",
-      "at": "2026-11-15T09:30:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "60ed56f",
-      "at": "2026-11-15T17:30:37+08:00",
-      "subject": "M8-T1011: manual chapter XIII 'Full Stack' - walk the whole architecture front-to-back with measurements (FastAPI+vanilla JS, local Python agent, optional Sprin"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 327,
+  "roadmap_batches": 328,
   "changelog_entries": 1,
-  "roadmap_lines": 52928,
+  "roadmap_lines": 52957,
   "tracked_files": 1070,
   "test_files": 708,
   "almanac_chapters": 18,
