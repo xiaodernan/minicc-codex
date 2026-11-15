@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T21:47:56.947Z",
+  "generated_at": "2026-11-15T22:13:41.041Z",
   "branch": "main",
-  "head": "19b06a2",
-  "total_commits": 1688,
+  "head": "c849512",
+  "total_commits": 1690,
   "recent_commits": [
+    {
+      "short": "c849512",
+      "at": "2026-11-16T06:13:10+08:00",
+      "subject": "M8-T1057: ci-leg red fix - loader gate caught the unregistered exec_module in M8-T1056's test (registered before execute, finally pop); ubuntu 5686 green + load"
+    },
+    {
+      "short": "8019720",
+      "at": "2026-11-15T21:47:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "19b06a2",
       "at": "2026-11-16T05:47:38+08:00",
@@ -19,22 +29,12 @@
       "short": "0459317",
       "at": "2026-11-16T05:34:50+08:00",
       "subject": "M8-T1054: CI-leg red fix - T1050 reintroduced '--island-tint' in README's The Litmus line (capability-claims gate read it as an unregistered CLI flag); ubuntu-l"
-    },
-    {
-      "short": "505d5e2",
-      "at": "2026-11-16T05:33:11+08:00",
-      "subject": "M8-T1053: every button now teaches itself - global auto-title layer derives tooltips from the already-localized rendered text (zh renders get zh hints, en gets "
-    },
-    {
-      "short": "3a65f92",
-      "at": "2026-11-15T21:10:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 368,
+  "roadmap_batches": 369,
   "changelog_entries": 1,
-  "roadmap_lines": 53636,
+  "roadmap_lines": 53647,
   "tracked_files": 1080,
   "test_files": 714,
   "almanac_chapters": 26,
