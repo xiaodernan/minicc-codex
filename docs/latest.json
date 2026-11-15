@@ -1,43 +1,43 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T19:42:04.009Z",
+  "generated_at": "2026-11-15T20:10:50.632Z",
   "branch": "main",
-  "head": "0fc6fff",
-  "total_commits": 1671,
+  "head": "3bf51ca",
+  "total_commits": 1675,
   "recent_commits": [
+    {
+      "short": "3bf51ca",
+      "at": "2026-11-16T04:08:18+08:00",
+      "subject": "M8-T1047: CI-leg red fix - .game-how-skill-glyph text-on-tint fails AA (amber on amber 4.29:1); color to --text, 18% tint; test_rag_rate_limit test_window_expir"
+    },
+    {
+      "short": "2874be3",
+      "at": "2026-11-16T03:52:42+08:00",
+      "subject": "docs: manual en modules almanac stale chapter citation fixed - Chapter XXIV 'The Lawn' (was XXIVI 'The Compass'); manual_smoke 13/13 green; recorded in ledger ("
+    },
+    {
+      "short": "c82b2ed",
+      "at": "2026-11-16T03:47:16+08:00",
+      "subject": "M8-T1046: almanac Ch.XXIV 'The Lawn' - the week the arcade learned to win first (60s Field Manual + pre-game planting + Wayfinder step 10 + island tint clause),"
+    },
+    {
+      "short": "fd3c414",
+      "at": "2026-11-15T19:42:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0fc6fff",
       "at": "2026-11-16T03:35:41+08:00",
       "subject": "M8-T1045: palette gate - declare --island-tint primal default on .atlas-island-dot (was JS-only custom property invisible to static css check); palette one-home"
-    },
-    {
-      "short": "e0fa384",
-      "at": "2026-11-16T03:35:40+08:00",
-      "subject": "M8-T1044: Wayfinder tour 9->10 steps - arcade step wired (interact auto-advances); composer/demo interact auto-advance too (two stuck steps unblocked); arcade t"
-    },
-    {
-      "short": "9164362",
-      "at": "2026-11-16T03:35:40+08:00",
-      "subject": "M8-T1043: pre-game planting - plantAt no longer gates on game.running; startGame preserves the pre-planted board on first click (sessionStarted=false), initGame"
-    },
-    {
-      "short": "cbaf4cf",
-      "at": "2026-11-16T03:35:40+08:00",
-      "subject": "M8-T1042: arcade field tutorial - 'Six steps to hold the lawn' embedded in the game modal; bilingual six-step walkthrough (economy first, wall-nut phalanx, clea"
-    },
-    {
-      "short": "d9dd796",
-      "at": "2026-11-15T18:56:17Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 357,
+  "roadmap_batches": 360,
   "changelog_entries": 1,
-  "roadmap_lines": 53504,
+  "roadmap_lines": 53538,
   "tracked_files": 1080,
   "test_files": 712,
-  "almanac_chapters": 24,
+  "almanac_chapters": 25,
   "module_count": 14,
   "feature_surface": [
     "workbench",
