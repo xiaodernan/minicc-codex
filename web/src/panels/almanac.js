@@ -543,9 +543,19 @@ function backlogMarkup() {
   const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
   const head = d?.head_short ? escapeHtml(String(d.head_short)) : "—";
   const shipments = Array.isArray(d?.recent_commits) ? d.recent_commits.slice(0, 6) : [];
+  // EN mode hides local-language commit subjects (they are data, not prose —
+  // the almanac stays Latin in en, zh carries the raw log. This is honest:
+  // the museum shows what actually shipped, not a translated lie.)
+  const subjectFor = (subject) => {
+    const raw = String(subject ?? "");
+    if (zh()) return raw;
+    // Latin-fold: drop anything CJK so en stays pure Latin/ASCII
+    if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(raw)) return "git commit";
+    return raw;
+  };
   const shipmentRows = shipments.length
     ? shipments
-        .map((c) => `<li><strong>${escapeHtml(c.short || "")}</strong><span>${escapeHtml(c.subject || "")}</span></li>`)
+        .map((c) => `<li><strong>${escapeHtml(c.short || "")}</strong><span>${escapeHtml(subjectFor(c.subject))}</span></li>`)
         .join("")
     : `<li><strong>${zh() ? "暂无" : "none"}</strong><span>${zh() ? "最近一次交付在这里，只等下一笔提交。" : "The next delivery lands here after the next push."}</span></li>`;
   return `

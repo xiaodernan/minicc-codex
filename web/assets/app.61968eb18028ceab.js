@@ -322,7 +322,7 @@
       <p class="almanac-quote almanac-quote-end">
         ${E()?"\u5982\u679C\u4F60\u95EE\u8FD9\u95F4\u5C4B\u5B50\u8C01\u5EFA\u7684\u2014\u2014\u7B54\u6848\u662F\u516C\u57DF\u7684\u95E8\u3001\u63D0\u4EA4\u8BB0\u5F55\u3001\u548C\u5BA1\u7A3F\u4EEA\u3002":"If you ask whose hand built this room \u2014 the answer is the gates, the ledger, and the review."}
       </p>
-    </div>`}function ur(){const u=K,t=u?.total_commits!=null?String(u.total_commits):"\u2014",e=u?.roadmap_batches!=null?String(u.roadmap_batches):"\u2014",a=u?.head_short?o(String(u.head_short)):"\u2014",s=Array.isArray(u?.recent_commits)?u.recent_commits.slice(0,6):[],n=s.length?s.map(r=>`<li><strong>${o(r.short||"")}</strong><span>${o(r.subject||"")}</span></li>`).join(""):`<li><strong>${E()?"\u6682\u65E0":"none"}</strong><span>${E()?"\u6700\u8FD1\u4E00\u6B21\u4EA4\u4ED8\u5728\u8FD9\u91CC\uFF0C\u53EA\u7B49\u4E0B\u4E00\u7B14\u63D0\u4EA4\u3002":"The next delivery lands here after the next push."}</span></li>`;return`
+    </div>`}function ur(){const u=K,t=u?.total_commits!=null?String(u.total_commits):"\u2014",e=u?.roadmap_batches!=null?String(u.roadmap_batches):"\u2014",a=u?.head_short?o(String(u.head_short)):"\u2014",s=Array.isArray(u?.recent_commits)?u.recent_commits.slice(0,6):[],n=p=>{const F=String(p??"");return E()?F:/[\u4e00-\u9fff\u3400-\u4dbf]/.test(F)?"git commit":F},r=s.length?s.map(p=>`<li><strong>${o(p.short||"")}</strong><span>${o(n(p.subject))}</span></li>`).join(""):`<li><strong>${E()?"\u6682\u65E0":"none"}</strong><span>${E()?"\u6700\u8FD1\u4E00\u6B21\u4EA4\u4ED8\u5728\u8FD9\u91CC\uFF0C\u53EA\u7B49\u4E0B\u4E00\u7B14\u63D0\u4EA4\u3002":"The next delivery lands here after the next push."}</span></li>`;return`
     <div class="almanac-canvas almanac-backlog">
       <div class="almanac-kicker">${E()?"\u5377\u5341 \xB7 \u672A\u7ADF":"Chapter X \xB7 The Unfinished"}</div>
       <h1 class="almanac-title almanac-title-sm">${E()?'\u6CA1\u6709\u300C\u5B8C\u5DE5\u300D\u7684\u6A2A\u5E45<br/>\u53EA\u6709<span class="almanac-title-accent">\u6B63\u5728\u780C\u7684\u5899\u3002</span>':'No banner says finished<br/>only a <span class="almanac-title-accent">wall going up.</span>'}</h1>
@@ -360,7 +360,7 @@
           <div class="almanac-instrument-value">${a}</div>
         </div>
       </div>
-      <ul class="almanac-gate-list">${n}</ul>
+      <ul class="almanac-gate-list">${r}</ul>
       <p class="almanac-quote almanac-quote-end">
         ${E()?"\u5982\u679C\u6709\u4E00\u5929\u6709\u4EBA\u7FFB\u5230\u8FD9\u4E00\u9875\u8BF4\uFF1A\u4ECE\u8FD9\u91CC\u5F00\u59CB\u7684\u6BCF\u4E00\u6B65\u90FD\u80FD\u770B\u5F97\u89C1\u2014\u2014\u90A3\u672C\u4E66\u5C31\u5B8C\u6574\u4E86\u3002":"If someone reads this page one day and says every step from here on can be seen \u2014 that is the whole book."}
       </p>

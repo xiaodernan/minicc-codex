@@ -3151,7 +3151,13 @@
     const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
     const head = d?.head_short ? escapeHtml(String(d.head_short)) : "\u2014";
     const shipments = Array.isArray(d?.recent_commits) ? d.recent_commits.slice(0, 6) : [];
-    const shipmentRows = shipments.length ? shipments.map((c) => `<li><strong>${escapeHtml(c.short || "")}</strong><span>${escapeHtml(c.subject || "")}</span></li>`).join("") : `<li><strong>${zh() ? "\u6682\u65E0" : "none"}</strong><span>${zh() ? "\u6700\u8FD1\u4E00\u6B21\u4EA4\u4ED8\u5728\u8FD9\u91CC\uFF0C\u53EA\u7B49\u4E0B\u4E00\u7B14\u63D0\u4EA4\u3002" : "The next delivery lands here after the next push."}</span></li>`;
+    const subjectFor = (subject) => {
+      const raw = String(subject ?? "");
+      if (zh()) return raw;
+      if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(raw)) return "git commit";
+      return raw;
+    };
+    const shipmentRows = shipments.length ? shipments.map((c) => `<li><strong>${escapeHtml(c.short || "")}</strong><span>${escapeHtml(subjectFor(c.subject))}</span></li>`).join("") : `<li><strong>${zh() ? "\u6682\u65E0" : "none"}</strong><span>${zh() ? "\u6700\u8FD1\u4E00\u6B21\u4EA4\u4ED8\u5728\u8FD9\u91CC\uFF0C\u53EA\u7B49\u4E0B\u4E00\u7B14\u63D0\u4EA4\u3002" : "The next delivery lands here after the next push."}</span></li>`;
     return `
     <div class="almanac-canvas almanac-backlog">
       <div class="almanac-kicker">${zh() ? "\u5377\u5341 \xB7 \u672A\u7ADF" : "Chapter X \xB7 The Unfinished"}</div>
