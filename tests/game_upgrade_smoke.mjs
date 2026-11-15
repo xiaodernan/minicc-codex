@@ -142,6 +142,11 @@ try {
   await page.waitForFunction(() => window.__gameUpgradeProbe.game.running && !window.__gameUpgradeProbe.game.paused);
   await page.locator('[data-plant="peashooter"]').click();
   const canvas = page.locator("#gameCanvas");
+  // The click above scrolls the tall arcade card; the canvas can sit below
+  // the fold while the shop scrolls into view. Bring it back on-screen
+  // before aiming the pointer — the invariant under test is the hover→cell
+  // mapping, not the fold position.
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   assert.ok(box);
   await page.mouse.move(box.x + box.width * 113 / 720, box.y + box.height * 103 / 420);

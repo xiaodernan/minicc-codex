@@ -52619,3 +52619,31 @@ T997 的 CI「JavaScript syntax」任务红了。本地把该任务的完整命�
 - `web/src/chat/stream.js`：`softPath = escapeHtml(v).replace(/\//g, "/<wbr>")`；源文件不再含任何 U+200B/U+200B 转义残留。
 - `tests/frontend_lifecycle_smoke.mjs`：`/:shared:(zh|en)$/` 断言卸载持久化。
 - `tests/frontend_scale_smoke.mjs`：locale 不可知的 key 查找（findKey + startsWith 后缀匹配）。
+
+## 批次 990 - M8-T999：年鉴第十六卷「高烧 / The Fever」—— 把差点没撑住的晚上写进年鉴；顺带复绿 web-smoke 全链
+
+### 1 背景
+
+T997/T998 把「真实、不是演示」这条主线推到了观众面前；这一批把它推到叙事里。年鉴历来是产品的大厅展墙——第十六卷「高烧」不讲体面，只讲烧到最亮的时候到底烧掉了什么。所有数字全部可证：
+
+- **37 秒 → 4.2 毫秒**：`/api/stats` 的 p50——说明书第十一章记着 T982 的真压测（c=50、20s、**2490 次请求零错误**）；
+- **两个字节**：`ROADMAP_TO_PRODUCT.md` 中混入的两处 U+FFFD，让 `grep '^## 批次'` 对账本保持沉默；门（`test_no_shipped_document_carries_a_nul_byte`）允许恰好两个且必须落在同一段编码讨论里，预算不许再涨；
+- **三周**：M8-T986 给 `sessionViewKey` 加上 locale 段后，test:lifecycle / test:scale 就这么红在那里——每次推送都 cancel 掉前一次 CI，JavaScript syntax 从未完整跑到终点，直到 M8-T998 本地把 23 个 npm 脚本逐条复跑；**门不是为这三周设的，这三周替门活了下来**；
+- **冷缓存惊群**：诊断中心（M8-T997）面板里第一波 6 个并发全部撞上 ~7.35 秒冷路径惩罚，后续波次稳定在 9 毫秒——cold-cache thundering herd，不是仪表坏了；
+- **0 次**：所有门（对比度 / focus / NUL / wait-claim）都从未靠抬高预算变绿——一律由修代码满足。
+
+### 2 验证（全部本地实测）
+
+- `node tests/almanac_smoke.mjs`：**17 chapters render fully bilingual, chapter switching verified, no mixed-language prose**（章节 markers `高烧 / The Fever` 已注册，zh/en 双语铁律由 smoke 强制）。
+- zh 面 540 个 CJK 字符 / en 面 0 个 CJK 泄漏（openDoctorStage 同一手测）。
+- 说明书「年鉴」条目双语同步：十六→十七卷，「最新卷：卷十六《高烧》」直白说明了它的内容。
+- `npm run build:web`/`check:web` 干净；事实包 almanac_chapters 是动态计数（`roman: { zh:` 出现次数），展示页无需手动同步。
+
+### 3 顺带修复：web-smoke 全链复绿（CI「Playwright web smoke」自 T993 以来的红）
+
+CI 里 web-smoke 跑到 `npm run test:arcade` 时，**game_upgrade_smoke.mjs** 在 hover 断言处挂死 30 秒超时：
+
+- 根因：点击 `[data-plant="peashooter"]` 时 Playwright 把该按钮滚入视野，`.game-card` 的 scrollTop 从 546 降到 54，**canvas 整体沉到 960px 折叠线以下**（y≈920，下半部分完全不可见），`page.mouse.move` 的目标坐标（y≈1022）落在视口之外，pointermove 事件根本不会落到 canvas 上，`hoverCell` 永远是 null。
+- 修复：`canvas.scrollIntoViewIfNeeded()` 之后再读取 boundingBox——断言的不变量是「hover 映射到 (0,0) 格」，不是「fold 位置」。
+- 验证：`game_upgrade_smoke.mjs` exit 0；`codex_smoke`、`zombie_spawn_smoke` exit 0；与 CI web-smoke 作业命令（`test:arcade` = game + codex + zombie + almanac）逐一对齐，四个全部本地绿。
+- 同一根参数（push cancel 让整个作业从未被跑到）解释了为什么这根刺活了这么久。

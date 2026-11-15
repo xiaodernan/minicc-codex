@@ -356,3 +356,5 @@
 - **诊断中心 Doctor（M8-T997）**：新模块——「上游回声」真实 GET /models 探测 OpenAI 网关（678/586ms，零 token，密钥不回传，fail-open，10s 共享缓存）；「负载实验室」最多 24 并发×24 请求锤本机回环端点，canvas 直方图画出 MIN/P50/P95/MAX；实验抓到首波 6 并发全部撞上 ~7.3s 冷缓存惊群的真实特征；「为什么 minicc 快」四条全部来自本仓库实测事实；中英双语严格对齐（625 键 parity）；说明书新增 Doctor 条目；路由覆盖 GET 28/28 + POST 14/14 = 100%。
 
 - **js-check 三红修复（M8-T998）**：`softPath` 的 U+200B → `<wbr>`（断行机会元素，textContent 与复制保持原样）；lifecycle/scale 两个冒烟自 M8-T986 起因 `sessionViewKey` 的 locale 后缀断言陈旧而红，已改为 locale 不可知断言（不变量未变）；23 项 npm 测试电池全绿；fake-provider web_smoke exit 0；T997 的 js-check 红被本批自愈。
+
+- **年鉴第十六卷「高烧 / The Fever」上线（M8-T999）**：把 37s→4.2ms、2490×0、两个 U+FFFD、T986 后三周两个冒烟蒙尘、冷缓存惊群全部写进史诗——8 格真实仪表、5 条门 list、双语铁律 smoke 17 章全绿；说明书同步到十七卷。顺带复绿 web-smoke：game_upgrade_smoke hover 步骤因 peashooter 点击把 canvas 沉到折叠线以下而超时，`scrollIntoViewIfNeeded` 后再断言；arcade 套件四件全绿。

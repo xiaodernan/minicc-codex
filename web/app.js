@@ -2453,7 +2453,8 @@
     { id: "answer", roman: { zh: "\u5377\u5341\u4E8C", en: "Chapter XII" }, title: { zh: "\u56DE\u95EE", en: "The Answer Back" }, subtitle: { zh: "\u7EC8\u4E8E\u5B66\u4F1A\u56DE\u7B54\u7684\u8FD9\u672C\u4E66", en: "The book that answered back" } },
     { id: "ember", roman: { zh: "\u5377\u5341\u4E09", en: "Chapter XIII" }, title: { zh: "\u4F59\u70EC", en: "The Ember" }, subtitle: { zh: "\u7089\u706B\u4E0D\u6563", en: "The hearth stays warm" } },
     { id: "atlas", roman: { zh: "\u5377\u5341\u56DB", en: "Chapter XIV" }, title: { zh: "\u661F\u56FE", en: "The Atlas" }, subtitle: { zh: "\u8FD9\u7247\u4E16\u754C\u6709\u591A\u5C11\u5C9B", en: "How many islands this world holds" } },
-    { id: "firstlight", roman: { zh: "\u5377\u5341\u4E94", en: "Chapter XV" }, title: { zh: "\u66E6", en: "First Light" }, subtitle: { zh: "\u6709\u4EBA\u6309\u4E0B\u4E86\u90A3\u9897\u661F", en: "Someone hit the star" } }
+    { id: "firstlight", roman: { zh: "\u5377\u5341\u4E94", en: "Chapter XV" }, title: { zh: "\u66E6", en: "First Light" }, subtitle: { zh: "\u6709\u4EBA\u6309\u4E0B\u4E86\u90A3\u9897\u661F", en: "Someone hit the star" } },
+    { id: "fever", roman: { zh: "\u5377\u5341\u516D", en: "Chapter XVI" }, title: { zh: "\u9AD8\u70E7", en: "The Fever" }, subtitle: { zh: "\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8", en: "Every near-miss grew into a gate" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3401,6 +3402,72 @@
       </p>
     </div>`;
   }
+  function feverMarkup() {
+    const d = digestCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-fever">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u516D \xB7 \u9AD8\u70E7" : "Chapter XVI \xB7 The Fever"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u8FD9\u4E1C\u897F\u5DEE\u70B9\u6CA1\u6491\u8FC7\u53BB\u3002<br/><span class="almanac-title-accent">\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8\u3002</span>' : `It nearly didn't make it.<br/><span class="almanac-title-accent">Every near-miss grew into a gate.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 \u5E74 11 \u6708 15 \u65E5\u51CC\u6668\uFF0CCI \u7684 JavaScript \u68C0\u67E5\u7EA2\u4E86\u3002\u8FD9\u4E0D\u662F\u7B2C\u4E00\u6B21\u7EA2\u2014\u2014\u5B83\u53EA\u662F\u773C\u4E0B\u6700\u65B0\u7684\u4E00\u6B21\u53D1\u70E7\u3002\u8FD9\u4E00\u5377\u4E0D\u8BB2\u4F53\u9762\uFF0C\u53EA\u8BB2\u70E7\u5230\u6700\u4EAE\u7684\u65F6\u5019\uFF0C\u5230\u5E95\u70E7\u6389\u4E86\u4EC0\u4E48\u3002
+        </p>
+        <p>
+          <strong>37 \u79D2\u3002</strong>\u90A3\u662F One-Fact \u95E8\u6700\u521D\u8BFB\u5230 <code>/api/stats</code> \u65F6\u7684 p50\u3002\u4E0D\u662F\u8BBE\u8BA1\u5982\u6B64\uFF0C\u662F\u5ACC\u7591\u72AF\u4E0D\u6B62\u4E00\u4E2A\u3002\u538B\u4E0B\u53BB\u7684\u529E\u6CD5\u53EA\u6709\u771F\u538B\uFF1A\u9884\u70ED\u7F13\u5B58\u3001\u6D88\u9664\u91CD\u590D\u8BFB\u3001\u628A\u5927\u4E8B\u5168\u4E22\u8FDB\u5171\u4EAB LRU/Redis \u6C60\u3002\u6700\u540E\u5B83\u5750\u5728 <strong>4.2 \u6BEB\u79D2</strong>\u3002\u8FD9\u4E00\u7AE0\u7684\u6570\u5B57\u4E0D\u9760\u611F\u89C9\u2014\u2014\u8BF4\u660E\u4E66\u7B2C\u5341\u4E00\u7AE0\u91CC\u6709\u5F53\u665A\u7684\u5B8C\u6574\u538B\u6D4B\u8BB0\u5F55\uFF0Cc=50\u300120 \u79D2\u3001<strong>2490 \u6B21\u8BF7\u6C42\uFF0C\u96F6\u9519\u8BEF</strong>\u3002
+        </p>
+        <p>
+          <strong>\u4E24\u4E2A\u5B57\u8282\u3002</strong><code>ROADMAP_TO_PRODUCT.md</code> \u91CC\u66FE\u6DF7\u5165\u4E24\u5904 U+FFFD\uFF0C<code>grep '^## \u6279\u6B21'</code> \u4ECE\u6B64\u5BF9\u8FD9\u4E2A\u6587\u4EF6\u4FDD\u6301\u6C89\u9ED8\u2014\u2014\u8D26\u672C\u8FD8\u5728\uFF0C\u53EA\u662F\u6CA1\u6709\u4EBA\u80FD\u518D\u8BFB\u5230\u5B83\u3002\u540E\u6765\u7ACB\u7684\u95E8\uFF08<code>test_no_shipped_document_carries_a_nul_byte</code>\uFF09\u5141\u8BB8\u6070\u597D\u4E24\u4E2A\u3001\u4E14\u5FC5\u987B\u843D\u5728\u540C\u4E00\u6BB5\u7F16\u7801\u8BA8\u8BBA\u91CC\uFF0C\u9884\u7B97\u4E00\u5B57\u8282\u90FD\u4E0D\u8BB8\u518D\u6DA8\u3002
+        </p>
+        <p>
+          <strong>\u4E09\u5468\u3002</strong>T986 \u628A locale \u6BB5\u52A0\u8FDB <code>sessionViewKey</code> \u4E4B\u540E\uFF0C\u4E24\u4E2A\u5192\u70DF\u5C31\u8FD9\u4E48\u7EA2\u5728\u90A3\u91CC\uFF0C\u6CA1\u4EBA\u77E5\u9053\u2014\u2014\u56E0\u4E3A\u6BCF\u6B21\u63A8\u9001\u90FD\u4F1A cancel \u6389\u4E0A\u4E00\u6B21 CI\uFF0CJavaScript syntax \u4ECE\u6765\u6CA1\u6709\u5B8C\u6574\u8DD1\u5230\u7EC8\u70B9\u3002\u76F4\u5230 T998 \u672C\u5730\u628A 23 \u4E2A npm \u811A\u672C\u9010\u6761\u590D\u8DD1\uFF0C\u4E00\u4E00\u6293\u51FA\u6765\u3002<strong>\u95E8\u4E0D\u662F\u4E3A\u4E86\u8FD9\u4E09\u5468\u8BBE\u7684\uFF0C\u4F46\u8FD9\u4E09\u5468\u66FF\u95E8\u6D3B\u4E86\u4E0B\u6765\u3002</strong>
+        </p>
+        <p>
+          <strong>\u51B7\u7F13\u5B58\u60CA\u7FA4\u3002</strong>\u8BCA\u65AD\u4E2D\u5FC3\uFF08T997 \u65B0\u5F15\u64CE\uFF09\u9762\u677F\u91CC\u7B2C\u4E00\u6CE2 6 \u4E2A\u5E76\u53D1\u8BF7\u6C42\u5168\u90E8\u649E\u4E0A\u7EA6 <strong>7.35 \u79D2</strong>\u7684\u51B7\u8DEF\u5F84\u60E9\u7F5A\uFF1B\u540E\u9762\u7684\u6BCF\u4E00\u6CE2\u90FD\u7A33\u5B9A\u5728 <strong>9 \u6BEB\u79D2</strong>\u3002\u8FD9\u5C31\u662F cold-cache thundering herd\u2014\u2014\u4E0D\u662F\u4EEA\u8868\u574F\u4E86\uFF0C\u662F\u7F13\u5B58\u771F\u7684\u51B7\u3002\u8FD9\u4E2A\u4ED3\u5E93\u73B0\u5728\u628A\u5B83\u6446\u7ED9\u6BCF\u4E00\u4E2A\u7528\u6237\u770B\uFF0C\u800C\u4E0D\u662F\u63A9\u9970\u5B83\u3002
+        </p>` : `<p>
+          On the morning of November 15, 2026, CI's JavaScript check went red. Not for the first time \u2014 merely the latest fever spike. This chapter is not about looking fine. It is about what actually burned.
+        </p>
+        <p>
+          <strong>37 seconds.</strong> That was the p50 the One-Fact gate read on <code>/api/stats</code> at first. Not a design choice \u2014 a pile of suspects. The fix was not a pause or a skip; it was pressure: warming the cache, killing repeated reads, pushing the heavy paths into the shared LRU/Redis pool. It settled at <strong>4.2 ms</strong>. The numbers are on record in chapter 11 of the manual: c=50, 20 seconds, <strong>2,490 requests, zero errors</strong>.
+        </p>
+        <p>
+          <strong>Two bytes.</strong> <code>ROADMAP_TO_PRODUCT.md</code> once carried two stray U+FFFD codepoints, and <code>grep '^## '</code> went silent on the file forever after \u2014 the ledger existed, nobody could read it. The gate that now stands (<code>test_no_shipped_document_carries_a_nul_byte</code>) allows exactly two, only inside one encoding discussion, and not one byte more.
+        </p>
+        <p>
+          <strong>Three weeks.</strong> After M8-T986 added a locale segment to <code>sessionViewKey</code>, two smokes went red and stayed red, unseen \u2014 because every push cancelled the previous CI run, so the JavaScript syntax job never once reached its end. It took M8-T998 re-running all 23 npm scripts locally to flush them out one by one. <strong>The gates were not built for those three weeks; the three weeks survived for the gates.</strong>
+        </p>
+        <p>
+          <strong>The cold-cache herd.</strong> In the Doctor panel shipped with M8-T997, the first wave of 6 concurrent requests all ate roughly <strong>7.35 s</strong> of cold-path penalty; every wave after that settled at <strong>9 ms</strong>. Cold-cache thundering herd \u2014 the instrument was not broken; the cache really was cold. This repository now shows that openly instead of papering over it.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "p50 \xB7 \u538B\u51FA\u6765\u7684" : "p50 \xB7 earned"}</div><div class="almanac-instrument-value">4.2 ms</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "c=50 \u538B\u6D4B" : "Load run"}</div><div class="almanac-instrument-value">2490 \xD7 0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "U+FFFD \u9884\u7B97" : "U+FFFD budget"}</div><div class="almanac-instrument-value">2</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "js-check \u7535\u6C60" : "js battery"}</div><div class="almanac-instrument-value">23/23</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u60CA\u7FA4\u9996\u6CE2" : "Herd penalty"}</div><div class="almanac-instrument-value">~7.35 s</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u540E\u7EED\u6CE2\u6B21" : "After warm"}</div><div class="almanac-instrument-value">9 ms</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570(\u771F)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u95E8\u62AC\u9AD8\u6B21\u6570" : "Gates ever raised"}</div><div class="almanac-instrument-value">0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["37 s \u2192 4.2 ms", "\u4ECE\u672A\u88AB\u300C\u5148\u6682\u7F13\u300D\uFF0C\u662F\u538B\u51FA\u6765\u7684\u2014\u2014T982 \u771F\u5B9E\u538B\u6D4B\uFF0C\u8BB0\u5F55\u5728\u6848"],
+      ["2490 \xD7 0", "c=50\u300120 \u79D2\u3001\u96F6\u9519\u8BEF\uFF1BLOAD_TESTING.md \u539F\u6587"],
+      ["2 \u5B57\u8282\u7684\u6C89\u9ED8", "\u8BA9 ledger \u5BF9 grep \u9690\u5F62\uFF1B\u95E8\u7ACB\u8D77\u6765\u4E86\uFF0C\u9884\u7B97\u4E0D\u8BB8\u6DA8"],
+      ["3 \u5468\u7684\u7A7A\u767D", "push cancel \u6389 push\uFF1B\u95E8\u8BA9\u5B83\u518D\u4E5F\u85CF\u4E0D\u4F4F"],
+      ["\u95E8\u4ECE\u4E0D\u62AC", "\u5BF9\u6BD4\u5EA6\u95E8\u3001focus \u95E8\u3001NUL \u95E8\u3001wait-claim \u95E8\u2014\u2014\u7EA2\u4E00\u5F8B\u7531\u4FEE\u4EE3\u7801\u6EE1\u8DB3"]
+    ] : [
+      ["37 s \u2192 4.2 ms", "never paused, only pressed \u2014 T982 measurement, on the record"],
+      ["2,490 \xD7 0", "c=50, 20 seconds, zero errors; verbatim from LOAD_TESTING.md"],
+      ["Two silent bytes", "the ledger went invisible to grep; the gate stands, the budget stays at 2"],
+      ["Three quiet weeks", "pushes cancelled pushes; the gate makes that impossible to hide again"],
+      ["The floor never moved", "contrast, focus, NUL, wait-claim \u2014 every red was fixed forward, never by raising a budget"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u6211\u4EE5\u4E3A\u5FEB\u6491\u4E0D\u4F4F\u7684\u6BCF\u4E00\u4E2A\u665A\u4E0A\uFF0C\u540E\u6765\u90FD\u53D8\u6210\u4E86\u95E8\u4E0A\u7684\u4E00\u884C\u5B57\u3002" : "Every night I thought would break became a line of text on a gate."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3417,7 +3484,8 @@
     answer: () => answerMarkup(),
     ember: () => emberMarkup(),
     atlas: () => atlasMarkup(),
-    firstlight: () => firstlightMarkup()
+    firstlight: () => firstlightMarkup(),
+    fever: () => feverMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -3625,7 +3693,7 @@
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
       <li><strong>\u8BCA\u65AD \xB7 Doctor</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BCA\u65AD\u300D\uFF1A\u4E24\u4EF6\u771F\u5DE5\u5177\u2014\u2014\u300C\u4E0A\u6E38\u56DE\u58F0\u300D\u5BF9\u914D\u7F6E\u7684 OpenAI \u7F51\u5173\u5B9E\u6D4B <code>GET /models</code> \u5EF6\u8FDF\uFF08\u4E0D\u6D88\u8017 token\uFF0C\u5BC6\u94A5\u7EDD\u4E0D\u56DE\u4F20\uFF09\uFF1B\u300C\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4\u300D\u6700\u9AD8 24 \u5E76\u53D1\u300124 \u8BF7\u6C42\u9524\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF0C\u76F4\u65B9\u56FE\u753B\u51FA MIN/P50/P95/MAX\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u5F53\u6B21\u771F\u5B9E\u6D4B\u91CF\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u516D\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E94\u300A\u66E6\u300B\uFF0C\u8BB2\u7684\u662F\u8FD9\u4E2A\u4ED3\u5E93\u88AB\u5916\u9762\u7684\u4E16\u754C\u770B\u89C1\u7684\u4E00\u523B\u2014\u2014/api/worldpulse \u628A GitHub \u661F\u6807\u3001forks\u3001issues \u5B9E\u65F6\u6C34\u6DA6\u663E\u793A\u5728\u4EEA\u8868\u4E0A\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E03\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u516D\u300A\u9AD8\u70E7\u300B\uFF0C\u8BB2\u7684\u662F\u8FD9\u4E2A\u4ED3\u5E93\u5DEE\u70B9\u6CA1\u6491\u8FC7\u53BB\u7684\u6BCF\u4E00\u4E2A\u665A\u4E0A\u2014\u201437s \u7684 p50 \u600E\u4E48\u88AB\u538B\u5230 4.2ms\u3001\u4E24\u4E2A U+FFFD \u600E\u4E48\u8BA9\u8D26\u672C\u5BF9 grep \u9690\u5F62\u3001push \u53D6\u6D88 CI \u600E\u4E48\u8BA9\u4E24\u4E2A\u5192\u70DF\u7EA2\u4E86\u4E09\u5468\u6CA1\u4EBA\u770B\u89C1\u3001\u8BCA\u65AD\u4E2D\u5FC3\u600E\u4E48\u6293\u4F4F\u51B7\u7F13\u5B58\u60CA\u7FA4\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -3641,7 +3709,7 @@
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
       <li><strong>Doctor</strong> \u2014 sidebar \u201CDoctor\u201D: two honest instruments \u2014 \u201CUpstream echo\u201D probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); \u201CLoad lab\u201D fires 24 loopback requests at up to 24\xD7 concurrency and draws the measured MIN/P50/P95/MAX histogram.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in sixteen chapters (the newest, Chapter XV \u201CFirst Light\u201D \u2014 what the outside world sees when it looks back at this repo; live GitHub stars/forks/issues hydrated in place), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in seventeen chapters (the newest, Chapter XVI \u201CThe Fever\u201D \u2014 the nights this repository nearly didn't make it: the 37s p50 pressed down to 4.2ms, two U+FFFD codepoints silencing the ledger against grep, push-cancelled CI hiding two red smokes for three weeks, the Doctor panel catching a cold-cache thundering herd), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>

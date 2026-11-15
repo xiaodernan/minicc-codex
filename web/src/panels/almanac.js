@@ -35,6 +35,7 @@ const CHAPTERS = [
   { id: "ember", roman: { zh: "卷十三", en: "Chapter XIII" }, title: { zh: "余烬", en: "The Ember" }, subtitle: { zh: "炉火不散", en: "The hearth stays warm" } },
   { id: "atlas", roman: { zh: "卷十四", en: "Chapter XIV" }, title: { zh: "星图", en: "The Atlas" }, subtitle: { zh: "这片世界有多少岛", en: "How many islands this world holds" } },
   { id: "firstlight", roman: { zh: "卷十五", en: "Chapter XV" }, title: { zh: "曦", en: "First Light" }, subtitle: { zh: "有人按下了那颗星", en: "Someone hit the star" } },
+  { id: "fever", roman: { zh: "卷十六", en: "Chapter XVI" }, title: { zh: "高烧", en: "The Fever" }, subtitle: { zh: "所有悬的地方，后来都长成了门", en: "Every near-miss grew into a gate" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1035,6 +1036,77 @@ function firstlightMarkup() {
     </div>`;
 }
 
+function feverMarkup() {
+  const d = digestCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-fever">
+      <div class="almanac-kicker">${zh() ? "卷十六 · 高烧" : "Chapter XVI · The Fever"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? "这东西差点没撑过去。<br/><span class=\"almanac-title-accent\">所有悬的地方，后来都长成了门。</span>"
+        : "It nearly didn't make it.<br/><span class=\"almanac-title-accent\">Every near-miss grew into a gate.</span>"}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 15 日凌晨，CI 的 JavaScript 检查红了。这不是第一次红——它只是眼下最新的一次发烧。这一卷不讲体面，只讲烧到最亮的时候，到底烧掉了什么。
+        </p>
+        <p>
+          <strong>37 秒。</strong>那是 One-Fact 门最初读到 <code>/api/stats</code> 时的 p50。不是设计如此，是嫌疑犯不止一个。压下去的办法只有真压：预热缓存、消除重复读、把大事全丢进共享 LRU/Redis 池。最后它坐在 <strong>4.2 毫秒</strong>。这一章的数字不靠感觉——说明书第十一章里有当晚的完整压测记录，c=50、20 秒、<strong>2490 次请求，零错误</strong>。
+        </p>
+        <p>
+          <strong>两个字节。</strong><code>ROADMAP_TO_PRODUCT.md</code> 里曾混入两处 U+FFFD，<code>grep '^## 批次'</code> 从此对这个文件保持沉默——账本还在，只是没有人能再读到它。后来立的门（<code>test_no_shipped_document_carries_a_nul_byte</code>）允许恰好两个、且必须落在同一段编码讨论里，预算一字节都不许再涨。
+        </p>
+        <p>
+          <strong>三周。</strong>T986 把 locale 段加进 <code>sessionViewKey</code> 之后，两个冒烟就这么红在那里，没人知道——因为每次推送都会 cancel 掉上一次 CI，JavaScript syntax 从来没有完整跑到终点。直到 T998 本地把 23 个 npm 脚本逐条复跑，一一抓出来。<strong>门不是为了这三周设的，但这三周替门活了下来。</strong>
+        </p>
+        <p>
+          <strong>冷缓存惊群。</strong>诊断中心（T997 新引擎）面板里第一波 6 个并发请求全部撞上约 <strong>7.35 秒</strong>的冷路径惩罚；后面的每一波都稳定在 <strong>9 毫秒</strong>。这就是 cold-cache thundering herd——不是仪表坏了，是缓存真的冷。这个仓库现在把它摆给每一个用户看，而不是掩饰它。
+        </p>` : `<p>
+          On the morning of November 15, 2026, CI's JavaScript check went red. Not for the first time — merely the latest fever spike. This chapter is not about looking fine. It is about what actually burned.
+        </p>
+        <p>
+          <strong>37 seconds.</strong> That was the p50 the One-Fact gate read on <code>/api/stats</code> at first. Not a design choice — a pile of suspects. The fix was not a pause or a skip; it was pressure: warming the cache, killing repeated reads, pushing the heavy paths into the shared LRU/Redis pool. It settled at <strong>4.2 ms</strong>. The numbers are on record in chapter 11 of the manual: c=50, 20 seconds, <strong>2,490 requests, zero errors</strong>.
+        </p>
+        <p>
+          <strong>Two bytes.</strong> <code>ROADMAP_TO_PRODUCT.md</code> once carried two stray U+FFFD codepoints, and <code>grep '^## '</code> went silent on the file forever after — the ledger existed, nobody could read it. The gate that now stands (<code>test_no_shipped_document_carries_a_nul_byte</code>) allows exactly two, only inside one encoding discussion, and not one byte more.
+        </p>
+        <p>
+          <strong>Three weeks.</strong> After M8-T986 added a locale segment to <code>sessionViewKey</code>, two smokes went red and stayed red, unseen — because every push cancelled the previous CI run, so the JavaScript syntax job never once reached its end. It took M8-T998 re-running all 23 npm scripts locally to flush them out one by one. <strong>The gates were not built for those three weeks; the three weeks survived for the gates.</strong>
+        </p>
+        <p>
+          <strong>The cold-cache herd.</strong> In the Doctor panel shipped with M8-T997, the first wave of 6 concurrent requests all ate roughly <strong>7.35 s</strong> of cold-path penalty; every wave after that settled at <strong>9 ms</strong>. Cold-cache thundering herd — the instrument was not broken; the cache really was cold. This repository now shows that openly instead of papering over it.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "p50 · 压出来的" : "p50 · earned"}</div><div class="almanac-instrument-value">4.2 ms</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "c=50 压测" : "Load run"}</div><div class="almanac-instrument-value">2490 × 0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "U+FFFD 预算" : "U+FFFD budget"}</div><div class="almanac-instrument-value">2</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "js-check 电池" : "js battery"}</div><div class="almanac-instrument-value">23/23</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "惊群首波" : "Herd penalty"}</div><div class="almanac-instrument-value">~7.35 s</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "后续波次" : "After warm"}</div><div class="almanac-instrument-value">9 ms</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门抬高次数" : "Gates ever raised"}</div><div class="almanac-instrument-value">0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["37 s → 4.2 ms", "从未被「先暂缓」，是压出来的——T982 真实压测，记录在案"],
+        ["2490 × 0", "c=50、20 秒、零错误；LOAD_TESTING.md 原文"],
+        ["2 字节的沉默", "让 ledger 对 grep 隐形；门立起来了，预算不许涨"],
+        ["3 周的空白", "push cancel 掉 push；门让它再也藏不住"],
+        ["门从不抬", "对比度门、focus 门、NUL 门、wait-claim 门——红一律由修代码满足"],
+      ] : [
+        ["37 s → 4.2 ms", "never paused, only pressed — T982 measurement, on the record"],
+        ["2,490 × 0", "c=50, 20 seconds, zero errors; verbatim from LOAD_TESTING.md"],
+        ["Two silent bytes", "the ledger went invisible to grep; the gate stands, the budget stays at 2"],
+        ["Three quiet weeks", "pushes cancelled pushes; the gate makes that impossible to hide again"],
+        ["The floor never moved", "contrast, focus, NUL, wait-claim — every red was fixed forward, never by raising a budget"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "我以为快撑不住的每一个晚上，后来都变成了门上的一行字。"
+          : "Every night I thought would break became a line of text on a gate."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1052,6 +1124,7 @@ const CHAPTER_RENDERERS = {
   ember: () => emberMarkup(),
   atlas: () => atlasMarkup(),
   firstlight: () => firstlightMarkup(),
+  fever: () => feverMarkup(),
 };
 
 async function loadChapter(id) {

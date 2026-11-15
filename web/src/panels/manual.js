@@ -102,7 +102,7 @@ function zhModules() {
       <li><strong>账本 · Ledger</strong> — ⌘L 打开：总 token 金句、缓存命中率圆环（hit/miss/write 拆分）、成本与未定价标注、模型分解表、状态 segmented bar。一切数字来自真实任务快照。</li>
       <li><strong>脉搏 · Pulse</strong> — 三环（命中率/上下文占比/完成率）+ 最近 12 个任务档案 + 逐次调用缓存火花线；实时增长，关了再开也读数。</li>
       <li><strong>诊断 · Doctor</strong> — 侧边栏「诊断」：两件真工具——「上游回声」对配置的 OpenAI 网关实测 <code>GET /models</code> 延迟（不消耗 token，密钥绝不回传）；「负载实验室」最高 24 并发、24 请求锤本机回环端点，直方图画出 MIN/P50/P95/MAX，数字全部来自当次真实测量。</li>
-      <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：十六卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷十五《曦》，讲的是这个仓库被外面的世界看见的一刻——/api/worldpulse 把 GitHub 星标、forks、issues 实时水润显示在仪表上），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
+      <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：十七卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷十六《高烧》，讲的是这个仓库差点没撑过去的每一个晚上——37s 的 p50 怎么被压到 4.2ms、两个 U+FFFD 怎么让账本对 grep 隐形、push 取消 CI 怎么让两个冒烟红了三周没人看见、诊断中心怎么抓住冷缓存惊群），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -119,7 +119,7 @@ function enModules() {
       <li><strong>Ledger</strong> — ⌘L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> — three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
       <li><strong>Doctor</strong> — sidebar “Doctor”: two honest instruments — “Upstream echo” probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); “Load lab” fires 24 loopback requests at up to 24× concurrency and draws the measured MIN/P50/P95/MAX histogram.</li>
-      <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in sixteen chapters (the newest, Chapter XV “First Light” — what the outside world sees when it looks back at this repo; live GitHub stars/forks/issues hydrated in place), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
+      <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in seventeen chapters (the newest, Chapter XVI “The Fever” — the nights this repository nearly didn't make it: the 37s p50 pressed down to 4.2ms, two U+FFFD codepoints silencing the ledger against grep, push-cancelled CI hiding two red smokes for three weeks, the Doctor panel catching a cold-cache thundering herd), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>

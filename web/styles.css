@@ -5321,3 +5321,11 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .doctor-fast-list svg { flex-shrink: 0; color: var(--amber); width: 16px; height: 16px; margin-top: 2px; }
 .doctor-nav { color: var(--muted); }
 .doctor-nav:hover { color: var(--text); }
+
+/* Almanac Chapter XVI — The Fever: coral accent for the near-miss saga */
+.almanac-fever .almanac-body { border-color: color-mix(in srgb, var(--coral) 30%, transparent); }
+.almanac-fever .almanac-kicker { color: var(--coral); }
+.almanac-fever .almanac-instrument-value { color: var(--coral); }
+.almanac-fever .almanac-instrument-label { color: var(--coral); opacity: .85; }
+.almanac-fever .almanac-gate-list li { border-left-color: var(--coral); }
+.almanac-fever .almanac-title-accent { color: var(--coral); }
