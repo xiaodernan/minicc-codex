@@ -1,43 +1,43 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T18:39:13.372Z",
+  "generated_at": "2026-11-15T18:56:16.953Z",
   "branch": "main",
-  "head": "0f67f4a",
-  "total_commits": 1662,
+  "head": "4c39ae6",
+  "total_commits": 1666,
   "recent_commits": [
+    {
+      "short": "4c39ae6",
+      "at": "2026-11-16T02:55:43+08:00",
+      "subject": "M8-T1040 CI fix: the two bare legacy atomic-path test-name tokens in the ledger were dangling evidence pointers that turned the claim checkers red; rewritten as"
+    },
+    {
+      "short": "830f9e0",
+      "at": "2026-11-16T02:55:43+08:00",
+      "subject": "docs: cache matrix - live agentic end-to-end evidence for M8-T1038 fix (real wkapi.pro key, plan mode, real tool call + correct answer, 45.4% cache hit on 2-tur"
+    },
+    {
+      "short": "e548018",
+      "at": "2026-11-16T02:55:43+08:00",
+      "subject": "M8-T1041: almanac Ch.XXIII 'The Deep Field' - the world refuses to be finished (24 volumes, 55 coordinates); atlas milestone thresholds recompute automatically;"
+    },
+    {
+      "short": "349f599",
+      "at": "2026-11-15T18:39:13Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0f67f4a",
       "at": "2026-11-16T02:38:47+08:00",
       "subject": "M8-T1040: almanac Ch.XXII 'The Compass' - guidance as architecture (Wayfinder 6->9, every button teaches, Esc chains), 54 coordinates, 23 volumes bilingual; doc"
-    },
-    {
-      "short": "67820d7",
-      "at": "2026-11-16T02:38:47+08:00",
-      "subject": "M8-T1039: islands ledger in the Atlas - right-side 'Islands, twelve' drawer lists every island with live charted/total counts read from ALL_NODES + visited.js ("
-    },
-    {
-      "short": "76df81e",
-      "at": "2026-11-15T18:01:13Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9f9daf2",
-      "at": "2026-11-16T01:59:24+08:00",
-      "subject": "M8-T1038: wkapi.pro accepts Responses ONLY as a streaming channel - live probe proved HTTP 400 on atomic answer; atomic envelope path silently flipped the turn "
-    },
-    {
-      "short": "e61c737",
-      "at": "2026-11-16T01:59:24+08:00",
-      "subject": "M8-T1037: admin completion streak - /api/admin/summary gains completion_streak{current,best,days,last_completed} read from real tasks.sqlite3 rows (UTC day set,"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 352,
+  "roadmap_batches": 353,
   "changelog_entries": 1,
-  "roadmap_lines": 53422,
+  "roadmap_lines": 53442,
   "tracked_files": 1077,
   "test_files": 712,
-  "almanac_chapters": 23,
+  "almanac_chapters": 24,
   "module_count": 14,
   "feature_surface": [
     "workbench",
