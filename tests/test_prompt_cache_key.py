@@ -70,17 +70,22 @@ def test_responses_request_carries_prompt_cache_key() -> None:
     class FakeResponses:
         async def create(self, **kwargs: Any):
             seen.update(kwargs)
-            return SimpleNamespace(
-                model="test-model",
-                status="completed",
-                usage=SimpleNamespace(input_tokens=5, output_tokens=2, total_tokens=7),
-                output=[
-                    SimpleNamespace(
-                        type="message",
-                        content=[SimpleNamespace(type="output_text", text="ok")],
-                    ),
-                ],
-            )
+
+            async def gen():
+                yield SimpleNamespace(type="response.output_text.delta", delta="ok")
+                yield SimpleNamespace(type="response.completed", response=SimpleNamespace(
+                    model="test-model",
+                    status="completed",
+                    usage=SimpleNamespace(input_tokens=5, output_tokens=2, total_tokens=7),
+                    output=[
+                        SimpleNamespace(
+                            type="message",
+                            content=[SimpleNamespace(type="output_text", text="ok")],
+                        ),
+                    ],
+                ))
+
+            return gen()
 
     provider = _provider(
         protocol="responses",

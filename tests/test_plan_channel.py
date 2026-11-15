@@ -215,7 +215,10 @@ REPO_ROOT = PROVIDER_SOURCE.parents[2]
 SDK_REQUEST_CHAINS = frozenset({("responses", "create"), ("chat", "completions", "create")})
 
 #: Measured 2026-09-26: three request sites in the provider.
-_MIN_REQUEST_SITES = 3
+# M8-T1038: the atomic non-streaming Responses site was removed — this gateway
+# group only serves Responses as a streaming event channel, so the atomic rail
+# is gone entirely and every request site rides _active_client() for free.
+_MIN_REQUEST_SITES = 2
 
 
 def _sdk_request_sites(source: str) -> list[str]:
@@ -413,8 +416,13 @@ def test_the_plan_client_is_built_by_the_provider_from_plan_credentials(monkeypa
     assert provider.active_channel == "plan"
 
 
-def test_quota_402_switches_the_non_stream_responses_channel(monkeypatch) -> None:
-    built = _patch_sdk(monkeypatch, _paid_dies_plan_answers("from-plan-responses", _responses_ok))
+def test_quota_402_switches_the_atomic_responses_channel(monkeypatch) -> None:
+    """M8-T1038: this gateway group serves Responses only as a streaming
+    channel. The 'atomic' path (no on_delta) rides the same streaming rail with
+    the delta channel discarded, so the 402 must still flip the turn to the
+    plan channel and the final response must be read from the completed event.
+    """
+    built = _patch_sdk(monkeypatch, _paid_dies_plan_answers("from-plan-responses", _responses_stream))
     provider = _dual_channel_provider("responses")
 
     result = asyncio.run(provider.chat([{"role": "user", "content": "hi"}]))
@@ -422,6 +430,8 @@ def test_quota_402_switches_the_non_stream_responses_channel(monkeypatch) -> Non
     assert result.content == "from-plan-responses"
     assert built[0].surfaces() == {"responses"}, "the responses wire path was not exercised"
     assert built[-1].surfaces() == {"responses"}
+    assert built[0].calls[-1].get("stream") is True
+    assert built[-1].calls[-1].get("stream") is True
     assert len(built[0].calls) == 1, "sticky flip must not touch the paid channel again"
     assert provider.channel_status()["usage"]["plan"]["requests"] == 1
 

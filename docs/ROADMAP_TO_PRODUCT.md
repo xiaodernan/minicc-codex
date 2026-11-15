@@ -53362,3 +53362,23 @@ Admin 面板已经能看到完成数的绝对值（20/24）和趋势（七日事
 
 - `build_summary('.')` 现场直调：tasks 24 / completed 20 / interrupted 3 / cache 71.1% / audit 1616 / sessions 162；`completion_streak` = { current: 2, best: 2, days: 2, last_completed: 2026-11-15 }——今天有收尾的明显口径。
 - admin_smoke（含新格）全绿；parity / manual / almanac / atlas 全绿；CRLF 655/309 零漂移；`output/admin_streak_zh.png` 留档第七格实渲。
+## 批次 1023 - M8-T1038: 网关群只收流式 Responses —— 原子线整体并入流式轨
+
+### 目的
+
+用户真实抱怨两件事互相纠缠——"一直显示非流" + "缓存命中率这么低"。本周通过活跃 API 探针复现并实锤：`POST /v1/responses` 非流式在此网关群（wkapi.pro 的 gpt-6-sol 组）直接 HTTP 400 `This group only supports streaming generation requests. Set stream to true.`。此前 atom 门径 400 后被「looks like responses rejection」静默跳到 chat/completions——chat/completions 在此组的语义不完全等价（reasoning_effort、cached_tokens 报表行为不同）、agent 的 cache hit 与 reasoning 轨道非流式原子窗口传输、凡昂贵的「gpt-6-sol、Responses-only 网关群」都只能流式。
+
+### 做了什么
+
+- **`minicc/llm/openai_provider.py`** — 删除 `_create_responses` 原子创建器（16 行全家，mine）；`_responses_once` 中 on_delta=None 原子路径改为 `_create_responses_stream(kwargs, lambda _: None, tools)`（discarded delta channel）。契约不变（一次性原子回答）、wired in the only supported door (`stream=true`)、协议不再被翻到 chat/completions。
+- **测试铁律同步** — 所有抽象 SDK 仿制（Mock）从非流式 SimpleNamespace → async generator 流式 shaped events（test_core_llm / test_prompt_cache_key / test_reasoning_effort / test_plan_channel）；`test_atomic_path_unchanged_without_delta_callback` → `test_atomic_path_rides_the_streaming_rail_without_leaking_deltas`；`_MIN_REQUEST_SITES` 3→2 + 说明（此时 SDK 请求点一共 2 处，全部 `_active_client()`）。测试更新目的为**保持真实契约**，未削弱任何断言——旧断言的现实目标是「wire must 是唯一受支持的流式通道」。
+- **真实验证工艺**（wkapi.pro / gpt-6-sol / reasoning=max，真 key）：
+  - 4-call probe（Responses atomic 样式 ×2 + judge-style wire ×3）→ both 原样流式、cached_tokens 全部上报；
+  - **产品提供商路径（fresh process，`reasoning_effort=low`, atomic-style `tools=None`）**：text="pong" ✓；usage.prompt_cache_hit_tokens=4224/4391 → **96.2%**（此前显示非流 & 缓存折损的整条链路同因同果，治根）。
+- **门禁纪录** — `pytest -k "provider or llm or completion_judge or responses"`：177 passed / 0 failed（含 M8-T1038 新断言）；plan_channel 13/13 全绿。
+- **记录**：提交时 CI `43742034247`（M8-T1036, a93d92a4）仍在 in_progress；本批本地落账，远端推送待其落地。
+
+### 实测验证
+
+- live probe 与 live provider 端到端复现——`protocol after turn: responses`、`prompt_cache_hit_tokens=4224`、`cache_hit_rate=0.9620`。
+- 全 tests/LLM/Provider/Responses/Plan-channel suites 全绿；CRLF gates 655/309 零漂移。

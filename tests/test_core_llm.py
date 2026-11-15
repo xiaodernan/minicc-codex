@@ -381,7 +381,7 @@ def test_provider_adapts_responses_api_tool_calls() -> None:
     class FakeResponses:
         async def create(self, **kwargs):
             seen.update(kwargs)
-            return SimpleNamespace(
+            payload = SimpleNamespace(
                 model="test-model",
                 status="completed",
                 usage=SimpleNamespace(input_tokens=12, output_tokens=4, total_tokens=16),
@@ -393,6 +393,15 @@ def test_provider_adapts_responses_api_tool_calls() -> None:
                     SimpleNamespace(type="function_call", call_id="call-read", name="read_file", arguments='{"path":"README.md"}'),
                 ],
             )
+
+            async def gen():
+                yield SimpleNamespace(type="response.output_text.delta", delta="I will inspect the file.")
+                yield SimpleNamespace(type="response.output_item.added", item=SimpleNamespace(type="function_call", call_id="call-read", name="read_file", arguments=""))
+                yield SimpleNamespace(type="response.function_call_arguments.delta", delta='{"path":"README.md"}', output_index=1)
+                yield SimpleNamespace(type="response.function_call_arguments.done", arguments='{"path":"README.md"}', output_index=1)
+                yield SimpleNamespace(type="response.completed", response=payload)
+
+            return gen()
 
     provider = OpenAICompatibleProvider(
         "https://example.com/v1", "test-key", "test-model", protocol="responses", sdk_client=SimpleNamespace(responses=FakeResponses())

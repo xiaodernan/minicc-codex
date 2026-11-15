@@ -1000,25 +1000,16 @@ class OpenAICompatibleProvider:
             kwargs["reasoning"] = {"effort": REASONING_WIRE_VALUES[self._active_reasoning_effort]}
         if on_delta is not None and not (tools and self._mode == "envelope"):
             return await self._create_responses_stream(kwargs, on_delta, tools)
-        response = await self._create_responses(kwargs)
-        parsed = self._responses_to_response(response)
-        return self._finalize(parsed, tools)
-
-    async def _create_responses(self, kwargs: dict[str, Any]) -> Any:
-        retryer = AsyncRetrying(
-            # Some gateways expose Responses as an event-backed endpoint and
-            # surface a body disconnect as a generic transport exception.
-            retry=retry_if_exception(lambda exc: _is_retryable(exc) or _is_stream_retryable(exc)),
-            wait=_wait_retry_after_or_exponential,
-            stop=stop_after_attempt(self._max_retries + 1),
-            before_sleep=self._emit_request_retry,
-            reraise=True,
-        )
-
-        async def _attempt() -> Any:
-            return await self._active_client().responses.create(**kwargs)
-
-        return await retryer(_attempt)
+        # M8-T1038: this gateway group supports Responses only as a streaming
+        # event channel — an atomic request is rejected outright (HTTP 400
+        # "This group only supports streaming generation requests. Set stream
+        # to true."), so the old atomic path silently flipped the turn onto
+        # chat/completions: blind stream telemetry (never-explained low
+        # cached_tokens) plus a non-stream mode nobody asked for. Complete the
+        # turn through the same streaming machinery with a discarded delta
+        # channel — identical atomic contract at the caller, no 400, and the
+        # gateway reports cached_tokens on the completion event.
+        return await self._create_responses_stream(kwargs, lambda _: None, tools)
 
     async def _create_responses_stream(
         self,

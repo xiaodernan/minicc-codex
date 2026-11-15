@@ -152,19 +152,25 @@ async def test_stream_failure_before_delta_is_retried() -> None:
 
 
 @pytest.mark.asyncio()
-async def test_atomic_path_unchanged_without_delta_callback() -> None:
+async def test_atomic_path_rides_the_streaming_rail_without_leaking_deltas() -> None:
+    """M8-T1038: this gateway group supports Responses only as a streaming
+    channel — an atomic ('stream' absent) request is rejected with HTTP 400.
+    The old atomic contract is gone BY DESIGN: an atomic turn now completes
+    through the same streaming machinery with a discarded delta channel,
+    preserving the atomic outcome (one turn, no caller-visible deltas) while
+    reporting cached_tokens on the completion event.
+    """
     provider = _provider()
-    response_obj = _completed_response("一次性返回")
+    completed = SimpleNamespace(type="response.completed", response=_completed_response("一次性返回"))
     calls: list[dict] = []
 
-    async def create(**kwargs):
-        calls.append(kwargs)
-        assert not kwargs.get("stream")
-        return response_obj
+    class FakeAPI:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            assert kwargs.get("stream") is True
+            return FakeStream([completed])
 
-    api = type("R", (), {})()
-    api.create = create
-    provider._client = SimpleNamespace(responses=api)
+    provider._client = SimpleNamespace(responses=FakeAPI())
     response = await provider.chat([{"role": "user", "content": "hi"}], tools=None)
     await provider.close()
     assert response.text == "一次性返回"

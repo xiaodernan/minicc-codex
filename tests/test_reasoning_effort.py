@@ -34,6 +34,14 @@ def _response(protocol):
         choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]), finish_reason="stop")],
     )
 
+def _stream_gen(protocol):
+    if protocol == "responses":
+        async def gen():
+            yield SimpleNamespace(type="response.output_text.delta", delta="done")
+            yield SimpleNamespace(type="response.completed", response=_response("responses"))
+        return gen()
+    raise AssertionError("chat_completions mock must build its own stream")
+
 
 @pytest.mark.parametrize("protocol", ["responses", "chat_completions"])
 def test_provider_sends_ultra_without_rewriting(protocol):
@@ -41,6 +49,8 @@ def test_provider_sends_ultra_without_rewriting(protocol):
 
     async def create(**kwargs):
         calls.append(kwargs)
+        if protocol == "responses":
+            return _stream_gen("responses")
         return _response(protocol)
 
     client = SimpleNamespace(
@@ -75,7 +85,7 @@ def test_ultra_can_negotiate_full_fallback_chain_after_explicit_rejections():
                 "unsupported reasoning effort", body=None,
                 response=httpx.Response(400, request=httpx.Request("POST", "https://example.test/v1/responses")),
             )
-        return _response("responses")
+        return _stream_gen("responses")
 
     provider = OpenAICompatibleProvider(
         "https://example.test/v1", "test-key", "test-model", protocol="responses",
