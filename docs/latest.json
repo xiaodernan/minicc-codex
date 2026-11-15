@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T00:56:29.006Z",
+  "generated_at": "2026-11-15T01:04:36.060Z",
   "branch": "main",
-  "head": "3b03988",
-  "total_commits": 1561,
+  "head": "eed36e8",
+  "total_commits": 1563,
   "recent_commits": [
+    {
+      "short": "eed36e8",
+      "at": "2026-11-15T09:04:06+08:00",
+      "subject": "M8-T991: almanac chapter XIII 'The Ember' - the hearth never cools - live first_commit 2026-08-24 / 1561 commits / 1,063 tracked / 705 test files / 307 batches "
+    },
+    {
+      "short": "022eabb",
+      "at": "2026-11-15T00:56:29Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3b03988",
       "at": "2026-11-15T08:56:09+08:00",
@@ -19,25 +29,15 @@
       "short": "93fd4ec",
       "at": "2026-11-15T08:48:19+08:00",
       "subject": "M8-T989: interactive 6-step onboarding tour - mojibake fixed, dark-card contrast fixed, fill-the-composer and run-the-demo steps do real work, 13-volume almanac"
-    },
-    {
-      "short": "311bbde",
-      "at": "2026-11-15T00:39:33Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "18a13bc",
-      "at": "2026-11-15T08:39:08+08:00",
-      "subject": "M8-T988: composer elevation - hairline gold top edge on the glass card, permission group becomes a sliding segmented control (CSS :has, zero JS), SVG arc contex"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 307,
+  "roadmap_batches": 308,
   "changelog_entries": 1,
-  "roadmap_lines": 52448,
+  "roadmap_lines": 52473,
   "tracked_files": 1063,
   "test_files": 705,
-  "almanac_chapters": 13,
+  "almanac_chapters": 14,
   "module_count": 14,
   "feature_surface": [
     "workbench",
