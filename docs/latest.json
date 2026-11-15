@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T00:02:01.763Z",
+  "generated_at": "2026-11-15T00:19:42.689Z",
   "branch": "main",
-  "head": "f9d202b",
-  "total_commits": 1551,
+  "head": "6125f66",
+  "total_commits": 1553,
   "recent_commits": [
+    {
+      "short": "6125f66",
+      "at": "2026-11-15T08:19:19+08:00",
+      "subject": "M8-T985: empty hero redesign - aurora layers, blueprint dot grid, amber-mint orbit, mono uppercase caption (new i18n key session.emptyFoot, 593 keys both sides)"
+    },
+    {
+      "short": "4d96eee",
+      "at": "2026-11-15T00:02:02Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f9d202b",
       "at": "2026-11-15T08:01:40+08:00",
@@ -19,22 +29,12 @@
       "short": "abd1a71",
       "at": "2026-11-15T07:55:10+08:00",
       "subject": "M8-T983: manual chapter 11 'Load & Capacity' - bilingual: local-first model, load-test recipe, 2026-11-15 real numbers (c=50, 2490x200, 0 errors), three defense"
-    },
-    {
-      "short": "8a1af4c",
-      "at": "2026-11-15T07:47:56+08:00",
-      "subject": "chore: remove _cjk_scan.py dev artifact committed by mistake in M8-T982"
-    },
-    {
-      "short": "c58db88",
-      "at": "2026-11-14T23:47:08Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 301,
+  "roadmap_batches": 303,
   "changelog_entries": 1,
-  "roadmap_lines": 52323,
+  "roadmap_lines": 52366,
   "tracked_files": 1061,
   "test_files": 704,
   "almanac_chapters": 13,
