@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T01:26:06.340Z",
+  "generated_at": "2026-11-15T05:16:55.603Z",
   "branch": "main",
-  "head": "d9ef0ee",
-  "total_commits": 1568,
+  "head": "be9c5d3",
+  "total_commits": 1570,
   "recent_commits": [
+    {
+      "short": "be9c5d3",
+      "at": "2026-11-15T13:16:35+08:00",
+      "subject": "M8-T994: three visual-debt fixes - sidebar 3-up icon-above-label (Chinese/Japanese no longer wraps per glyph), inspector-tab nowrap (badge no longer collides wi"
+    },
+    {
+      "short": "5872cc7",
+      "at": "2026-11-15T01:26:06Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d9ef0ee",
       "at": "2026-11-15T09:25:44+08:00",
@@ -19,22 +29,12 @@
       "short": "fb1bdf5",
       "at": "2026-11-15T01:11:09Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ff56a2d",
-      "at": "2026-11-15T09:10:49+08:00",
-      "subject": "M8-T992: almanac chapter XIV 'The Atlas' - the whole workbench unfolded into one star chart; 19 twinkling stars, 3 hue groups (amber/mint/violet), drifting dash"
-    },
-    {
-      "short": "268675b",
-      "at": "2026-11-15T01:04:36Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 310,
+  "roadmap_batches": 311,
   "changelog_entries": 1,
-  "roadmap_lines": 52526,
+  "roadmap_lines": 52548,
   "tracked_files": 1064,
   "test_files": 705,
   "almanac_chapters": 16,
