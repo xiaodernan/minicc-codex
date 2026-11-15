@@ -5329,3 +5329,46 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-fever .almanac-instrument-label { color: var(--coral); opacity: .85; }
 .almanac-fever .almanac-gate-list li { border-left-color: var(--coral); }
 .almanac-fever .almanac-title-accent { color: var(--coral); }
+
+/* Ultra-short viewports (<=940px): the hero must never slide behind the
+   composer. Shrink each tier progressively and let the hero scroll. */
+@media (max-height: 940px) {
+  .chat-inner { padding: 10px 20px 14px; }
+  .session-heading { gap: 10px; }
+  .session-heading h1 { font-size: 21px; margin: 5px 0 2px; }
+  .session-heading p { font-size: 10.5px; }
+  .session-kicker { font-size: 10px; gap: 5px; }
+  .date-divider { margin: 10px 0 8px; }
+  .empty-session { gap: 8px; padding: 8px 16px; align-content: safe center; overflow-y: auto; }
+  .empty-orbit { width: 72px; height: 72px; }
+  .empty-glyph { width: 62px; height: 62px; }
+  .empty-session-title { font-size: clamp(22px, 2.4vw, 27px); }
+  .empty-session-hint { font-size: 12.5px; max-width: 440px; line-height: 1.55; }
+  .empty-foot { padding-top: 6px; letter-spacing: .2em; }
+  .empty-chips { gap: 8px; margin-top: 0; }
+  .empty-chip { padding: 8px 13px; font-size: 11.5px; gap: 7px; }
+}
+
+/* Very short laptops (<=900px tall): keep every sidebar row reachable without
+   scrolling — the previous 1180px tier still let the profile card slide
+   145px past the fold at 800px height. */
+@media (max-height: 900px) {
+  .sidebar { padding: 6px 10px 6px; }
+  .brand-row { padding: 0 8px 4px; }
+  .brand-mark { width: 26px; height: 26px; min-width: 26px; font-size: 9px; }
+  .new-task-button { height: 26px; margin: 2px 0 4px; }
+  .sidebar-search { height: 25px; margin: 5px 2px 5px; }
+  .nav-item { height: 26px; padding: 0 6px; font-size: 11px; gap: 8px; }
+  .sidebar-nav { gap: 0; }
+  .section-label { margin: 6px 8px 3px; font-size: 9.5px; }
+  .thread-list { min-height: 84px; }
+  .thread-item { min-height: 42px; }
+  .thread-copy strong { font-size: 11.5px; }
+  .thread-copy small, .section-label, .workspace-mini-copy span { font-size: 10px; }
+  .secondary-nav .nav-item { height: 36px; }
+  .sidebar-bottom { gap: 5px; padding-top: 6px; }
+  .streak-chip { padding: 3px 10px; margin: 4px 0 0; }
+  .running-light { padding: 3px 8px; height: auto; min-height: 22px; }
+  .workspace-mini { padding: 0 4px; min-height: 30px; }
+  .profile-row { padding: 3px 6px; }
+}

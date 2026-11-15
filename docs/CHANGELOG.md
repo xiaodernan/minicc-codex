@@ -358,3 +358,5 @@
 - **js-check 三红修复（M8-T998）**：`softPath` 的 U+200B → `<wbr>`（断行机会元素，textContent 与复制保持原样）；lifecycle/scale 两个冒烟自 M8-T986 起因 `sessionViewKey` 的 locale 后缀断言陈旧而红，已改为 locale 不可知断言（不变量未变）；23 项 npm 测试电池全绿；fake-provider web_smoke exit 0；T997 的 js-check 红被本批自愈。
 
 - **年鉴第十六卷「高烧 / The Fever」上线（M8-T999）**：把 37s→4.2ms、2490×0、两个 U+FFFD、T986 后三周两个冒烟蒙尘、冷缓存惊群全部写进史诗——8 格真实仪表、5 条门 list、双语铁律 smoke 17 章全绿；说明书同步到十七卷。顺带复绿 web-smoke：game_upgrade_smoke hover 步骤因 peashooter 点击把 canvas 沉到折叠线以下而超时，`scrollIntoViewIfNeeded` 后再断言；arcade 套件四件全绿。
+
+- **短屏布局到底（M8-T1000）**：1280×800 / 1440×900 两档适配——`@media (max-height: 940px)` 压缩 chat-inner/session-heading/date-divider/hero（orbit 128→72px），空态 chips 彻底脱离 composer 遮挡；`@media (max-height: 900px)` 压缩侧栏（nav 36→26px 等），侧栏自裁剪 145px → 5px，工作台设置整行进入视野；Playwright 双语截图确认。

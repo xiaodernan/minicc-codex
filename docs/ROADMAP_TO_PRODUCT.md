@@ -52647,3 +52647,21 @@ CI 里 web-smoke 跑到 `npm run test:arcade` 时，**game_upgrade_smoke.mjs** �
 - 修复：`canvas.scrollIntoViewIfNeeded()` 之后再读取 boundingBox——断言的不变量是「hover 映射到 (0,0) 格」，不是「fold 位置」。
 - 验证：`game_upgrade_smoke.mjs` exit 0；`codex_smoke`、`zombie_spawn_smoke` exit 0；与 CI web-smoke 作业命令（`test:arcade` = game + codex + zombie + almanac）逐一对齐，四个全部本地绿。
 - 同一根参数（push cancel 让整个作业从未被跑到）解释了为什么这根刺活了这么久。
+
+## 批次 991 - M8-T1000：短屏笔记本布局到底 —— 800px 高屏不再藏任何行；超短视口 hero 不再沉到 composer 底下
+
+### 1 背景
+
+用户再次明确：「前端有很多不合理的地方 有很多字体的变形 歪曲 重叠 扭曲 实体块的互相重叠 挤压，需要修改」。本批用 Playwright 在两个真实视口（1280×800、1440×900）+ i18n 双语下逐项量出每一个重叠，再动手。
+
+### 2 实测发现与修复
+
+1. **1440×900（及以下）下空态 hero 第二排 chips 沉到 composer 之下**：`.empty-chips` 底边 660px > chat-area 可见底边 780px 的 composer 起点（1440×900 时 chips 底边 553px > `.composer-wrap` 顶边 500px —— 完全埋住）。→ 新增 `@media (max-height: 940px)` 逐级压缩：`.chat-inner` 46/54px → 10/20px，`.session-heading` h1 27→21px、subtitle 10.5px、kicker 10px、`.date-divider` margin 32/20→10/8、hero orbit 128→72px、title clamp 下限 22px、hint 12.5px、chips gap 8px、`overflow-y: auto` + `align-content: safe center`。实测：两屏 **chips 底边 457px < composer 顶边 500/600px**，完整可见。
+2. **800px 高屏下侧栏自我裁剪 145px**：`.sidebar` `scrollH=907` > `clientH=762`，「工作台设置」整行伸出视口之外。→ 新增 `@media (max-height: 900px)` 档：品牌/新任务/搜索/12 个 nav 项（36→26px）/section-label/thread-item（54→42px）/secondary-nav（44→36px）/running-light/profile-row 全部逐级收窄。实测 **over 145px → 5px**，工作区卡与工作台设置完全可见。
+3. 1440×900 屏同样修复生效（hero 完整、chips 远离 composer）。
+
+### 3 验证
+
+- Playwright（zh-CN）三个视口 × 截图：1280×800 / 1440×900 / 1600×1080 全部完整渲染：侧栏全部行可见、hero 双 chips 行不遮挡 composer、inspector 路径按目录边界换行、航行灯单行。
+- `npm run build:web` / `check:web` 干净；`_sidebar_probe`：1280×800 `scrollH=767` vs `clientH=762`（超出 5px，可忽略）。
+- 本批纯前端样式；未触碰任何 Python。
