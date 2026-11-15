@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T21:35:25.039Z",
+  "generated_at": "2026-11-15T21:47:56.947Z",
   "branch": "main",
-  "head": "0459317",
-  "total_commits": 1686,
+  "head": "19b06a2",
+  "total_commits": 1688,
   "recent_commits": [
+    {
+      "short": "19b06a2",
+      "at": "2026-11-16T05:47:38+08:00",
+      "subject": "M8-T1056: impact floor - new test reaches scripts/measure_cache_affinity.py (contiguous 'scripts/measure_cache_affinity.py' literal; env-over-.env precedence, N"
+    },
+    {
+      "short": "a335ad8",
+      "at": "2026-11-15T21:35:25Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0459317",
       "at": "2026-11-16T05:34:50+08:00",
@@ -19,24 +29,14 @@
       "short": "3a65f92",
       "at": "2026-11-15T21:10:14Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9c2037a",
-      "at": "2026-11-16T05:09:54+08:00",
-      "subject": "M8-T1052: live wkapi.pro re-measure after the M8-T1038 streaming-rail fix - fresh 2026-11-16 lane key: cold 5729->4224 (73.7%), warm repeat 5504/5733=96.0%, nea"
-    },
-    {
-      "short": "a1d2cab",
-      "at": "2026-11-16T05:09:54+08:00",
-      "subject": "M8-T1051: storm regression - 24 threads x (120 reads across health/digest/stats/worldpulse/admin/metrics all 200+JSON; 64 malformed-body POSTs all 400 never 500"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 367,
+  "roadmap_batches": 368,
   "changelog_entries": 1,
-  "roadmap_lines": 53625,
-  "tracked_files": 1079,
-  "test_files": 713,
+  "roadmap_lines": 53636,
+  "tracked_files": 1080,
+  "test_files": 714,
   "almanac_chapters": 26,
   "module_count": 14,
   "feature_surface": [
