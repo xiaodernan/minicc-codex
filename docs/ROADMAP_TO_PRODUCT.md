@@ -53571,3 +53571,17 @@ M8-T1044/T1045 合并 CI 跑了 28 分钟，两条 Python legs 同形失败—�
 - **Atlas 世界 57 坐标**（18+26+13）— onboarding / manual / README / index.html 占位符全量迁移（含一条 M8-T1046 当时遗漏的 onboarding 英文 Atlas 步文案 `fifty-five → fifty-seven / 24 → 26 satellites` 修复，以及 manual 的中文 Atlas 55 → 57、Almanac 模块更新为《试纸》）。
 - **26 卷年鉴**——`almanac_smoke` chapters + `CHAPTER_MARKERS` 双侧扩；log 行 25→26。说明书全量同步："the newest, Chapter XXV The Litmus"。
 - **门禁验证**：`almanac_smoke` — 26 chapters bilingual pass；`atlas_smoke` — 57-coordinate contract；`parity` — en walk 全绿；manual / admin 5 smokes 全绿；chapter 级 CJK probe（zh 含 CJK / en 0 CJK）。
+## 批次 1036 - M8-T1051: 风暴回归——撞库式高并发冲击
+
+### 目的
+
+Doctor 面板的「负载实验室」模拟的是 24 并发 × 24 请求。这一批把同一件事写成 CI 里的确定性 pytest：真实的 ThreadingHTTPServer + AgentService（fake provider、ephemeral port），从 24 个线程同时读、同时写垃圾、同时撞跨源重放。§十一 压力测试的「撞库」场景对应第三条：48 次跨源 `Origin` 的 /api/tasks —— 必须是 403，任何一次都不许漏到业务逻辑。
+
+### 做了什么
+
+- **`tests/test_the_storm.py`** — 三个确定性不变量：
+  1. `test_the_read_side_holds_under_a_thundering_herd` — 120 次读分布打 24 个 worker；断言全 200、JSON 可解析。
+  2. `test_a_storm_of_wire_frame_garbage_answers_400_never_500` — 8 种畸形字节（非 UTF-8 / NUL、截断 JSON、数组、null、裸量）循环 ×64；断言全 400，无一 ≥ 500。
+  3. `test_a_cross_site_replay_burst_answers_403_on_every_flight` — 48 次跨源重放；断言全 403。
+- **零 wall-clock、零随机数、零网络**；模块级 fixture 复用一个真实服务进程，24 线程有界。本地：3 passed in 24.15s。
+- 不动 CRLF pins / API surface / gate；纯测试侧新增。
