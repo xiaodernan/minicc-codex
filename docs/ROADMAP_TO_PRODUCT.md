@@ -53585,3 +53585,15 @@ Doctor 面板的「负载实验室」模拟的是 24 并发 × 24 请求。这�
   3. `test_a_cross_site_replay_burst_answers_403_on_every_flight` — 48 次跨源重放；断言全 403。
 - **零 wall-clock、零随机数、零网络**；模块级 fixture 复用一个真实服务进程，24 线程有界。本地：3 passed in 24.15s。
 - 不动 CRLF pins / API surface / gate；纯测试侧新增。
+## 批次 1037 - M8-T1052: 缓存亲复核——修复后的线路再测一遍，数字入账
+
+### 目的
+
+M8-T1038 把 atomic Responses 原路径并进事件栏之后，「缓存 96% 那条记账链路还在不在」这件事只被信心证明过，没有今日数据。这一批把它当成一次常规校准来跑：新建当日 lane key、全新 shard、三道流式请求，把数字写进 CACHE_AFFINITY_MATRIX 供后续每一卷直接引用。
+
+### 做了什么
+
+- **`scripts/measure_cache_affinity.py`**（新）：与 matrix 同款方法论——.env 只读取、key 永不回显（process env 优先 + gitignored .env 兜底）；`--dry-run` 只打印形状；live 模式三道流式请求打印 `input/cached/pct`，另有 lane key 当日唯一。
+- **`docs/CACHE_AFFINITY_MATRIX.md`** — 新增《2026-11-16 (M8-T1052，M8-T1038 修复复核)》节：冷 73.7% → 暖 96.0% / 96.0%（后缀微改），数字全部来自 wkapi.pro 网关回传 `input_tokens_details.cached_tokens`，`store=False` 同穿。
+- **复核结论**：atomic 路径并入事件栏后缓存亲和性没有被稀释；96% 复现两个当晚结果。
+- **门禁**：py_compile 通过；`--dry-run` 形态校验通过；真跑 key 不出仓（.env untracked）。

@@ -122,3 +122,32 @@ It does not have a `name` field.
 1. **atomic 原子调用与 stream=true 是同一条路** — 任何不带 on_delta 的请求在本组网关群一样要以 event rail 完成 ——"显示非流"的观感源于 chat 兜底断言 + 显式非流回退通道。
 2. **agent 态缓存命中率远高于单轮/一次性** — 一个工作区的任何重复 session turn 都共享同一 ~4.2k-token 亲和前缀；缓存对工作流的收益随而递增，\*\*不在单轮数值上体现\*\*，体现在 tasks.total_tokens 上。
 3. **「显示非流」与「缓存命中低」是同一个 bug 的两个面** — 都是本组网关 "Responses 仅流式" 这条硬规格没走对后的表象。现在在 pinned gate 上保持这个结论不让它再漂。
+---
+
+## 2026-11-16 （M8-T1052，M8-T1038 修复复核）—— Responses 流式路径，全新 lane key
+
+用途：在 **2026-11-15 M8-T1038**（atomic Responses 原路径并入事件栏）修复落定之后，用一组全新 `prompt_cache_key`（`minicc-measurement-2026-11-16-a`，当日新建）复核当前仓库默认线路上的真实命中率——不是记忆里的历史行，而是当天拿数据重跑的结果。
+
+复现（输出里不落 key；key 仅来自 gitignored `.env`，或 `MINICC_*` 环境变量）：
+
+```
+.venv\Scripts\python.exe scripts\measure_cache_affinity.py            # 真跑（约 17k prompt tokens）
+.venv\Scripts\python.exe scripts\measure_cache_affinity.py --dry-run  # 只打印形状，零网络
+```
+
+前缀沿用本矩阵 2026-11-15 的同款构造（稳定中文规则段 × 14，实测单轮 input 5700~5735 tokens），同一 lane key 连问三题。
+
+### 实测（wkapi.pro · gpt-6-sol · Responses 流式 · temperature=0）
+
+| 请求 | input | cached | 命中率 |
+| --- | --- | --- | --- |
+| req 1（全新 lane key，冷） | 5729 | 4224 | **73.7%** |
+| req 2（精确复读，暖） | 5733 | 5504 | **96.0%** |
+| req 3（后缀微改 · 问题 B，暖） | 5735 | 5504 | **96.0%** |
+
+### 读数结论
+
+- **预热后稳定在 96.0%**，与 2026-11-15 当晚测出的 94.5%→100% 区间吻合；第二、三题之间只改后缀，cached 恒为 5504——前缀全被命中，后缀被穿透 miss。
+- 冷启动 73.7%（4224/5729）：全新 lane key + 全新 shard，首次调用从未分到全量片区；与 2026-11-15 基线一致（冷启动 0% 是无 key 时代的魔咒；73% 是**有 key 但 shard 尚热的第一次**——key 越早建越早热）。
+- `store=False` 同穿：wkapi 在流式路径下真实回传 `input_tokens_details.cached_tokens`，无需留存响应。
+- 本轮验证的不是「缓存能工作」——这一点 2026-11-10 起已经烂熟于心——而是**M8-T1038 之后，修好的流式原路径仍然记账**：数字来自 Responses 事件栏的 `response.completed.usage`，与生命周期内逐 token 入账的每一行 usage 链一致。atomic 原子路径并进来之后缓存亲和性没有被稀释。
