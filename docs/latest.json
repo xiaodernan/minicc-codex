@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T05:16:55.603Z",
+  "generated_at": "2026-11-15T05:27:08.753Z",
   "branch": "main",
-  "head": "be9c5d3",
-  "total_commits": 1570,
+  "head": "4283fa7",
+  "total_commits": 1572,
   "recent_commits": [
+    {
+      "short": "4283fa7",
+      "at": "2026-11-15T13:26:47+08:00",
+      "subject": "M8-T995: CI green-path sweep - re-aimed record_text citations (web.py 1818/2324), focus-visible ring for palette search, coral orbit + amber tour CTA clear AA, "
+    },
+    {
+      "short": "036ffe2",
+      "at": "2026-11-15T05:16:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "be9c5d3",
       "at": "2026-11-15T13:16:35+08:00",
@@ -19,16 +29,6 @@
       "short": "d9ef0ee",
       "at": "2026-11-15T09:25:44+08:00",
       "subject": "chore: worldpulse User-Agent to minicc-worldpulse (doc_pointers misread the slash as a repo path)"
-    },
-    {
-      "short": "1a7a3ee",
-      "at": "2026-11-15T09:25:44+08:00",
-      "subject": "M8-T993: /api/worldpulse - live GitHub public API (5-min shared cache, fail-open); almanac chapter XV 'First Light' written from real world numbers (stars=1, fo"
-    },
-    {
-      "short": "fb1bdf5",
-      "at": "2026-11-15T01:11:09Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
