@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:00:45.661Z",
+  "generated_at": "2026-11-15T14:02:24.742Z",
   "branch": "main",
-  "head": "fec12fe",
-  "total_commits": 1635,
+  "head": "a569ea2",
+  "total_commits": 1636,
   "recent_commits": [
+    {
+      "short": "a569ea2",
+      "at": "2026-11-15T22:01:02+08:00",
+      "subject": "M8-T1024: atlas trail - amber thread through every coordinate you walked; visitedKey end-to-end alignment (18 panes panel:* prefix companions); clear-my-trail b"
+    },
     {
       "short": "fec12fe",
       "at": "2026-11-15T13:43:15Z",
@@ -24,18 +29,13 @@
       "short": "0e8de31",
       "at": "2026-11-15T21:36:35+08:00",
       "subject": "M8-T1022: interrupt-cause breakdown - real task-store errors bucket by strict substring; all 2 interrupted tasks were service-restart deaths (raw 'interrupted d"
-    },
-    {
-      "short": "08d9ada",
-      "at": "2026-11-15T13:29:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 338,
   "changelog_entries": 1,
   "roadmap_lines": 53154,
-  "tracked_files": 1077,
+  "tracked_files": 1075,
   "test_files": 710,
   "almanac_chapters": 21,
   "module_count": 14,
