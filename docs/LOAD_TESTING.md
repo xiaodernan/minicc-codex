@@ -132,3 +132,35 @@ Same machine, same repo, warm caches, c=50 × 20 s:
 ```
 
 2,490 responses, zero non-200s. The rise in p50 from c=20 (≤ 22 ms) is the GIL scheduler, not the handlers — every read-only pack is now a cached read. The next honest step (aiohttp/uvloop or a process pool) is recorded, not started here.
+## Update 2026-11-15 (M8-T1038 follow-up) — 24-way read-only storm, cold vs warm
+
+Snapshot taken with the M8-T1038 streaming fix already in the build (wire fix
+does not touch the read packs, so numbers belong to the post-T979 single-flight
+TTL regime). Fake upstream (`MINICC_FAKE_PROVIDER=1`). Two phases:
+
+**Cold (fake provider freshly restarted, caches drained by the first wave)** — the first thing a fresh cockpit feels:
+
+```
+/api/health     n=24  p50=121  p95=271  p99=277  max=451   [200:24]
+/api/workspace  n=24  p50=241  p95=7663 p99=7714  max=7755  [200:24]
+/api/tasks?lim=12 n=24 p50=130 p95=295 p99=303 max=345      [200:24]
+/api/digest     n=24  p50=296  p95=7748 p99=7755  max=7757  [200:24]
+/api/stats      n=24  p50=210  p95=7739 p99=7745  max=7751  [200:24]
+/api/admin/summary (24 requests) — 18 completed, 6 exceeded the 15 s client timeout; admin/summary is an O(audit+recent-tasks) aggregation the operator explicitly asks for, not a hot path; cold p50=11.5 s on this workspace (~1,600 audit lines)
+```
+
+**Warm (same box, caches hot, three back-to-back waves) — what interactive users actually see:**
+
+```
+/api/health     n=24  p50=178  p95=302  max=320
+/api/workspace  n=24  p50=142  p95=531  max=623
+/api/tasks?lim=12 n=24 p50=136 p95=383  max=536
+/api/digest     n=24  p50=86   p95=199  max=206
+/api/stats      n=24  p50=138  p95=178  max=179
+```
+
+Observations:
+- The cold storm hit `/api/workspace` and `/api/digest` (~7.7 s p95) because the first 24-call cohort raced the same cold start — each paying git-walk/audit work before single-flight TTLs converged. All four converge afterwards; warm p95 ≤ 531 ms everywhere except health.
+- `/api/admin/summary` remains the heaviest route by design — read once per panel unlock; on this workspace (~24 tasks, ~1,600 audit lines) it is acceptable cold and expensive if hammered at c=24. Nobody calls it 24 times a second; no change pretended.
+- **/api/health is not trivially free** on a busy Windows box (p50 178 ms warm): it co-resides on the same GIL as the tooling shell that was running the M8-T1038 build/tests at this exact moment. The honest state is "fine for one cockpit, not a multi-tenant plane" — same caveat carried through this document.
+- No Git commits accompanied this measurement: the wire fix is the only code delta since M8-T1037, and it does not touch the read plane.

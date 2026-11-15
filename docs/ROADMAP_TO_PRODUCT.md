@@ -53382,3 +53382,24 @@ Admin 面板已经能看到完成数的绝对值（20/24）和趋势（七日事
 
 - live probe 与 live provider 端到端复现——`protocol after turn: responses`、`prompt_cache_hit_tokens=4224`、`cache_hit_rate=0.9620`。
 - 全 tests/LLM/Provider/Responses/Plan-channel suites 全绿；CRLF gates 655/309 零漂移。
+## 批次 1024 - M8-T1039: Atlas「岛屿志」抽屉 — 十二座岛各自的账本，现场算、现场亮
+
+### 目的
+
+Atlas 已有的成就全是"点到即亮"——stardust、52→53 坐标、足迹长虹、里程碑。唯独没有一处地方告诉用户**每座岛勘了多少 / 还差多少**——这个世界缺的恰恰是账本感，是用户离"勘完整个世界"差几颗星。这次只做十二座岛各自的勘度账本，不含更多、不做虚荣进度——每一次计数都从 visitedKey 与 ALL_NODES 读出来，从不拍胸脯。
+
+### 做了什么
+
+- **`web/index.html`** — `#atlasIslandsToggle` 按钮（`library` glyph，右上 HUD 组，与清空足迹 / 回中心 / 关闭同族）+ `#atlasIslands` aside（kicker "岛屿志 · 十二岛 / Islands, twelve", 汇总 `#atlasIslandsCharted`…）；index.html 全文件 CRLF 受污染后连根还原为 662 行 CRLF-only（pin gate 绿）。
+- **`web/src/core/i18n.js`** — 新键 `atlas.islandsToggle` / `atlas.islandsTitle` / `atlas.islandsOf` / `atlas.islandsDone` / `atlas.islandsProgress` 双语对齐；`#atlasIslandsToggle` 接入 `data-i18n-aria/title`（parity gate 抓到 hardcoded zh 属性后修正）。
+- **`web/src/panels/atlas.js`** — `ISLAND_ORDER` + `ISLAND_LORE`（12 座岛双语 lore，金/mint/violet tint 各自对应工作面/事实面/实验面）；`renderIslands()` / `toggleIslands()`；每行 `done/total`、完成态/进行态/未触态（mint/amber/dim），`#atlasIslands` 抽屉内部 flex 滚动、`#atlasStage` 的 `closeAtlas()` 也接上抽屉复位；openAtlas 时强制复位（hidden），避免再开时残留旧状态。
+- **`web/styles.css`** — `.atlas-islands`（安珀左框、#101820 → #0c1118 双层渐变、backdrop blur 10px）、行 hover、bar 的 amber→mint 渐变过渡、`.atlas-island-status` 竖排 uppercase letterspacing、≤900 px 折叠。
+- **`tests/atlas_smoke.mjs`** — 新断言：抽屉打开 → `.atlas-island-row` 恰为 12 → 每行 count 符合 `^\d+ / \d+$` → 再次点击收起；log 行更新为 "islands ledger lists 12 real islands"。
+- **`tests/atlas_smoke.mjs / manual modules / README`** — 同步 cnne Atlas entry（zh+en 双侧 + modules chapter + README ledgering）说明抽屉存在与行为。
+- **`docs/LOAD_TESTING.md`** — 新章节 "2026-11-15 M8-T1038 follow-up"：24-way cold/warm 两段真实数字落账（warm p95≤530ms；cold 生命周期 git-walk 7.7s；/api/admin/summary cold 11.5s 真实告知）。
+- **i18n 洁癖纪律**：en 侧 Island panel 内零 CJK；`.minicc` CTMA 圈外任何含字母中文残留在抽屉内 — parity smoke 全绿交付。
+
+### 实测验证
+
+- `node tests/atlas_smoke.mjs` — islands ledger assertions green；parity / manual / almanac 全绿；CRLF pin gates 绿。
+- 截图：`output/islands_zh.png`（中文模式，岛名金/紫/mint 各异、进度条照明完好）与 `output/islands_en.png`（en 模式零中文，"ISLANDS, TWELVE" 界面整改）。

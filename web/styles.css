@@ -5617,3 +5617,28 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-exceptions li { display: grid; grid-template-columns: auto 1fr; gap: 10px; border-left: 2px solid var(--mint); background: var(--surface-soft); padding: 8px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
 .almanac-exceptions strong { color: var(--text); font-weight: 600; }
 @media (max-width: 760px) { .almanac-exceptions li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* M8-T1039: the islands ledger — twelve islands, counted honestly. */
+.atlas-islands { position: absolute; top: 132px; right: 18px; bottom: 104px; width: 348px; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 12px; background: linear-gradient(165deg, color-mix(in srgb, #101820 88%, transparent), color-mix(in srgb, #0c1118 92%, transparent)); border: 1px solid color-mix(in srgb, #fbbf24 22%, transparent); border-left: 3px solid var(--amber); border-radius: 10px; backdrop-filter: blur(10px); z-index: 6; overflow: hidden; box-shadow: 0 24px 60px -30px rgba(0,0,0,.75); }
+.atlas-islands[hidden] { display: none; }
+.atlas-islands-kicker { display: flex; align-items: center; gap: 8px; color: var(--quiet); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
+.atlas-islands-kicker svg { width: 15px; height: 15px; color: var(--amber); }
+.atlas-islands-summary { display: flex; align-items: baseline; gap: 10px; padding: 4px 0 6px; border-bottom: 1px solid color-mix(in srgb, #fbbf24 16%, transparent); }
+.atlas-islands-summary strong { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+.atlas-islands-summary span { color: var(--muted); font-size: 10px; letter-spacing: .08em; }
+.atlas-islands-list { flex: 1; overflow-y: auto; display: grid; gap: 4px; list-style: none; padding: 2px 2px 32px; margin: 0; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, #fbbf24 40%, transparent) transparent; }
+.atlas-island-row { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 7px; background: color-mix(in srgb, #171e28 40%, transparent); transition: background .2s ease; }
+.atlas-island-row:hover { background: color-mix(in srgb, #fbbf24 10%, color-mix(in srgb, #171e28 60%, transparent)); }
+.atlas-island-complete { border-left: 1px solid color-mix(in srgb, #34d399 45%, transparent); }
+.atlas-island-dim { opacity: .72; }
+.atlas-island-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--island-tint, var(--amber)); box-shadow: 0 0 10px -2px var(--island-tint, var(--amber)); }
+.atlas-island-body { display: grid; gap: 3px; min-width: 0; }
+.atlas-island-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--text); font-size: 12px; font-weight: 600; line-height: 1.2; }
+.atlas-island-count { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-size: 10px; color: var(--quiet); font-variant-numeric: tabular-nums; }
+.atlas-island-lore { color: var(--muted); font-size: 9.5px; line-height: 1.55; }
+.atlas-island-bar { height: 2px; background: color-mix(in srgb, #111820 80%, transparent); border-radius: 2px; overflow: hidden; }
+.atlas-island-bar i { display: block; height: 100%; background: linear-gradient(90deg, #fbbf24, #fde68a); border-radius: 2px; transition: width .6s cubic-bezier(.34, 1.56, .64, 1); }
+.atlas-island-complete .atlas-island-bar i { background: linear-gradient(90deg, #34d399, #6ee7b7); }
+.atlas-island-status { color: var(--quiet); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; writing-mode: vertical-rl; text-orientation: mixed; }
+.atlas-islands-toggle:hover { border-color: color-mix(in srgb, #fbbf24 45%, transparent); }
+@media (max-width: 900px) { .atlas-islands { display: none; } }

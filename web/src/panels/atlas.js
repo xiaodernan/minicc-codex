@@ -134,6 +134,24 @@ const MANUAL_SATELLITES = MANUAL_CHAPTERS.map((ch, i) => {
   };
 });
 
+
+/* v M8-T1039 — the islands ledger. Twelve islands exactly, counted honestly. */
+const ISLAND_ORDER = ["workbench", "captain", "museum", "reading", "vault", "overlook", "dockyard", "infirmary", "gatekeeper", "arcade", "observatory", "archive"];
+const ISLAND_LORE = [
+  { region: "workbench",  zhName: "工作台大厅", enName: "The Workbench Hall", zhLore: "任务、工作区、动态、模板——长椅上的每一块木头都留着你的指纹。", enLore: "Tasks, workspaces, activity, templates — every plank on these benches carries your fingerprints.", tint: "#f0b35e" },
+  { region: "captain",    zhName: "船长日志",   enName: "The Captain's Log", zhLore: "账本、脉搏、近况、日志——这艘船唯一从不掩饰自己的地方。", enLore: "Ledger, pulse, recent and journal — the one place on this ship that never flatters itself.", tint: "#f0b35e" },
+  { region: "museum",     zhName: "年鉴博物馆", enName: "Museum of Volumes", zhLore: "二十二卷每一页都来自仓库自己说的话，读它们等于审计你的坚持。", enLore: "Twenty-two volumes of the repo's own voice — reading them is auditing your own persistence.", tint: "#f0b35e" },
+  { region: "reading",    zhName: "说明书阅览室", enName: "The Reading Room", zhLore: "怎么打开、怎么用、怎么退出——写在纸上永远比在外头猜来得快。", enLore: "How to open, how to use, how to leave — paper told you sooner than the room would have.", tint: "#f0b35e" },
+  { region: "vault",      zhName: "铁律库",     enName: "The Axiom Vault", zhLore: "十条铁律，每一条都被质疑过、也都被证明了自己。", enLore: "Ten laws here, each one once questioned — and each one proved itself anyway.", tint: "#b39af7" },
+  { region: "overlook",   zhName: "瞭望塔",     enName: "The Overlook", zhLore: "免费入场。世界在这个高度开始给自己打广告——心甘情愿地。", enLore: "Free of charge. The world advertises itself up here — quite happily.", tint: "#b39af7" },
+  { region: "dockyard",   zhName: "船厂",       enName: "The Dockyard", zhLore: "每一笔提交都钉在墙上——给你自己看的。", enLore: "Every commit nailed to the wall — for your eyes only.", tint: "#8fd6a1" },
+  { region: "infirmary",  zhName: "诊断中心",   enName: "The Infirmary", zhLore: "对外给出真实的回声，对内给出真实的压力。", enLore: "A real echo to the outside world; a real load on the inside.", tint: "#8fd6a1" },
+  { region: "gatekeeper", zhName: "管理员门",   enName: "The Gatekeeper Door", zhLore: "密码 123——所有人都知道，所以它摆在边界上反而成了检查站。", enLore: "Password 123 — everyone knows it, which is exactly why it stands at the border.", tint: "#b39af7" },
+  { region: "arcade",     zhName: "小游戏乐园", enName: "The Arcade", zhLore: "边守阵线边等构建结束——工作不塌方，生活也能塌方。", enLore: "Hold the line while the build finishes — the only siege here that pays off.", tint: "#b39af7" },
+  { region: "observatory",zhName: "问仓库观测台", enName: "Repo Observatory", zhLore: "BM25 只是一双词典级别的耳朵，但对这个仓库，够用。", enLore: "BM25 is a dictionary-grade ear — and more than enough for this repository.", tint: "#b39af7" },
+  { region: "archive",    zhName: "档案馆",     enName: "Archive Shelves", zhLore: "每一笔提交都钉在墙上，但没人真去数数——直到你打开这个房间。", enLore: "Every commit nailed to the shelf — nobody ever counted them until you walked in here.", tint: "#8fd6a1" },
+];
+
 const ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
 const ATLAS_TOTAL = ALL_NODES.length;
 
@@ -454,6 +472,10 @@ export async function openAtlas() {
   if (resetBtn) { resetBtn.onclick = () => { const c = stateRef.canvas; if (c) fitCamera(c); }; }
   const clearBtn = $("#atlasClearTrail");
   if (clearBtn) { clearBtn.onclick = () => { clearVisitHistory(); stateRef.visited = new Set(); updateHUD(); }; }
+  const islandsToggle = $("#atlasIslandsToggle");
+  if (islandsToggle) islandsToggle.onclick = () => toggleIslands();
+  const islandsPanel = $("#atlasIslands");
+  if (islandsPanel) islandsPanel.setAttribute("hidden", "");
   resizeAtlas();
   updateHUD();
   refreshIcons();
@@ -465,7 +487,58 @@ export function closeAtlas() {
   const modal = $("#atlasStage");
   if (!modal) return;
   modal.setAttribute("aria-hidden", "true");
+  const islandsPanel = $("#atlasIslands");
+  if (islandsPanel) islandsPanel.setAttribute("hidden", "");
   cancelAnimationFrame(stateRef.raf);
+}
+
+function renderIslands() {
+  const panel = $("#atlasIslands");
+  const list = $("#atlasIslandsList");
+  const summary = $("#atlasIslandsCharted");
+  if (!panel || !list || !summary) return;
+  if (panel.getAttribute("hidden") === "true" || panel.hasAttribute("hidden")) return;
+  const visited = readVisited();
+  let total = 0;
+  let charted = 0;
+  const zhFlag = zh();
+  const rows = [];
+  for (const regionId of ISLAND_ORDER) {
+    const lore = ISLAND_LORE.find((entry) => entry.region === regionId);
+    const nodes = ALL_NODES.filter((node) => node.region === regionId);
+    const done = nodes.filter((node) => visited.has(node.visitedKey ?? node.id)).length;
+    total += nodes.length;
+    charted += done;
+    const pct = nodes.length > 0 ? Math.round((done / nodes.length) * 100) : 0;
+    const status = done === nodes.length && nodes.length > 0
+      ? (zhFlag ? t("atlas.islandsDone") : t("atlas.islandsDone"))
+      : (done > 0 ? (zhFlag ? t("atlas.islandsProgress") : t("atlas.islandsProgress")) : (zhFlag ? "未触及" : "uncharted"));
+    rows.push(`<li class="atlas-island-row${done === nodes.length ? " atlas-island-complete" : done === 0 ? " atlas-island-dim" : ""}">
+      <span class="atlas-island-dot" style="--island-tint:${lore.tint}"></span>
+      <span class="atlas-island-body">
+        <span class="atlas-island-name">${escapeTip(zhFlag ? lore.zhName : lore.enName)}
+          <span class="atlas-island-count">${done} / ${nodes.length}</span>
+        </span>
+        <span class="atlas-island-lore">${escapeTip(zhFlag ? lore.zhLore : lore.enLore)}</span>
+        <span class="atlas-island-bar"><i style="width:${pct}%"></i></span>
+      </span>
+      <span class="atlas-island-status">${escapeTip(status)}</span>
+    </li>`);
+  }
+  summary.textContent = `${charted} / ${total}`;
+  list.innerHTML = rows.join("");
+}
+
+function toggleIslands(forceOpen) {
+  const panel = $("#atlasIslands");
+  if (!panel) return;
+  const open = forceOpen ?? panel.hasAttribute("hidden");
+  if (open) {
+    panel.removeAttribute("hidden");
+    renderIslands();
+  } else {
+    panel.setAttribute("hidden", "");
+  }
 }
 
 function updateShardsHUD() {

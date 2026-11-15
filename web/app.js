@@ -740,6 +740,11 @@
       "atlas.milestone50": "\u2726 \u661F\u5C18 26 / 52 \u2014\u2014 \u5730\u56FE\u7684\u4E00\u534A\u4EAE\u4E86",
       "atlas.milestone75": "\u2726 \u661F\u5C18 39 / 52 \u2014\u2014 \u6700\u540E\u4E00\u6247\u95E8\u5C31\u5728\u524D\u9762",
       "atlas.milestone100": "\u2726 \u661F\u5C18 52 / 52 \u2014\u2014 \u4E16\u754C\u5C3D\u6536\u773C\u5E95\uFF0C\u4F60\u628A\u5B83\u4E00\u6761\u4E0D\u5C11\u5730\u8D70\u5B8C\u4E86",
+      "atlas.islandsTitle": "\u5C9B\u5C7F\u5FD7 \xB7 \u5341\u4E8C\u5C9B",
+      "atlas.islandsOf": "\u5904\u5DF2\u52D8 \xB7 \u5341\u4E8C\u5EA7\u5C9B",
+      "atlas.islandsDone": "\u8FD9\u5C9B\u52D8\u5B8C\u4E86",
+      "atlas.islandsProgress": "\u52D8\u4E2D",
+      "atlas.islandsToggle": "\u5C9B\u5C7F\u5FD7",
       "admin.kicker": "\u5B9E\u65F6 \xB7 read-only \xB7 \u6570\u5B57\u6765\u81EA\u771F\u5B9E\uFF0C\u4ECE\u4E0D\u4F2A\u9020",
       "admin.title": "\u7BA1\u7406\u5458",
       "admin.tagline": "\u5BC6\u7801 123 \u2014\u2014 \u672C\u5730\u5171\u4EAB\u95E8\u3002\u4EFB\u4F55\u77E5\u9053\u5B83\u7684\u4EBA\u90FD\u53EF\u4EE5\u6253\u5F00\u8FD9\u4E2A\u9762\u677F\uFF1B\u5B83\u4E0D\u662F\u767B\u5F55\u7CFB\u7EDF\uFF0C\u53EA\u662F\u4E00\u9053\u5171\u4EAB\u95E8\u3002",
@@ -1475,6 +1480,11 @@
       "atlas.milestone50": "\u2726 26 / 52 stardust \u2014 half the map is lit",
       "atlas.milestone75": "\u2726 39 / 52 stardust \u2014 the last door is just ahead",
       "atlas.milestone100": "\u2726 52 / 52 stardust \u2014 the world, end to end, is yours",
+      "atlas.islandsTitle": "Islands, twelve",
+      "atlas.islandsOf": "charted \xB7 twelve islands",
+      "atlas.islandsDone": "island complete",
+      "atlas.islandsProgress": "in progress",
+      "atlas.islandsToggle": "Islands",
       "admin.kicker": "live \xB7 read-only \xB7 numbers from real runs, nothing fabricated",
       "admin.title": "Admin",
       "admin.tagline": "Password 123 \u2014 a shared door. Anyone who knows it can open this panel; it is not a login, it is a shared door.",
@@ -4332,7 +4342,7 @@
       <li><strong>\u8239\u5382 \xB7 Dockyard</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8239\u5382\u300D\uFF1A\u628A\u4F60\u81EA\u5DF1\u7684\u771F\u5B9E\u65C5\u7A0B\u505A\u6210\u5C55\u5385\u2014\u2014\u300C\u822A\u6D77\u65E5\u5FD7\u300D\u516D\u683C\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u4E0E git \u5143\u6570\u636E\uFF08\u9996\u6B21\u63D0\u4EA4 / \u63D0\u4EA4\u603B\u6570 / \u5B8C\u6210\u4EFB\u52A1 / \u5E74\u9274\u5377\u6570 / \u7D2F\u8BA1 token / \u7F13\u5B58\u4EB2\u548C\u7387\uFF0C\u6570\u636E\u76F4\u63A5\u8BFB /api/digest\u3001/api/metrics\u3001/api/worldpulse\uFF09\uFF1B\u300C\u706F\u5854 \xB7 \u5341\u5EA7\u91CC\u7A0B\u7891\u300D\u7167\u771F\u5B9E\u6307\u6807\u9010\u683C\u89E3\u9501\uFF08\u8D77\u822A / \u9886\u4E3B 1,000 \u63D0\u4EA4 / \u5377\u5178\u8005\u5341\u4E03\u5377 / \u4E07\u70B9\u7E41\u661F / \u5B88\u591C\u4EBA 80% \u4EB2\u548C\u7387\u7B49\uFF09\uFF0C\u672A\u8FBE\u6210\u7684\u53EA\u663E\u793A\u771F\u5B9E\u8FDB\u5EA6\uFF0C\u4E0D\u653E\u6F14\u793A\u5FBD\u7AE0\u3002</li>
       <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u4E8C\u5341\u4E8C\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u4E8C\u5341\u4E00\u300A\u7BF1\u7B06\u300B\uFF0C\u8BB2\u7684\u662F en \u6A21\u5F0F\u4E0B\u6BCF\u4E2A\u4E2D\u6587\u5B57\u7B26\u90FD\u5F97\u8BF4\u660E\u81EA\u5DF1\u8EAB\u4EFD\u300123 \u9897\u661F\u5C18\u4ECD\u7136\u7F3A\u4E00\u9897\u770B\u4E0D\u89C1\u7684\u90A3\u4E00\u665A\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u7BA1\u7406\u5458 \xB7 Admin</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u7BA1\u7406\u300D\uFF1A\u5BC6\u7801 123 \u7814\u4E00\u9053\u5171\u4EAB\u95E8\uFF08\u975E\u767B\u5F55\uFF0C\u53EA\u5BF9\u672C\u5730\u81EA\u5DF1\u4EBA\u53EF\u89C1\uFF09\uFF1Bstats\uFF08\u4EFB\u52A1\u6570 / \u5B8C\u6210 / \u4E2D\u65AD / \u7F13\u5B58\u4EB2\u548C\u7387 / \u5BA1\u8BA1\u884C / \u4F1A\u8BDD\u6570\uFF09+ \u4E03\u65E5\u4E8B\u4EF6 Canvas\uFF08requestAnimationFrame \u771F\u7ED8\u5236\uFF09+ \u6700\u5C0F\u4E8C\u4E58\u7EBF\u6027\u9884\u6D4B\uFF08\u660E\u6587\u6807\u6CE8\uFF1A\u8FD9\u662F\u4F30\u8BA1\uFF0C\u4E0D\u662F\u627F\u8BFA\uFF09+ \u4E2D\u65AD\u539F\u56E0\u81EA\u52A8\u5206\u6876\uFF08\u8FD9\u4E2A\u4ED3\u5E93\u5168\u90E8 3 \u6B21\u4E2D\u65AD\u5168\u90E8\u662F\u670D\u52A1\u91CD\u542F\uFF09+ \u9876\u90E8\u5DE5\u5177\u771F\u5B9E\u4F7F\u7528\u76F4\u65B9\u56FE\uFF08read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5%\uFF0C\u5168\u90E8\u4ECE /api/admin/summary \u771F\u5B9E\u8BFB\u6570\uFF0C\u96F6\u865A\u6784\uFF09\uFF1B\u70B9 4 \u4E0B\u4E4B\u540E\u5C31\u80FD\u770B\u89C1\u6240\u6709\u6570\u5B57\u3002</li>
-      <li><strong>\u4E16\u754C\u5730\u56FE \xB7 Atlas</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5730\u56FE\u300D\uFF1A\u4E00\u5F20 canvas \u5730\u56FE\uFF0812 \u5EA7\u5C9B\u5C7F\u300153 \u4E2A\u771F\u5B9E\u5750\u6807\u2014\u201418 \u9762\u677F + 22 \u5E74\u9274\u536B\u661F + 13 \u8BF4\u660E\u4E66\u536B\u661F\uFF09\uFF1B\u62D6\u62FD\u5E73\u79FB\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u51FB\u5750\u6807\u76F4\u8FBE\u5BF9\u5E94\u9762\u677F\u6216\u7AE0\u8282\uFF1B\u5DF2\u70B9\u4EAE\u7425\u73C0\u8272\u300C\u5DF2\u63A2\u8BBF\u300D\uFF0C\u672A\u89E6\u53CA\u7070\u8272\u70EC\uFF1BvisitedKey \u7AEF\u5230\u7AEF\u4E3A\u8BC1\u660E\uFF0C\u9632\u6B62\u4F60\u70B9\u4EAE\u4E4B\u540E\u8DF3\u8D70\u53C8\u8BA4\u4E0D\u51FA\u6765\uFF1B\u300C\u6E05\u9664\u6211\u7684\u8DB3\u8FF9\u300D\u4E00\u952E\u6E05\u7A7A localStorage \u91CC\u7684\u8BBF\u95EE\u8BB0\u5F55\uFF1B<strong>\u661F\u5C18\u91CC\u7A0B\u7891</strong>\uFF08\u52D8\u5B8C 25%\u300150%\u300175%\u3001100% \u65F6\u661F\u5C18\u81EA\u5DF1\u4F1A\u8BF4\u4E00\u53E5\u8BDD\uFF0C\u6BCF\u6863\u53EA\u8BF4\u4E00\u6B21\u2014\u2014\u6E05\u9664\u8DB3\u8FF9\u4E5F\u6E05\u6389\u5B83\u4EEC\uFF09\uFF1BEsc \u968F\u65F6\u5173\u95ED\u3002</li>
+      <li><strong>\u4E16\u754C\u5730\u56FE \xB7 Atlas</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5730\u56FE\u300D\uFF1A\u4E00\u5F20 canvas \u5730\u56FE\uFF0812 \u5EA7\u5C9B\u5C7F\u300153 \u4E2A\u771F\u5B9E\u5750\u6807\u2014\u201418 \u9762\u677F + 22 \u5E74\u9274\u536B\u661F + 13 \u8BF4\u660E\u4E66\u536B\u661F\uFF09\uFF1B\u62D6\u62FD\u5E73\u79FB\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u51FB\u5750\u6807\u76F4\u8FBE\u5BF9\u5E94\u9762\u677F\u6216\u7AE0\u8282\uFF1B\u53F3\u4FA7\u4E66\u67B6\u300C\u5C9B\u5C7F\u5FD7 \xB7 \u5341\u4E8C\u5C9B\u300D\u5B9E\u65F6\u663E\u793A\u6BCF\u5EA7\u5C9B\u7684\u52D8\u5EA6\uFF08\u51E0\u4F55\u6BCF\u5C9B\u51E0\u4E2A\u5750\u6807\u3001\u52D8\u4E86\u51E0\u4E2A\uFF09+ \u6BCF\u5EA7\u5C9B\u4E00\u53E5\u5C5E\u4E8E\u81EA\u5DF1\u7684\u8BDD\uFF1B\u5DF2\u70B9\u4EAE\u7425\u73C0\u8272\u300C\u5DF2\u63A2\u8BBF\u300D\uFF0C\u672A\u89E6\u53CA\u7070\u8272\u70EC\uFF1BvisitedKey \u7AEF\u5230\u7AEF\u4E3A\u8BC1\u660E\uFF0C\u9632\u6B62\u4F60\u70B9\u4EAE\u4E4B\u540E\u8DF3\u8D70\u53C8\u8BA4\u4E0D\u51FA\u6765\uFF1B\u300C\u6E05\u9664\u6211\u7684\u8DB3\u8FF9\u300D\u4E00\u952E\u6E05\u7A7A localStorage \u91CC\u7684\u8BBF\u95EE\u8BB0\u5F55\uFF1B<strong>\u661F\u5C18\u91CC\u7A0B\u7891</strong>\uFF08\u52D8\u5B8C 25%\u300150%\u300175%\u3001100% \u65F6\u661F\u5C18\u81EA\u5DF1\u4F1A\u8BF4\u4E00\u53E5\u8BDD\uFF0C\u6BCF\u6863\u53EA\u8BF4\u4E00\u6B21\u2014\u2014\u6E05\u9664\u8DB3\u8FF9\u4E5F\u6E05\u6389\u5B83\u4EEC\uFF09\uFF1BEsc \u968F\u65F6\u5173\u95ED\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -4351,7 +4361,7 @@
       <li><strong>Dockyard</strong> \u2014 sidebar \u201CDockyard\u201D: your own real journey as a harbour of stakes. \u201CCaptain's log\u201D shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity \u2014 read in place from /api/digest, /api/metrics, /api/worldpulse); \u201CLighthouse stakes\u201D \u2014 ten medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity\u2026). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in twenty-two chapters (the newest, Chapter XXI \u201CThe Fence\u201D \u2014 the day every untranslated byte was cornered, four of them found and retired; our one-language-at-a-time law got written down), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> \u2014 sidebar entry \u201CAdmin\u201D: password <code>123</code> unlocks a shared door (not a login \u2014 a door for anyone who knows it); stats \u2014 tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast \u2014 labelled\u201Cthis is an estimate, not a promise\u201D; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store \u2014 read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5% \u2014 not one demo number.</li>
-      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 twelve islands, fifty-three real coordinates \u2014 18 panes + 22 almanac satellites + 13 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 twelve islands, fifty-three real coordinates \u2014 18 panes + 22 almanac satellites + 13 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
@@ -5593,6 +5603,21 @@
       r: 16
     };
   });
+  var ISLAND_ORDER = ["workbench", "captain", "museum", "reading", "vault", "overlook", "dockyard", "infirmary", "gatekeeper", "arcade", "observatory", "archive"];
+  var ISLAND_LORE = [
+    { region: "workbench", zhName: "\u5DE5\u4F5C\u53F0\u5927\u5385", enName: "The Workbench Hall", zhLore: "\u4EFB\u52A1\u3001\u5DE5\u4F5C\u533A\u3001\u52A8\u6001\u3001\u6A21\u677F\u2014\u2014\u957F\u6905\u4E0A\u7684\u6BCF\u4E00\u5757\u6728\u5934\u90FD\u7559\u7740\u4F60\u7684\u6307\u7EB9\u3002", enLore: "Tasks, workspaces, activity, templates \u2014 every plank on these benches carries your fingerprints.", tint: "#f0b35e" },
+    { region: "captain", zhName: "\u8239\u957F\u65E5\u5FD7", enName: "The Captain's Log", zhLore: "\u8D26\u672C\u3001\u8109\u640F\u3001\u8FD1\u51B5\u3001\u65E5\u5FD7\u2014\u2014\u8FD9\u8258\u8239\u552F\u4E00\u4ECE\u4E0D\u63A9\u9970\u81EA\u5DF1\u7684\u5730\u65B9\u3002", enLore: "Ledger, pulse, recent and journal \u2014 the one place on this ship that never flatters itself.", tint: "#f0b35e" },
+    { region: "museum", zhName: "\u5E74\u9274\u535A\u7269\u9986", enName: "Museum of Volumes", zhLore: "\u4E8C\u5341\u4E8C\u5377\u6BCF\u4E00\u9875\u90FD\u6765\u81EA\u4ED3\u5E93\u81EA\u5DF1\u8BF4\u7684\u8BDD\uFF0C\u8BFB\u5B83\u4EEC\u7B49\u4E8E\u5BA1\u8BA1\u4F60\u7684\u575A\u6301\u3002", enLore: "Twenty-two volumes of the repo's own voice \u2014 reading them is auditing your own persistence.", tint: "#f0b35e" },
+    { region: "reading", zhName: "\u8BF4\u660E\u4E66\u9605\u89C8\u5BA4", enName: "The Reading Room", zhLore: "\u600E\u4E48\u6253\u5F00\u3001\u600E\u4E48\u7528\u3001\u600E\u4E48\u9000\u51FA\u2014\u2014\u5199\u5728\u7EB8\u4E0A\u6C38\u8FDC\u6BD4\u5728\u5916\u5934\u731C\u6765\u5F97\u5FEB\u3002", enLore: "How to open, how to use, how to leave \u2014 paper told you sooner than the room would have.", tint: "#f0b35e" },
+    { region: "vault", zhName: "\u94C1\u5F8B\u5E93", enName: "The Axiom Vault", zhLore: "\u5341\u6761\u94C1\u5F8B\uFF0C\u6BCF\u4E00\u6761\u90FD\u88AB\u8D28\u7591\u8FC7\u3001\u4E5F\u90FD\u88AB\u8BC1\u660E\u4E86\u81EA\u5DF1\u3002", enLore: "Ten laws here, each one once questioned \u2014 and each one proved itself anyway.", tint: "#b39af7" },
+    { region: "overlook", zhName: "\u77AD\u671B\u5854", enName: "The Overlook", zhLore: "\u514D\u8D39\u5165\u573A\u3002\u4E16\u754C\u5728\u8FD9\u4E2A\u9AD8\u5EA6\u5F00\u59CB\u7ED9\u81EA\u5DF1\u6253\u5E7F\u544A\u2014\u2014\u5FC3\u7518\u60C5\u613F\u5730\u3002", enLore: "Free of charge. The world advertises itself up here \u2014 quite happily.", tint: "#b39af7" },
+    { region: "dockyard", zhName: "\u8239\u5382", enName: "The Dockyard", zhLore: "\u6BCF\u4E00\u7B14\u63D0\u4EA4\u90FD\u9489\u5728\u5899\u4E0A\u2014\u2014\u7ED9\u4F60\u81EA\u5DF1\u770B\u7684\u3002", enLore: "Every commit nailed to the wall \u2014 for your eyes only.", tint: "#8fd6a1" },
+    { region: "infirmary", zhName: "\u8BCA\u65AD\u4E2D\u5FC3", enName: "The Infirmary", zhLore: "\u5BF9\u5916\u7ED9\u51FA\u771F\u5B9E\u7684\u56DE\u58F0\uFF0C\u5BF9\u5185\u7ED9\u51FA\u771F\u5B9E\u7684\u538B\u529B\u3002", enLore: "A real echo to the outside world; a real load on the inside.", tint: "#8fd6a1" },
+    { region: "gatekeeper", zhName: "\u7BA1\u7406\u5458\u95E8", enName: "The Gatekeeper Door", zhLore: "\u5BC6\u7801 123\u2014\u2014\u6240\u6709\u4EBA\u90FD\u77E5\u9053\uFF0C\u6240\u4EE5\u5B83\u6446\u5728\u8FB9\u754C\u4E0A\u53CD\u800C\u6210\u4E86\u68C0\u67E5\u7AD9\u3002", enLore: "Password 123 \u2014 everyone knows it, which is exactly why it stands at the border.", tint: "#b39af7" },
+    { region: "arcade", zhName: "\u5C0F\u6E38\u620F\u4E50\u56ED", enName: "The Arcade", zhLore: "\u8FB9\u5B88\u9635\u7EBF\u8FB9\u7B49\u6784\u5EFA\u7ED3\u675F\u2014\u2014\u5DE5\u4F5C\u4E0D\u584C\u65B9\uFF0C\u751F\u6D3B\u4E5F\u80FD\u584C\u65B9\u3002", enLore: "Hold the line while the build finishes \u2014 the only siege here that pays off.", tint: "#b39af7" },
+    { region: "observatory", zhName: "\u95EE\u4ED3\u5E93\u89C2\u6D4B\u53F0", enName: "Repo Observatory", zhLore: "BM25 \u53EA\u662F\u4E00\u53CC\u8BCD\u5178\u7EA7\u522B\u7684\u8033\u6735\uFF0C\u4F46\u5BF9\u8FD9\u4E2A\u4ED3\u5E93\uFF0C\u591F\u7528\u3002", enLore: "BM25 is a dictionary-grade ear \u2014 and more than enough for this repository.", tint: "#b39af7" },
+    { region: "archive", zhName: "\u6863\u6848\u9986", enName: "Archive Shelves", zhLore: "\u6BCF\u4E00\u7B14\u63D0\u4EA4\u90FD\u9489\u5728\u5899\u4E0A\uFF0C\u4F46\u6CA1\u4EBA\u771F\u53BB\u6570\u6570\u2014\u2014\u76F4\u5230\u4F60\u6253\u5F00\u8FD9\u4E2A\u623F\u95F4\u3002", enLore: "Every commit nailed to the shelf \u2014 nobody ever counted them until you walked in here.", tint: "#8fd6a1" }
+  ];
   var ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
   var ATLAS_TOTAL = ALL_NODES.length;
   var MILESTONE_KEYS = ["atlas.milestone25", "atlas.milestone50", "atlas.milestone75", "atlas.milestone100"];
@@ -5875,6 +5900,10 @@
         updateHUD();
       };
     }
+    const islandsToggle = $("#atlasIslandsToggle");
+    if (islandsToggle) islandsToggle.onclick = () => toggleIslands();
+    const islandsPanel = $("#atlasIslands");
+    if (islandsPanel) islandsPanel.setAttribute("hidden", "");
     resizeAtlas();
     updateHUD();
     refreshIcons();
@@ -5885,7 +5914,54 @@
     const modal = $("#atlasStage");
     if (!modal) return;
     modal.setAttribute("aria-hidden", "true");
+    const islandsPanel = $("#atlasIslands");
+    if (islandsPanel) islandsPanel.setAttribute("hidden", "");
     cancelAnimationFrame(stateRef.raf);
+  }
+  function renderIslands() {
+    const panel = $("#atlasIslands");
+    const list = $("#atlasIslandsList");
+    const summary = $("#atlasIslandsCharted");
+    if (!panel || !list || !summary) return;
+    if (panel.getAttribute("hidden") === "true" || panel.hasAttribute("hidden")) return;
+    const visited = readVisited();
+    let total = 0;
+    let charted = 0;
+    const zhFlag = zh9();
+    const rows = [];
+    for (const regionId of ISLAND_ORDER) {
+      const lore = ISLAND_LORE.find((entry) => entry.region === regionId);
+      const nodes = ALL_NODES.filter((node) => node.region === regionId);
+      const done = nodes.filter((node) => visited.has(node.visitedKey ?? node.id)).length;
+      total += nodes.length;
+      charted += done;
+      const pct3 = nodes.length > 0 ? Math.round(done / nodes.length * 100) : 0;
+      const status = done === nodes.length && nodes.length > 0 ? zhFlag ? t("atlas.islandsDone") : t("atlas.islandsDone") : done > 0 ? zhFlag ? t("atlas.islandsProgress") : t("atlas.islandsProgress") : zhFlag ? "\u672A\u89E6\u53CA" : "uncharted";
+      rows.push(`<li class="atlas-island-row${done === nodes.length ? " atlas-island-complete" : done === 0 ? " atlas-island-dim" : ""}">
+      <span class="atlas-island-dot" style="--island-tint:${lore.tint}"></span>
+      <span class="atlas-island-body">
+        <span class="atlas-island-name">${escapeTip(zhFlag ? lore.zhName : lore.enName)}
+          <span class="atlas-island-count">${done} / ${nodes.length}</span>
+        </span>
+        <span class="atlas-island-lore">${escapeTip(zhFlag ? lore.zhLore : lore.enLore)}</span>
+        <span class="atlas-island-bar"><i style="width:${pct3}%"></i></span>
+      </span>
+      <span class="atlas-island-status">${escapeTip(status)}</span>
+    </li>`);
+    }
+    summary.textContent = `${charted} / ${total}`;
+    list.innerHTML = rows.join("");
+  }
+  function toggleIslands(forceOpen) {
+    const panel = $("#atlasIslands");
+    if (!panel) return;
+    const open = forceOpen ?? panel.hasAttribute("hidden");
+    if (open) {
+      panel.removeAttribute("hidden");
+      renderIslands();
+    } else {
+      panel.setAttribute("hidden", "");
+    }
   }
   function updateShardsHUD() {
     const visited = readVisited();

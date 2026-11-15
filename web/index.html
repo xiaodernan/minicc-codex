@@ -552,11 +552,17 @@
           <div class="atlas-charted-line"><i data-lucide="map-pin"></i><span class="atlas-charted" id="atlasCharted">— / 53</span></div>
         </div>
         <div class="atlas-hud-buttons">
+          <button class="atlas-icon-button atlas-islands-toggle" id="atlasIslandsToggle" type="button" aria-label="岛屿志" title="岛屿志" data-i18n-aria="atlas.islandsToggle" data-i18n-title="atlas.islandsToggle"><i data-lucide="library"></i></button>
           <button class="atlas-icon-button atlas-clear-trail" id="atlasClearTrail" type="button" data-i18n-aria="atlas.clearTrail" data-i18n-title="atlas.clearTrail" aria-label="清除足迹" title="清除足迹"><i data-lucide="trash-2"></i></button>
           <button class="atlas-icon-button" id="atlasReset" type="button" data-i18n-aria="atlas.reset" data-i18n-title="atlas.reset" aria-label="回到中心" title="回到中心"><i data-lucide="focus"></i></button>
           <button class="atlas-icon-button" id="atlasClose" type="button" data-i18n-aria="atlas.close" data-i18n-title="atlas.close" aria-label="关闭地图" title="关闭地图"><i data-lucide="x"></i></button>
         </div>
       </header>
+      <aside class="atlas-islands" id="atlasIslands" hidden aria-label="island ledger">
+        <div class="atlas-islands-kicker"><i data-lucide="library"></i><span data-i18n="atlas.islandsTitle">岛屿志 · 十二岛</span></div>
+        <div class="atlas-islands-summary"><strong id="atlasIslandsCharted">—</strong><span data-i18n="atlas.islandsOf">处已勘 · 十二座岛</span></div>
+        <ul class="atlas-islands-list" id="atlasIslandsList"></ul>
+      </aside>
       <footer class="atlas-hud atlas-hud-bottom">
         <div class="atlas-shards" id="atlasShards" hidden aria-label="stardust count">
           <i data-lucide="sparkles"></i><span data-i18n="atlas.shardsLabel">星尘</span><strong id="atlasShardsCount">0 / 52</strong><small data-i18n="atlas.shardsHint">每登陆一个坐标 = 一粒星尘</small>
