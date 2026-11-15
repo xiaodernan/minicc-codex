@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:30:57.434Z",
+  "generated_at": "2026-11-15T09:31:42.460Z",
   "branch": "main",
-  "head": "60ed56f",
-  "total_commits": 1608,
+  "head": "ef5d2f8",
+  "total_commits": 1610,
   "recent_commits": [
+    {
+      "short": "ef5d2f8",
+      "at": "2026-11-15T17:31:24+08:00",
+      "subject": "README: manual now thirteen chapters (added Full Stack chapter XII+XIII)"
+    },
+    {
+      "short": "423c42e",
+      "at": "2026-11-15T09:30:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "60ed56f",
       "at": "2026-11-15T17:30:37+08:00",
@@ -19,16 +29,6 @@
       "short": "4677f67",
       "at": "2026-11-15T17:26:52+08:00",
       "subject": "M8-T1010: manual chapter XII 'Spring Cloud plane' - teach the user to stand up the whole distributed plane on their own machine with real commands verified end-"
-    },
-    {
-      "short": "5383f7e",
-      "at": "2026-11-15T09:22:18Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "beeff4a",
-      "at": "2026-11-15T17:21:59+08:00",
-      "subject": "M8-T1009: branch/worktree audit - 30 worktrees, 7 local branches, 5 origin lines verified; all real features already merged or superceded; no outstanding merge "
     }
   ],
   "first_commit_at": "2026-08-24",
