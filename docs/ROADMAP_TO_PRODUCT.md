@@ -53302,3 +53302,22 @@ Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手�
 - **连带证据链（UX bug 也被这一轮揪出并处理）**：本项目面板 `.panel-modal` 在 fade-out 期间仍拦截指针；parity 巡检脚本一度因点选穿透失败表现出"按钮点不动"——收敛为门禁内的 `settlePanelModal()`（`waitForFunction` 等真实关闭 + 450ms 过渡收尾），确定性通过。没有产品 bug 夹带其中。
 - **验证**：`node tests/en_cjk_smoke.mjs` 全绿（含 en: 12视图×(扫+Esc)、6浮层、admin123解锁、arcade、wayfinder 9步；zh: nav 携带 CJK）；atlas/manual/almanac/admin smokes 不受影响；CRLF gates 865=655+309 零漂移；`npm run build:web` 绿，app.js bundle 重哈希。
 - **记录**：本批提交时 CI `43736466300`（M8-T1033, 415cd8e8）仍在跑，push 将等远端落地以免 cancel-in-progress。
+## 批次 1020 - M8-T1035: 星尘里程碑 — 勘完这个世界是它自己会庆祝的旅程
+
+### 目的
+
+上一批把 Atlas 的"星尘计数"亮出来后，下一个自然的缺口是：勘完 25% 和勘完 100%，用户从产品的语气里什么都听不到。游戏感的关键从来不是数值，而是这个世界注意到你做了什么并说了句话。做这件事的约束：① 全部基于真实 visited 计数，无伪造、无 fake toast；② 每个里程碑只说一次（localStorage 持久化），"清除足迹"一并清零——诚实的重置；③ 双语一致；④ 不打断 CI 门禁（fresh profile 永远不发）。
+
+### 做了什么
+
+- **`web/src/core/visited.js`** — 新增星尘里程碑持久层：`setStardustListener(fn)`（Atlas 注册监听器）、`readStardustMilestone`/`writeStardustMilestone`（threshold 计数 0–4）、`MILESTONE_KEY = "minicc-stardust-milestone"`；`markVisited` 在持久化成功后触发 listener（listener 异常被吞，绝不影响访问本身）；`clearVisitHistory()` 现在连同里程碑一起清空（诚实重置）。
+- **`web/src/panels/atlas.js`** — boot-time 注册 `checkStardustMilestones`；按 `ALL_NODES.length`（52）四档阈值 `[0.25, 0.5, 0.75, 1]`（实际取整 13/26/39/52）；firing 只触发**最高** pending 档位（一次调用最多一个 toast）；inline `showMilestoneToast`（本地复制 8 行，刻意不引 panels/index.js 避免环）；module boot 同步一次（`checkStardustMilestones()`）——老用户升级后获得一次性补发庆典。
+- **`web/src/core/i18n.js`** — 双语新键 `atlas.milestone25/50/75/100`（"✦ 星尘 13 / 52 —— 世界开始发亮，你已经勘过四分之一" … "✦ 星尘 52 / 52 —— 世界尽收眼底，你把它一条不少地走完了"）。
+- **`tests/en_cjk_smoke.mjs` 加固** — 引入 `clickRetry`（首击败后 settle + Esc + 再触发，首败不算产品 bug）；admin/arcade/atlas 超时统一调 7–8s；三重连续实测绿。
+- **live 验证**：zh 种子 12 个已勘坐标 → 点 promo（第 13 个）→ toast 出现："✦ 星尘 13 / 52 —— 世界开始发亮，你已经勘过四分之一"，localStorage `minicc-stardust-milestone` = 1；再次 boot 不重复弹；38 种子 boot 只补发 50% 档不追发更早档；52 种子（18 panes + 21 almanac + 13 manual）→ milestone100 正确庆祝（初始值 0 启动）。
+
+### 实测验证
+
+- atlas_smoke / manual_smoke / almanac_smoke / admin_smoke / en_cjk_smoke 全绿；parity 三重连续 pass；CRLF gates 655/309 零漂移。
+- 门禁不受影响：fresh en walk 计数到 13（pulse 站）时显示 milestone toast，不拦截任何点击（`.toast` 有 `pointer-events: none`）。
+- 记录：本批提交时 CI `43739027082`（M8-T1034, 909f9751）仍在 in_progress；push 等远端落地。

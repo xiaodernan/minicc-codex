@@ -14,7 +14,7 @@ import { $, state } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { CHAPTERS as ALMANAC_CHAPTERS } from "./almanac.js";
 import { CHAPTERS as MANUAL_CHAPTERS } from "./manual.js";
-import { readVisited, readVisitTrail, clearVisitHistory } from "../core/visited.js";
+import { readVisited, readVisitTrail, clearVisitHistory, setStardustListener, readStardustMilestone, writeStardustMilestone } from "../core/visited.js";
 
 const zh = () => state.locale === "zh";
 const WORLD = Object.freeze({ w: 2600, h: 1600 });
@@ -136,6 +136,48 @@ const MANUAL_SATELLITES = MANUAL_CHAPTERS.map((ch, i) => {
 
 const ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
 const ATLAS_TOTAL = ALL_NODES.length;
+
+/* ------------------------------------------------------------------
+   M8-T1035 — stardust milestones. Real gameplay on real visits:
+   25 / 50 / 75 / 100 percent of the charted coordinates trigger a
+   one-shot bilingual toast, persisted so the same threshold never
+   toasts twice; an honest reset is part of "clear my trail".
+   Fresh visitors start at zero, so nothing fires on an empty world.
+   ------------------------------------------------------------------ */
+const MILESTONE_KEYS = ["atlas.milestone25", "atlas.milestone50", "atlas.milestone75", "atlas.milestone100"];
+const MILESTONE_THRESHOLDS = [0.25, 0.5, 0.75, 1];
+
+function showMilestoneToast(message) {
+  const toast = $("#toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("show");
+  window.clearTimeout(showMilestoneToast.timer);
+  showMilestoneToast.timer = window.setTimeout(() => toast.classList.remove("show"), 3600);
+}
+
+function stardustCount() {
+  const visited = readVisited();
+  let count = 0;
+  for (const node of ALL_NODES) if (visited.has(node.visitedKey ?? node.id)) count += 1;
+  return count;
+}
+
+function checkStardustMilestones() {
+  const total = ALL_NODES.length;
+  const count = stardustCount();
+  let pending = 0;
+  for (let i = 0; i < MILESTONE_THRESHOLDS.length; i += 1) {
+    if (count >= Math.ceil(total * MILESTONE_THRESHOLDS[i])) pending = i + 1;
+  }
+  const stored = readStardustMilestone();
+  if (pending <= stored) return;
+  writeStardustMilestone(pending);
+  showMilestoneToast(t(MILESTONE_KEYS[pending - 1]));
+}
+
+setStardustListener(checkStardustMilestones);
+
 const NODE_INDEX = new Map(ALL_NODES.map((n) => [n.visitedKey ?? n.id, n]));
 
 /* ---------- camera ---------- */
@@ -538,9 +580,10 @@ const escapeTip = (value) =>
   String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // Keep the pre-rendered HUD honest before the first Atlas open: the static
-// markup ships a zh placeholder, and state.locale is already loaded from
-// localStorage long before this module evaluates.
+// markup ships a locale-neutral placeholder, and state.locale is already loaded
+// from localStorage long before this module evaluates.
 try { updateHUD(); updateShardsHUD(); } catch { /* HUD not in DOM yet - fine */ }
+try { checkStardustMilestones(); } catch { /* milestones must never break boot */ }
 window.addEventListener("minicc:locale-changed", () => {
   try { updateHUD(); updateShardsHUD(); } catch { /* same best-effort guarantee */ }
 });

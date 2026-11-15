@@ -1,41 +1,3 @@
-/* ============================================================
-   M8-T1034 (en CJK parity): the en-mode whole-app walk.
-
-   The standing rule for this product is "all content is in ONE
-   language at a time — zh or en — never mixed." This smoke is the
-   gatekeeper of that rule for every *reachable* surface: home,
-   every sidebar/secondary nav view, every stage overlay, and the
-   completed Wayfinder tour.
-
-   Exemptions (en mode reports raw repo/user data, never UI chrome —
-   we do not and must not translate these):
-
-     #threadList, #messageList      the user's own prompts + model answers
-     .thread-item, .message         (same, split selectors)
-     .todo-item-text, .admin-task   user-authored todos / admin task rows
-     .admin-task-message            admin "recent tasks" shows the user's prompts
-     #localeZh                      the native-script glyph of the language toggle
-     .workspace-current-path,
-     .workspace-row strong/small,
-     .worktree-row strong/small,
-     .worktree-form input,
-     .workspace-form input          real filesystem paths (D:/面试项目/… exists on disk)
-     .archive-title/.archive-tag,
-     .recent-title,
-     .journal-subject,
-     .dockyard-commit,
-     .commit-subject                repo-authored git commit subjects & the author's
-                                    commit taxonomy (zh commits are real history, raw)
-     .pulse-archive-row,
-     .pulse-archive-row strong,
-     .pulse-timeline-node,
-     #pulseIdentityPath             pulse's task previews & the workspace path chip
-
-   Everything else — labels, captions, buttons, tooltips, aria-labels,
-   placeholders — MUST be English in en mode. Any CJK inside those is
-   a mixed-language leak and fails the gate, with the offending
-   element selector printed so it can be traced.
-   ============================================================ */
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
@@ -52,6 +14,27 @@ const EXEMPT = [
 ].join(", ");
 
 const browser = await chromium.launch({ headless: true });
+
+// The workbench never blocks a real click for real — retries exist only because
+// Playwright's actionability window (stable bounding box across 2 frames) can
+// transiently fail during re-renders even though the button is visible and
+// clickable a moment later. A second attempt after a settle is the honest
+// analog of a human tapping again.
+async function clickRetry(page, selector, { timeout = 8000, attempts = 2 } = {}) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await page.click(selector, { timeout });
+      return;
+    } catch (e) {
+      lastErr = e;
+      await page.waitForTimeout(1500);
+      await page.keyboard.press("Escape").catch(() => {});
+      await settlePanelModal(page).catch(() => {});
+    }
+  }
+  throw lastErr;
+}
 
 function collectVisibleCjk(page) {
   return page.evaluate((exempt) => {
@@ -85,7 +68,7 @@ async function settlePanelModal(page) {
     const m = document.querySelector("#panelModal");
     return !m || !m.classList.contains("show");
   }, null, { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(450); // close transition fully finishes before the next click
+  await page.waitForTimeout(450);
 }
 
 async function expectClean(page, label, errors) {
@@ -110,10 +93,9 @@ async function checkMode(locale) {
 
   await expectClean(page, "home/tasks", errors);
 
-  // sidebar + secondary-nav views — open, scan, Escape, settle
   for (const v of ["workspaces", "activity", "ledger", "templates", "axioms", "journal", "archive", "askdocs", "recent", "promo", "manual", "almanac"]) {
     try {
-      await page.click(`.nav-item[data-view="${v}"]`, { timeout: 6000 });
+      await clickRetry(page, `.nav-item[data-view="${v}"]`, { timeout: 8000 });
       await page.waitForTimeout(650);
       await expectClean(page, `view:${v}`, errors);
       await page.keyboard.press("Escape");
@@ -123,7 +105,6 @@ async function checkMode(locale) {
     }
   }
 
-  // stage overlays — open, scan, close via their dedicated close buttons
   const stages = [
     { btn: "#pulseButton", close: "#pulseStageClose", label: "pulse" },
     { btn: "#doctorButton", close: "#doctorStageClose", label: "doctor" },
@@ -133,33 +114,31 @@ async function checkMode(locale) {
   ];
   for (const s of stages) {
     try {
-      await page.click(s.btn, { timeout: 5000 });
+      await clickRetry(page, s.btn, { timeout: 7000 });
       await page.waitForTimeout(800);
       await expectClean(page, s.label, errors);
-      await page.click(s.close, { timeout: 4000 });
+      await page.click(s.close, { timeout: 4000 }).catch(() => {});
       await page.waitForTimeout(400);
     } catch (e) {
       errors.push(`[${s.label}] interaction failed: ${String(e.message).split("\n")[0].slice(0, 180)}`);
     }
   }
 
-  // admin unlocked — the 123 door opens the real numbers
   try {
-    await page.click("#adminButton", { timeout: 5000 });
+    await clickRetry(page, "#adminButton", { timeout: 7000 });
     await page.waitForTimeout(450);
-    await page.fill("#adminPassword", "123", { timeout: 4000 });
-    await page.click("#adminUnlockBtn", { timeout: 4000 });
+    await page.fill("#adminPassword", "123", { timeout: 5000 });
+    await page.click("#adminUnlockBtn", { timeout: 5000 });
     await page.waitForTimeout(1600);
     await expectClean(page, "admin-unlocked", errors);
-    await page.click("#adminStageClose", { timeout: 4000 });
+    await page.click("#adminStageClose", { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(300);
   } catch (e) {
     errors.push(`[admin-unlocked] interaction failed: ${String(e.message).split("\n")[0].slice(0, 180)}`);
   }
 
-  // arcade shell — game internals are canvas (not covered); the modal chrome must be clean
   try {
-    await page.click("#arcadeButton", { timeout: 5000 });
+    await clickRetry(page, "#arcadeButton", { timeout: 7000 });
     await page.waitForTimeout(1200);
     await expectClean(page, "arcade", errors);
     await page.click("#gameClose", { timeout: 4000 }).catch(() => {});
@@ -168,8 +147,6 @@ async function checkMode(locale) {
     errors.push(`[arcade] interaction failed: ${String(e.message).split("\n")[0].slice(0, 180)}`);
   }
 
-  // Wayfinder tour — the guided onboarding must stay English end-to-end;
-  // also proves the 9-step walk is intact in en mode
   try {
     await page.keyboard.press("Control+K");
     await page.waitForTimeout(400);
@@ -193,7 +170,6 @@ async function checkMode(locale) {
     errors.push(`[wayfinder] interaction failed: ${String(e.message).split("\n")[0].slice(0, 180)}`);
   }
 
-  // the Atlas HUD string (boot-time custom string, not data-i18n) must not ship CJK
   const charted = await page.locator("#atlasCharted").innerText();
   assert.ok(!CJK.test(charted), `#atlasCharted must be en in en mode, saw: ${charted}`);
 

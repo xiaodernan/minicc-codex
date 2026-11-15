@@ -8,6 +8,27 @@
 // the atlas simply shows everything as uncharted — honest, never fake.
 const KEY = "minicc-visited";
 const ORDER_KEY = "minicc-visited-order";
+const MILESTONE_KEY = "minicc-stardust-milestone";
+
+/** Stardust milestone wiring — Atlas checks after every visit. */
+let stardustListener = null;
+export function setStardustListener(fn) {
+  stardustListener = typeof fn === "function" ? fn : null;
+}
+export function readStardustMilestone() {
+  try {
+    return Number(localStorage.getItem(MILESTONE_KEY) || "0") || 0;
+  } catch {
+    return 0;
+  }
+}
+export function writeStardustMilestone(n) {
+  try {
+    localStorage.setItem(MILESTONE_KEY, String(Number(n) || 0));
+  } catch {
+    /* private mode — milestone simply won't persist */
+  }
+}
 
 export function markVisited(id) {
   if (!id) return;
@@ -29,6 +50,9 @@ export function markVisited(id) {
     }
   } catch {
     /* private mode — the atlas just shows fewer coordinates charted */
+  }
+  if (stardustListener) {
+    try { stardustListener(); } catch { /* milestone toasts must never break the visit itself */ }
   }
 }
 
@@ -56,6 +80,7 @@ export function clearVisitHistory() {
   try {
     localStorage.removeItem(KEY);
     localStorage.removeItem(ORDER_KEY);
+    localStorage.removeItem(MILESTONE_KEY);
     return true;
   } catch {
     return false;

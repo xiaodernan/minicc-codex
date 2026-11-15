@@ -736,6 +736,10 @@
       "atlas.clearTrail": "\u6E05\u9664\u8DB3\u8FF9",
       "atlas.shardsLabel": "\u661F\u5C18",
       "atlas.shardsHint": "\u6BCF\u767B\u9646\u4E00\u4E2A\u5750\u6807 = \u4E00\u7C92\u661F\u5C18",
+      "atlas.milestone25": "\u2726 \u661F\u5C18 13 / 52 \u2014\u2014 \u4E16\u754C\u5F00\u59CB\u53D1\u4EAE\uFF0C\u4F60\u5DF2\u7ECF\u52D8\u8FC7\u56DB\u5206\u4E4B\u4E00",
+      "atlas.milestone50": "\u2726 \u661F\u5C18 26 / 52 \u2014\u2014 \u5730\u56FE\u7684\u4E00\u534A\u4EAE\u4E86",
+      "atlas.milestone75": "\u2726 \u661F\u5C18 39 / 52 \u2014\u2014 \u6700\u540E\u4E00\u6247\u95E8\u5C31\u5728\u524D\u9762",
+      "atlas.milestone100": "\u2726 \u661F\u5C18 52 / 52 \u2014\u2014 \u4E16\u754C\u5C3D\u6536\u773C\u5E95\uFF0C\u4F60\u628A\u5B83\u4E00\u6761\u4E0D\u5C11\u5730\u8D70\u5B8C\u4E86",
       "admin.kicker": "\u5B9E\u65F6 \xB7 read-only \xB7 \u6570\u5B57\u6765\u81EA\u771F\u5B9E\uFF0C\u4ECE\u4E0D\u4F2A\u9020",
       "admin.title": "\u7BA1\u7406\u5458",
       "admin.tagline": "\u5BC6\u7801 123 \u2014\u2014 \u672C\u5730\u5171\u4EAB\u95E8\u3002\u4EFB\u4F55\u77E5\u9053\u5B83\u7684\u4EBA\u90FD\u53EF\u4EE5\u6253\u5F00\u8FD9\u4E2A\u9762\u677F\uFF1B\u5B83\u4E0D\u662F\u767B\u5F55\u7CFB\u7EDF\uFF0C\u53EA\u662F\u4E00\u9053\u5171\u4EAB\u95E8\u3002",
@@ -1465,6 +1469,10 @@
       "atlas.clearTrail": "Clear my trail",
       "atlas.shardsLabel": "Stardust",
       "atlas.shardsHint": "One shard per coordinate charted",
+      "atlas.milestone25": "\u2726 13 / 52 stardust \u2014 the world begins to glow",
+      "atlas.milestone50": "\u2726 26 / 52 stardust \u2014 half the map is lit",
+      "atlas.milestone75": "\u2726 39 / 52 stardust \u2014 the last door is just ahead",
+      "atlas.milestone100": "\u2726 52 / 52 stardust \u2014 the world, end to end, is yours",
       "admin.kicker": "live \xB7 read-only \xB7 numbers from real runs, nothing fabricated",
       "admin.title": "Admin",
       "admin.tagline": "Password 123 \u2014 a shared door. Anyone who knows it can open this panel; it is not a login, it is a shared door.",
@@ -2612,6 +2620,24 @@
   // web/src/core/visited.js
   var KEY = "minicc-visited";
   var ORDER_KEY = "minicc-visited-order";
+  var MILESTONE_KEY = "minicc-stardust-milestone";
+  var stardustListener = null;
+  function setStardustListener(fn) {
+    stardustListener = typeof fn === "function" ? fn : null;
+  }
+  function readStardustMilestone() {
+    try {
+      return Number(localStorage.getItem(MILESTONE_KEY) || "0") || 0;
+    } catch {
+      return 0;
+    }
+  }
+  function writeStardustMilestone(n) {
+    try {
+      localStorage.setItem(MILESTONE_KEY, String(Number(n) || 0));
+    } catch {
+    }
+  }
   function markVisited(id) {
     if (!id) return;
     try {
@@ -2630,6 +2656,12 @@
         localStorage.setItem(ORDER_KEY, JSON.stringify(seq));
       }
     } catch {
+    }
+    if (stardustListener) {
+      try {
+        stardustListener();
+      } catch {
+      }
     }
   }
   function readVisited() {
@@ -2652,6 +2684,7 @@
     try {
       localStorage.removeItem(KEY);
       localStorage.removeItem(ORDER_KEY);
+      localStorage.removeItem(MILESTONE_KEY);
       return true;
     } catch {
       return false;
@@ -5476,6 +5509,35 @@
   });
   var ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
   var ATLAS_TOTAL = ALL_NODES.length;
+  var MILESTONE_KEYS = ["atlas.milestone25", "atlas.milestone50", "atlas.milestone75", "atlas.milestone100"];
+  var MILESTONE_THRESHOLDS = [0.25, 0.5, 0.75, 1];
+  function showMilestoneToast(message) {
+    const toast = $("#toast");
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add("show");
+    window.clearTimeout(showMilestoneToast.timer);
+    showMilestoneToast.timer = window.setTimeout(() => toast.classList.remove("show"), 3600);
+  }
+  function stardustCount() {
+    const visited = readVisited();
+    let count = 0;
+    for (const node of ALL_NODES) if (visited.has(node.visitedKey ?? node.id)) count += 1;
+    return count;
+  }
+  function checkStardustMilestones() {
+    const total = ALL_NODES.length;
+    const count = stardustCount();
+    let pending3 = 0;
+    for (let i = 0; i < MILESTONE_THRESHOLDS.length; i += 1) {
+      if (count >= Math.ceil(total * MILESTONE_THRESHOLDS[i])) pending3 = i + 1;
+    }
+    const stored = readStardustMilestone();
+    if (pending3 <= stored) return;
+    writeStardustMilestone(pending3);
+    showMilestoneToast(t(MILESTONE_KEYS[pending3 - 1]));
+  }
+  setStardustListener(checkStardustMilestones);
   var NODE_INDEX = new Map(ALL_NODES.map((n) => [n.visitedKey ?? n.id, n]));
   var camera = { x: WORLD.w / 2, y: WORLD.h / 2, zoom: 0.52 };
   var MIN_ZOOM = 0.42;
@@ -5848,6 +5910,10 @@
   try {
     updateHUD();
     updateShardsHUD();
+  } catch {
+  }
+  try {
+    checkStardustMilestones();
   } catch {
   }
   window.addEventListener("minicc:locale-changed", () => {
