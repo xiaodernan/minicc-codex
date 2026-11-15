@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T05:51:07.139Z",
+  "generated_at": "2026-11-15T06:09:44.980Z",
   "branch": "main",
-  "head": "00d7b2d",
-  "total_commits": 1574,
+  "head": "fdecbc9",
+  "total_commits": 1576,
   "recent_commits": [
+    {
+      "short": "fdecbc9",
+      "at": "2026-11-15T14:07:57+08:00",
+      "subject": "M8-T997: Doctor - live upstream echo (GET /models, zero tokens, key never echoed, fail-open) + loopback load lab (24x24 canvas histogram); API route /api/provid"
+    },
+    {
+      "short": "a2419d3",
+      "at": "2026-11-15T05:51:07Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "00d7b2d",
       "at": "2026-11-15T13:50:41+08:00",
@@ -19,23 +29,13 @@
       "short": "4283fa7",
       "at": "2026-11-15T13:26:47+08:00",
       "subject": "M8-T995: CI green-path sweep - re-aimed record_text citations (web.py 1818/2324), focus-visible ring for palette search, coral orbit + amber tour CTA clear AA, "
-    },
-    {
-      "short": "036ffe2",
-      "at": "2026-11-15T05:16:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "be9c5d3",
-      "at": "2026-11-15T13:16:35+08:00",
-      "subject": "M8-T994: three visual-debt fixes - sidebar 3-up icon-above-label (Chinese/Japanese no longer wraps per glyph), inspector-tab nowrap (badge no longer collides wi"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 312,
+  "roadmap_batches": 313,
   "changelog_entries": 1,
-  "roadmap_lines": 52571,
-  "tracked_files": 1064,
+  "roadmap_lines": 52598,
+  "tracked_files": 1065,
   "test_files": 705,
   "almanac_chapters": 16,
   "module_count": 14,
