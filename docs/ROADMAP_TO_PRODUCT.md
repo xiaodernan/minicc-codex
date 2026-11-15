@@ -53657,3 +53657,16 @@ CI ubuntu-latest 5686 全绿、唯一一红：`test_a_module_is_registered_befor
 - **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `harbour`（卷二十六 · 港灯 / Chapter XXVI · The Harbour Light）；`harbourMarkup()` 完整叙事（M8-T1050 旗标 → M8-T1051 风暴 → M8-T1052/1056 influence floor → M8-T1057 loader 登记门 → Windows+Ubuntu 双腿全绿），instrument 格 58 坐标 / 27·27 bilingual / 13·13 manual chapters / live math milestone / 100% both legs；CHAPTER_RENDERERS 登记。
 - **Atlas 世界 58 坐标**（18+27+13）—— onboarding / manual / README / index.html 占位符全量迁移（含 en「The Harbour Light」最新卷引用）。Manual 叙事改指卷二十六；Almanac smokes 27 chapters；en_cjk 绿、zero CJK 泄露。M8-T1058.
 - **门禁验证**：27-chapter almanac smoke；58-coordinate atlas smoke；parity；manual；admin；doc_pointers（案板 T1059 议题跟进）；i18n.js CRLF 309/0；index.html CRLF 695/0。
+## 批次 1044 - M8-T1059: 船厂第十一座里程碑——世界又长了一寸
+
+### 目的
+
+世界的规模动了（27 卷 / 58 坐标 / 13 说明书章节 / 1692 提交）——船厂灯塔里程碑永远拔一座更高，提醒用户始终还有路在前面。新 stake 只走 digest 现场信号，不改任何门，不弱任何测试。
+
+### 做了什么
+
+- **`web/src/panels/dockyard.js`** — ROMAN 第十一位；`stake(11, "yard.stake11", "yard.stake11Hint", "sunrise", isGit ? total : 0, 2000, fmt)`。
+- **`web/src/core/i18n.js`**（CRLF 309/0）— `yard.stake11` / `yard.stake11Hint` 双语（`漫长海疆` / `The Long Haul`）；`yard.stakes` 欢迎把头改为「十一座里程碑 / eleven medals」；welcome chips：`session.emptyChip4` 十三章、`session.emptyChip5` 58 坐标；其余历史 freeze 不动。
+- **`web/index.html`** (CRLF 695/0)：zh fallback 「灯塔 · 十一座里程碑」。
+- **说明书 + README**：船厂十一座里程碑同步。
+- **现场读 + Playwright probe**：en locale 里 11 stakes 全名互不重复（`The Long Haul` 与老 `The Long Voyage` 撞名消解）；en dockyard 零 CJK。

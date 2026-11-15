@@ -29,7 +29,7 @@ const firstCommitDay = (iso) => {
   return iso.slice(0, 10);
 };
 
-const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
 
 function buildStakes(digest, metrics, pulse) {
   const isGit = !!digest?.is_git;
@@ -69,6 +69,7 @@ function buildStakes(digest, metrics, pulse) {
     stake(8, "yard.stake8", "yard.stake8Hint", "timer", tokens, 1_000_000, (v) => compactCount(v)),
     stake(9, "yard.stake9", "yard.stake9Hint", "flame", interrupted, 1, (v) => String(Math.floor(v))),
     stake(10, "yard.stake10", "yard.stake10Hint", "anchor", 1, 1, () => "✓"),
+    stake(11, "yard.stake11", "yard.stake11Hint", "sunrise", isGit ? total : 0, 2000, (v) => String(Math.floor(v))),
   ];
 }
 
