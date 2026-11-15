@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T13:21:34.120Z",
+  "generated_at": "2026-11-15T13:29:02.762Z",
   "branch": "main",
-  "head": "fc94711",
-  "total_commits": 1628,
+  "head": "bb7303b",
+  "total_commits": 1630,
   "recent_commits": [
+    {
+      "short": "bb7303b",
+      "at": "2026-11-15T21:28:22+08:00",
+      "subject": "M8-T1021: empty-state hero gains mint Atlas chip - one tap to the world map (book-open slot now compass; data-empty-atlas dispatches openAtlas; bilingual emptyC"
+    },
+    {
+      "short": "a995e7f",
+      "at": "2026-11-15T13:21:34Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "fc94711",
       "at": "2026-11-15T21:13:15+08:00",
@@ -19,22 +29,12 @@
       "short": "5fdc35d",
       "at": "2026-11-15T20:36:47+08:00",
       "subject": "chore(latest): fact pack refresh at d84a51d - M8-T1019 composer hints + CI red repairs"
-    },
-    {
-      "short": "d84a51d",
-      "at": "2026-11-15T20:36:40+08:00",
-      "subject": "M8-T1019: every composer chip button now teaches itself, bilingually - read-only Plan/Review/Verify, Parallel, Attach, Demo flow get title+aria-label driven by "
-    },
-    {
-      "short": "eda6af9",
-      "at": "2026-11-15T11:44:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 334,
+  "roadmap_batches": 335,
   "changelog_entries": 1,
-  "roadmap_lines": 53079,
+  "roadmap_lines": 53096,
   "tracked_files": 1075,
   "test_files": 710,
   "almanac_chapters": 20,
