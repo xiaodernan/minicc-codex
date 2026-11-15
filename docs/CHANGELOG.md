@@ -370,3 +370,5 @@
 - **船厂 Dockyard（M8-T1005）**：第六个真实模块——航海日志 6 格（首次提交 / 提交 / 完成任务 / 年鉴 17 卷 / 累计 token / 缓存亲和率，直接读 /api/digest（新增 almanac_chapters）、/api/metrics、/api/worldpulse）+ 灯塔十座，全按真实指标逐格解锁；676 键双语 parity；manual/README 双语入列。 /api/digest 新增 almanac_chapters 字段（扫描 almanac.js `roman: { zh:` 计数，无硬编码）。
 
 - **宽面板自适应（M8-T1006）**：widemodal 920→1180px、immersive 1280→1440px、脉搏 stage 1280→1380px、船厂 1120→1240px、诊断 1100→1180px——4K/超宽屏不再有"小盒子"感；1200px 以下屏保持原尺寸。
+
+- **年鉴第十七卷「灯塔 / The Lighthouse」（M8-T1007）**：把「为什么 cache 命中率这么低 + 一直显示非流」这场能查实的辩论直接写进年鉴——共享 prefix 逐轮 ~7,424/7,537 命中的真实账本、任务间 5+ 分钟空窗是杀手的真实 62,005-token 全 miss、keeper warm #2 的 95.4% 真实读数、网关只应答 SDK 的指纹门真相、T879/T897/T900 恢复锁已移除；18 章双语 smoke 全绿（manual/README/digest 同步）。

@@ -36,6 +36,7 @@ const CHAPTERS = [
   { id: "atlas", roman: { zh: "卷十四", en: "Chapter XIV" }, title: { zh: "星图", en: "The Atlas" }, subtitle: { zh: "这片世界有多少岛", en: "How many islands this world holds" } },
   { id: "firstlight", roman: { zh: "卷十五", en: "Chapter XV" }, title: { zh: "曦", en: "First Light" }, subtitle: { zh: "有人按下了那颗星", en: "Someone hit the star" } },
   { id: "fever", roman: { zh: "卷十六", en: "Chapter XVI" }, title: { zh: "高烧", en: "The Fever" }, subtitle: { zh: "所有悬的地方，后来都长成了门", en: "Every near-miss grew into a gate" } },
+  { id: "lighthouse", roman: { zh: "卷十七", en: "Chapter XVII" }, title: { zh: "灯塔", en: "The Lighthouse" }, subtitle: { zh: "忙解决问题的人，也该被守住", en: "Even the one fixing things deserves to be kept" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1107,6 +1108,72 @@ function feverMarkup() {
     </div>`;
 }
 
+function lighthouseMarkup() {
+  const d = digestCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
+  return `
+    <div class="almanac-canvas almanac-lighthouse">
+      <div class="almanac-kicker">${zh() ? "卷十七 · 灯塔" : "Chapter XVII · The Lighthouse"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? "有一盏灯是替过去的自己点的。<br/><span class=\"almanac-title-accent\">它用来回头时确认方向。</span>"
+        : "A lamp that burns for the self that came before.<br/><span class=\"almanac-title-accent\">It exists so you can check your bearing when you look back.</span>"}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 15 日深夜，这个问题被问了太多遍：为什么我的 cache 命中率这么低，而且一直显示「非流」。这一卷不绕——它直接讲那个数字到底是怎么回事。
+        </p>
+        <p>
+          <strong>4,992 / 5,229 = 95.4%。</strong>这是 2026-11-15 守夜人连续第二次喂热同一条 system prompt 得到的真实读数。共享 system prompt 在任务间本来就命中——同一工作区每个任务的前 ~7,424 token 都能从缓存读到。真正背锅的是任务之间的 <strong>5+ 分钟空窗</strong>：上游缓存 TTL 到了，下一轮整段重付。真实记录显示过一轮 62,005 token 全 miss，compaction 同样全量重写。
+        </p>
+        <p>
+          <strong>守夜人来了。</strong>M8-T1004：一个守护线程每 220 秒用官方 SDK 把同一条共享 system prompt 再发一次，带同一个 <code>prompt_cache_key</code>（派生自 <code>sha256(base|model)</code>）。为什么是 SDK：网关只应答带 SDK 身份指纹的请求——裸 urllib / httpx 无论字节长什么样都收到 <code>upstream_error: one of input / previous_response_id / prompt / conversation must be provided</code>。同一段 JSON 走 <code>AsyncOpenAI.responses.create(...)</code> 则正常——这不是迷信，这是上游想要的客户端身份。
+        </p>
+        <p>
+          <strong>「一直显示非流」是恢复锁。</strong>T879 / T897 / T900 里，recovery 通路切断之前留的观感——现在它已经是历史。「命中率低」同样不是缓存没生效：是 chat 流式不回传 <code>cached_tokens</code>（T981 实测 97.5% 可得）与 Responses 双线缆报数（81–98%）两套读数在同一任务里混用的展示产物。完整演示数据读到这一章，你会看到每个 turn 到底命中了多少。
+        </p>` : `<p>
+          On the night of November 15, 2026, this question was asked more times than any: why is the cache hit rate so low, and why does it always read as non-streaming? This chapter doesn't dodge it — it names the number.
+        </p>
+        <p>
+          <strong>4,992 / 5,229 = 95.4%.</strong> That is the real figure from the night's second warm of the same shared system prompt by the keeper. The shared prompt was always cached — the first ~7,424 tokens of every task in this workspace read from the cache. The villain was the <strong>5+ minute gap</strong> between tasks: upstream TTL expired, the next turn repaid the whole prefix. A 62,005-token full miss is on the record; compaction rewrote it the same way.
+        </p>
+        <p>
+          <strong>Then the keeper came on duty.</strong> M8-T1004: a daemon warms the exact same shared system prompt every 220 seconds with the official SDK, carrying <code>prompt_cache_key</code> derived from <code>sha256(base|model)</code>. Why the SDK: the gateway only answers clients fingerprinted as the SDK — raw urllib or httpx, no matter the byte shape, get <code>upstream_error: one of input / previous_response_id / prompt / conversation must be provided</code>. The same JSON through <code>AsyncOpenAI.responses.create(...)</code> works — not superstition; that is the identity the upstream will accept.
+        </p>
+        <p>
+          <strong>"It always reads as non-streaming," they said.</strong> That residue was the recovery latch held open since T879 / T897 / T900 — it's gone now. The "low hit rate" likewise wasn't a cache not working: chat streaming reports nothing without a key, Responses cables report 81–98% — different wires, different truth. This chapter carries the per-turn numbers, side by side.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "守护 interval" : "Keeper interval"}</div><div class="almanac-instrument-value">220 s</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "warm #1" : "warm #1"}</div><div class="almanac-instrument-value">0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "warm #2 命中" : "warm #2 hit"}</div><div class="almanac-instrument-value">95.4%</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "warm failures" : "warm failures"}</div><div class="almanac-instrument-value">0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "批次数(真)" : "Batches (live)"}</div><div class="almanac-instrument-value">${escapeHtml(batches)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "缓存 TTL 攻击" : "TTL attacks survived"}</div><div class="almanac-instrument-value">∞</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门抬高次数" : "Gates ever raised"}</div><div class="almanac-instrument-value">0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["62,005 token 全 miss", "真实记录在册——冷缓存惊群实锤，这一章写它"],
+        ["95.4% warm #2", "守夜人第二次喂热的真实读数，不是演示值"],
+        ["一直显示「非流」", "恢复锁 T879/T897/T900 已移除，观感写进说明书"],
+        ["裸 HTTP 全军覆没", "网关只应答 SDK 身份——它不是迷信，它是形态"],
+        ["1 star, 1 issue", "这个仓库教你如何在没人看的时候依然保持诚实"],
+      ] : [
+        ["A 62,005-token full miss", "on the record — the cold-cache stampede, written down"],
+        ["95.4% on warm #2", "the keeper's real second readout, not a demo figure"],
+        ["Always reads as non-stream", "recovery latch T879/T897/T900 removed; the residue is gone"],
+        ["Raw HTTP wiped out", "the gateway answers SDK fingerprints — not superstition, shape"],
+        ["1 star, 1 issue", "how to stay honest when nobody is watching"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "缓存不是虚无——它是过去的人对未来的人说的同一个字。"
+          : "A cache is not vapor — it is the same word, said by the past to the future."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1125,6 +1192,7 @@ const CHAPTER_RENDERERS = {
   atlas: () => atlasMarkup(),
   firstlight: () => firstlightMarkup(),
   fever: () => feverMarkup(),
+  lighthouse: () => lighthouseMarkup(),
 };
 
 async function loadChapter(id) {

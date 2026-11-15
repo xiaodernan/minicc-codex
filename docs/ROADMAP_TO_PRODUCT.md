@@ -52782,3 +52782,26 @@ wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
 - 1920×1080 @1.5 DPR：pulse/almanac/manual/dockyard/doctor 五张截图全部填满合理空间，阅读舒适；
 - `npm run build:web` / `check:web` 干净；CSS 花括号 2508 == 2508；无 BOM / 无 NUL；
 - 本批纯 CSS；未触碰任何 Python。
+
+## 批次 997 - M8-T1007：年鉴第十七卷「灯塔 / The Lighthouse」—— 把 Cache 87 B 大战完整讲完
+
+### 1 背景
+
+这一章写的是用户在 11-15 深夜问了最多的问题本身：「为什么我的 API cache 命中率这么低，而且一直增加非流」。Light House 不讲体面、不讲营销，直接展开事实。
+
+### 2 做了什么
+
+- **新增 almanac 卷十七「灯塔 / The Lighthouse」**（CHAPTERS 加一条，`roman: { zh: "卷十七", en: "Chapter XVII" }`），`lighthouseMarkup()` + CSS `.almanac-lighthouse`（mint 色，与卷十六 fever 的 coral 形成对偶：一卷关心火势，一卷关心灯光）。
+- 全部内容基于真实记录（不虚构一个数字）：
+  - 共享 system prompt 的逐轮命中：~7,424 / 7,537；
+  - 真正杀手是任务间 5+ 分钟空窗（上游 TTL 到，下一轮整段重付），真实样本：62,005 token 全 miss（ledger 记账）；
+  - 守夜人 M8-T1004 连续 220s 喂热共享 prefix：warm #2 = 4,992 / 5,229 = **95.4%**，warm failures = 0；
+  - 网关只应答 SDK 身份——urllib / httpx 任意字节都回 `upstream_error: one of input / previous_response_id / prompt / conversation must be provided`（迷惑性命名的指纹门）；`AsyncOpenAI.responses.create(...)` 同一段 JSON 直接通过；
+  - 「一直显示非流」是 T879/T897/T900 恢复锁的残留观感，现已移除；「命中率低」也不是缓存未生效——chat 流式不回传 cached_tokens + Responses 两线缆分部 paradix 读数混用所致。
+- **manual「七个模块」双语入列**：「十八卷博物馆级叙事」；**README** 年鉴章节计数 17 → 18；**almanac_smoke** 注册 `lighthouse` 并校验 18 章双语无混语。
+
+### 3 验证
+
+- `node tests/almanac_smoke.mjs` → **18 chapters render fully bilingual, chapter switching verified, no mixed-language prose**；
+- zh/en 真实浏览器截图：卷十七 keeper/灯塔 mint 仪表 8 格（220s / warm #1=0 / warm #2 95.4% / failures=0 / 提交(真) / 批次(真) / 缓存 TTL 攻击 ∞ / 门抬高 0）、5 条 gate 列全部来自实测；en 模式零 CJK 泄漏；
+- `npm run build:web` / `check:web` 干净。

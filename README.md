@@ -305,7 +305,7 @@ minicc 不只是 CLI——工作台本身也是一个被认真打磨的产品：
 - **船厂 · Dockyard** — 侧边栏「船厂」：把你自己的真实旅程做成展厅。「航海日志」六格（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率）全部来自 git 与 /api 真实读数；「灯塔 · 十座里程碑」按真实指标逐格解锁（领主 1,000 提交 / 卷典者十七卷 / 守夜人 80% 亲和率 / 千兆航程 100 万 token 等），未达成的只显示真实进度，不放演示徽章
 
 - **脉搏** — 命中率 / 上下文占比 / 完成率三枚环 + 最近 12 个任务档案 + **逐次调用缓存火花线**（运行中每个 usage 事件重绘）
-- **年鉴（17 卷）** — 这个项目是什么的叙事宫殿：Prologue / Spark / Depth / Sentry / Bloom / Open Road / Gate / Mesh / Witness / Craft / Unfinished / Echo / Answer Back / Ember / Atlas / First Light / **The Fever（差点没撑住的晚上——37s p50 怎么被压到 4.2ms、两个 U+FFFD 怎么让账本对 grep 沉默、T986 后两个冒烟红了三周没人看见、诊断中心怎么抓住冷缓存惊群）**；所有数字现场读取自 `/api/metrics` `/api/digest` `/api/stats`；全文中英两套正文，逐章验证，换章两阶段渲染（缓存即渲染，数字 8 秒内补齐，切到别章不回填）
+- **年鉴（18 卷）** — 这个项目是什么的叙事宫殿：Prologue / Spark / Depth / Sentry / Bloom / Open Road / Gate / Mesh / Witness / Craft / Unfinished / Echo / Answer Back / Ember / Atlas / First Light / The Fever / **The Lighthouse（差点没撑住的晚上——37s p50 怎么被压到 4.2ms、两个 U+FFFD 怎么让账本对 grep 沉默、T986 后两个冒烟红了三周没人看见、诊断中心怎么抓住冷缓存惊群）**；所有数字现场读取自 `/api/metrics` `/api/digest` `/api/stats`；全文中英两套正文，逐章验证，换章两阶段渲染（缓存即渲染，数字 8 秒内补齐，切到别章不回填）
 - **说明书** — 侧边栏「说明书」进入，十一章小册子：五分钟上手 / 工作台导览 / 七个模块 / 命令与快捷键 / 游戏厅教程 / 排错 / 诚实边界 / 密钥与金库（`.env`、`--doctor`、`--stats`、成本账目、缓存迁移亲和指南）/ 安静的房间（本项目的信条）/ 问仓库（RAG 真跑：BM25 检索本仓库 docs 再让模型只读着作答）/ 压测与容量（50 并发、零错误实测；prefetch / single-flight / backlog 128）；中英内联双语，首屏「运行一次完整演示」现场跑完整 agent 工作流
 - **问仓库** — 侧边栏「问仓库」进入（Ctrl/⌘K 搜「问仓库」同入口）：BM25 检索本仓库 docs / README / CONTRIBUTING 的 top-k 段落，交给你配置好的模型只读着作答；sources 逐条可展开（文件、分数、原文摘录），用量条显示网关回传的 prompt/completion/total tokens；key 不进 prompt、不被回显；模型不可达时显示真实错误而非编造答案
 - **快捷键速查（?）** — 全局 `?` 弹出六组分栏的快捷键面板（撰写 / 逐行导航 / 全局 / 游戏），与说明书第四章同源（`web/src/cheat-sheet-data.js`）；Esc 收起

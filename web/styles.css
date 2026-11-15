@@ -5456,3 +5456,11 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 
 /* Dockyard: give the captain's log a real 1fr stretch row */
 .dockyard-card { grid-template-rows: auto 1fr; align-content: stretch; }
+
+/* Almanac Chapter XVII — The Lighthouse: mint accent for the keeper's story */
+.almanac-lighthouse .almanac-body { border-color: color-mix(in srgb, var(--mint) 30%, transparent); }
+.almanac-lighthouse .almanac-kicker { color: var(--mint); }
+.almanac-lighthouse .almanac-instrument-value { color: var(--mint); }
+.almanac-lighthouse .almanac-instrument-label { color: var(--mint); opacity: .85; }
+.almanac-lighthouse .almanac-gate-list li { border-left-color: var(--mint); }
+.almanac-lighthouse .almanac-title-accent { color: var(--mint); }

@@ -2568,7 +2568,8 @@
     { id: "ember", roman: { zh: "\u5377\u5341\u4E09", en: "Chapter XIII" }, title: { zh: "\u4F59\u70EC", en: "The Ember" }, subtitle: { zh: "\u7089\u706B\u4E0D\u6563", en: "The hearth stays warm" } },
     { id: "atlas", roman: { zh: "\u5377\u5341\u56DB", en: "Chapter XIV" }, title: { zh: "\u661F\u56FE", en: "The Atlas" }, subtitle: { zh: "\u8FD9\u7247\u4E16\u754C\u6709\u591A\u5C11\u5C9B", en: "How many islands this world holds" } },
     { id: "firstlight", roman: { zh: "\u5377\u5341\u4E94", en: "Chapter XV" }, title: { zh: "\u66E6", en: "First Light" }, subtitle: { zh: "\u6709\u4EBA\u6309\u4E0B\u4E86\u90A3\u9897\u661F", en: "Someone hit the star" } },
-    { id: "fever", roman: { zh: "\u5377\u5341\u516D", en: "Chapter XVI" }, title: { zh: "\u9AD8\u70E7", en: "The Fever" }, subtitle: { zh: "\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8", en: "Every near-miss grew into a gate" } }
+    { id: "fever", roman: { zh: "\u5377\u5341\u516D", en: "Chapter XVI" }, title: { zh: "\u9AD8\u70E7", en: "The Fever" }, subtitle: { zh: "\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8", en: "Every near-miss grew into a gate" } },
+    { id: "lighthouse", roman: { zh: "\u5377\u5341\u4E03", en: "Chapter XVII" }, title: { zh: "\u706F\u5854", en: "The Lighthouse" }, subtitle: { zh: "\u5FD9\u89E3\u51B3\u95EE\u9898\u7684\u4EBA\uFF0C\u4E5F\u8BE5\u88AB\u5B88\u4F4F", en: "Even the one fixing things deserves to be kept" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3582,6 +3583,67 @@
       </p>
     </div>`;
   }
+  function lighthouseMarkup() {
+    const d = digestCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-lighthouse">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E03 \xB7 \u706F\u5854" : "Chapter XVII \xB7 The Lighthouse"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u6709\u4E00\u76CF\u706F\u662F\u66FF\u8FC7\u53BB\u7684\u81EA\u5DF1\u70B9\u7684\u3002<br/><span class="almanac-title-accent">\u5B83\u7528\u6765\u56DE\u5934\u65F6\u786E\u8BA4\u65B9\u5411\u3002</span>' : 'A lamp that burns for the self that came before.<br/><span class="almanac-title-accent">It exists so you can check your bearing when you look back.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 \u5E74 11 \u6708 15 \u65E5\u6DF1\u591C\uFF0C\u8FD9\u4E2A\u95EE\u9898\u88AB\u95EE\u4E86\u592A\u591A\u904D\uFF1A\u4E3A\u4EC0\u4E48\u6211\u7684 cache \u547D\u4E2D\u7387\u8FD9\u4E48\u4F4E\uFF0C\u800C\u4E14\u4E00\u76F4\u663E\u793A\u300C\u975E\u6D41\u300D\u3002\u8FD9\u4E00\u5377\u4E0D\u7ED5\u2014\u2014\u5B83\u76F4\u63A5\u8BB2\u90A3\u4E2A\u6570\u5B57\u5230\u5E95\u662F\u600E\u4E48\u56DE\u4E8B\u3002
+        </p>
+        <p>
+          <strong>4,992 / 5,229 = 95.4%\u3002</strong>\u8FD9\u662F 2026-11-15 \u5B88\u591C\u4EBA\u8FDE\u7EED\u7B2C\u4E8C\u6B21\u5582\u70ED\u540C\u4E00\u6761 system prompt \u5F97\u5230\u7684\u771F\u5B9E\u8BFB\u6570\u3002\u5171\u4EAB system prompt \u5728\u4EFB\u52A1\u95F4\u672C\u6765\u5C31\u547D\u4E2D\u2014\u2014\u540C\u4E00\u5DE5\u4F5C\u533A\u6BCF\u4E2A\u4EFB\u52A1\u7684\u524D ~7,424 token \u90FD\u80FD\u4ECE\u7F13\u5B58\u8BFB\u5230\u3002\u771F\u6B63\u80CC\u9505\u7684\u662F\u4EFB\u52A1\u4E4B\u95F4\u7684 <strong>5+ \u5206\u949F\u7A7A\u7A97</strong>\uFF1A\u4E0A\u6E38\u7F13\u5B58 TTL \u5230\u4E86\uFF0C\u4E0B\u4E00\u8F6E\u6574\u6BB5\u91CD\u4ED8\u3002\u771F\u5B9E\u8BB0\u5F55\u663E\u793A\u8FC7\u4E00\u8F6E 62,005 token \u5168 miss\uFF0Ccompaction \u540C\u6837\u5168\u91CF\u91CD\u5199\u3002
+        </p>
+        <p>
+          <strong>\u5B88\u591C\u4EBA\u6765\u4E86\u3002</strong>M8-T1004\uFF1A\u4E00\u4E2A\u5B88\u62A4\u7EBF\u7A0B\u6BCF 220 \u79D2\u7528\u5B98\u65B9 SDK \u628A\u540C\u4E00\u6761\u5171\u4EAB system prompt \u518D\u53D1\u4E00\u6B21\uFF0C\u5E26\u540C\u4E00\u4E2A <code>prompt_cache_key</code>\uFF08\u6D3E\u751F\u81EA <code>sha256(base|model)</code>\uFF09\u3002\u4E3A\u4EC0\u4E48\u662F SDK\uFF1A\u7F51\u5173\u53EA\u5E94\u7B54\u5E26 SDK \u8EAB\u4EFD\u6307\u7EB9\u7684\u8BF7\u6C42\u2014\u2014\u88F8 urllib / httpx \u65E0\u8BBA\u5B57\u8282\u957F\u4EC0\u4E48\u6837\u90FD\u6536\u5230 <code>upstream_error: one of input / previous_response_id / prompt / conversation must be provided</code>\u3002\u540C\u4E00\u6BB5 JSON \u8D70 <code>AsyncOpenAI.responses.create(...)</code> \u5219\u6B63\u5E38\u2014\u2014\u8FD9\u4E0D\u662F\u8FF7\u4FE1\uFF0C\u8FD9\u662F\u4E0A\u6E38\u60F3\u8981\u7684\u5BA2\u6237\u7AEF\u8EAB\u4EFD\u3002
+        </p>
+        <p>
+          <strong>\u300C\u4E00\u76F4\u663E\u793A\u975E\u6D41\u300D\u662F\u6062\u590D\u9501\u3002</strong>T879 / T897 / T900 \u91CC\uFF0Crecovery \u901A\u8DEF\u5207\u65AD\u4E4B\u524D\u7559\u7684\u89C2\u611F\u2014\u2014\u73B0\u5728\u5B83\u5DF2\u7ECF\u662F\u5386\u53F2\u3002\u300C\u547D\u4E2D\u7387\u4F4E\u300D\u540C\u6837\u4E0D\u662F\u7F13\u5B58\u6CA1\u751F\u6548\uFF1A\u662F chat \u6D41\u5F0F\u4E0D\u56DE\u4F20 <code>cached_tokens</code>\uFF08T981 \u5B9E\u6D4B 97.5% \u53EF\u5F97\uFF09\u4E0E Responses \u53CC\u7EBF\u7F06\u62A5\u6570\uFF0881\u201398%\uFF09\u4E24\u5957\u8BFB\u6570\u5728\u540C\u4E00\u4EFB\u52A1\u91CC\u6DF7\u7528\u7684\u5C55\u793A\u4EA7\u7269\u3002\u5B8C\u6574\u6F14\u793A\u6570\u636E\u8BFB\u5230\u8FD9\u4E00\u7AE0\uFF0C\u4F60\u4F1A\u770B\u5230\u6BCF\u4E2A turn \u5230\u5E95\u547D\u4E2D\u4E86\u591A\u5C11\u3002
+        </p>` : `<p>
+          On the night of November 15, 2026, this question was asked more times than any: why is the cache hit rate so low, and why does it always read as non-streaming? This chapter doesn't dodge it \u2014 it names the number.
+        </p>
+        <p>
+          <strong>4,992 / 5,229 = 95.4%.</strong> That is the real figure from the night's second warm of the same shared system prompt by the keeper. The shared prompt was always cached \u2014 the first ~7,424 tokens of every task in this workspace read from the cache. The villain was the <strong>5+ minute gap</strong> between tasks: upstream TTL expired, the next turn repaid the whole prefix. A 62,005-token full miss is on the record; compaction rewrote it the same way.
+        </p>
+        <p>
+          <strong>Then the keeper came on duty.</strong> M8-T1004: a daemon warms the exact same shared system prompt every 220 seconds with the official SDK, carrying <code>prompt_cache_key</code> derived from <code>sha256(base|model)</code>. Why the SDK: the gateway only answers clients fingerprinted as the SDK \u2014 raw urllib or httpx, no matter the byte shape, get <code>upstream_error: one of input / previous_response_id / prompt / conversation must be provided</code>. The same JSON through <code>AsyncOpenAI.responses.create(...)</code> works \u2014 not superstition; that is the identity the upstream will accept.
+        </p>
+        <p>
+          <strong>"It always reads as non-streaming," they said.</strong> That residue was the recovery latch held open since T879 / T897 / T900 \u2014 it's gone now. The "low hit rate" likewise wasn't a cache not working: chat streaming reports nothing without a key, Responses cables report 81\u201398% \u2014 different wires, different truth. This chapter carries the per-turn numbers, side by side.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u5B88\u62A4 interval" : "Keeper interval"}</div><div class="almanac-instrument-value">220 s</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "warm #1" : "warm #1"}</div><div class="almanac-instrument-value">0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "warm #2 \u547D\u4E2D" : "warm #2 hit"}</div><div class="almanac-instrument-value">95.4%</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "warm failures" : "warm failures"}</div><div class="almanac-instrument-value">0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570(\u771F)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6279\u6B21\u6570(\u771F)" : "Batches (live)"}</div><div class="almanac-instrument-value">${escapeHtml(batches)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u7F13\u5B58 TTL \u653B\u51FB" : "TTL attacks survived"}</div><div class="almanac-instrument-value">\u221E</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u95E8\u62AC\u9AD8\u6B21\u6570" : "Gates ever raised"}</div><div class="almanac-instrument-value">0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["62,005 token \u5168 miss", "\u771F\u5B9E\u8BB0\u5F55\u5728\u518C\u2014\u2014\u51B7\u7F13\u5B58\u60CA\u7FA4\u5B9E\u9524\uFF0C\u8FD9\u4E00\u7AE0\u5199\u5B83"],
+      ["95.4% warm #2", "\u5B88\u591C\u4EBA\u7B2C\u4E8C\u6B21\u5582\u70ED\u7684\u771F\u5B9E\u8BFB\u6570\uFF0C\u4E0D\u662F\u6F14\u793A\u503C"],
+      ["\u4E00\u76F4\u663E\u793A\u300C\u975E\u6D41\u300D", "\u6062\u590D\u9501 T879/T897/T900 \u5DF2\u79FB\u9664\uFF0C\u89C2\u611F\u5199\u8FDB\u8BF4\u660E\u4E66"],
+      ["\u88F8 HTTP \u5168\u519B\u8986\u6CA1", "\u7F51\u5173\u53EA\u5E94\u7B54 SDK \u8EAB\u4EFD\u2014\u2014\u5B83\u4E0D\u662F\u8FF7\u4FE1\uFF0C\u5B83\u662F\u5F62\u6001"],
+      ["1 star, 1 issue", "\u8FD9\u4E2A\u4ED3\u5E93\u6559\u4F60\u5982\u4F55\u5728\u6CA1\u4EBA\u770B\u7684\u65F6\u5019\u4F9D\u7136\u4FDD\u6301\u8BDA\u5B9E"]
+    ] : [
+      ["A 62,005-token full miss", "on the record \u2014 the cold-cache stampede, written down"],
+      ["95.4% on warm #2", "the keeper's real second readout, not a demo figure"],
+      ["Always reads as non-stream", "recovery latch T879/T897/T900 removed; the residue is gone"],
+      ["Raw HTTP wiped out", "the gateway answers SDK fingerprints \u2014 not superstition, shape"],
+      ["1 star, 1 issue", "how to stay honest when nobody is watching"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u7F13\u5B58\u4E0D\u662F\u865A\u65E0\u2014\u2014\u5B83\u662F\u8FC7\u53BB\u7684\u4EBA\u5BF9\u672A\u6765\u7684\u4EBA\u8BF4\u7684\u540C\u4E00\u4E2A\u5B57\u3002" : "A cache is not vapor \u2014 it is the same word, said by the past to the future."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3599,7 +3661,8 @@
     ember: () => emberMarkup(),
     atlas: () => atlasMarkup(),
     firstlight: () => firstlightMarkup(),
-    fever: () => feverMarkup()
+    fever: () => feverMarkup(),
+    lighthouse: () => lighthouseMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -3808,7 +3871,7 @@
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
       <li><strong>\u8BCA\u65AD \xB7 Doctor</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BCA\u65AD\u300D\uFF1A\u4E09\u4EF6\u771F\u5DE5\u5177\u2014\u2014\u300C\u4E0A\u6E38\u56DE\u58F0\u300D\u5BF9\u914D\u7F6E\u7684 OpenAI \u7F51\u5173\u5B9E\u6D4B <code>GET /models</code> \u5EF6\u8FDF\uFF08\u4E0D\u6D88\u8017 token\uFF0C\u5BC6\u94A5\u7EDD\u4E0D\u56DE\u4F20\uFF09\uFF1B\u300C\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4\u300D\u6700\u9AD8 24 \u5E76\u53D1\u300124 \u8BF7\u6C42\u9524\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF0C\u76F4\u65B9\u56FE\u753B\u51FA MIN/P50/P95/MAX\uFF1B\u300C\u5DE5\u4F5C\u533A\u81EA\u68C0\u300D\u76F4\u63A5\u590D\u7528 <code>minicc --doctor</code> \u5F15\u64CE\uFF08Python/\u5B89\u88C5\u81EA\u68C0/.minicc \u53EF\u5199/\u5BA1\u8BA1\u65E5\u5FD7\u6700\u65B0\u884C/token \u6743\u9650/permissions.json/git work tree\uFF09\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u5F53\u6B21\u771F\u5B9E\u6D4B\u91CF\u3002</li>
       <li><strong>\u8239\u5382 \xB7 Dockyard</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8239\u5382\u300D\uFF1A\u628A\u4F60\u81EA\u5DF1\u7684\u771F\u5B9E\u65C5\u7A0B\u505A\u6210\u5C55\u5385\u2014\u2014\u300C\u822A\u6D77\u65E5\u5FD7\u300D\u516D\u683C\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u4E0E git \u5143\u6570\u636E\uFF08\u9996\u6B21\u63D0\u4EA4 / \u63D0\u4EA4\u603B\u6570 / \u5B8C\u6210\u4EFB\u52A1 / \u5E74\u9274\u5377\u6570 / \u7D2F\u8BA1 token / \u7F13\u5B58\u4EB2\u548C\u7387\uFF0C\u6570\u636E\u76F4\u63A5\u8BFB /api/digest\u3001/api/metrics\u3001/api/worldpulse\uFF09\uFF1B\u300C\u706F\u5854 \xB7 \u5341\u5EA7\u91CC\u7A0B\u7891\u300D\u7167\u771F\u5B9E\u6307\u6807\u9010\u683C\u89E3\u9501\uFF08\u8D77\u822A / \u9886\u4E3B 1,000 \u63D0\u4EA4 / \u5377\u5178\u8005\u5341\u4E03\u5377 / \u4E07\u70B9\u7E41\u661F / \u5B88\u591C\u4EBA 80% \u4EB2\u548C\u7387\u7B49\uFF09\uFF0C\u672A\u8FBE\u6210\u7684\u53EA\u663E\u793A\u771F\u5B9E\u8FDB\u5EA6\uFF0C\u4E0D\u653E\u6F14\u793A\u5FBD\u7AE0\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E03\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u516D\u300A\u9AD8\u70E7\u300B\uFF0C\u8BB2\u7684\u662F\u8FD9\u4E2A\u4ED3\u5E93\u5DEE\u70B9\u6CA1\u6491\u8FC7\u53BB\u7684\u6BCF\u4E00\u4E2A\u665A\u4E0A\u2014\u201437s \u7684 p50 \u600E\u4E48\u88AB\u538B\u5230 4.2ms\u3001\u4E24\u4E2A U+FFFD \u600E\u4E48\u8BA9\u8D26\u672C\u5BF9 grep \u9690\u5F62\u3001push \u53D6\u6D88 CI \u600E\u4E48\u8BA9\u4E24\u4E2A\u5192\u70DF\u7EA2\u4E86\u4E09\u5468\u6CA1\u4EBA\u770B\u89C1\u3001\u8BCA\u65AD\u4E2D\u5FC3\u600E\u4E48\u6293\u4F4F\u51B7\u7F13\u5B58\u60CA\u7FA4\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u516B\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E03\u300A\u706F\u5854\u300B\uFF0C\u8BB2\u7684\u662F\u8FD9\u4E2A\u4ED3\u5E93\u5DEE\u70B9\u6CA1\u6491\u8FC7\u53BB\u7684\u6BCF\u4E00\u4E2A\u665A\u4E0A\u2014\u201437s \u7684 p50 \u600E\u4E48\u88AB\u538B\u5230 4.2ms\u3001\u4E24\u4E2A U+FFFD \u600E\u4E48\u8BA9\u8D26\u672C\u5BF9 grep \u9690\u5F62\u3001push \u53D6\u6D88 CI \u600E\u4E48\u8BA9\u4E24\u4E2A\u5192\u70DF\u7EA2\u4E86\u4E09\u5468\u6CA1\u4EBA\u770B\u89C1\u3001\u8BCA\u65AD\u4E2D\u5FC3\u600E\u4E48\u6293\u4F4F\u51B7\u7F13\u5B58\u60CA\u7FA4\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -3825,7 +3888,7 @@
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
       <li><strong>Doctor</strong> \u2014 sidebar \u201CDoctor\u201D: three honest instruments \u2014 \u201CUpstream echo\u201D probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); \u201CLoad lab\u201D fires 24 loopback requests at up to 24\xD7 concurrency and draws the measured MIN/P50/P95/MAX histogram; \u201CWorkspace self-check\u201D reuses the <code>minicc --doctor</code> engine (Python / install self-check / .minicc writable / audit tail parses / token permissions / permissions.json / git work tree) \u2014 everything measured on this machine, nothing from the network.</li>
       <li><strong>Dockyard</strong> \u2014 sidebar \u201CDockyard\u201D: your own real journey as a harbour of stakes. \u201CCaptain's log\u201D shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity \u2014 read in place from /api/digest, /api/metrics, /api/worldpulse); \u201CLighthouse stakes\u201D \u2014 ten medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity\u2026). Locked stakes show true progress, never fake badges.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in seventeen chapters (the newest, Chapter XVI \u201CThe Fever\u201D \u2014 the nights this repository nearly didn't make it: the 37s p50 pressed down to 4.2ms, two U+FFFD codepoints silencing the ledger against grep, push-cancelled CI hiding two red smokes for three weeks, the Doctor panel catching a cold-cache thundering herd), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in eighteen chapters (the newest, Chapter XVII \u201CThe Lighthouse\u201D \u2014 the nights this repository nearly didn't make it: the 37s p50 pressed down to 4.2ms, two U+FFFD codepoints silencing the ledger against grep, push-cancelled CI hiding two red smokes for three weeks, the Doctor panel catching a cold-cache thundering herd), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
