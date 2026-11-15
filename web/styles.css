@@ -5172,3 +5172,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   box-shadow: 0 14px 34px color-mix(in srgb, var(--mint) 28%, transparent), 0 1px 0 color-mix(in srgb, var(--mint) 44%, transparent) inset;
 }
 .empty-chip-manual:hover i, .empty-chip-manual:hover svg { color: var(--amber); }
+/* M8-T991: almanac chapter XIII — The Ember, coral accent. */
+.almanac-ember .almanac-gate-list li { border-left-color: var(--coral); }
+.almanac-ember .almanac-instrument-value { color: var(--coral); }
+.almanac-ember .almanac-instrument-label { color: var(--coral); opacity: .85; }

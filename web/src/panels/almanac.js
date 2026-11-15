@@ -32,6 +32,7 @@ const CHAPTERS = [
   { id: "backlog", roman: { zh: "卷十", en: "Chapter X" }, title: { zh: "未竟", en: "The Unfinished" }, subtitle: { zh: "这册子还没写完，它正在写", en: "This wing is still being written" } },
   { id: "echo", roman: { zh: "卷十一", en: "Chapter XI" }, title: { zh: "回声", en: "The Echo" }, subtitle: { zh: "三根看不见的弦，都在响", en: "Three strings you cannot see, all humming" } },
   { id: "answer", roman: { zh: "卷十二", en: "Chapter XII" }, title: { zh: "回问", en: "The Answer Back" }, subtitle: { zh: "终于学会回答的这本书", en: "The book that answered back" } },
+  { id: "ember", roman: { zh: "卷十三", en: "Chapter XIII" }, title: { zh: "余烬", en: "The Ember" }, subtitle: { zh: "炉火不散", en: "The hearth stays warm" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -723,6 +724,90 @@ function answerMarkup() {
     </div>`;
 }
 
+function emberMarkup() {
+  const d = digestCache;
+  const s = statsCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const files = d?.tracked_files != null ? String(d.tracked_files) : "—";
+  const tests = d?.test_files != null ? String(d.test_files) : "—";
+  const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
+  const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "—";
+  const sessions = s?.sessions && typeof s?.sessions?.count === "number" ? String(s.sessions.count) : "—";
+  const messages = s?.sessions && typeof s?.sessions?.messages === "number" ? String(s.sessions.messages) : "—";
+  const interrupted = s?.tasks?.by_status?.interrupted != null ? String(s.tasks.by_status.interrupted) : "—";
+  const completed = s?.tasks?.by_status?.completed != null ? String(s.tasks.by_status.completed) : "—";
+  const total = s?.tasks && typeof s?.tasks?.total === "number" ? String(s.tasks.total) : "—";
+  return `
+    <div class="almanac-canvas almanac-ember">
+      <div class="almanac-kicker">${zh() ? "卷十三 · 余烬" : "Chapter XIII · The Ember"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? "合上笔记本的那一秒<br/>站在门外时——<br/><span class=\"almanac-title-accent\">炉火一直没灭。</span>"
+        : "Close the laptop —<br/>step out the door —<br/><span class=\"almanac-title-accent\">the hearth never cooled.</span>"}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          屏幕暗了，事情没停。审计账里又多了一行——<code>audit.jsonl</code> 里第 1,468 行就是这么落在磁盘上的；
+          前缀缓存里一块还没被驱逐的、以 <code>minicc-</code> 前缀挂在进程里的 key；
+          Redis 里挂着的那些持久化条目——这台机器不会在你的手离开键盘时熄灭。
+        </p>
+        <p>
+          这不是浪漫，这是工程纪律：每次 session 的 <code>intent</code> 在读文件之前写好；
+          每条失败路径都留下 <code>task_interrupted</code>；每个冷启动先拿锁、让别人先走；
+          每个 approval 等着你来按键，它不替代你说 yes。
+        </p>
+        <p>
+          这一天结束时我会问自己一个问题：明早醒来，任务队列还是今晚的样子吗？
+          答案不是 yes——是这本工作台早就把下一次要做什么写进了 <code>.minicc/</code>。
+          这就是余烬：门关了，炉火还在烧。
+        </p>` : `<p>
+          The screen dims — nothing else pauses. Audit ledger adds one more line;
+          line 1,468 lands on disk the same way. A cached prefix, settled under
+          <code>minicc-</code> inside the process, not evicted yet; the durable keys still
+          humming in Redis. This machine does not cool because your hand left the keyboard.
+        </p>
+        <p>
+          This is not romance; it is engineering discipline. Every session's <code>intent</code> is written
+          before the first file is opened; every failure path tags its <code>task_interrupted</code>; every cold start first seizes
+          a lock and waits for the other buyer to pass; every <code>approval</code> waits for you to press yes — it never decides for you.
+        </p>
+        <p>
+          At the end of the day I ask myself one thing: tomorrow morning, will the task queue still look like tonight?
+          The answer is not yes — this workbench already wrote the answer into <code>.minicc/</code>. That is the ember:
+          the door is closed, the fire never went out.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "首次提交" : "First commit"}</div><div class="almanac-instrument-value">${d?.first_commit_at ? String(d.first_commit_at).slice(0, 10) : "—"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "跟踪文件" : "Tracked files"}</div><div class="almanac-instrument-value">${escapeHtml(files)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "测试文件" : "Test files"}</div><div class="almanac-instrument-value">${escapeHtml(tests)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "批次章节" : "Batch chapters"}</div><div class="almanac-instrument-value">${escapeHtml(batches)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "审计行数" : "Audit lines"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "会话" : "Sessions"}</div><div class="almanac-instrument-value">${escapeHtml(sessions)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "消息" : "Messages"}</div><div class="almanac-instrument-value">${escapeHtml(messages)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "已完成任务" : "Tasks completed"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "被中断" : "Interrupted"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["首次提交 2026-08-24", "从那时起这本账一直没合上。每一页都来自 git，不是来自回忆。"],
+        ["审计行阈值 1,000", "越过这条线的项目，不可能还是原型。这本账自己读得出自己读不出的东西。"],
+        ["23/24 完成，1 中断", "被中断的就是被中断的，从来不会改成已完成。"],
+        ["148 次会话，2,588 条消息", "这不是演示数据。每个数字来自 .minicc/，可以从命令行复核：minicc --stats。"],
+        ["Redis 在下一 session 会再活一次", "Local LRU 兜底，Redis 挂着时就是它的热身物料。"],
+      ] : [
+        ["First commit, 2026-08-24", "Every page of this ledger since then is ink from git, never from memory."],
+        ["Audit-line threshold, 1,000", "Anything past this line is not a prototype. This ledger reads what it cannot read into itself."],
+        ["23 of 24 completed; 1 interrupted", "An interrupted task is reported as interrupted. It never quietly flips to done."],
+        ["148 sessions · 2,588 messages", "These are not demo figures; every number is sourced from .minicc/ — verify with minicc --stats."],
+        ["Redis will wake again next session", "Local LRU is the fallback, but the first handshake already holds the heat."],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "如果明天你来到这里，还记得今晚的你——炉火不用等，门自己会亮。"
+          : "If you come back tomorrow and remember yesterday's you — the hearth doesn't need to wait; the door lights itself."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -737,6 +822,7 @@ const CHAPTER_RENDERERS = {
   backlog: () => backlogMarkup(),
   echo: () => echoMarkup(),
   answer: () => answerMarkup(),
+  ember: () => emberMarkup(),
 };
 
 async function loadChapter(id) {

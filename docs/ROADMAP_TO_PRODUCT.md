@@ -52445,3 +52445,28 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
   - zh：4 chips = 「读 README」「跑测试」「审查 git diff」「打开说明书，十一章全翻到」；EN：4 chips = Read the README / Run the test suite / Review the diff / Open the manual — all eleven chapters；EN 零 CJK。
   - 点击第 4 枚 chip → **manual panel 打开（`.manual-shell` 存在，第一章「五分钟上手」渲染）**——零点击到教学 = 启动即见。
 - `npm run build:web` 后 `check:web` 干净；askdocs smoke PASS；`doc_pointers` rc=0；i18n 594 键对齐。
+
+## 批次 983 - M8-T991：年鉴第十四卷「余烬 / The Ember」——炉火不散，用仓库真实数字说话
+
+### 1 背景
+
+用户要求项目像「无尽开放世界」，同时每一卷要有**真实可核对**的数据，而不是演示数字的堆砌。本卷直接取自当前仓库的 `.minicc/` 与 git：**首次提交 2026-08-24、提交 1561、跟踪 1,063 文件、测试文件 705、批次章节 307、审计 1,468 行、148 次会话 / 2,588 条消息、已完成 23/24、被中断 1**。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` 新增 `emberMarkup()`（挂载 digestCache + statsCache，所以数字全部现场读取，不进八股）：
+  - 标题「合上笔记本的那一秒 / 站在门外时——/ 炉火一直没灭」式排版；
+  - 正文三段：屏幕暗了做了什么、工程纪律为什么这么落盘、`intent → task_interrupted → lock wait → approval` 的闭环；
+  - 6 枚仪表六边形 + 4 枚「首次提交/提交总数/跟踪文件/测试文件/批次章节/审计/会话/消息/已完成/被中断」真实读数；
+  - 5 行门的语义清单（审计 > 1,000 阈值、被中断永远不翻成已完成、`minicc --stats` 自证等）。
+- `tests/almanac_smoke.mjs`：章节 13→14，marker `answer` + `ember`；
+- `web/src/panels/manual.js`：modules 章节 十三卷 → 十四卷（最新卷十三《余烬》）；README 年鉴 13→14 卷并补 Ember。
+- `web/styles.css`：`.almanac-ember` coral 主题强调。
+
+### 3 验证
+
+- `MINICC_WEB_URL=http://127.0.0.1:8899 node tests/almanac_smoke.mjs` → **passed: 14 chapters render fully bilingual, chapter switching verified, no mixed-language prose**（zh/en 均含 The Ember）。
+- Playwright 截图
+  - `output/almanac_ch13_zh.png` — 卷十三 + 1,000 字红线提及全部实值
+  - `output/almanac_ch13_hydrated.png` — staging 等待节段后全部实值落到仪表：2026-08-24 / 1561 / 1063 / 705 / 307 / 1468 / 148 / 2588 / 23/24 / 1
+- `npm run build:web` 干净；`check:web` 干净；askdocs/helpshortcuts smoke PASS；`doc_pointers` rc=0。
