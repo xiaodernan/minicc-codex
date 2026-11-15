@@ -52523,3 +52523,25 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - `MINICC_WEB_URL=http://127.0.0.1:8899 node tests/almanac_smoke.mjs` → **passed: 16 chapters bilingual, chapter switching verified, no mixed-language prose**
 - Playwright 双 locale 截图：zh「曦：你编了这么久 — GitHub 实时：1 star」、en「First Light：You've been building — somebody hit the star」；零 CJK（en 模式）；章节仪表从 worldpulse/digest 现场水润；
 - README 年鉴 16 卷；manual CHAPTERS 同步涩升；askdocs/helpshortcuts smoke PASS；`doc_pointers` rc=0；i18n 594 键不动。
+
+## 批次 986 - M8-T994：视觉债三连修 —— 侧栏 3-up 中文不再断行、inspector-tab 不再遮挡计数、文件路径不再溢出
+
+### 1 背景
+
+用户明确反馈："前端有很多不合理的地方 有很多字体的变形 歪曲 重叠 扭曲 实体块的互相重叠 挤压"。经高倍率截图诊断定位：
+
+1. **侧栏底部三枚按钮**（工作区脉搏 / 宣传页 / 小游戏）在 ~80px 宽按钮里挤 5 个中文字 + 16px 图标 — 中文/日文字按字断行（如「工作 / 区脉 / 搏」）；人眼无法辨认。
+2. **`.inspector-tab` 计数与 `变更` 文字**：`flex:1` 加 `white-space: unset`，文字与 mono 计数挤压在 4px 间距——同一行相互压。
+3. **`.change-item strong` 文件路径强拆**：长路径（如 `docs/ROADMAP_TO_PRODUCT.md`）在最小宽度 0 下倾向换行 2 行且难读。
+
+### 2 做了什么
+
+- 三栏改为 **纵向 icon-above-label**：icon 15px，label font-size 10px、`line-height 1.15`、letter-spacing .01em、无 wrap、ellipsis 兜底、高度 44px、集中对齐。
+- `.inspector-tab { white-space: nowrap; }` + bio SVG 标记 `max-width: 32px` 防止计数挤压。
+- `.change-item strong { word-break: break-word; overflow-wrap: anywhere; }` — 长路径在窄列里自适应换行，不再挤压布局。
+
+### 3 验证
+
+- Playwright 真浏览器 zh locale（`output/sidebar_bottom_fixed.png`）：三栏全文字完整 100%（工作区脉搏 / 宣传页 / 小游戏，左对齐垂直居中），不歪曲；
+- inspector-eye screenshot `output/insp_fixed.png`：变更 13 徽章右对齐、未截断、可点继续遮盖合适；
+- `npm run build:web`、`check:web` 干净、`doc_pointers` rc=0。

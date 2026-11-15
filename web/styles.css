@@ -5199,3 +5199,44 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-firstlight .almanac-instrument-value { color: var(--amber); }
 .almanac-firstlight .almanac-instrument-label { color: var(--amber); opacity: .85; }
 .almanac-firstlight .almanac-gate-list li { border-left-color: var(--amber); }
+/* M8-T994: visual debt retired — Chinese labels in the three-up pulse/promo/
+   arcade row were wrapping mid-word; .inspector-tab labels could overlap the
+   delta badge absent nowrap; file paths overflowed the Changes list. One
+   block of tight, modern fixes. */
+.secondary-nav .nav-item {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 44px;
+  padding: 3px 4px 4px;
+  text-align: center;
+}
+.secondary-nav .nav-item svg { width: 15px; height: 15px; }
+.secondary-nav .nav-item span,
+.secondary-nav .nav-item {
+  white-space: nowrap;
+}
+.secondary-nav .nav-item span {
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inspector-tab {
+  white-space: nowrap;
+  min-width: 0;
+}
+.inspector-tab > span {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 32px;
+}
+
+.change-item strong {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}

@@ -348,3 +348,5 @@
 - **年鉴第十五卷「星图 / The Atlas」上线（M8-T992）**：博物馆新馆——整个工作台摊成一张星图，节点按色相环分组（amber 工作面、mint 事实面、violet 实验面），19 颗闪烁星子 + 虚线漂移等值线；6 枚仪表从 digest/stats 现场水润（Commits 1,563 / Tracked 1,063 / Tests 705 / Batches 308 / Audit 1,468 / LRU 兜底）；15 章双语全绿，manual/README 升级，forked almanac_smoke 强制 15 章双语
 
 - **年鉴第十六卷「曦 / First Light」上线（M8-T993）+ `/api/worldpulse`**：第一口外部真实数据——`GET /api/worldpulse`（real GitHub public API，8s 超时，5 分钟共享缓存，fail-open），实测 2026-11-15 真 star=1 / forks=0 / open_issues=1 / default_branch=main / pushed_at=最新；第十六章全部从 worldpulse+digest 现场水润；16 章双语 smoke 全绿；Route Coverage 27/27 GET + 14/14 POST = 100%。
+
+- **视觉债三连修（M8-T994）**：侧栏三栏由横 layout → 纵 icon-above-label 对齐，中文/日文全字显示；inspector-tab 单行不再截断/挤压计数；changes 长文件路径 anywhere 换行不再溢出破坏；Playwright 真浏览器截图佐证。
