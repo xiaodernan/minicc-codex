@@ -53228,3 +53228,18 @@ Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手�
 - `node tests/atlas_smoke.mjs` → **atlas smoke passed**（nav button bilingual, panel opens, 52-coordinate charted line renders, stardust visible when visited, close restores hidden state, zero pageerror）。
 - `admin_smoke` 链路不变。CRLF gates：`i18n.js` = 309 CRLF，`index.html` = 655 CRLF。
 - 诚实记录：本次曾差点漏掉一处 silently：`Esc` 在 admin 面板内不 work——之前的释缘里 Atla/pulse/game 各有链，adminStage 未被追加；本次实测修复后 Esc 能关闭 Admin。
+
+## 批次 1016 - M8-T1031: 说明书 modules 章节齐平补充 Admin + Atlas
+
+### 背景
+
+用户要求「嵌入项目启动即能看到教学说明书，所有完整功能、props/canvas、使用方法、怎么玩都在里面」。说明书原有 modules 列表缺少这周新落地的两块：Admin（密码 123 共享门）+ Atlas（世界地图 / 琥珀探索长虹）。
+
+### 做了什么
+
+- **manual 双语追加两条**（zh / en 对齐）：
+  - **Admin / 管理员** — 说明门的完整样子：密码 123 非登录；stats（任务数/完成/中断/cache 亲和率/审计行/会话数）；七日事件 Canvas（requestAnimationFrame，真绘制）；最小二乘线性预测（「这不是保证，只是估计」）；中断原因自动分桶（全部三次中断都是服务重启）；top-6 tool-usage 真实直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%）。
+  - **Atlas / 世界地图** — 12 岛屿·52 真实坐标——18 panes + 20 年鉴卫星 + 13 说明书卫星；drag/pan/wheel/click；amber visit；amber trail 实线；「清除我的足迹」一键清空；Esc 关闭。
+- **almanac 计数 18 → 21**：双语 both sides now 一致叙述。
+- **manual_smoke**：13 章节双语仍通过。
+- 诚实记录：CI 仍在 11+ 分钟 queued/runner starvation；只能以本地闸门为准。

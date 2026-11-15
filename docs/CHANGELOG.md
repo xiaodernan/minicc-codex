@@ -431,3 +431,5 @@
 
 - **Atla 星尘计数器（M8-T1030）**：Atla 渲染真值：每个 visited 坐标会多一粒星尘。HUD 新 chip（左下角 violet 胶囊）：sparkles glyph + 计数 `N / 52` + 说明条。所有计数遍历脑海 `ALL_NODES.length`，没有 hard-coded 47 这样的驴尿数字；private mode 直接 hide。empty-state 好像已经有 Atla 芯片，说明书里有 Atla 章节，地图里有 Atla 自己——可见即能主动试。
 - 诚实记录：本批如期把 atlas_smoke's 渐进式 HUD 校验 line 升到 52 个坐标（此前是 50），已经被 `tests/atlas_smoke.mjs` 固化为 52-coordinate contract；还把 Esc 链路补到 `adminStage`（Esc 关闭 admin 面板，此前只知道认 `pulseStage` / `atlasStage` / `gameModal`——之前 admin 出不去 Esc）。实测 zh/en 双语截图正常。
+
+- **说明书补全 Admin + Atlas 两个模块（M8-T1031）**：modules 章节（zh 与 en）齐平补充「Admin 管理员共享门」+「Atlas 世界地图」——两门里我们现在写得清楚到脚注：Admin 密码 123 解锁、 stats/7日 canvas / 最小二乘预测（明示是估计而已）/ 中断原因分桶 / tool-usage 真实计数；Atlas 12 岛屿 52 真实坐标、拖拽平移/滚轮缩放/点击直达/visited 琥珀颜色/undo-my-visited 全本地。Almanac 数字从 18 → 21。

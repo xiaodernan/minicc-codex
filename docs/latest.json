@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:56:43.534Z",
+  "generated_at": "2026-11-15T15:09:00.423Z",
   "branch": "main",
-  "head": "eae477d",
-  "total_commits": 1646,
+  "head": "76833e3",
+  "total_commits": 1647,
   "recent_commits": [
+    {
+      "short": "76833e3",
+      "at": "2026-11-15T14:56:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "eae477d",
       "at": "2026-11-15T22:54:27+08:00",
@@ -24,18 +29,13 @@
       "short": "82d276c",
       "at": "2026-11-15T22:39:18+08:00",
       "subject": "M8-T1027: admin_smoke wired into test:arcade - Playwright end to end: locked by default -> 123 unlocks -> totals live (>0) -> >=1 tool bar, >=1 recent task, >=1"
-    },
-    {
-      "short": "069e36a",
-      "at": "2026-11-15T14:34:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 342,
+  "roadmap_batches": 343,
   "changelog_entries": 1,
-  "roadmap_lines": 53231,
-  "tracked_files": 1076,
+  "roadmap_lines": 53246,
+  "tracked_files": 1078,
   "test_files": 711,
   "almanac_chapters": 21,
   "module_count": 14,
