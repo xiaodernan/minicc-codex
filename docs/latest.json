@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T06:42:43.234Z",
+  "generated_at": "2026-11-15T06:58:33.775Z",
   "branch": "main",
-  "head": "605f2e3",
-  "total_commits": 1580,
+  "head": "b6ef066",
+  "total_commits": 1582,
   "recent_commits": [
+    {
+      "short": "b6ef066",
+      "at": "2026-11-15T14:54:49+08:00",
+      "subject": "M8-T1000: <=940px hero compaction (chat-inner/session-heading/divider/orbit/title/chips; hero scrolls safely, chips never slide under composer) + <=900px sideba"
+    },
+    {
+      "short": "81bfdd2",
+      "at": "2026-11-15T06:42:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "605f2e3",
       "at": "2026-11-15T14:42:19+08:00",
@@ -19,22 +29,12 @@
       "short": "c873f01",
       "at": "2026-11-15T14:26:17+08:00",
       "subject": "M8-T998: js-check triage - softPath U+200B replaced with <wbr> (text content stays clean), lifecycle/scale smoke assertions made locale-agnostic for the M8-T986"
-    },
-    {
-      "short": "9dc5759",
-      "at": "2026-11-15T06:09:45Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "fdecbc9",
-      "at": "2026-11-15T14:07:57+08:00",
-      "subject": "M8-T997: Doctor - live upstream echo (GET /models, zero tokens, key never echoed, fail-open) + loopback load lab (24x24 canvas histogram); API route /api/provid"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 315,
+  "roadmap_batches": 316,
   "changelog_entries": 1,
-  "roadmap_lines": 52650,
+  "roadmap_lines": 52668,
   "tracked_files": 1065,
   "test_files": 705,
   "almanac_chapters": 17,
