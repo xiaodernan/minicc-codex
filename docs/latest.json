@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T13:41:55.746Z",
+  "generated_at": "2026-11-15T13:43:15.043Z",
   "branch": "main",
-  "head": "c9b4404",
-  "total_commits": 1633,
+  "head": "1dbe0c6",
+  "total_commits": 1634,
   "recent_commits": [
+    {
+      "short": "1dbe0c6",
+      "at": "2026-11-15T21:41:58+08:00",
+      "subject": "M8-T1022: almanac chapter XX The Night Watch - this week's pages turned: 24 tasks / 22 done / 2 restart-interrupts / 1515 audit / 1632 commits / 62% cache (keep"
+    },
     {
       "short": "c9b4404",
       "at": "2026-11-15T13:37:07Z",
@@ -24,18 +29,13 @@
       "short": "bb7303b",
       "at": "2026-11-15T21:28:22+08:00",
       "subject": "M8-T1021: empty-state hero gains mint Atlas chip - one tap to the world map (book-open slot now compass; data-empty-atlas dispatches openAtlas; bilingual emptyC"
-    },
-    {
-      "short": "a995e7f",
-      "at": "2026-11-15T13:21:34Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 337,
   "changelog_entries": 1,
   "roadmap_lines": 53133,
-  "tracked_files": 1077,
+  "tracked_files": 1075,
   "test_files": 710,
   "almanac_chapters": 21,
   "module_count": 14,
