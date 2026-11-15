@@ -462,3 +462,5 @@
 - **admin_smoke hydration 等待修正**：解锁后等 `#adminTotalTasks` 渲染非"—"再断言，不再固定 1400ms/容许 GIL 抖动（原来该 race 在这次 wkapi/繁重的 Win runner 上把 smoke 打回红——实测按 real API provider 运行，endpoint 由 server 现场算出真数；Gate 依然按"/api/admin/summary 有真实活数字"为准）。
 - **门禁记录**：admin_smoke、atlas_smoke（55-coordinate contract）、almanac_smoke（24 chapters both locales）、manual_smoke、en_cjk_smoke、CRLF pins 全绿。
 - **游戏厅「作战手册」教程上线（M8-T1042）**：游戏模态框右上角新增 `? 教程` 按钮；打开一个双栏指南：左侧按游戏真实机制写的六步（经济优先 → 前后配齐 → 爆炸是清场 → 读祭草坪 → 节省技能能量 → 撑过第 10 波），右侧技能速查卡片（寒冰脉冲 / 阳光爆发 / 战线超载 / 时停领域）和"Esc 退出后亲手玩一轮"的收笔；所有文案双语，zh/en 模式零夹杂（parity gate 实证通过）；`#gameHowPanel` Esc 关闭走新 Esc 优先级链（教程 > 图鉴 > 其余浮层）；Playwright zh/en 双语全路径实测；en_cjk_smoke 新增 `arcade-guide` 段去扫——游戏教程也纳入 en 零 CJK 门禁。CRLF pin 全部守住（index.html 695 行）。
+- **草坪保卫战 / PvZ · 先种后打（M8-T1043）**：`plantAt` 不再要求 `game.running === true`——任何时刻（含游戏尚未开始）都能落下植物；`startGame` 的首次调用不再清空棋盘（sessionStarted=false 时跳过 `initGame()` 的清空），restart 按钮仍然干净重启。按键任意时间能种：开局"经济优先"终于是机制，不是纸上谈兵；顺手结束了教程里"先种后打"和机制对不上这处言行不一的bug。
+- **花纹修正**：plant spot checks：`sunflower ×1 + wallnut ×1` 开局 175 → 75 ✓ ship 1

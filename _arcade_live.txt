@@ -1,0 +1,5 @@
+﻿arcade open: {"hud":true,"stageVisible":true,"gunSelected":""}
+after planting 3 sunflowers: {"sun":175,"score":0,"wave":1,"paused":false}
+after placing peashooters: {"sun":175,"score":0,"wave":1}
+after ~4.5s of combat: {"sun":175,"score":0,"wave":1,"plants":0,"zombies":1,"defeated":0,"elapsed":2160}
+after sun-collection click: {"sun":175,"score":0,"wave":1,"defeated":0}

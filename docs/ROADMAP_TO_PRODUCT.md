@@ -53460,3 +53460,15 @@ Wayfinder 从 6 步扩到 9 步、Esc 契约、每个按钮带双语教学 aria�
 - `node tests/en_cjk_smoke.mjs` — 含新 `arcade-guide` 子段 · 全绿。
 - `node tests/atlas_smoke.mjs / admin_smoke.mjs` — 零回归。
 - CRLF pin gates 绿（index.html 695/695、i18n.js 309/309）。
+## 批次 1028 - M8-T1043: 草坪开局也是正式玩法 — 先种后打，开始就是开始（不再清空棋盘）
+
+### 目的
+
+M8-T1042 写了一份教程，说"经济优先"要开局先翻向日葵。但机制上：game.running===false 时 plantAt 直接 return false——教程让你做的事，机制做不到。这次修。
+
+### 做了什么
+
+- **`web/src/game.js`**：`plantAt` 不再有 `if (!game.running) return false;` 这个前置拦截；任意时候（incl. running=false 的开局态）种植物全部都 O1 正确处理。`startGame` 从 state 里读 `game.sessionStarted`：首次点击跳过 `initGame()`（保留玩家开局棋盘，保留 cost 消耗扣账），并立即置 `sessionStarted=true`；之后任意"restart" 才按老 Total Reset 的语义重走所有清空逻辑。
+- **真实验证**：zh 下预种 sunflower + wallnut（175→75 ✓），点"开始"——植物还在（running=true, elapsed 增长，僵尸方向开冲）；点"重新开始"后棋盘先清（plants=0, sun 重置为 175）✓；僵尸出现 ✓；不存在死循环 `requestAnimationFrame` 被双持有的情况（startGame 里 cancel 了旧 frame）。
+- **教程一致**：M8-T1042 三段文里的"开局先存草"这句话现在机制上是可以执行的；`#gameHow` 浮层不改动。
+- **门禁验证**：atlas / admin / en_cjk / almanac 继续常青；游戏 sprite 流畅度和 Eager layout 不变。
