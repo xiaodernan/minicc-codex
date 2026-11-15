@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:07:02.812Z",
+  "generated_at": "2026-11-15T09:14:59.442Z",
   "branch": "main",
-  "head": "c207253",
-  "total_commits": 1600,
+  "head": "d9009fe",
+  "total_commits": 1602,
   "recent_commits": [
+    {
+      "short": "d9009fe",
+      "at": "2026-11-15T17:14:39+08:00",
+      "subject": "M8-T1008: fact-pack counter honesty - digest.almanac_chapters must equal almanac.js source rail count; 3 tests, all pending verify"
+    },
+    {
+      "short": "14f5409",
+      "at": "2026-11-15T09:07:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c207253",
       "at": "2026-11-15T17:06:37+08:00",
@@ -19,24 +29,14 @@
       "short": "9d8bcea",
       "at": "2026-11-15T08:56:59Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c604eba",
-      "at": "2026-11-15T16:56:34+08:00",
-      "subject": "showcase fact pack: feature_surface gains dockyard-panel alongside doctor-panel/keeper/vitals/echo/load-lab"
-    },
-    {
-      "short": "deebbed",
-      "at": "2026-11-15T08:55:51Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 322,
+  "roadmap_batches": 323,
   "changelog_entries": 1,
-  "roadmap_lines": 52808,
-  "tracked_files": 1068,
-  "test_files": 706,
+  "roadmap_lines": 52825,
+  "tracked_files": 1069,
+  "test_files": 707,
   "almanac_chapters": 18,
   "module_count": 14,
   "feature_surface": [
