@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:14:59.442Z",
+  "generated_at": "2026-11-15T09:22:18.207Z",
   "branch": "main",
-  "head": "d9009fe",
-  "total_commits": 1602,
+  "head": "beeff4a",
+  "total_commits": 1604,
   "recent_commits": [
+    {
+      "short": "beeff4a",
+      "at": "2026-11-15T17:21:59+08:00",
+      "subject": "M8-T1009: branch/worktree audit - 30 worktrees, 7 local branches, 5 origin lines verified; all real features already merged or superceded; no outstanding merge "
+    },
+    {
+      "short": "1184273",
+      "at": "2026-11-15T09:14:59Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d9009fe",
       "at": "2026-11-15T17:14:39+08:00",
@@ -19,22 +29,12 @@
       "short": "c207253",
       "at": "2026-11-15T17:06:37+08:00",
       "subject": "M8-T1007: almanac chapter XVII 'The Lighthouse' - honest walkthrough of the cache/ttl/http-gate story with real per-turn numbers (keeper warm #2 95.4%, 62,005-t"
-    },
-    {
-      "short": "2a531af",
-      "at": "2026-11-15T16:59:38+08:00",
-      "subject": "sync showcase fact pack after 4K wide-panel sweep"
-    },
-    {
-      "short": "9d8bcea",
-      "at": "2026-11-15T08:56:59Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 323,
+  "roadmap_batches": 324,
   "changelog_entries": 1,
-  "roadmap_lines": 52825,
+  "roadmap_lines": 52856,
   "tracked_files": 1069,
   "test_files": 707,
   "almanac_chapters": 18,
