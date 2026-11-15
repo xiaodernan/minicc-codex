@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T21:10:14.676Z",
+  "generated_at": "2026-11-15T21:35:25.039Z",
   "branch": "main",
-  "head": "9c2037a",
-  "total_commits": 1683,
+  "head": "0459317",
+  "total_commits": 1686,
   "recent_commits": [
+    {
+      "short": "0459317",
+      "at": "2026-11-16T05:34:50+08:00",
+      "subject": "M8-T1054: CI-leg red fix - T1050 reintroduced '--island-tint' in README's The Litmus line (capability-claims gate read it as an unregistered CLI flag); ubuntu-l"
+    },
+    {
+      "short": "505d5e2",
+      "at": "2026-11-16T05:33:11+08:00",
+      "subject": "M8-T1053: every button now teaches itself - global auto-title layer derives tooltips from the already-localized rendered text (zh renders get zh hints, en gets "
+    },
+    {
+      "short": "3a65f92",
+      "at": "2026-11-15T21:10:14Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9c2037a",
       "at": "2026-11-16T05:09:54+08:00",
@@ -14,27 +29,12 @@
       "short": "a1d2cab",
       "at": "2026-11-16T05:09:54+08:00",
       "subject": "M8-T1051: storm regression - 24 threads x (120 reads across health/digest/stats/worldpulse/admin/metrics all 200+JSON; 64 malformed-body POSTs all 400 never 500"
-    },
-    {
-      "short": "f9e97fe",
-      "at": "2026-11-16T05:09:54+08:00",
-      "subject": "M8-T1050: almanac Ch.XXV 'The Litmus' - the week three red lights only stated facts (AA 4.29:1 amber-on-amber fixed; CI-VM RAG ratelimit sleep(0.06) replaced wi"
-    },
-    {
-      "short": "6be75cb",
-      "at": "2026-11-16T05:09:54+08:00",
-      "subject": "manual: zh Atlas module + zh Almanac module stale facts fixed (Effective 56 coordinates / 25 satellites / Ch.XXIV The Lawn synopsis); en Atlas line matched; man"
-    },
-    {
-      "short": "1093f8e",
-      "at": "2026-11-15T20:41:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 365,
+  "roadmap_batches": 367,
   "changelog_entries": 1,
-  "roadmap_lines": 53600,
+  "roadmap_lines": 53625,
   "tracked_files": 1079,
   "test_files": 713,
   "almanac_chapters": 26,
