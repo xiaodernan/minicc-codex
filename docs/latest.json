@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:33:33.173Z",
+  "generated_at": "2026-11-15T14:34:03.257Z",
   "branch": "main",
-  "head": "1a1782a",
-  "total_commits": 1640,
+  "head": "9a941fe",
+  "total_commits": 1641,
   "recent_commits": [
+    {
+      "short": "9a941fe",
+      "at": "2026-11-15T22:33:35+08:00",
+      "subject": "M8-T1026: admin panel gains tool-usage distribution - /api/admin/summary exposes top-6 real tool calls from the task store (read_file 150 - 48% | grep 44 - 14% "
+    },
     {
       "short": "1a1782a",
       "at": "2026-11-15T14:26:02Z",
@@ -24,18 +29,13 @@
       "short": "abc61e8",
       "at": "2026-11-15T14:02:25Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a569ea2",
-      "at": "2026-11-15T22:01:02+08:00",
-      "subject": "M8-T1024: atlas trail - amber thread through every coordinate you walked; visitedKey end-to-end alignment (18 panes panel:* prefix companions); clear-my-trail b"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 340,
   "changelog_entries": 1,
   "roadmap_lines": 53194,
-  "tracked_files": 1077,
+  "tracked_files": 1075,
   "test_files": 710,
   "almanac_chapters": 21,
   "module_count": 14,
