@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T23:55:48.233Z",
+  "generated_at": "2026-11-15T00:02:01.763Z",
   "branch": "main",
-  "head": "abd1a71",
-  "total_commits": 1549,
+  "head": "f9d202b",
+  "total_commits": 1551,
   "recent_commits": [
+    {
+      "short": "f9d202b",
+      "at": "2026-11-15T08:01:40+08:00",
+      "subject": "M8-T984: command palette visual elevation - frosted blur backdrop, gradient hairline, palette-arrive animation, amber gradient active rows with solid glyph keys"
+    },
+    {
+      "short": "10e82ec",
+      "at": "2026-11-14T23:55:48Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "abd1a71",
       "at": "2026-11-15T07:55:10+08:00",
@@ -19,22 +29,12 @@
       "short": "c58db88",
       "at": "2026-11-14T23:47:08Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5c8cfd7",
-      "at": "2026-11-15T07:46:49+08:00",
-      "subject": "M8-T982: 50-way all-path measurement (c=50 x 20s, warm caches) - 2490 x 200, zero errors; docs/LOAD_TESTING.md + ledger refreshed, no code changes; doc_pointers"
-    },
-    {
-      "short": "c9ad2fa",
-      "at": "2026-11-14T23:38:15Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 300,
+  "roadmap_batches": 301,
   "changelog_entries": 1,
-  "roadmap_lines": 52301,
+  "roadmap_lines": 52323,
   "tracked_files": 1061,
   "test_files": 704,
   "almanac_chapters": 13,
