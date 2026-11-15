@@ -95,7 +95,7 @@
           <button class="nav-item" data-view="almanac"><i data-lucide="book-open"></i><span data-i18n="nav.almanac">年鉴</span></button>
           <button class="nav-item" data-view="axioms"><i data-lucide="scroll-text"></i><span data-i18n="nav.axioms">铁律</span></button>
           <button class="nav-item" data-view="journal"><i data-lucide="notebook-pen"></i><span data-i18n="nav.journal">日志</span></button>
-          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button>
+          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button>
           <button class="nav-item menu-juicer" data-view="recent"><i data-lucide="newspaper"></i><span data-i18n="nav.recent">近况</span><b>UPD</b></button>
         </nav>
 
@@ -355,6 +355,71 @@
               <div class="pulse-card-kicker"><span data-i18n="pulse.archive">任务档案</span><span class="pulse-archive-count" id="pulseArchiveCount">0</span></div>
               <div class="pulse-archive-list" id="pulseArchiveList"><div class="pulse-archive-empty" data-i18n="tasks.noHistory">还没有任务记录</div></div>
             </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div class="doctor-stage" id="doctorStage" aria-hidden="true" aria-labelledby="doctorStageTitle">
+      <div class="doctor-stage-card" role="dialog" aria-modal="true">
+        <button class="doctor-stage-close icon-button" id="doctorStageClose" type="button" aria-label="Close doctor" data-i18n-aria="doctor.close"><i data-lucide="x"></i></button>
+        <div class="doctor-stage-header">
+          <div>
+            <div class="doctor-kicker" data-i18n="doctor.subtitle">真实探针 · 每个数字都在你本机实测</div>
+            <h2 class="doctor-stage-title" id="doctorStageTitle" data-i18n="doctor.title">诊断中心</h2>
+          </div>
+          <div class="doctor-live-pill"><span class="doctor-live-dot" aria-hidden="true"></span><span data-i18n="doctor.live">实时</span></div>
+        </div>
+        <div class="doctor-grid">
+          <section class="doctor-card-shell" aria-label="upstream echo">
+            <div class="doctor-card-kicker"><span data-i18n="doctor.upstream">上游回声</span><span class="doctor-pill" id="doctorPingState" data-i18n="doctor.pingIdle">等待探测</span></div>
+            <div class="doctor-ping-big"><strong id="doctorPingMs">—</strong><span class="doctor-ping-unit" data-i18n="doctor.ms">毫秒</span></div>
+            <div class="doctor-ping-meta">
+              <div><span data-i18n="doctor.gateway">网关</span><strong id="doctorGateway">—</strong></div>
+              <div><span data-i18n="doctor.model">模型</span><strong id="doctorModel">—</strong></div>
+              <div><span data-i18n="doctor.status">HTTP</span><strong id="doctorStatus">—</strong></div>
+            </div>
+            <p class="doctor-note" data-i18n="doctor.upstreamNote">对配置的 OpenAI 兼容网关发起一次 GET /models 探测——不消耗 token，不发送任何消息内容；密钥仅用于本机出站鉴权，绝不会出现在响应、日志或前端里。结果缓存 10 秒。</p>
+            <button class="doctor-action" id="doctorPingButton" type="button"><i data-lucide="radar"></i><span data-i18n="doctor.pingButton">再测一次</span></button>
+          </section>
+          <section class="doctor-card-shell" aria-label="load lab">
+            <div class="doctor-card-kicker"><span data-i18n="doctor.lab">负载实验室</span><span class="doctor-pill" id="doctorLabState" data-i18n="doctor.labIdle">未开始</span></div>
+            <div class="doctor-lab-controls">
+              <label class="doctor-lab-field" for="doctorLabConcurrency"><span data-i18n="doctor.concurrency">并发</span>
+                <select id="doctorLabConcurrency">
+                  <option value="1">1</option>
+                  <option value="6" selected>6</option>
+                  <option value="12">12</option>
+                  <option value="24">24</option>
+                </select>
+              </label>
+              <label class="doctor-lab-field" for="doctorLabTarget"><span data-i18n="doctor.target">目标端点</span>
+                <select id="doctorLabTarget">
+                  <option value="/api/stats" selected>/api/stats</option>
+                  <option value="/api/health">/api/health</option>
+                  <option value="/api/metrics">/api/metrics</option>
+                </select>
+              </label>
+              <button class="doctor-action" id="doctorLabButton" type="button"><i data-lucide="flask-conical"></i><span data-i18n="doctor.labButton">开始实验</span></button>
+            </div>
+            <div class="doctor-lab-canvas-wrap"><canvas id="doctorLabCanvas" class="doctor-lab-canvas" role="img" aria-label="latency histogram"></canvas></div>
+            <div class="doctor-lab-stats">
+              <div><span>MIN</span><strong id="doctorLabMin">—</strong></div>
+              <div><span>P50</span><strong id="doctorLabP50">—</strong></div>
+              <div><span>P95</span><strong id="doctorLabP95">—</strong></div>
+              <div><span>MAX</span><strong id="doctorLabMax">—</strong></div>
+              <div><span data-i18n="doctor.errors">错误</span><strong id="doctorLabErrors">0</strong></div>
+            </div>
+            <p class="doctor-note" data-i18n="doctor.labNote">只压本机回环端点（单次 24 个请求），绝不打模型网关；延迟直方图来自刚刚的真实测量。压测期间徽章如实显示“压测中”。</p>
+          </section>
+          <section class="doctor-card-shell doctor-wide" aria-label="speed notes">
+            <div class="doctor-card-kicker"><span data-i18n="doctor.fast">为什么 minicc 快 —— 本机实况</span></div>
+            <ul class="doctor-fast-list">
+              <li><i data-lucide="zap"></i><span data-i18n="doctor.fast1">本地 LRU 加 Redis 双层缓存：worldpulse、RAG、stats 都带 TTL，同样的问题不会问两遍。</span></li>
+              <li><i data-lucide="shield-check"></i><span data-i18n="doctor.fast2">RAG 查询通道带 Redis 滑动窗口令牌桶限流（INCR + PEXPIRE，默认 20 次/分钟），超限返回 200 加 rate_limited，而不是把服务压垮。</span></li>
+              <li><i data-lucide="database"></i><span data-i18n="doctor.fast3">SQLite WAL 加 FTS5：任务面板与历史检索走覆盖索引，常规列表查询通常不超过十毫秒。</span></li>
+              <li><i data-lucide="timer"></i><span data-i18n="doctor.fast4">压测记录见说明书第十一章：c=50、持续 20 秒，2490 次请求零错误，/api/stats 的 p50 从 37 秒压到 4.2 毫秒。</span></li>
+            </ul>
           </section>
         </div>
       </div>

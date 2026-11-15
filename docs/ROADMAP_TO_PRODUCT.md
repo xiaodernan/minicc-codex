@@ -52568,3 +52568,30 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - Playwright 真浏览器（zh-CN, 1600×1080）：主页/Pulse/小游戏三张截图逐一核对；`.empty-chips` 660px < `.composer-wrap` 780px；侧栏 `scrollH == clientH`。
 - `npm run build:web` + `check:web` 干净；`node --check web/app.js` 通过；almanac/web_smoke 的 web 前置套件在产品路径断言之前全部通过。
 - 产品路径实跑（真实 wkapi provider）：agent 在最大推理强度下对本仓库的巡检循环超过 240s 默认期限（模型明确存活：直测 2.8s 返回 `ok`，`prompt_tokens=4593`）。这是 provider 耗时问题，不是前端回归；CI 的 fake provider 路径不受影响。本地复跑请设 `MINICC_SMOKE_TERMINAL_DEADLINE_MS`。
+
+## 批次 988 - M8-T997：诊断中心 Doctor —— 两个诚实仪器：对网关的真实回声、对回环的真实压力；顺手抓到冷缓存惊群
+
+### 1 背景
+
+用户长期要求：真实数据而非堆砌演示数据、无尽世界的"每个角落都经得起细节翻看"、以及计网/算法/缓存/压力测试的落地。本批新增一个完整的新模块 —— **诊断中心**，两个功能全部是活探针，没有任何写死的数字。
+
+### 2 后端：`/api/provider-ping`
+
+- 新增 `minicc/provider_ping.py`：向配置的 OpenAI 兼容网关发起一次 `GET {base}/models`（零 token、零消息内容），8s 超时，结果经共享 LRU/Redis 缓存 10 秒（`?fresh=1` 可绕过）。
+- **fail-open**：任何异常返回诚实的 `live: false`，路由本身永远不 500；HTTP 401/403/404 仍算「链路通畅」（网关真的应答了）。
+- **密钥绝不回传**：响应只有 `gateway`（host）、`model`、`status`、`elapsed_ms`、`probe`，没有任何 key 物料；两个新测试（stub 探针 + 探针爆炸）都断言 `sk-` 不出现在响应体里。
+- 路由挂在 `/api/` 鉴权区；`scripts/route_coverage.py --check` 实测 **GET 28/28 = 100%，POST 14/14 = 100%**。
+
+### 3 前端：`#doctorStage`（新导航项「诊断 / Doctor」，stethoscope 图标）
+
+- **上游回声**：打开即测（10s 缓存内不会打爆网关），巨型 mono 数字显示真实毫秒数；网关/模型/HTTP 状态一览；「再测一次」强制 fresh 探测。三次实跑：678 / 562 / 586 ms，网关 wkapi.pro，模型 gpt-6-sol，HTTP 200。
+- **负载实验室**：1/6/12/24 并发 × 24 请求，只打本机回环 `/api/stats|/api/health|/api/metrics`（绝不碰模型网关），`performance.now()` 真实计时，canvas 直方图 + MIN/P50/P95/MAX/错误数。
+- **真实发现**：实验抓到的第一反应波——6 并发的第一波请求**全部**撞上 ~7.35s 冷缓存惩罚（后续波次稳定在 ~9ms），典型的 cold-cache thundering-herd 特征。这不是 bug，而是诊断工具该让用户看见的东西。
+- **为什么 minicc 快**：四条全部来自这个仓库的真实事实——本地 LRU + Redis 双层缓存（worldpulse/RAG/stats 带 TTL）；RAG 通道 Redis 滑动窗口令牌桶（INCR+PEXPIRE，默认 20 次/分钟），超限 200+rate_limited；SQLite WAL + FTS5；压测记录（c=50×20s，2490×200，/api/stats p50 37s→4.2ms，说明书第十一章）。
+- 前端中英双语严格对齐（i18n 625 键 parity 测试绿；en 模式 Doctor 面板零 CJK 泄漏）；导航/图标/manual 三处同步教会用户怎么用它。
+
+### 4 附属修正
+
+- 自定义图标入库：stethoscope / radar / flask-conical / zap / database / timer（SVG + glyph 双映射，vendored 离线集不再出现 • 黑点）。
+- 说明书「七个模块，一个世界」章节（双语）新增 Doctor 条目。
+- `node --check`、`npm run build:web`/`check:web` 干净；manual/router/i18n/http_surface/almanac/route-coverage 全绿。

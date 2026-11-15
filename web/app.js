@@ -713,6 +713,37 @@
       "ledger.redisLive": "Redis \u5B9E\u65F6\u540E\u7AEF",
       "ledger.perCallTitle": "\u9010\u6B21\u8C03\u7528\u7F13\u5B58\u547D\u4E2D",
       "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97",
+      "nav.doctor": "\u8BCA\u65AD",
+      "doctor.subtitle": "\u771F\u5B9E\u63A2\u9488 \xB7 \u6BCF\u4E2A\u6570\u5B57\u90FD\u5728\u4F60\u672C\u673A\u5B9E\u6D4B",
+      "doctor.title": "\u8BCA\u65AD\u4E2D\u5FC3",
+      "doctor.close": "\u5173\u95ED\u8BCA\u65AD\u4E2D\u5FC3",
+      "doctor.live": "\u5B9E\u65F6",
+      "doctor.upstream": "\u4E0A\u6E38\u56DE\u58F0",
+      "doctor.pingIdle": "\u7B49\u5F85\u63A2\u6D4B",
+      "doctor.pinging": "\u63A2\u6D4B\u4E2D",
+      "doctor.pingOk": "\u94FE\u8DEF\u901A\u7545",
+      "doctor.pingDown": "\u4E0D\u53EF\u8FBE",
+      "doctor.ms": "\u6BEB\u79D2",
+      "doctor.gateway": "\u7F51\u5173",
+      "doctor.model": "\u6A21\u578B",
+      "doctor.status": "HTTP",
+      "doctor.upstreamNote": "\u5BF9\u914D\u7F6E\u7684 OpenAI \u517C\u5BB9\u7F51\u5173\u53D1\u8D77\u4E00\u6B21 GET /models \u63A2\u6D4B\u2014\u2014\u4E0D\u6D88\u8017 token\uFF0C\u4E0D\u53D1\u9001\u4EFB\u4F55\u6D88\u606F\u5185\u5BB9\uFF1B\u5BC6\u94A5\u4EC5\u7528\u4E8E\u672C\u673A\u51FA\u7AD9\u9274\u6743\uFF0C\u7EDD\u4E0D\u4F1A\u51FA\u73B0\u5728\u54CD\u5E94\u3001\u65E5\u5FD7\u6216\u524D\u7AEF\u91CC\u3002\u7ED3\u679C\u7F13\u5B58 10 \u79D2\u3002",
+      "doctor.pingButton": "\u518D\u6D4B\u4E00\u6B21",
+      "doctor.lab": "\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4",
+      "doctor.labIdle": "\u672A\u5F00\u59CB",
+      "doctor.labRunning": "\u538B\u6D4B\u4E2D",
+      "doctor.labDone": "\u5DF2\u5B8C\u6210",
+      "doctor.concurrency": "\u5E76\u53D1",
+      "doctor.target": "\u76EE\u6807\u7AEF\u70B9",
+      "doctor.labButton": "\u5F00\u59CB\u5B9E\u9A8C",
+      "doctor.errors": "\u9519\u8BEF",
+      "doctor.labNote": "\u53EA\u538B\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF08\u5355\u6B21 24 \u4E2A\u8BF7\u6C42\uFF09\uFF0C\u7EDD\u4E0D\u6253\u6A21\u578B\u7F51\u5173\uFF1B\u5EF6\u8FDF\u76F4\u65B9\u56FE\u6765\u81EA\u521A\u521A\u7684\u771F\u5B9E\u6D4B\u91CF\u3002\u538B\u6D4B\u671F\u95F4\u5FBD\u7AE0\u5982\u5B9E\u663E\u793A\u201C\u538B\u6D4B\u4E2D\u201D\u3002",
+      "doctor.fast": "\u4E3A\u4EC0\u4E48 minicc \u5FEB \u2014\u2014 \u672C\u673A\u5B9E\u51B5",
+      "doctor.fast1": "\u672C\u5730 LRU \u52A0 Redis \u53CC\u5C42\u7F13\u5B58\uFF1Aworldpulse\u3001RAG\u3001stats \u90FD\u5E26 TTL\uFF0C\u540C\u6837\u7684\u95EE\u9898\u4E0D\u4F1A\u95EE\u4E24\u904D\u3002",
+      "doctor.fast2": "RAG \u67E5\u8BE2\u901A\u9053\u5E26 Redis \u6ED1\u52A8\u7A97\u53E3\u4EE4\u724C\u6876\u9650\u6D41\uFF08INCR + PEXPIRE\uFF0C\u9ED8\u8BA4 20 \u6B21/\u5206\u949F\uFF09\uFF0C\u8D85\u9650\u8FD4\u56DE 200 \u52A0 rate_limited\uFF0C\u800C\u4E0D\u662F\u628A\u670D\u52A1\u538B\u57AE\u3002",
+      "doctor.fast3": "SQLite WAL \u52A0 FTS5\uFF1A\u4EFB\u52A1\u9762\u677F\u4E0E\u5386\u53F2\u68C0\u7D22\u8D70\u8986\u76D6\u7D22\u5F15\uFF0C\u5E38\u89C4\u5217\u8868\u67E5\u8BE2\u901A\u5E38\u4E0D\u8D85\u8FC7\u5341\u6BEB\u79D2\u3002",
+      "doctor.fast4": "\u538B\u6D4B\u8BB0\u5F55\u89C1\u8BF4\u660E\u4E66\u7B2C\u5341\u4E00\u7AE0\uFF1Ac=50\u3001\u6301\u7EED 20 \u79D2\uFF0C2490 \u6B21\u8BF7\u6C42\u96F6\u9519\u8BEF\uFF0C/api/stats \u7684 p50 \u4ECE 37 \u79D2\u538B\u5230 4.2 \u6BEB\u79D2\u3002",
+      "doctor.unconfigured": "\u672A\u8BBE\u7F6E MINICC_BASE_URL \u2014\u2014 \u8BCA\u65AD\u6309\u672A\u914D\u7F6E\u5904\u7406\uFF0C\u754C\u9762\u4E0D\u4F1A\u731C\u6D4B\u4F60\u7684\u7F51\u5173\u3002",
       "pulse.title": "\u5DE5\u4F5C\u533A\u8109\u640F",
       "pulse.subtitle": "\u5B9E\u65F6\u8BFB\u6570 \xB7 \u6BCF\u4E2A\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1",
       "pulse.archive": "\u4EFB\u52A1\u6863\u6848",
@@ -1309,6 +1340,37 @@
       "ledger.redisLive": "Redis live backend",
       "ledger.perCallTitle": "Per-call cache hits",
       "ledger.costPartial": "Some models unpriced; estimate is a floor",
+      "nav.doctor": "Doctor",
+      "doctor.subtitle": "Live probes \u2014 every number is measured on this machine",
+      "doctor.title": "Doctor",
+      "doctor.close": "Close doctor",
+      "doctor.live": "Live",
+      "doctor.upstream": "Upstream echo",
+      "doctor.pingIdle": "idle",
+      "doctor.pinging": "probing",
+      "doctor.pingOk": "reachable",
+      "doctor.pingDown": "unreachable",
+      "doctor.ms": "ms",
+      "doctor.gateway": "Gateway",
+      "doctor.model": "Model",
+      "doctor.status": "HTTP",
+      "doctor.upstreamNote": "One GET /models against the configured OpenAI-compatible gateway: zero tokens, zero message content. The key is used only for outbound auth from this machine and never appears in responses, logs, or the frontend. Results are cached for 10 seconds.",
+      "doctor.pingButton": "Probe again",
+      "doctor.lab": "Load lab",
+      "doctor.labIdle": "idle",
+      "doctor.labRunning": "running",
+      "doctor.labDone": "done",
+      "doctor.concurrency": "Concurrency",
+      "doctor.target": "Target",
+      "doctor.labButton": "Run experiment",
+      "doctor.errors": "Errors",
+      "doctor.labNote": "Loopback endpoints only (24 requests per run) \u2014 never the model gateway. The histogram is drawn from measurements taken just now, not from fixtures.",
+      "doctor.fast": "Why minicc is fast \u2014 live from your machine",
+      "doctor.fast1": "Local LRU plus Redis double-layer cache: worldpulse, RAG and stats all carry TTLs \u2014 the same question is never asked twice.",
+      "doctor.fast2": "The RAG query channel is guarded by a Redis sliding-window token bucket (INCR + PEXPIRE, 20 per minute by default); excess requests get HTTP 200 with rate_limited instead of taking the service down.",
+      "doctor.fast3": "SQLite WAL plus FTS5: the task list and history search run on covering indexes \u2014 routine panel reads are typically under ten milliseconds.",
+      "doctor.fast4": "See chapter 11 of the manual for the measured runs: c=50 for 20s, 2,490 requests with zero errors, /api/stats p50 from 37s down to 4.2ms.",
+      "doctor.unconfigured": "MINICC_BASE_URL is not set \u2014 the doctor reports unconfigured instead of guessing your gateway.",
       "pulse.title": "Workspace pulse",
       "pulse.subtitle": "Live counters \xB7 every number from real tasks",
       "pulse.archive": "Task archive",
@@ -1506,6 +1568,12 @@
     activity: "\u2022",
     radio: "\u25C9",
     "shield-check": "\u25C7",
+    stethoscope: "\u271A",
+    radar: "\u25C9",
+    "flask-conical": "\u25C8",
+    zap: "\u26A1",
+    database: "\u25A4",
+    timer: "\u23F1",
     "external-link": "\u2197",
     "layout-dashboard": "\u25A6",
     "book-open": "\u25A4",
@@ -1593,6 +1661,12 @@
     activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     radio: '<circle cx="12" cy="12" r="2"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/><path d="M7.76 16.24a6 6 0 0 1 0-8.48"/><path d="M16.24 7.76a6 6 0 0 1 0 8.48"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
     "shield-check": '<path d="M20 13c0 5-3.5 7.5-8 10-4.5-2.5-8-5-8-10V6l8-3 8 3Z"/><path d="m9 12 2 2 4-4"/>',
+    stethoscope: '<circle cx="12" cy="12" r="9"/><path d="M9 12.2h1.8l1.4-4 1.9 6 1.5-2h2.4"/>',
+    radar: '<circle cx="12" cy="12" r="1.6"/><path d="M12 12 18.5 5.5"/><path d="M12 6.5a5.5 5.5 0 0 1 5.5 5.5"/><circle cx="12" cy="12" r="9.5"/>',
+    "flask-conical": '<path d="M10 2.5v6L4.6 18a2 2 0 0 0 1.9 2.5h11a2 2 0 0 0 1.9-2.5L14 8.5v-6"/><path d="M8.2 2.5h7.6"/><path d="M7 15h10"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>',
+    timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.4 2.4"/><path d="M9.5 2h5"/>',
     "external-link": '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     "layout-dashboard": '<rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>',
     "book-open": '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
@@ -3550,6 +3624,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
+      <li><strong>\u8BCA\u65AD \xB7 Doctor</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BCA\u65AD\u300D\uFF1A\u4E24\u4EF6\u771F\u5DE5\u5177\u2014\u2014\u300C\u4E0A\u6E38\u56DE\u58F0\u300D\u5BF9\u914D\u7F6E\u7684 OpenAI \u7F51\u5173\u5B9E\u6D4B <code>GET /models</code> \u5EF6\u8FDF\uFF08\u4E0D\u6D88\u8017 token\uFF0C\u5BC6\u94A5\u7EDD\u4E0D\u56DE\u4F20\uFF09\uFF1B\u300C\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4\u300D\u6700\u9AD8 24 \u5E76\u53D1\u300124 \u8BF7\u6C42\u9524\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF0C\u76F4\u65B9\u56FE\u753B\u51FA MIN/P50/P95/MAX\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u5F53\u6B21\u771F\u5B9E\u6D4B\u91CF\u3002</li>
       <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u516D\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E94\u300A\u66E6\u300B\uFF0C\u8BB2\u7684\u662F\u8FD9\u4E2A\u4ED3\u5E93\u88AB\u5916\u9762\u7684\u4E16\u754C\u770B\u89C1\u7684\u4E00\u523B\u2014\u2014/api/worldpulse \u628A GitHub \u661F\u6807\u3001forks\u3001issues \u5B9E\u65F6\u6C34\u6DA6\u663E\u793A\u5728\u4EEA\u8868\u4E0A\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
@@ -3565,6 +3640,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
+      <li><strong>Doctor</strong> \u2014 sidebar \u201CDoctor\u201D: two honest instruments \u2014 \u201CUpstream echo\u201D probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); \u201CLoad lab\u201D fires 24 loopback requests at up to 24\xD7 concurrency and draws the measured MIN/P50/P95/MAX histogram.</li>
       <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in sixteen chapters (the newest, Chapter XV \u201CFirst Light\u201D \u2014 what the outside world sees when it looks back at this repo; live GitHub stars/forks/issues hydrated in place), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
@@ -5530,6 +5606,194 @@
       closePanel();
       openArcade().catch((error) => showToast(error.message));
     });
+  }
+  var doctorPingBusy = false;
+  var doctorLabBusy = false;
+  function openDoctorStage() {
+    const modal = $("#doctorStage");
+    if (!modal) return;
+    modal.setAttribute("aria-hidden", "false");
+    const close = $("#doctorStageClose");
+    if (close) close.onclick = () => modal.setAttribute("aria-hidden", "true");
+    const pingButton = $("#doctorPingButton");
+    if (pingButton) pingButton.onclick = () => void runDoctorPing(true);
+    const labButton = $("#doctorLabButton");
+    if (labButton) labButton.onclick = () => void runDoctorLoadLab();
+    refreshIcons();
+    void runDoctorPing(false);
+  }
+  function setDoctorPill(selector, key, tone) {
+    const el = $(selector);
+    if (!el) return;
+    el.textContent = t(key);
+    if (tone) el.setAttribute("data-tone", tone);
+    else el.removeAttribute("data-tone");
+  }
+  async function runDoctorPing(force) {
+    if (doctorPingBusy) return;
+    doctorPingBusy = true;
+    const button = $("#doctorPingButton");
+    if (button) button.disabled = true;
+    setDoctorPill("#doctorPingState", "doctor.pinging", "busy");
+    try {
+      const data = await requestJson(`/api/provider-ping${force ? "?fresh=1" : ""}`);
+      const msEl = $("#doctorPingMs");
+      const gwEl = $("#doctorGateway");
+      const modelEl = $("#doctorModel");
+      const statusEl = $("#doctorStatus");
+      if (msEl) msEl.textContent = Number.isFinite(Number(data?.elapsed_ms)) ? String(Math.round(Number(data.elapsed_ms))) : "\u2014";
+      if (gwEl) gwEl.textContent = data?.gateway ? String(data.gateway) : "\u2014";
+      if (modelEl) modelEl.textContent = data?.model ? String(data.model) : "\u2014";
+      if (statusEl) statusEl.textContent = data?.status == null ? "\u2014" : String(data.status);
+      if (data?.configured === false) {
+        setDoctorPill("#doctorPingState", "doctor.pingDown", "busy");
+        showToast(t("doctor.unconfigured"));
+      } else if (data?.live) {
+        setDoctorPill("#doctorPingState", "doctor.pingOk", "ok");
+      } else {
+        setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
+      }
+    } catch (error) {
+      setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
+      const msEl = $("#doctorPingMs");
+      if (msEl) msEl.textContent = "\u2014";
+    } finally {
+      doctorPingBusy = false;
+      if (button) button.disabled = false;
+    }
+  }
+  function percentileOf(sortedSamples, quantile) {
+    if (!sortedSamples.length) return 0;
+    const rank = Math.max(1, Math.ceil(quantile * sortedSamples.length));
+    return sortedSamples[rank - 1];
+  }
+  async function runDoctorLoadLab() {
+    if (doctorLabBusy) return;
+    const select = $("#doctorLabConcurrency");
+    const targetSelect = $("#doctorLabTarget");
+    const concurrency = Math.max(1, Math.min(24, Number(select?.value || 6) || 6));
+    const target = String(targetSelect?.value || "/api/stats");
+    if (!/^\/api\/(stats|health|metrics)$/.test(target)) return;
+    doctorLabBusy = true;
+    const button = $("#doctorLabButton");
+    if (button) button.disabled = true;
+    setDoctorPill("#doctorLabState", "doctor.labRunning", "busy");
+    const TOTAL = 24;
+    const samples = [];
+    let errors = 0;
+    const fireOne = async () => {
+      const started = performance.now();
+      try {
+        const response = await fetch(target, { cache: "no-store", credentials: "same-origin", headers: authHeaders() });
+        if (!response.ok) {
+          errors += 1;
+          return;
+        }
+        await response.arrayBuffer();
+        samples.push(performance.now() - started);
+      } catch {
+        errors += 1;
+      }
+    };
+    for (let fired = 0; fired < TOTAL; fired += concurrency) {
+      const wave = Math.min(concurrency, TOTAL - fired);
+      await Promise.all(Array.from({ length: wave }, fireOne));
+    }
+    samples.sort((a, b) => a - b);
+    const min = samples[0] ?? null;
+    const max = samples[samples.length - 1] ?? null;
+    const p50 = samples.length ? percentileOf(samples, 0.5) : null;
+    const p95 = samples.length ? percentileOf(samples, 0.95) : null;
+    const fmt = (value) => value == null ? "\u2014" : `${Math.round(value)} ms`;
+    const minEl = $("#doctorLabMin");
+    const p50El = $("#doctorLabP50");
+    const p95El = $("#doctorLabP95");
+    const maxEl = $("#doctorLabMax");
+    const errEl = $("#doctorLabErrors");
+    if (minEl) minEl.textContent = fmt(min);
+    if (p50El) p50El.textContent = fmt(p50);
+    if (p95El) p95El.textContent = fmt(p95);
+    if (maxEl) maxEl.textContent = fmt(max);
+    if (errEl) errEl.textContent = String(errors);
+    drawDoctorHistogram(samples);
+    setDoctorPill("#doctorLabState", "doctor.labDone", errors === 0 ? "ok" : "bad");
+    doctorLabBusy = false;
+    if (button) button.disabled = false;
+  }
+  function cssVar(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+  function drawDoctorHistogram(samples) {
+    const canvas = $("#doctorLabCanvas");
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth || 600;
+    const height = canvas.clientHeight || 148;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+    const text = cssVar("--muted", "#94a3b8");
+    const line = cssVar("--line", "#334155");
+    const amber = cssVar("--amber", "#fbbf24");
+    const mint = cssVar("--mint", "#34d399");
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, height - 26);
+    ctx.lineTo(width, height - 26);
+    ctx.stroke();
+    ctx.font = "10px 'DM Mono', Consolas, monospace";
+    ctx.fillStyle = text;
+    ctx.textBaseline = "top";
+    if (!samples.length) {
+      ctx.fillText(t("doctor.labIdle"), 10, 10);
+      return;
+    }
+    const min = samples[0];
+    const max = samples[samples.length - 1];
+    const span = Math.max(max - min, 1e-6);
+    const BUCKETS = 12;
+    const counts = new Array(BUCKETS).fill(0);
+    for (const value of samples) {
+      const index = Math.min(BUCKETS - 1, Math.floor((value - min) / span * BUCKETS));
+      counts[index] += 1;
+    }
+    const peak = Math.max(...counts, 1);
+    const slot = width / BUCKETS;
+    const barWidth = Math.max(6, slot * 0.62);
+    for (let index = 0; index < BUCKETS; index += 1) {
+      const count = counts[index];
+      const barHeight = count > 0 ? Math.max(3, count / peak * (height - 44)) : 0;
+      const x = index * slot + (slot - barWidth) / 2;
+      const y = height - 26 - barHeight;
+      ctx.fillStyle = index === BUCKETS - 1 ? amber : mint;
+      ctx.globalAlpha = count > 0 ? 0.92 : 0.25;
+      const radius = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y + barHeight);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.lineTo(x + barWidth - radius, y);
+      ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
+      ctx.lineTo(x + barWidth, y + barHeight);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (count > 0) {
+        ctx.fillStyle = text;
+        ctx.fillText(String(count), x + barWidth / 2 - 3, y - 12);
+      }
+    }
+    ctx.fillStyle = text;
+    ctx.fillText(`${Math.round(min)} ms`, 2, height - 20);
+    const mid = `${Math.round((min + max) / 2)} ms`;
+    ctx.fillText(mid, width / 2 - ctx.measureText(mid).width / 2, height - 20);
+    const right = `${Math.round(max)} ms`;
+    ctx.fillText(right, width - ctx.measureText(right).width - 2, height - 20);
   }
 
   // web/src/streak.js
@@ -9061,6 +9325,7 @@
       else if (view === "promo") openPromoPanel();
       else if (view === "activity") openActivityPanel();
       else if (view === "pulse") openPulseStage();
+      else if (view === "doctor") openDoctorStage();
       else if (view === "templates") openTemplatesPanel();
       else if (view === "almanac") openAlmanacPanel();
       else if (view === "axioms") openAxiomsPanel();

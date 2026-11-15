@@ -781,6 +781,49 @@ def test_get_worldpulse_returns_live_or_honest_failure(live: _LiveServer, monkey
     assert "sk-" not in body.decode("utf-8")
 
 
+def test_get_provider_ping_returns_honest_probe_without_key(live: _LiveServer, monkeypatch) -> None:
+    """M8-T997: /api/provider-ping is the doctor panel's upstream echo —
+    one real GET {base}/models, 10s shared cache, fail-open. This test does
+    NOT require network: it stubs the probe and checks the route wiring and
+    the no-key-echo invariant. Any live fetch happens at most once per TTL."""
+    import minicc.provider_ping as pp_mod
+
+    monkeypatch.setattr(pp_mod, "fetch_provider_ping", lambda *, force_refresh=False: {
+        "configured": True,
+        "live": True,
+        "gateway": "wkapi.pro",
+        "model": "gpt-6-sol",
+        "status": 200,
+        "elapsed_ms": 2812.0,
+        "error": None,
+        "probe": "GET /models",
+    })
+    status, _, body = _request(f"{live.url}/api/provider-ping", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is True
+    assert payload["gateway"] == "wkapi.pro"
+    assert payload["probe"] == "GET /models"
+    assert "sk-" not in body.decode("utf-8")
+
+
+def test_get_provider_ping_survives_a_broken_probe(live: _LiveServer, monkeypatch) -> None:
+    """M8-T997: a probe that blows up must surface as an honest payload,
+    never as a 500."""
+    import minicc.provider_ping as pp_mod
+
+    def boom(*, force_refresh=False):
+        raise RuntimeError("probe exploded")
+
+    monkeypatch.setattr(pp_mod, "fetch_provider_ping", boom)
+    status, _, body = _request(f"{live.url}/api/provider-ping", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert payload["error"] == "RuntimeError"
+    assert "sk-" not in body.decode("utf-8")
+
+
 def test_get_rag_query_route_is_registered_and_safe(live: _LiveServer, monkeypatch) -> None:
     """M8-T973: /api/rag/query is a lexical retriever + one chat
     completion.  The fake fixture never exercises a real gateway (its

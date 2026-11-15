@@ -2323,3 +2323,213 @@ import { openRecentPanel } from "../panels/recent.js";
 import { SHORTCUT_GROUPS } from "../cheat-sheet-data.js";
 export { openRecentPanel };
 
+
+// ===== M8-T997: Doctor — live upstream echo + loopback load lab =====
+// Two honest instruments. The upstream echo is one real GET {base}/models
+// (zero tokens, zero message content) with the key used only for outbound
+// auth from this machine; the load lab hammers loopback endpoints only.
+// Nothing here is a fixture value — if the gateway is down, the panel
+// says so.
+let doctorPingBusy = false;
+let doctorLabBusy = false;
+
+export function openDoctorStage() {
+  const modal = $("#doctorStage");
+  if (!modal) return;
+  modal.setAttribute("aria-hidden", "false");
+  const close = $("#doctorStageClose");
+  if (close) close.onclick = () => modal.setAttribute("aria-hidden", "true");
+  const pingButton = $("#doctorPingButton");
+  if (pingButton) pingButton.onclick = () => void runDoctorPing(true);
+  const labButton = $("#doctorLabButton");
+  if (labButton) labButton.onclick = () => void runDoctorLoadLab();
+  refreshIcons();
+  void runDoctorPing(false);
+}
+
+function setDoctorPill(selector, key, tone) {
+  const el = $(selector);
+  if (!el) return;
+  el.textContent = t(key);
+  if (tone) el.setAttribute("data-tone", tone);
+  else el.removeAttribute("data-tone");
+}
+
+async function runDoctorPing(force) {
+  if (doctorPingBusy) return;
+  doctorPingBusy = true;
+  const button = $("#doctorPingButton");
+  if (button) button.disabled = true;
+  setDoctorPill("#doctorPingState", "doctor.pinging", "busy");
+  try {
+    const data = await requestJson(`/api/provider-ping${force ? "?fresh=1" : ""}`);
+    const msEl = $("#doctorPingMs");
+    const gwEl = $("#doctorGateway");
+    const modelEl = $("#doctorModel");
+    const statusEl = $("#doctorStatus");
+    if (msEl) msEl.textContent = Number.isFinite(Number(data?.elapsed_ms)) ? String(Math.round(Number(data.elapsed_ms))) : "—";
+    if (gwEl) gwEl.textContent = data?.gateway ? String(data.gateway) : "—";
+    if (modelEl) modelEl.textContent = data?.model ? String(data.model) : "—";
+    if (statusEl) statusEl.textContent = data?.status == null ? "—" : String(data.status);
+    if (data?.configured === false) {
+      setDoctorPill("#doctorPingState", "doctor.pingDown", "busy");
+      showToast(t("doctor.unconfigured"));
+    } else if (data?.live) {
+      setDoctorPill("#doctorPingState", "doctor.pingOk", "ok");
+    } else {
+      setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
+    }
+  } catch (error) {
+    setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
+    const msEl = $("#doctorPingMs");
+    if (msEl) msEl.textContent = "—";
+  } finally {
+    doctorPingBusy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+function percentileOf(sortedSamples, quantile) {
+  if (!sortedSamples.length) return 0;
+  const rank = Math.max(1, Math.ceil(quantile * sortedSamples.length));
+  return sortedSamples[rank - 1];
+}
+
+async function runDoctorLoadLab() {
+  if (doctorLabBusy) return;
+  const select = $("#doctorLabConcurrency");
+  const targetSelect = $("#doctorLabTarget");
+  const concurrency = Math.max(1, Math.min(24, Number(select?.value || 6) || 6));
+  const target = String(targetSelect?.value || "/api/stats");
+  if (!/^\/api\/(stats|health|metrics)$/.test(target)) return;
+  doctorLabBusy = true;
+  const button = $("#doctorLabButton");
+  if (button) button.disabled = true;
+  setDoctorPill("#doctorLabState", "doctor.labRunning", "busy");
+
+  const TOTAL = 24;
+  const samples = [];
+  let errors = 0;
+  const fireOne = async () => {
+    const started = performance.now();
+    try {
+      const response = await fetch(target, { cache: "no-store", credentials: "same-origin", headers: authHeaders() });
+      if (!response.ok) {
+        errors += 1;
+        return;
+      }
+      await response.arrayBuffer();
+      samples.push(performance.now() - started);
+    } catch {
+      errors += 1;
+    }
+  };
+
+  for (let fired = 0; fired < TOTAL; fired += concurrency) {
+    const wave = Math.min(concurrency, TOTAL - fired);
+    await Promise.all(Array.from({ length: wave }, fireOne));
+  }
+
+  samples.sort((a, b) => a - b);
+  const min = samples[0] ?? null;
+  const max = samples[samples.length - 1] ?? null;
+  const p50 = samples.length ? percentileOf(samples, 0.5) : null;
+  const p95 = samples.length ? percentileOf(samples, 0.95) : null;
+  const fmt = (value) => (value == null ? "—" : `${Math.round(value)} ms`);
+
+  const minEl = $("#doctorLabMin"); const p50El = $("#doctorLabP50"); const p95El = $("#doctorLabP95"); const maxEl = $("#doctorLabMax"); const errEl = $("#doctorLabErrors");
+  if (minEl) minEl.textContent = fmt(min);
+  if (p50El) p50El.textContent = fmt(p50);
+  if (p95El) p95El.textContent = fmt(p95);
+  if (maxEl) maxEl.textContent = fmt(max);
+  if (errEl) errEl.textContent = String(errors);
+
+  drawDoctorHistogram(samples);
+  setDoctorPill("#doctorLabState", "doctor.labDone", errors === 0 ? "ok" : "bad");
+  doctorLabBusy = false;
+  if (button) button.disabled = false;
+}
+
+function cssVar(name, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function drawDoctorHistogram(samples) {
+  const canvas = $("#doctorLabCanvas");
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 600;
+  const height = canvas.clientHeight || 148;
+  canvas.width = Math.max(1, Math.round(width * dpr));
+  canvas.height = Math.max(1, Math.round(height * dpr));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, width, height);
+
+  const text = cssVar("--muted", "#94a3b8");
+  const line = cssVar("--line", "#334155");
+  const amber = cssVar("--amber", "#fbbf24");
+  const mint = cssVar("--mint", "#34d399");
+
+  // Baseline and frame
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, height - 26);
+  ctx.lineTo(width, height - 26);
+  ctx.stroke();
+  ctx.font = "10px 'DM Mono', Consolas, monospace";
+  ctx.fillStyle = text;
+  ctx.textBaseline = "top";
+
+  if (!samples.length) {
+    ctx.fillText(t("doctor.labIdle"), 10, 10);
+    return;
+  }
+
+  const min = samples[0];
+  const max = samples[samples.length - 1];
+  const span = Math.max(max - min, 1e-6);
+  const BUCKETS = 12;
+  const counts = new Array(BUCKETS).fill(0);
+  for (const value of samples) {
+    const index = Math.min(BUCKETS - 1, Math.floor(((value - min) / span) * BUCKETS));
+    counts[index] += 1;
+  }
+  const peak = Math.max(...counts, 1);
+  const slot = width / BUCKETS;
+  const barWidth = Math.max(6, slot * 0.62);
+
+  for (let index = 0; index < BUCKETS; index += 1) {
+    const count = counts[index];
+    const barHeight = count > 0 ? Math.max(3, (count / peak) * (height - 44)) : 0;
+    const x = index * slot + (slot - barWidth) / 2;
+    const y = height - 26 - barHeight;
+    ctx.fillStyle = index === BUCKETS - 1 ? amber : mint;
+    ctx.globalAlpha = count > 0 ? 0.92 : 0.25;
+    const radius = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, y + barHeight);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.lineTo(x + barWidth - radius, y);
+    ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
+    ctx.lineTo(x + barWidth, y + barHeight);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    if (count > 0) {
+      ctx.fillStyle = text;
+      ctx.fillText(String(count), x + barWidth / 2 - 3, y - 12);
+    }
+  }
+
+  ctx.fillStyle = text;
+  ctx.fillText(`${Math.round(min)} ms`, 2, height - 20);
+  const mid = `${Math.round((min + max) / 2)} ms`;
+  ctx.fillText(mid, width / 2 - ctx.measureText(mid).width / 2, height - 20);
+  const right = `${Math.round(max)} ms`;
+  ctx.fillText(right, width - ctx.measureText(right).width - 2, height - 20);
+}

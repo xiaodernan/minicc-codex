@@ -490,6 +490,28 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # bounded titles, grouped into hundred-epoch eras.
             self._json(self.server.service.roadmap())
             return
+        if path == "/api/provider-ping":
+            # M8-T997: authenticated upstream echo for the doctor panel.
+            # Never returns the key; only gateway host, model name, status,
+            # round-trip ms. ?fresh=1 bypasses the 10s shared cache.
+            try:
+                from .provider_ping import fetch_provider_ping
+
+                query = parse_qs(parsed.query)
+                force = (query.get("fresh") or [""])[0].lower() in {"1", "true", "yes"}
+                self._json(fetch_provider_ping(force_refresh=force))
+            except Exception as exc:  # noqa: BLE001 - the route itself must not 500
+                self._json({
+                    "configured": True,
+                    "live": False,
+                    "gateway": None,
+                    "model": None,
+                    "status": None,
+                    "elapsed_ms": 0.0,
+                    "error": f"{type(exc).__name__}",
+                    "probe": "GET /models",
+                })
+            return
         if path == "/api/stats":
             # M8-T922: the pulse panel's stats channel, finally real.
             self._json(self.server.service.stats())
