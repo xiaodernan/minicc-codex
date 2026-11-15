@@ -362,3 +362,5 @@
 - **短屏布局到底（M8-T1000）**：1280×800 / 1440×900 两档适配——`@media (max-height: 940px)` 压缩 chat-inner/session-heading/date-divider/hero（orbit 128→72px），空态 chips 彻底脱离 composer 遮挡；`@media (max-height: 900px)` 压缩侧栏（nav 36→26px 等），侧栏自裁剪 145px → 5px，工作台设置整行进入视野；Playwright 双语截图确认。
 
 - **Doctor 工作区自检（M8-T1001）**：诊断中心第三件真工具——`/api/doctor` 即 `minicc --doctor` 引擎直出（7 通过 / 2 警告 / 0 失败的真实截图）；检查名 mono + severity 圆点 + fix_hint，fatal 行 coral 边框；633 键双语 parity；manual/README 同步；零新增路由。
+
+- **CI 双腿红复盘（M8-T1002）**：bundle-slicing 门（panel_does_not_print_a_missing_count_as_zero）因模块级 softPath 不在切片清单而 ReferenceError——内联到两个渲染点后 16 项全绿；stylesheet-is-not-mixed-encoding 因 T989-era 残留的孤立 `}` + `transition:` + 旧 hover 行红（2489/2490）——删除残片后花括号 2508==2508。claims/js-check/web-smoke/mutation 全绿未动。

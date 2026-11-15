@@ -5157,9 +5157,6 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   transition: filter .18s ease, transform .18s ease;
 }
 .tour-interact:hover { filter: brightness(1.07); transform: translateY(-1px); }
-  transition: background .18s ease, border-color .18s ease, transform .18s ease;
-}
-.tour-interact:hover { background: color-mix(in srgb, var(--amber) 24%, transparent); border-color: var(--amber); transform: translateY(-1px); }
 .tour-interact[hidden] { display: none; }
 .tour-offer i, .tour-offer svg { color: var(--amber); }
 .tour-offer:hover { border-color: var(--amber); }

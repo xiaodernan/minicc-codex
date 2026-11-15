@@ -52687,3 +52687,24 @@ CI 里 web-smoke 跑到 `npm run test:arcade` 时，**game_upgrade_smoke.mjs** �
 
 - Playwright 真浏览器 zh（`output/doctor_vitals.png`）：12 项检查（7 ok / 2 warn / 0 fatal）全部命名渲染，修复提示可见，面板完整滚动不遮挡。
 - `npm run build:web` / `check:web` 干净；`frontend_i18n_dict_one_home_smoke` → 633 keys parity ok；路由覆盖无变化（0 新增路由）。
+
+## 批次 993 - M8-T1002：CI 双腿 Python 红的真成因 —— bundle 切片门没见过新助手，样式表多一个花括号
+
+### 1 背景
+
+b6ef066 的 CI 里 Python tests（windows-latest 与 ubuntu-latest）都红了；`--log-failed` 解开后锁定两条，全部由 T996/T989-era 的样式与渲染改动引入，doc/claims/web-smoke 全部绿。
+
+### 2 根因一：bundle-slicing 门看不见模块级 `softPath`
+
+`test_the_panel_does_not_print_a_missing_count_as_zero.py` 把已发出的 `web/app.js` 按函数切成片段喂进 node；`changeFileRow` 引用了模块顶层的 `const softPath = (value) => escapeHtml(value).replace(/\//g, "/<wbr>")`——`softPath` 不在 `RUN_NAMES` 里，不被切进沙箱 → **ReferenceError: softPath is not defined**。
+
+修复：断行机会内联到两个渲染点（`changeFileRow` 里的局部 `softPath`、`renderChanges` 的 change-item `<strong>` 用同一法子），全函数自给自足，不再引入任何模块级自由变量。红了 → 本地 16 项对应测试全绿；`npm run test:optimization` / `test:lifecycle` / `test:scale` / `check:web` / `almanac_smoke` 全部无回归。
+
+### 3 根因二：样式表多一个 `}`
+
+`test_the_stylesheet_is_not_mixed_encoding.py::test_every_source_stylesheet_is_pure_utf8` 报 `AssertionError: assert 2489 == 2490`（`{` 2489 vs `}` 2490）——T989-era 给 `.tour-interact` 换上琥珀渐变时，旧块尾部（`transition:` 一行 + 一个 `}` + 一个旧 `.tour-interact:hover` 行）留了下来，多出一个花括号。删除孤立残片后花括号恢复 2508 == 2508；`.tour-interact*` 只保留四条（base / hover / focus-visible / [hidden]）。
+
+### 4 验证
+
+- 本地：`test_the_panel_does_not_print_a_missing_count_as_zero.py` + `test_the_stylesheet_is_not_mixed_encoding.py` → 16 passed；`check:web` 干净；16 章年鉴/i18n/生命周期/规模冒烟无回归。
+- 诚实记账：b6ef066 两个 Python 腿红了；`--log-failed` 锁定以上两条；修复后再推送即重新验收。
