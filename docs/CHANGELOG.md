@@ -378,3 +378,7 @@
 - **平行分支审计（M8-T1009）**：30 worktree / 7 本地分支 / 5 远程 origin 线逐条核对——所有 fork 上的真正工作已经经过 `integration/*` 合并 / superseded；`dev/minicc-reliability-4ba3` 是非谱系分叉，但其核心内容（mention-XML hardening / reverse-door / edge-cases）在 main 中以更现代的形态存在；没有需要拉入 main 的遗留
 
 - **手册第十二章「微服务平面 / Spring Cloud plane」上线（M8-T1010）**：双语 8 步引导（认识模块 → 前置 → 一键起 → 验收 → 限流实测 → 熔断回环 → 缓存失效）；所有命令都跑过；zh/en 全章无 CJK 泄漏截图验证；README 十二章入列。
+
+- **手册第十三章「前后端全景架构 / Full Stack」上线（M8-T1011）**：把整站栈从 Python FastAPI 到 vanilla JS 直出、从本机 Agent 到可选的 Spring Cloud plane、到 SQLite WAL 到 RabbitMQ 广播、到 Redis 令牌桶限流、到 60 tokens/s 容量实测数据，全部一次讲清楚。zh/en 截图均呈现干净、无 CJK 泄漏。
+- **平行分支审计（M8-T1009）补卷**：`dev/minicc-reliability-4ba3` 是非谱系分叉，工作内容已在 main 以更现代形态落地（mention 门依旧绿；reverse-door + mutation 门皆已充分覆盖）；无未合并内容。
+- **手册第十二章「微服务平面 / Spring Cloud plane」（M8-T1010）**：8 步从零把全套七个 Java 服务拉起来（Eureka/Config/Gateway/Inspector/Tasks/Insights），限流实测 + 熔断回环。

@@ -26,6 +26,7 @@ const CHAPTERS = [
   { id: "askdocs", roman: "十", romanEn: "10", title: "Ask the Repo", titleZh: "问仓库" },
   { id: "load", roman: "十一", romanEn: "11", title: "Load & Capacity", titleZh: "压测与容量" },
   { id: "cloud", roman: "十二", romanEn: "12", title: "Spring Cloud plane", titleZh: "微服务平面" },
+  { id: "arch", roman: "十三", romanEn: "13", title: "Full Stack", titleZh: "前后端全景架构" },
 ];
 
 function zhStart() {
@@ -413,6 +414,52 @@ function enCloud() {
   `;
 }
 
+function zhArch() {
+  return `
+    <p class="manual-lede">这有一份从上到下、按真实数据排列的架构全景——前端、后端、数据库、缓存、消息队列，每一样都点到。这不是架构图，是你刚才看了十几章、跑过十几轮任务之后该知道的一篇。</p>
+    <ol class="manual-list">
+      <li><strong>第一层：前端（Python, 单机进程）</strong> — FastAPI / <code>minicc-web</code>、Jinja2 + vanilla JS 直出、不打包不用构建链（node 只用来 <code>check:web</code>）。每个会话都是全本地、零运营团队。</li>
+      <li><strong>前端渲染层</strong> — Vanilla ES modules → esbuild 打包成 <code>assets/*.min.js</code> 与 <code>styles.*.css</code>，没有 React 依赖、没有 NPM 包，~750 KB / 767 KB。任意网络打开 <code>127.0.0.1:8765</code> 立刻进入工作台——没有 build step、没有 npm install、没有依赖刷新。</li>
+      <li><strong>第二层：本机 Agent 引擎（Python）</strong> — <code>minicc/agent/loop.py</code>、<code>minicc/session.py</code>、<code>minicc/tools/*</code>、<code>minicc/verifier</code>、<code>minicc/compaction</code> 上下文压缩、<code>minicc/llm/openai_provider</code> 把流式/阻塞/Responses API 统一。全部是纯 python，没有容器化那一层。</li>
+      <li><strong>执行层</strong> — <code>ThreadPoolExecutor</code> + per-session <code>Lock</code> + <code>TaskStore</code>（SQLite WAL 覆盖索引）；每个任务在独立 asyncio loop 里跑模型→工具→验证循环。端口 8765 不对外，只在本机 loopback 服务。</li>
+      <li><strong>第三层：可选的 Spring Cloud plane（Java）</strong> — <code>minicc-cloud/</code>：Eureka 注册发现（8761）、Spring Cloud Config Server（8888，native profile 读 <code>minicc-cloud/config-repo/</code>）、Spring Cloud Gateway（8080：<code>lb://</code> 加 Resilience4j 熔断、Redis 令牌桶限流、<code>IpKeyResolver</code> 每 IP 一桶）、Inspector（8081，Python 只读检查桥）、Tasks（8082，SQLite 只读读历史）、Insights（8087，聚合统计 + Eureka fleet 拓扑）——这一套全在本机 <code>docker compose</code> 启动，完全可独立 mvn 测试（137+ 绿）。</li>
+      <li><strong>数据层：SQLite WAL</strong> — <code>.minicc/tasks.db</code>、<code>audit.jsonl</code>（严格 append only，永不 truncate）；所有写入产物带 <code>before_sha256 / after_sha256</code> 摘要，可复盘。</li>
+      <li><strong>缓存</strong> — 本地 <code>functools.lru_cache</code> + <code>default_cache</code> 统一访问；配置驱动的本地 LRU 有 size + ttl 两维限制（默认 4096 × 300 s）；Redis 缓存（<code>minicc-cloud</code> 桥经 Redis 做缓存失效，RabbitMQ fanout）——本机 Redis 没启也可以跑（degrade 到本地 LRU 而不会炸）。</li>
+      <li><strong>消息队列</strong> — RabbitMQ：<code>minicc-cloud-gateway</code> 把 <code>/api/inspect</code> 系列的缓存失效广播到所有 inspector 实例（fanout exchange），服务彼此不需要真的用它，但能真用它（配合 <code>/actuator/health</code> 做完整回环演示）。</li>
+      <li><strong>限流</strong> — Spring Cloud Gateway 的 Redis 令牌桶（默认 20 tocken/s 回填 + 40 burst，每 IP 一桶），<code>SPRING_PROFILES_ACTIVE=ratelimit</code> 才激活。压测实测：120 并发 52 通行 / 67 次 429 / 1 次 503（upstream 打满时的 honest fallback）。</li>
+      <li><strong>压测实测数据</strong> — <code>docs/LOAD_TESTING.md</code>：c=50 × 20s、<strong>2,490 次请求零错误</strong>、p50 37s → <strong>4.2ms</strong>（single-flight + 预热后）；<code>minicc/web.py</code> 重新做了 Semaphores 隔离 + 细粒度锁的内存缓存。</li>
+      <li><strong>检索</strong> — <code>minicc/rag.py</code>（BM25 真读仓库 docs 然后塞入上下文）；<code>minicc-cloud-bridge</code> 把 Python rag 跑在独立 Java 桥，面板里"问仓库"全部真跑。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>实践建议</strong>
+      <p>先读完这一章，再挑一个模块——比如先跑 Redis + RabbitMQ、再读 <code>docs/SERVICE_PLANE_OPERATOR.md</code>，你很快就能在本机把整套东西拉起来。</p>
+    </div>
+  `;
+}
+
+function enArch() {
+  return `
+    <p class="manual-lede">A real architecture, front to back, grounded in actual measurements — frontend, backend, database, cache, queue, all named explicitly. Not an architecture diagram: the real things you walked through in the twelve chapters before this.</p>
+    <ol class="manual-list">
+      <li><strong>Layer 1: Frontend — Python, single machine.</strong> <code>minicc-web</code> / FastAPI, Jinja2 + vanilla JS straight out, no bundler/no build-chain (node only runs <code>check:web</code>). Every session is fully local, no ops team required.</li>
+      <li><strong>Rendering layer.</strong> Vanilla ES modules → esbuild into <code>assets/*.min.js</code> + <code>styles.*.css</code>. No React, no npm runtime — ~750 KB / ~767 KB total JS + CSS. Opening <code>127.0.0.1:8765</code> instantly lands you in the workbench: no build step, no npm install, no dependency drift mid-session.</li>
+      <li><strong>Layer 2: the local agent engine (Python).</strong> <code>minicc/agent/loop.py</code>, <code>minicc/session.py</code>, <code>minicc/tools/*</code>, <code>minicc/verifier</code>, <code>minicc/compaction</code> context compaction, and <code>minicc/llm/openai_provider</code> normalizing streaming / blocking / Responses wire formats. Pure Python, no container.</li>
+      <li><strong>Execution layer.</strong> <code>ThreadPoolExecutor</code> + per-session locks + <code>TaskStore</code> (SQLite with WAL in a covering index). Each task runs the model → tools → verifier loop in its own asyncio loop. Port 8765 stays strictly on loopback; nothing crosses the boundary that isn't you-asked-for.</li>
+      <li><strong>Layer 3: the optional Spring Cloud plane (Java under <code>minicc-cloud/</code>).</strong> Eureka (8761), Spring Cloud Config Server (8888, native profile over <code>minicc-cloud/config-repo/</code>), Spring Cloud Gateway (8080 with <code>lb://</code>, Resilience4j circuit breaker, an <code>IpKeyResolver</code>-based Redis token bucket per IP), Inspector (8081, Python read-only bridge), Tasks (8082, read-only SQLite history), Insights (8087, aggregates + Eureka fleet topology). Runs entirely on <code>docker compose</code> locally with <code>mvn test</code> 137+ green.</li>
+      <li><strong>Data layer: SQLite WAL.</strong> <code>.minicc/tasks.db</code>, <code>audit.jsonl</code> (strict append-only, never truncated). Every write records <code>before_sha256 / after_sha256</code> — replay + audit included.</li>
+      <li><strong>Cache.</strong> Local <code>default_cache</code> with LRU+TTL (default capacity 4096 × 300 s). Live Redis (when <code>minicc-cloud</code> is up); degrade to local LRU without Redis running — nothing breaks. Prefix cache affinity persisted across the gateway, hot prefix warming to 98.3% hit rate.</li>
+      <li><strong>Message queue.</strong> RabbitMQ: <code>minicc-cloud-gateway</code> broadcasts <code>fanout</code> to invalidate inspector Python caches when needed. Use <code>/actuator/health</code> for the full round trip.</li>
+      <li><strong>Rate limiter.</strong> Spring Cloud Gateway Redis token bucket (default 20 tokens/s refill + 40 burst, one bucket per IP). Opt-in via <code>SPRING_PROFILES_ACTIVE=ratelimit</code>. Measured: 120 concurrent → 52×200 / 67×429 / 1×503 (gateway upstream saturated honestly). Bucket refill brings it back to 200.</li>
+      <li><strong>Load test.</strong> <code>docs/LOAD_TESTING.md</code>: c=50 × 20 s → <strong>2,490 requests, zero errors</strong>; <code>p50</code> 37 s → <strong>4.2 ms</strong> after single-flight + warm-up. See <code>minicc/web.py</code> for the Semaphore isolation and the fine-grained lock cache work.</li>
+      <li><strong>Retrieval.</strong> <code>minicc/rag.py</code> — BM25 over the repo's own docs injected into the prompt. <code>minicc-cloud-bridge</code> hosts the Python RAG behind a Java bridge, so the “Ask the repo” panel is all real.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Practical first step</strong>
+      <p>Read this chapter once, then run Redis + RabbitMQ via <code>docker compose up -d</code> in <code>minicc-cloud/</code> and hit <code>curl localhost:8080/api/health</code>. You'll have the whole plane alive on your laptop in under six minutes.</p>
+    </div>
+  `;
+}
+
 const BODIES = {
   start: { zh: zhStart, en: enStart },
   workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -426,6 +473,7 @@ const BODIES = {
   askdocs: { zh: zhAskDocs, en: enAskDocs },
   load: { zh: zhLoad, en: enLoad },
   cloud: { zh: zhCloud, en: enCloud },
+  arch: { zh: zhArch, en: enArch },
 };
 
 function chapterMarkup(chapter) {

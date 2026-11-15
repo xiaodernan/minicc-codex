@@ -52874,3 +52874,32 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - Playwright 真浏览器（zh + en）：第 12 章激活/渲染正确，中英两套呈现干净、无 CJK 泄漏、首屏入口可见；
 - `npm run build:web` / `check:web` 干净；`node --check web/src/panels/manual.js` 通过；
 - 这本章节本身就是新客户快速上手的一部分（解决原客户最容易卡住的"为什么 README 有 docker-compose 但我不知道怎么拉起来"问题）。
+
+## 批次 1001 - M8-T1011：手册第十三章「前后端全景架构」—— 把整站栈从 Python FastAPI 到 Spring Cloud plane 全部讲清楚
+
+### 1 1背景
+
+客户读了很长时间的工作台、年鉴、手册，却没找到一篇能把前→后端→数据库→缓存→消息队列讲全的文章——虽然 CHANGELOG 与 docs/ 里有零散记录，但从来没作为手册章节出现过。这本手册就补上了这一段。
+
+### 2 做了什么
+
+- **手册第十三章「前后端全景架构 / Full Stack」**（`web/src/panels/manual.js`）：
+  - 第一层：前端（FastAPI + Jinja2 + vanilla JS + 0 构建链）；esbuild 打包 assets/*.min.js
+  - 渲染层：ES modules → esbuild → assets（无 React/NPM 闭环）；750/767 KB total
+  - 第二层：本机 Python Agent 引擎（`minicc/agent/loop.py` / `session.py` / `tools/*` / `verifier` / `compaction`；纯 Python）
+  - 执行层：ThreadPoolExecutor + per-session Lock + TaskStore（SQLite WAL）；loopback 限制
+  - 第三层：可选 Spring Cloud plane（Eureka / Config / Gateway / Inspector / Tasks / Insights；Docker 一键起）
+  - 数据层：SQLite WAL + `audit.jsonl`（严格 append-only with before/after sha256）
+  - 缓存层：本地 LRU+TTL（`default_cache`，capacity 4096 × 300s）+ Redis 缓存
+  - 消息队列：RabbitMQ fanout 广播缓存失效（minicc-cloud-gateway → inspector 集群）
+  - 限流：Spring Cloud Gateway 的 Redis 令牌桶（20 t/s refill + 40 burst，per IP）；`SPRING_PROFILES_ACTIVE=ratelimit` 激活
+  - 压测实测：c=50 × 20s → 2,490×0 failures，p50 37s → 4.2ms（LOAD_TESTING.md）
+  - 检索：`minicc/rag.py` BM25 RAG + Java `minicc-cloud-bridge` 托管
+- **README 十三章**：更新「十三章」
+- **实证（zh + en）**：截图两套均呈现干净；en 模式零 CJK 泄漏；手册 rail 第十三章入口可见、点击即切。
+
+### 3 验证
+
+- `node --check web/src/panels/manual.js` ✓
+- `npm run build:web` ✓ `check:web` ✓
+- Playwright 双语截图 ✓（en 模式零 CJK）

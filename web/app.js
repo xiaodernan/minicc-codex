@@ -3798,7 +3798,8 @@
     { id: "philosophy", roman: "\u4E5D", romanEn: "9", title: "The Quiet Room", titleZh: "\u5B89\u9759\u7684\u623F\u95F4" },
     { id: "askdocs", roman: "\u5341", romanEn: "10", title: "Ask the Repo", titleZh: "\u95EE\u4ED3\u5E93" },
     { id: "load", roman: "\u5341\u4E00", romanEn: "11", title: "Load & Capacity", titleZh: "\u538B\u6D4B\u4E0E\u5BB9\u91CF" },
-    { id: "cloud", roman: "\u5341\u4E8C", romanEn: "12", title: "Spring Cloud plane", titleZh: "\u5FAE\u670D\u52A1\u5E73\u9762" }
+    { id: "cloud", roman: "\u5341\u4E8C", romanEn: "12", title: "Spring Cloud plane", titleZh: "\u5FAE\u670D\u52A1\u5E73\u9762" },
+    { id: "arch", roman: "\u5341\u4E09", romanEn: "13", title: "Full Stack", titleZh: "\u524D\u540E\u7AEF\u5168\u666F\u67B6\u6784" }
   ];
   function zhStart() {
     return `
@@ -4160,6 +4161,50 @@
     <p>Full architecture: <code>../docs/SERVICE_PLANE_PLAN.md</code>. Every endpoint + env var: <code>../docs/SERVICE_PLANE_OPERATOR.md</code>.</p>
   `;
   }
+  function zhArch() {
+    return `
+    <p class="manual-lede">\u8FD9\u6709\u4E00\u4EFD\u4ECE\u4E0A\u5230\u4E0B\u3001\u6309\u771F\u5B9E\u6570\u636E\u6392\u5217\u7684\u67B6\u6784\u5168\u666F\u2014\u2014\u524D\u7AEF\u3001\u540E\u7AEF\u3001\u6570\u636E\u5E93\u3001\u7F13\u5B58\u3001\u6D88\u606F\u961F\u5217\uFF0C\u6BCF\u4E00\u6837\u90FD\u70B9\u5230\u3002\u8FD9\u4E0D\u662F\u67B6\u6784\u56FE\uFF0C\u662F\u4F60\u521A\u624D\u770B\u4E86\u5341\u51E0\u7AE0\u3001\u8DD1\u8FC7\u5341\u51E0\u8F6E\u4EFB\u52A1\u4E4B\u540E\u8BE5\u77E5\u9053\u7684\u4E00\u7BC7\u3002</p>
+    <ol class="manual-list">
+      <li><strong>\u7B2C\u4E00\u5C42\uFF1A\u524D\u7AEF\uFF08Python, \u5355\u673A\u8FDB\u7A0B\uFF09</strong> \u2014 FastAPI / <code>minicc-web</code>\u3001Jinja2 + vanilla JS \u76F4\u51FA\u3001\u4E0D\u6253\u5305\u4E0D\u7528\u6784\u5EFA\u94FE\uFF08node \u53EA\u7528\u6765 <code>check:web</code>\uFF09\u3002\u6BCF\u4E2A\u4F1A\u8BDD\u90FD\u662F\u5168\u672C\u5730\u3001\u96F6\u8FD0\u8425\u56E2\u961F\u3002</li>
+      <li><strong>\u524D\u7AEF\u6E32\u67D3\u5C42</strong> \u2014 Vanilla ES modules \u2192 esbuild \u6253\u5305\u6210 <code>assets/*.min.js</code> \u4E0E <code>styles.*.css</code>\uFF0C\u6CA1\u6709 React \u4F9D\u8D56\u3001\u6CA1\u6709 NPM \u5305\uFF0C~750 KB / 767 KB\u3002\u4EFB\u610F\u7F51\u7EDC\u6253\u5F00 <code>127.0.0.1:8765</code> \u7ACB\u523B\u8FDB\u5165\u5DE5\u4F5C\u53F0\u2014\u2014\u6CA1\u6709 build step\u3001\u6CA1\u6709 npm install\u3001\u6CA1\u6709\u4F9D\u8D56\u5237\u65B0\u3002</li>
+      <li><strong>\u7B2C\u4E8C\u5C42\uFF1A\u672C\u673A Agent \u5F15\u64CE\uFF08Python\uFF09</strong> \u2014 <code>minicc/agent/loop.py</code>\u3001<code>minicc/session.py</code>\u3001<code>minicc/tools/*</code>\u3001<code>minicc/verifier</code>\u3001<code>minicc/compaction</code> \u4E0A\u4E0B\u6587\u538B\u7F29\u3001<code>minicc/llm/openai_provider</code> \u628A\u6D41\u5F0F/\u963B\u585E/Responses API \u7EDF\u4E00\u3002\u5168\u90E8\u662F\u7EAF python\uFF0C\u6CA1\u6709\u5BB9\u5668\u5316\u90A3\u4E00\u5C42\u3002</li>
+      <li><strong>\u6267\u884C\u5C42</strong> \u2014 <code>ThreadPoolExecutor</code> + per-session <code>Lock</code> + <code>TaskStore</code>\uFF08SQLite WAL \u8986\u76D6\u7D22\u5F15\uFF09\uFF1B\u6BCF\u4E2A\u4EFB\u52A1\u5728\u72EC\u7ACB asyncio loop \u91CC\u8DD1\u6A21\u578B\u2192\u5DE5\u5177\u2192\u9A8C\u8BC1\u5FAA\u73AF\u3002\u7AEF\u53E3 8765 \u4E0D\u5BF9\u5916\uFF0C\u53EA\u5728\u672C\u673A loopback \u670D\u52A1\u3002</li>
+      <li><strong>\u7B2C\u4E09\u5C42\uFF1A\u53EF\u9009\u7684 Spring Cloud plane\uFF08Java\uFF09</strong> \u2014 <code>minicc-cloud/</code>\uFF1AEureka \u6CE8\u518C\u53D1\u73B0\uFF088761\uFF09\u3001Spring Cloud Config Server\uFF088888\uFF0Cnative profile \u8BFB <code>minicc-cloud/config-repo/</code>\uFF09\u3001Spring Cloud Gateway\uFF088080\uFF1A<code>lb://</code> \u52A0 Resilience4j \u7194\u65AD\u3001Redis \u4EE4\u724C\u6876\u9650\u6D41\u3001<code>IpKeyResolver</code> \u6BCF IP \u4E00\u6876\uFF09\u3001Inspector\uFF088081\uFF0CPython \u53EA\u8BFB\u68C0\u67E5\u6865\uFF09\u3001Tasks\uFF088082\uFF0CSQLite \u53EA\u8BFB\u8BFB\u5386\u53F2\uFF09\u3001Insights\uFF088087\uFF0C\u805A\u5408\u7EDF\u8BA1 + Eureka fleet \u62D3\u6251\uFF09\u2014\u2014\u8FD9\u4E00\u5957\u5168\u5728\u672C\u673A <code>docker compose</code> \u542F\u52A8\uFF0C\u5B8C\u5168\u53EF\u72EC\u7ACB mvn \u6D4B\u8BD5\uFF08137+ \u7EFF\uFF09\u3002</li>
+      <li><strong>\u6570\u636E\u5C42\uFF1ASQLite WAL</strong> \u2014 <code>.minicc/tasks.db</code>\u3001<code>audit.jsonl</code>\uFF08\u4E25\u683C append only\uFF0C\u6C38\u4E0D truncate\uFF09\uFF1B\u6240\u6709\u5199\u5165\u4EA7\u7269\u5E26 <code>before_sha256 / after_sha256</code> \u6458\u8981\uFF0C\u53EF\u590D\u76D8\u3002</li>
+      <li><strong>\u7F13\u5B58</strong> \u2014 \u672C\u5730 <code>functools.lru_cache</code> + <code>default_cache</code> \u7EDF\u4E00\u8BBF\u95EE\uFF1B\u914D\u7F6E\u9A71\u52A8\u7684\u672C\u5730 LRU \u6709 size + ttl \u4E24\u7EF4\u9650\u5236\uFF08\u9ED8\u8BA4 4096 \xD7 300 s\uFF09\uFF1BRedis \u7F13\u5B58\uFF08<code>minicc-cloud</code> \u6865\u7ECF Redis \u505A\u7F13\u5B58\u5931\u6548\uFF0CRabbitMQ fanout\uFF09\u2014\u2014\u672C\u673A Redis \u6CA1\u542F\u4E5F\u53EF\u4EE5\u8DD1\uFF08degrade \u5230\u672C\u5730 LRU \u800C\u4E0D\u4F1A\u70B8\uFF09\u3002</li>
+      <li><strong>\u6D88\u606F\u961F\u5217</strong> \u2014 RabbitMQ\uFF1A<code>minicc-cloud-gateway</code> \u628A <code>/api/inspect</code> \u7CFB\u5217\u7684\u7F13\u5B58\u5931\u6548\u5E7F\u64AD\u5230\u6240\u6709 inspector \u5B9E\u4F8B\uFF08fanout exchange\uFF09\uFF0C\u670D\u52A1\u5F7C\u6B64\u4E0D\u9700\u8981\u771F\u7684\u7528\u5B83\uFF0C\u4F46\u80FD\u771F\u7528\u5B83\uFF08\u914D\u5408 <code>/actuator/health</code> \u505A\u5B8C\u6574\u56DE\u73AF\u6F14\u793A\uFF09\u3002</li>
+      <li><strong>\u9650\u6D41</strong> \u2014 Spring Cloud Gateway \u7684 Redis \u4EE4\u724C\u6876\uFF08\u9ED8\u8BA4 20 tocken/s \u56DE\u586B + 40 burst\uFF0C\u6BCF IP \u4E00\u6876\uFF09\uFF0C<code>SPRING_PROFILES_ACTIVE=ratelimit</code> \u624D\u6FC0\u6D3B\u3002\u538B\u6D4B\u5B9E\u6D4B\uFF1A120 \u5E76\u53D1 52 \u901A\u884C / 67 \u6B21 429 / 1 \u6B21 503\uFF08upstream \u6253\u6EE1\u65F6\u7684 honest fallback\uFF09\u3002</li>
+      <li><strong>\u538B\u6D4B\u5B9E\u6D4B\u6570\u636E</strong> \u2014 <code>docs/LOAD_TESTING.md</code>\uFF1Ac=50 \xD7 20s\u3001<strong>2,490 \u6B21\u8BF7\u6C42\u96F6\u9519\u8BEF</strong>\u3001p50 37s \u2192 <strong>4.2ms</strong>\uFF08single-flight + \u9884\u70ED\u540E\uFF09\uFF1B<code>minicc/web.py</code> \u91CD\u65B0\u505A\u4E86 Semaphores \u9694\u79BB + \u7EC6\u7C92\u5EA6\u9501\u7684\u5185\u5B58\u7F13\u5B58\u3002</li>
+      <li><strong>\u68C0\u7D22</strong> \u2014 <code>minicc/rag.py</code>\uFF08BM25 \u771F\u8BFB\u4ED3\u5E93 docs \u7136\u540E\u585E\u5165\u4E0A\u4E0B\u6587\uFF09\uFF1B<code>minicc-cloud-bridge</code> \u628A Python rag \u8DD1\u5728\u72EC\u7ACB Java \u6865\uFF0C\u9762\u677F\u91CC"\u95EE\u4ED3\u5E93"\u5168\u90E8\u771F\u8DD1\u3002</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>\u5B9E\u8DF5\u5EFA\u8BAE</strong>
+      <p>\u5148\u8BFB\u5B8C\u8FD9\u4E00\u7AE0\uFF0C\u518D\u6311\u4E00\u4E2A\u6A21\u5757\u2014\u2014\u6BD4\u5982\u5148\u8DD1 Redis + RabbitMQ\u3001\u518D\u8BFB <code>docs/SERVICE_PLANE_OPERATOR.md</code>\uFF0C\u4F60\u5F88\u5FEB\u5C31\u80FD\u5728\u672C\u673A\u628A\u6574\u5957\u4E1C\u897F\u62C9\u8D77\u6765\u3002</p>
+    </div>
+  `;
+  }
+  function enArch() {
+    return `
+    <p class="manual-lede">A real architecture, front to back, grounded in actual measurements \u2014 frontend, backend, database, cache, queue, all named explicitly. Not an architecture diagram: the real things you walked through in the twelve chapters before this.</p>
+    <ol class="manual-list">
+      <li><strong>Layer 1: Frontend \u2014 Python, single machine.</strong> <code>minicc-web</code> / FastAPI, Jinja2 + vanilla JS straight out, no bundler/no build-chain (node only runs <code>check:web</code>). Every session is fully local, no ops team required.</li>
+      <li><strong>Rendering layer.</strong> Vanilla ES modules \u2192 esbuild into <code>assets/*.min.js</code> + <code>styles.*.css</code>. No React, no npm runtime \u2014 ~750 KB / ~767 KB total JS + CSS. Opening <code>127.0.0.1:8765</code> instantly lands you in the workbench: no build step, no npm install, no dependency drift mid-session.</li>
+      <li><strong>Layer 2: the local agent engine (Python).</strong> <code>minicc/agent/loop.py</code>, <code>minicc/session.py</code>, <code>minicc/tools/*</code>, <code>minicc/verifier</code>, <code>minicc/compaction</code> context compaction, and <code>minicc/llm/openai_provider</code> normalizing streaming / blocking / Responses wire formats. Pure Python, no container.</li>
+      <li><strong>Execution layer.</strong> <code>ThreadPoolExecutor</code> + per-session locks + <code>TaskStore</code> (SQLite with WAL in a covering index). Each task runs the model \u2192 tools \u2192 verifier loop in its own asyncio loop. Port 8765 stays strictly on loopback; nothing crosses the boundary that isn't you-asked-for.</li>
+      <li><strong>Layer 3: the optional Spring Cloud plane (Java under <code>minicc-cloud/</code>).</strong> Eureka (8761), Spring Cloud Config Server (8888, native profile over <code>minicc-cloud/config-repo/</code>), Spring Cloud Gateway (8080 with <code>lb://</code>, Resilience4j circuit breaker, an <code>IpKeyResolver</code>-based Redis token bucket per IP), Inspector (8081, Python read-only bridge), Tasks (8082, read-only SQLite history), Insights (8087, aggregates + Eureka fleet topology). Runs entirely on <code>docker compose</code> locally with <code>mvn test</code> 137+ green.</li>
+      <li><strong>Data layer: SQLite WAL.</strong> <code>.minicc/tasks.db</code>, <code>audit.jsonl</code> (strict append-only, never truncated). Every write records <code>before_sha256 / after_sha256</code> \u2014 replay + audit included.</li>
+      <li><strong>Cache.</strong> Local <code>default_cache</code> with LRU+TTL (default capacity 4096 \xD7 300 s). Live Redis (when <code>minicc-cloud</code> is up); degrade to local LRU without Redis running \u2014 nothing breaks. Prefix cache affinity persisted across the gateway, hot prefix warming to 98.3% hit rate.</li>
+      <li><strong>Message queue.</strong> RabbitMQ: <code>minicc-cloud-gateway</code> broadcasts <code>fanout</code> to invalidate inspector Python caches when needed. Use <code>/actuator/health</code> for the full round trip.</li>
+      <li><strong>Rate limiter.</strong> Spring Cloud Gateway Redis token bucket (default 20 tokens/s refill + 40 burst, one bucket per IP). Opt-in via <code>SPRING_PROFILES_ACTIVE=ratelimit</code>. Measured: 120 concurrent \u2192 52\xD7200 / 67\xD7429 / 1\xD7503 (gateway upstream saturated honestly). Bucket refill brings it back to 200.</li>
+      <li><strong>Load test.</strong> <code>docs/LOAD_TESTING.md</code>: c=50 \xD7 20 s \u2192 <strong>2,490 requests, zero errors</strong>; <code>p50</code> 37 s \u2192 <strong>4.2 ms</strong> after single-flight + warm-up. See <code>minicc/web.py</code> for the Semaphore isolation and the fine-grained lock cache work.</li>
+      <li><strong>Retrieval.</strong> <code>minicc/rag.py</code> \u2014 BM25 over the repo's own docs injected into the prompt. <code>minicc-cloud-bridge</code> hosts the Python RAG behind a Java bridge, so the \u201CAsk the repo\u201D panel is all real.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Practical first step</strong>
+      <p>Read this chapter once, then run Redis + RabbitMQ via <code>docker compose up -d</code> in <code>minicc-cloud/</code> and hit <code>curl localhost:8080/api/health</code>. You'll have the whole plane alive on your laptop in under six minutes.</p>
+    </div>
+  `;
+  }
   var BODIES = {
     start: { zh: zhStart, en: enStart },
     workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -4172,7 +4217,8 @@
     philosophy: { zh: zhPhilosophy, en: enPhilosophy },
     askdocs: { zh: zhAskDocs, en: enAskDocs },
     load: { zh: zhLoad, en: enLoad },
-    cloud: { zh: zhCloud, en: enCloud }
+    cloud: { zh: zhCloud, en: enCloud },
+    arch: { zh: zhArch, en: enArch }
   };
   function chapterMarkup2(chapter) {
     const zh9 = state.locale === "zh";
