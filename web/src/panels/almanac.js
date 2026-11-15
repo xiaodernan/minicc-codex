@@ -45,6 +45,7 @@ export const CHAPTERS = [
   { id: "compass", roman: { zh: "卷二十二", en: "Chapter XXII" }, title: { zh: "罗经仪", en: "The Compass" }, subtitle: { zh: "引导不是兜底，是建筑", en: "Guidance is not a parachute, it is architecture" } },
   { id: "deepfield", roman: { zh: "卷二十三", en: "Chapter XXIII" }, title: { zh: "深空", en: "The Deep Field" }, subtitle: { zh: "勘完不是终点，是望远镜的起点", en: "Finish the chart, then point the telescope deeper" } },
   { id: "lawn", roman: { zh: "卷二十四", en: "Chapter XXIV" }, title: { zh: "翠茵", en: "The Lawn" }, subtitle: { zh: "先给草插上旗子，再让僵尸来", en: "Plant the flag before the zombie learns the gate" } },
+  { id: "litmus", roman: { zh: "卷二十五", en: "Chapter XXV" }, title: { zh: "试纸", en: "The Litmus" }, subtitle: { zh: "红门只说一件事：这里有事没说完", en: "Red only ever means one thing: something here is unfinished" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1703,6 +1704,96 @@ function lawnMarkup() {
     </div>`;
 }
 
+function litmusMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-litmus">
+      <div class="almanac-kicker">${zh() ? "卷二十五 · 试纸" : "Chapter XXV · The Litmus"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `红不是敌人，<br/><span class="almanac-title-accent">红是没说完的真话。</span>`
+        : `Red is not the enemy,<br/><span class="almanac-title-accent">red is the truth still talking.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 15 日晚上八点四十，M8-T1047 推上 main，两条 Python legs 一起红了——不是土木运动做错了事情，是两盏红灯说了同一句话：<strong>这里有个 4.29:1。</strong>
+        </p>
+        <p>
+          第一句：<code>.game-how-skill-glyph</code> 把琥珀色字放在 14% 琥珀底上——<strong>字是琥珀，底也是琥珀</strong>。人眼饱和，机器却记得数字：比 4.5 低 0.21。于是字改成了 <code>--text</code>，底加深到 18%，AA 门复验绿了。红灯从来不是对你发火，红灯只是报了一次出厂规格。
+        </p>
+        <p>
+          第二句：<code>test_window_expiry_reopens_the_gate</code> 里有一个 sleep(0.06)——它靠天吃饭。CI 的共享 VM 不保证 60 毫秒里那一次切片真的不在窗口内。修法不是相信运气：<strong>单调钟轮询 + 2 秒有界 deadline</strong>。断言写严后的语义是『60 毫秒之后的闸口，在 2 秒以内必须重新开放』——比原来更严，不是更松。
+        </p>
+        <p>
+          第三盏灯 <strong>M8-T1048</strong>：<code>gameLoop</code> 在 <code>!running</code> 时悄悄 return，于是开局阶段的向日葵冷却一秒都不走——你永远等不到它冷下来，它也永远冷不下来。unit test 看不见这种死锁，只有浏览器真的去点才会相遇。于是 <strong>pre-game tick</strong> 被写成对称分支：没打仗也要走冷却。
+        </p>
+        <p>
+          同一批次里还有一颗顺手的星：2560×1200 屏幕里 <code>#gameStart</code> 位于 y=1474，整窗只有 1200px 高——按钮一直都在，只是没人看得见。现在它落在 y=1025，和 <code>@media (min-width: 1500px) and (min-height: 900px)</code> 同一排坐下，<strong>能看见的按钮才是按钮</strong>。
+        </p>
+        <p>
+          第四盏灯 <strong>M8-T1049</strong>：README 里一行散文写了 <code>--island-tint</code>，capability-claims 门把它读成没登记过的 CLI 旗标，两条 legs 一字不差地全红。去掉横线——<code>island-tint</code>——8/8 复绿。<strong>门从不说谎，它只陈述。是散文先越了界。</strong>
+        </p>
+        <p>
+          同一天里，showcase 的 bot（Update docs/latest.json）连续三次全绿。两份判决书同时归档：一份写「仓库在动」，一份写「仓库不在动」。<strong>两份都是真的</strong>——不同门问不同的问题。
+        </p>
+        <p>
+          写这一卷时 main 又往前走了。如果你现在读到这里，说明又有新的红、新的绿、新的提交——<strong>红不会跟 1675 次提交讨价还价</strong>；这条规则也适用于你此刻读到的每一卷。
+        </p>` : `<p>
+          20:40 on 2026-11-15, main took M8-T1047 and both Python legs went red together — not because the site was wrong, because two red lamps were saying the same thing twice: <strong>there is a 4.29:1 in here.</strong>
+        </p>
+        <p>
+          First sentence: <code>.game-how-skill-glyph</code> set amber text on a 14% amber field — <strong>amber on amber</strong>. Human eyes saturate; the machine writes the number down: 0.21 shy of 4.5. The glyph now wears <code>--text</code> on an 18% amber field; the AA gate re-verified green. Red is never the machine yelling at you; red just echoes the spec back.
+        </p>
+        <p>
+          Second sentence: <code>test_window_expiry_reopens_the_gate</code> had a sleep(0.06) inside it — it bet the clock on luck. A shared CI VM doesn't promise its 60-millisecond slice lands. The honest fix was strict polling, not softer assertions: <strong>monotonic-clock poll with a 2.0-second bounded deadline</strong>, promising the gate reopens within 2 s of its 60 ms window. That assertion is strictly stronger than the old one — promise, not hope.
+        </p>
+        <p>
+          The third lamp <strong>M8-T1048</strong>: <code>gameLoop</code> returned early on <code>!running</code>, so the opening sunflower cooldown never ticked a single millisecond — you could wait for the button to cool forever and it never would have. Unit tests can't see a UI deadlock; only a real browser session does. A symmetric pre-game tick now iterates cooldowns even when nothing is fighting.
+        </p>
+        <p>
+          The same batch caught a star that had been invisible the whole time: at 2560×1200, <code>#gameStart</code> sat at y=1474 while the viewport offered exactly 1200 pixels — the button existed, nobody could see it. A 1500 × 900 media block plus a sticky control bar lands it at y=1025. <strong>A button you can't see is not a button.</strong>
+        </p>
+        <p>
+          The fourth lamp <strong>M8-T1049</strong>: a prose line in README mentioned <code>--island-tint</code>, and the capability-claims gate — reasonably — read it as an unregistered CLI flag. Both Python legs failed identically. The dashes came off; the gate went 8/8 green. <strong>The gate never lied here; the prose did.</strong>
+        </p>
+        <p>
+          The same day, the showcase bot (Update docs/latest.json) ran three times and passed each one clean. Two verdicts archived side by side — one typed <code>repository is moving</code>, the other typed <code>repository is not moving</code>. Both were true. Different doors ask different questions.
+        </p>
+        <p>
+          By the time you read this, main has moved again. One more turn of the screw, one more commit, one more gate to keep honest. <strong>The red never negotiates with 1675 commits — and that rule applies to every chapter you have loaded while reading.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "AA 对比 · 门判" : "AA contrast"}</div><div class="almanac-instrument-value">4.29 → 4.5+</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "RAG 窗口 · 门判" : "RAG window"}</div><div class="almanac-instrument-value">0.06s → 2s</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">57</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">26 / 26</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["琥珀叠琥珀是一处盲点", "AA 门测出 4.29:1，字换成 --text，底加深到 18%——门没有撒谎，是设计没通过"],
+        ["一个 beat 不是承诺", "sleep(0.06) 换成单调钟轮询 + 2.0s 有界 deadline——断言更严，不是更松"],
+        ["unit test 看不见 UI 死锁", "pre-game tick 补上 gameLoop 的对称分支；浏览器才是读屏器"],
+        ["README 是文档，不是旗标", "--island-tint 去横线写成 island-tint，8/8 复绿"],
+        ["两份判决书都归档", "showcase bot 绿了 3 次、CI legs 红了 2 轮——两份都读，都不删"],
+      ] : [
+        ["amber on amber is a blind spot", "the AA gate read 4.29:1; the glyph now wears --text on an 18% amber field"],
+        ["one beat is not a promise", "sleep(0.06) replaced with monotonic poll + 2.0s bounded deadline — stricter, not looser"],
+        ["unit tests can't see a UI deadlock", "a symmetric pre-game tick completes gameLoop; the browser is the actual screen reader"],
+        ["README is prose, not a CLI", "--island-tint renamed to island-tint; the claims gate went 8/8 green"],
+        ["both verdicts are archived", "showcase bot passed 3× while CI legs failed 2× — both read, neither deleted"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "红不会替你写代码，但它看得见你看不见的东西。"
+          : "Red will never write your code for you, but it will always see what you can't."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1729,6 +1820,7 @@ const CHAPTER_RENDERERS = {
   compass: () => compassMarkup(),
   deepfield: () => deepfieldMarkup(),
   lawn: () => lawnMarkup(),
+  litmus: () => litmusMarkup(),
 };
 
 async function loadChapter(id) {

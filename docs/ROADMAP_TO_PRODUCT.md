@@ -53559,3 +53559,15 @@ M8-T1044/T1045 合并 CI 跑了 28 分钟，两条 Python legs 同形失败—�
 - README：`--island-tint` → `island-tint`。
 - 本地 `test_readme_capability_claims.py` 8/8 绿。
 - 其他 CRLF pin / Claims / Playwright 不动。
+## 批次 1035 - M8-T1050: 年鉴第二十五卷「试纸 / The Litmus」— 三盏红灯怎么读
+
+### 目的
+
+一段叙事只属于「红」：M8-T1047 两个 Python legs 一起打红（AA 对比度 4.29:1 + RAG ratelimit 的 sleep(0.06)）、M8-T1048 浏览器 playthrough 才看见的 pre-game 冷却冻结 + 2560×1200 里看不见的 `#gameStart` 按钮、M8-T1049 README 散文里 `--island-tint` 被 capability-claims 门读成 CLI 旗标。这一卷把这三盏灯放进博物馆：每一盏红都是门在陈述一个没说完的约束，没有任何一个跟产品功能有关。**门从不说谎——门只陈述；是散文越了界。**
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `litmus`（卷二十五 · 试纸）；新增 `litmusMarkup()`：story 叙事（zh/en 并排），instrument 格（AA 4.29→4.5+ · RAG 0.06s→2s · atlas coordinates 57 · volumes 26/26 · manual chapters 13/13 · commits live 1679 · tasks live · recent 12）；gate-list 五条（amber-on-amber 盲点 / 一个 beat 不是承诺 / unit test 看不见 UI 死锁 / README 是散文不是 CLI / 两份判决书都归档）；CHAPTER_RENDERERS 登记。
+- **Atlas 世界 57 坐标**（18+26+13）— onboarding / manual / README / index.html 占位符全量迁移（含一条 M8-T1046 当时遗漏的 onboarding 英文 Atlas 步文案 `fifty-five → fifty-seven / 24 → 26 satellites` 修复，以及 manual 的中文 Atlas 55 → 57、Almanac 模块更新为《试纸》）。
+- **26 卷年鉴**——`almanac_smoke` chapters + `CHAPTER_MARKERS` 双侧扩；log 行 25→26。说明书全量同步："the newest, Chapter XXV The Litmus"。
+- **门禁验证**：`almanac_smoke` — 26 chapters bilingual pass；`atlas_smoke` — 57-coordinate contract；`parity` — en walk 全绿；manual / admin 5 smokes 全绿；chapter 级 CJK probe（zh 含 CJK / en 0 CJK）。

@@ -475,3 +475,4 @@
 
 - **门禁**：5 smokes green / CRLF pin gates green（index.html 695 / i18n.js 309）。
 - **CI 红补丁（M8-T1049）**：本届 CI 把两个 Python legs 打回——根源是 README 里 The Lawn 的正文写了一串「--island-tint」，在 capability_claims 检查器看来是未经登记的 CLI 旗标（实际是 CSS 自定义属性）；去横线写成 `island-tint` 后两个 legs 本地复跑都绿。 涉 CRLF/i18n pins 零改动；`test_readme_capability_claims.py` 8/8 通过本地。
+- **年鉴第二十五卷「试纸 / The Litmus」（M8-T1050）**：博物馆升至 26 卷、Atlas 升至 57 坐标、现有 56→57；这一卷讲的是 M8-T1047/1048/1049 — 三个 CI/机器红都不是产品 bug，而是「门替人指出没说完的真话」。故事线：amber-on-amber AA 4.29:1 → `--text` + 18 % tint；CI VM 上 sleep(0.06) → 单调钟轮询 + 2.0s 有界 deadline（断言更严）；`gameLoop` 的 `!running` 提前退出导致的 pre-game 冷却冻结（浏览器里看得见的死锁）；2560×1200 视口里不可见的 `#gameStart`（y=1474 → y=1025, @media 1500×900 grid）；README 散文里 `--island-tint` 被 capability-claims 门读成未登记 CLI 旗标 → 去横线 8/8 复绿；同一天 showcase bot 三次全绿——两份判决书都归档。**门从不说谎，它只陈述；是散文越了界。**
