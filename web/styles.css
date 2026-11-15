@@ -5155,3 +5155,20 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .tour-skip:hover { color: #f2f3f5; }
 .tour-back { color: #c7ccd4; border-color: rgba(255, 255, 255, .14); }
 .tour-back:hover { color: #ffffff; border-color: rgba(255, 255, 255, .32); }
+/* M8-T990: the "open the manual" empty-hero chip gets its own duotone. */
+.empty-chip-manual {
+  border-color: color-mix(in srgb, var(--mint) 42%, var(--line-bright));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mint) 14%, transparent) 0%, transparent 60%),
+    var(--surface-soft);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--mint) 28%, transparent) inset;
+}
+.empty-chip-manual i, .empty-chip-manual svg { color: var(--mint); }
+.empty-chip-manual:hover {
+  border-color: var(--mint);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mint) 22%, transparent) 0%, transparent 60%),
+    color-mix(in srgb, var(--mint) 13%, var(--surface-soft));
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--mint) 28%, transparent), 0 1px 0 color-mix(in srgb, var(--mint) 44%, transparent) inset;
+}
+.empty-chip-manual:hover i, .empty-chip-manual:hover svg { color: var(--amber); }

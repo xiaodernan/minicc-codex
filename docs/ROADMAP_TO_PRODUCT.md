@@ -52425,3 +52425,23 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - Playwright 真浏览器（fresh profile + `localStorage.clear()`）双 locale 全走完：offer 按钮出现 → 第 1~6 步均正确渲染 → zh 第 3 步「读一下 README.md…」被填入 → 第 4 步 demo 按钮可点（无 provider 错误时走演示通路）→ 第 6 步完成页。 **errors: none（两端 locale 均零 JS 错误）**。
 - 截图：`output/tour_step1_{zh,en}.png`、`output/tour_final_{zh,en}.png` 均存档；字级与对比度在 zh/en 双模式逐项验证可读（_probe_tour.mjs）。
 - `npm run build:web`、`npm run check:web` 干净；`doc_pointers` rc=0；askdocs smoke PASS；未动锁定文件。
+
+## 批次 982 - M8-T990：空状态直通说明书 —— 用户启动即见教学
+
+### 1 背景
+
+用户明确指出：说明书不能是「某个按钮背后的文档」——它必须是启动即触手的功能。空会话首屏是每位用户第一眼的位置；此前只有 3 枚任务 chip（读 README / 跑测试 / 看 diff）。
+
+### 2 做了什么
+
+- `web/src/chat/markdown.js` `emptySessionMarkup()`：chips 一列加入第 4 枚「打开说明书」；新增 `data-empty-manual="1"` 区分处理（非 prompt 型 chip），用 `book-open-text` 图标。
+- `web/src/core/i18n.js`：zh「打开说明书，十一章全翻到」/ en「Open the manual — all eleven chapters」；双语 594 键。
+- `web/src/main.js`：`#messageList` 委托里先匹配 `[data-empty-manual]` → 直接 `openManualPanel()`（不走 prompt 通道）。
+- `web/styles.css` 新增 `.empty-chip-manual`：mint 描边 + Mint 渐变 halo + hover 琥珀图标——和默认 3 枚琥珀 chip 视觉区分（绿 = 教学资源，不代替行动召唤）。
+
+### 3 验证
+
+- Playwright 双 locale + 真浏览器：
+  - zh：4 chips = 「读 README」「跑测试」「审查 git diff」「打开说明书，十一章全翻到」；EN：4 chips = Read the README / Run the test suite / Review the diff / Open the manual — all eleven chapters；EN 零 CJK。
+  - 点击第 4 枚 chip → **manual panel 打开（`.manual-shell` 存在，第一章「五分钟上手」渲染）**——零点击到教学 = 启动即见。
+- `npm run build:web` 后 `check:web` 干净；askdocs smoke PASS；`doc_pointers` rc=0；i18n 594 键对齐。

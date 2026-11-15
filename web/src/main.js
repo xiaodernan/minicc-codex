@@ -174,6 +174,11 @@ export function bindUI() {
     if (target) openFilePreview(target.dataset.openDiff);
   });
   $("#messageList").addEventListener("click", (event) => {
+    const openManual = event.target.closest("[data-empty-manual]");
+    if (openManual) {
+      openManualPanel();
+      return;
+    }
     const chip = event.target.closest(".empty-chip[data-empty-prompt-zh]");
     if (chip) {
       const prompt = state.locale === "zh" ? chip.dataset.emptyPromptZh : chip.dataset.emptyPromptEn;

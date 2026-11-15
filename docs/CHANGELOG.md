@@ -340,3 +340,5 @@
 - **composer 登峰造极（M8-T988）**：命令甲板三件套——hairline 金顶 + 权限模式组分段滑块（`:has()` 零 JS）+ SVG 圆环上下文计量（tokens/cost/context/cache attestation 全部保留）+ 琥珀渐变发送 orb 呼吸动画；zh/en 双模式真截图验证；行为零变更。
 
 - **交互式「上手演练」上线（M8-T989）**：说明书不再只是被打开的面板——嵌在产品里的 6 步交互式教程，第 3 步真的帮你填好「读一下 README.md…」填入输入框、第 4 步真的帮你跑演示（`runDemoFlow()`）；修复 zh kicker 大面积 mojibake、修复强制 dark 卡面却用亮色主题色（zh/en 均不可读的对比度事故）；13 卷年鉴 / 11 章说明书文案对齐；Esc/箭头/按钮全可用，两 locale 真浏览器走完零错误。
+
+- **空状态直通说明书（M8-T990）**：启动即见教学 —— 第 4 枚 chip（mint 色，区别于琥珀行动召唤）「打开说明书，十一章全翻到 / Open the manual — all eleven chapters」，点击直接打开 11 章教学手册；i18n 双语对齐（594 键），双 locale 真浏览器验证 chip 数与一键打开；bundle 全部绿。
