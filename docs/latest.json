@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T00:48:40.050Z",
+  "generated_at": "2026-11-15T00:56:29.006Z",
   "branch": "main",
-  "head": "93fd4ec",
-  "total_commits": 1559,
+  "head": "3b03988",
+  "total_commits": 1561,
   "recent_commits": [
+    {
+      "short": "3b03988",
+      "at": "2026-11-15T08:56:09+08:00",
+      "subject": "M8-T990: 'open the manual' chip in the empty hero - mint duotone instructional chip, one click to the full 11-chapter manual; i18n 594 keys both sides; Playwrig"
+    },
+    {
+      "short": "a6e2a52",
+      "at": "2026-11-15T00:48:40Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "93fd4ec",
       "at": "2026-11-15T08:48:19+08:00",
@@ -19,22 +29,12 @@
       "short": "18a13bc",
       "at": "2026-11-15T08:39:08+08:00",
       "subject": "M8-T988: composer elevation - hairline gold top edge on the glass card, permission group becomes a sliding segmented control (CSS :has, zero JS), SVG arc contex"
-    },
-    {
-      "short": "8cac527",
-      "at": "2026-11-15T00:30:45Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "705d12a",
-      "at": "2026-11-15T08:30:26+08:00",
-      "subject": "M8-T987: sliding-window token bucket rate limiter for the RAG lane - Redis distributed INCR+PEXPIRE when available, local LRU fallback, fail-open on Redis death"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 306,
+  "roadmap_batches": 307,
   "changelog_entries": 1,
-  "roadmap_lines": 52428,
+  "roadmap_lines": 52448,
   "tracked_files": 1063,
   "test_files": 705,
   "almanac_chapters": 13,
