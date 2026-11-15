@@ -53633,3 +53633,14 @@ CI「Claim checkers」在 M8-T1052 首推 head 上红了一片——根因：`sc
 - `tests/test_measure_cache_affinity.py`（新）：六个确定性断言（env>disk 优先级、.env 回退解析仅已知键、全缺钥返回 None、dry-run 只打形状退出码 0、缺钥 NO_KEY 退出码 2 且不出声 sk- 字节、模块源码无 key 形状字节）。
 - `impacted_tests.py --check` 本地 EXIT 0 —— audience 解析成功。
 - 不改门绝不减弱地板：修的是 audience，不是阈值。
+## 批次 1042 - M8-T1057: 影响力第一轮——loader 登记门也要过
+
+### 目的
+
+CI ubuntu-latest 5686 全绿、唯一一红：`test_a_module_is_registered_before_a_loader_executes_it` 静态审计全库 `exec_module` 调用点；M8-T1056 手写 loader 忘了 `sys.modules[...]` 登记。环境变量门不降不卸，直接把登记补齐。
+
+### 做了什么
+
+- `tests/test_measure_cache_affinity.py` — 手写 loader 现在照 `_load_by_path` 的注册习惯：`sys.modules[spec.name] = module` 先登记、`try/finally` 弹出避免二次进入污染。
+- 本地：failing gate 两文件一并 9/9 绿。
+- ubuntu leg 此前唯一红点收口。

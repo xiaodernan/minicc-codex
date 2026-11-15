@@ -39,7 +39,11 @@ def _load_module(monkeypatch, *, env: dict[str, str | None], cwd: Path | None = 
     spec = importlib.util.spec_from_file_location("measure_cache_affinity", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
     return module
 
 
