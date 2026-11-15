@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T12:37:09.413Z",
+  "generated_at": "2026-11-15T13:21:34.120Z",
   "branch": "main",
-  "head": "5fdc35d",
-  "total_commits": 1626,
+  "head": "fc94711",
+  "total_commits": 1628,
   "recent_commits": [
+    {
+      "short": "fc94711",
+      "at": "2026-11-15T21:13:15+08:00",
+      "subject": "M8-T1020: the Atlas - interactive canvas world map; 12 islands, 18 panes, 19 almanac satellites, 13 manual satellites = 50 real coordinates the user actually wa"
+    },
+    {
+      "short": "3dc957e",
+      "at": "2026-11-15T12:37:09Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5fdc35d",
       "at": "2026-11-15T20:36:47+08:00",
@@ -19,25 +29,15 @@
       "short": "eda6af9",
       "at": "2026-11-15T11:44:01Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4757770",
-      "at": "2026-11-15T19:43:31+08:00",
-      "subject": "M8-T1018: admin trend gains a real 7-day forecast - least-squares slope + next-day extrapolation + drop-from-peak decline (177@11-13 -> last 2 days 27.0, -85%);"
-    },
-    {
-      "short": "eb33808",
-      "at": "2026-11-15T19:43:31+08:00",
-      "subject": "M8-T1017: mouse wheel goes native - deleted the custom wheel interceptor (it fought the OS convention and hijacked every wheel tick, dogfooding no ability for t"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 333,
+  "roadmap_batches": 334,
   "changelog_entries": 1,
-  "roadmap_lines": 53057,
-  "tracked_files": 1072,
-  "test_files": 709,
-  "almanac_chapters": 19,
+  "roadmap_lines": 53079,
+  "tracked_files": 1075,
+  "test_files": 710,
+  "almanac_chapters": 20,
   "module_count": 14,
   "feature_surface": [
     "workbench",
