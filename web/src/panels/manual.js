@@ -1,3 +1,4 @@
+import { markVisited } from "../core/visited.js";
 /* ============================================================
    Minicc Manual — the pocket book. Every module, every command,
    every game and every boundary, in one screen you never have
@@ -13,7 +14,7 @@ import { escapeHtml } from "../chat/markdown.js";
 import { openPanel, beginPanelRequest, closePanel } from "../chat/stream.js";
 import { SHORTCUT_GROUPS } from "../cheat-sheet-data.js";
 
-const CHAPTERS = [
+export const CHAPTERS = [
   { id: "start", roman: "一", romanEn: "1", title: "Quick Start", titleZh: "五分钟上手" },
   { id: "workbench", roman: "二", romanEn: "2", title: "The Workbench", titleZh: "工作台导览" },
   { id: "modules", roman: "三", romanEn: "3", title: "The Modules", titleZh: "七个模块，一个世界" },
@@ -508,8 +509,9 @@ function renderChapter(id) {
   refreshIcons();
 }
 
-export async function openManualPanel() {
+export async function openManualPanel(chapterId) {
   const zh = state.locale === "zh";
+  const wanted = chapterId && CHAPTERS.some((c) => c.id === chapterId) ? chapterId : "start";
   const current = beginPanelRequest(t("manual.title"));
   try {
     const rail = CHAPTERS.map(chapterMarkup).join("");
@@ -519,14 +521,17 @@ export async function openManualPanel() {
         <div class="manual-canvas-shell"><div class="manual-canvas" id="manualCanvas"></div></div>
       </div>
     `, { wide: true, immersive: true });
-    renderChapter("start");
+    renderChapter(wanted);
+    markVisited(`manual:${wanted}`);
     document.querySelectorAll(".manual-chapter").forEach((button) => {
       button.addEventListener("click", () => {
         document.querySelectorAll(".manual-chapter").forEach((b) => b.classList.toggle("active", b === button));
-        renderChapter(button.getAttribute("data-chapter") || "start");
+        const id = button.getAttribute("data-chapter") || "start";
+        renderChapter(id);
+        markVisited(`manual:${id}`);
       });
     });
-    document.querySelector('.manual-chapter[data-chapter="start"]')?.classList.add("active");
+    document.querySelectorAll(".manual-chapter").forEach((b) => b.classList.toggle("active", b.getAttribute("data-chapter") === wanted));
     refreshIcons();
   } catch (error) {
     if (!current()) return;

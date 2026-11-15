@@ -95,7 +95,7 @@
           <button class="nav-item" data-view="almanac"><i data-lucide="book-open"></i><span data-i18n="nav.almanac">年鉴</span></button>
           <button class="nav-item" data-view="axioms"><i data-lucide="scroll-text"></i><span data-i18n="nav.axioms">铁律</span></button>
           <button class="nav-item" data-view="journal"><i data-lucide="notebook-pen"></i><span data-i18n="nav.journal">日志</span></button>
-          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button><button class="nav-item dockyard-nav" id="dockyardButton" data-view="dockyard"><i data-lucide="anchor"></i><span data-i18n="nav.dockyard">船厂</span></button><button class="nav-item admin-nav" id="adminButton" data-view="admin"><i data-lucide="lock"></i><span data-i18n="nav.admin">管理</span></button>
+          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button><button class="nav-item dockyard-nav" id="dockyardButton" data-view="dockyard"><i data-lucide="anchor"></i><span data-i18n="nav.dockyard">船厂</span></button><button class="nav-item atlas-nav" id="atlasButton" data-view="atlas"><i data-lucide="compass"></i><span data-i18n="nav.atlas">地图</span></button><button class="nav-item admin-nav" id="adminButton" data-view="admin"><i data-lucide="lock"></i><span data-i18n="nav.admin">管理</span></button>
           <button class="nav-item menu-juicer" data-view="recent"><i data-lucide="newspaper"></i><span data-i18n="nav.recent">近况</span><b>UPD</b></button>
         </nav>
 
@@ -532,6 +532,27 @@
           </section>
         </section>
       </div>
+    </div>
+
+
+    <div class="atlas-stage" id="atlasStage" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="atlasTitle">
+      <canvas id="atlasCanvas" class="atlas-canvas"></canvas>
+      <header class="atlas-hud atlas-hud-top">
+        <div class="atlas-hud-inner">
+          <div class="atlas-kicker"><i data-lucide="compass"></i><span data-i18n="atlas.kicker">世界地图 · 真实坐标 · 拖拽平移</span></div>
+          <h2 class="atlas-title" id="atlasTitle" data-i18n="atlas.title">这片世界没有尽头，导航却从不迷路。</h2>
+          <div class="atlas-charted-line"><i data-lucide="map-pin"></i><span class="atlas-charted" id="atlasCharted">已标注 — / 50 个坐标</span></div>
+        </div>
+        <div class="atlas-hud-buttons">
+          <button class="atlas-icon-button" id="atlasReset" type="button" data-i18n-aria="atlas.reset" data-i18n-title="atlas.reset" aria-label="回到中心" title="回到中心"><i data-lucide="focus"></i></button>
+          <button class="atlas-icon-button" id="atlasClose" type="button" data-i18n-aria="atlas.close" data-i18n-title="atlas.close" aria-label="关闭地图" title="关闭地图"><i data-lucide="x"></i></button>
+        </div>
+      </header>
+      <footer class="atlas-hud atlas-hud-bottom">
+        <div class="atlas-hint"><i data-lucide="move-diagonal"></i><span data-i18n="atlas.hint">拖拽平移 · 滚轮缩放 · 点击前往 · 问仓库查源码</span></div>
+        <div class="atlas-legend"><span class="atlas-legend-dot atlas-legend-amber"></span><span data-i18n="atlas.legendWork">琥珀 · 工作面</span><span class="atlas-legend-dot atlas-legend-mint"></span><span data-i18n="atlas.legendFact">Mint · 事实面</span><span class="atlas-legend-dot atlas-legend-violet"></span><span data-i18n="atlas.legendExperiment">紫罗兰 · 实验面</span></div>
+      </footer>
+      <div class="atlas-tooltip" id="atlasTooltip" hidden></div>
     </div>
 
     <div class="game-modal" id="gameModal" aria-hidden="true">

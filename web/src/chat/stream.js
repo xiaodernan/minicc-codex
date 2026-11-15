@@ -2587,3 +2587,6 @@ export { openDockyard };
 
 import { openAdmin } from "../panels/admin.js";
 export { openAdmin };
+
+import { openAtlas } from "../panels/atlas.js";
+export { openAtlas };

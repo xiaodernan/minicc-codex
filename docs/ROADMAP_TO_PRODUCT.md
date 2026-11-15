@@ -53054,3 +53054,25 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - **桌面真机**：Playwright 2560×1440 逐个 hover 抽 title；zh 中文原件全在中文、en 英文全在；页面 smoke 全套（web_smoke / almanac_smoke 19 章 / manual_smoke 13 章）全绿。
 - **CI 红复盘（run 43710314141）**：4 红全部自家事故，逐条如实修复——M8-T1015 的 completion.py 行移漂移两处（371/423）+ CHANGELOG/ROADMAP 两处已删除路径的 EVIDENCE 引用（轮子删了不能再「指望」它存在）。重跑相关测试 + doc_pointers：86 passed + 0 dangling。
 - 诚实记录：4757770 这批 docs+features 推送后，CI 依旧红——门不是问题，问题从来都是「推送前没重跑所有钉行引用门」。今后每次改 minicc/*.py 行号，先跑 cites_read 那两个门再推。
+
+## 批次 1009 - M8-T1020: 世界地图 Atlas —— 50 个真实坐标，每人各走一条路
+
+### 背景
+
+用户要求「无尽的开放世界」，且「要有足够多的细节可以探索」「防止用户迷失迷路」。本面向整个产品的空间叙事，此前只有 dockyard/almanac 让你「翻」而不是「逛」。补上缺失的一环：一张可以手拖、手缩、手点的真实地图。
+
+### 做了什么
+
+- **新面板 Atlas / 世界地图**：独立全屏 canvas（arena-hud 式顶部标《世界地图 / 真实坐标 · 拖拽平移》+ charted 计数 + 跳到中心/关闭按钮）— 520 星（固定种子 mulberry32(0x5EED) 保证每次渲染一致）· 三片世界星云 · 虚线世界边界（isobath）· 12 座岛屿（不规则 polygon + 生物发光 beacon + 图例）· 18 个面板坐标 · 19 年鉴卫星 · 13 说明书卫星 = **50 个真实坐标**——没有演示数据，没有「26x pixels of lorem ipsum」。拖拽平移· 滚轮缩放· 点击直达对应面板/章节。坐标会被记账（localStorage[minicc-visited]）——琥珀=去过，灰=还没去，墨客自证，本图不自证。
+- **deep-link 接线**：`minicc:nav` CustomEvent → `dispatchView(view, chapter)`（markVisited + 一号调用 dispatch， manual/almanac chapterId 直接跳章节，关闭地图返回原面）。导航条目 `data-view="atlas"` + compass glyph + 双语键齐平。
+- **唯一全新章节 Meridian（卷十九）**：讲述地图本身——无论你怎么瞎点，地图只记录你真的点过的；把「无尽世界却不迷路」从愿望变成工程。20 卷齐平· almanac smoke 升级至 20 章双语。
+- **i18n + 全双语门**：atlas 世界所有 chrome 文案（kicker/title/charted/hint/legend/close/reset/nav）zh/en 双语，零中文泄漏；smoke 测试 `tests/atlas_smoke.mjs` 闸门：nav 双语 + atlas 打开 + 50 坐标承诺线 + 关闭恢复 aria-hidden=true + 0 pageerror——并入 test:arcade。
+- **修复本批源的两个门红**：index.html 被 wire 脚本重写为 LF（CRLF pinned test 再次红）→ 全量复原 CRLF（644 行全 CRLF）；CHANGELOG 里 backtick span 直指已删除的 wheel-invert.js（EVIDENCE 门红）→ 改述为「旧自定义 wheel 接管模块（M8-T1017 全删）」。
+
+### 实测
+
+- `node tests/atlas_smoke.mjs` → **atlas smoke passed**
+- almanac smoke → **20 chapters render fully bilingual**；manual smoke → **13 chapters**；web_smoke → **timeline + product path + desktop + mobile** 全绿
+- `digest` 首次自报 `almanac_chapters: 20`（自动读 almanac.js，无硬编码）
+- Playwright 双 locale 实机截图（`output/atlas_{zh,en}.png`、`output/almanac_meridian_{zh,en}.png`）人工校验：12 岛、50 坐标、commits 真值、全两语零泄漏
+- 诚实记录：CI run 43714755731(5fdc35d 前序提交)双腿红 + Claim checkers 红——**均为自家事故，全部在本批如实修复**——更根本的教训是「改完只看 build，不跑门」，本批在 commit 前把 doc-pointers / toolstream CRLF pinned gate 全部贴身重跑

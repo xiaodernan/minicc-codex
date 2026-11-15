@@ -15,10 +15,11 @@ import { icon, refreshIcons } from "../icons.js";
 import { openPanel, beginPanelRequest } from "../chat/stream.js";
 import { escapeHtml } from "../chat/markdown.js";
 import { compactNumber } from "../panels/index.js";
+import { markVisited } from "../core/visited.js";
 
 const zh = () => state.locale === "zh";
 
-const CHAPTERS = [
+export const CHAPTERS = [
   { id: "prologue", roman: { zh: "序章", en: "Prologue" }, title: { zh: "一封给未来的信", en: "The Letter" }, subtitle: { zh: "一封给未来的信", en: "A letter to the future" } },
   { id: "spark", roman: { zh: "第一章", en: "Chapter I" }, title: { zh: "火种", en: "The Spark" }, subtitle: { zh: "意图 → 计划 → 行动 → 证据", en: "Intent → Plan → Act → Proof" } },
   { id: "depth", roman: { zh: "第二章", en: "Chapter II" }, title: { zh: "深度", en: "The Depth" }, subtitle: { zh: "压缩、保留、再出发", en: "Compact, keep, depart again" } },
@@ -38,6 +39,7 @@ const CHAPTERS = [
   { id: "fever", roman: { zh: "卷十六", en: "Chapter XVI" }, title: { zh: "高烧", en: "The Fever" }, subtitle: { zh: "所有悬的地方，后来都长成了门", en: "Every near-miss grew into a gate" } },
   { id: "lighthouse", roman: { zh: "卷十七", en: "Chapter XVII" }, title: { zh: "灯塔", en: "The Lighthouse" }, subtitle: { zh: "忙解决问题的人，也该被守住", en: "Even the one fixing things deserves to be kept" } },
   { id: "gatekeeper", roman: { zh: "卷十八", en: "Chapter XVIII" }, title: { zh: "守门人", en: "The Gatekeeper" }, subtitle: { zh: "知道密码的人，看见同一份诚实", en: "Everyone with the 123 door sees the same honest ledger" } },
+  { id: "meridian", roman: { zh: "卷十九", en: "Chapter XIX" }, title: { zh: "镜门", en: "The Meridian" }, subtitle: { zh: "有人问路的地方，就是答案", en: "Where directions are given for walks never taken" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1256,6 +1258,75 @@ function gatekeeperMarkup() {
     </div>`;
 }
 
+function meridianMarkup() {
+  const s = statsCache;
+  const total = s?.tasks && typeof s.tasks.total === "number" ? String(s.tasks.total) : "—";
+  const completed = s?.tasks?.by_status && typeof s.tasks.by_status.completed === "number" ? String(s.tasks.by_status.completed) : "—";
+  const interrupted = s?.tasks?.by_status && typeof s.tasks.by_status.interrupted === "number" ? String(s.tasks.by_status.interrupted) : "—";
+  return `
+    <div class="almanac-canvas almanac-meridian">
+      <div class="almanac-kicker">${zh() ? "卷十九 · 镜门" : "Chapter XIX · The Meridian"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `有人问路的地方——<br/><span class="almanac-title-accent">这里就是答案。</span>`
+        : `Where directions are given —<br/><span class="almanac-title-accent">this is the answer.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          世界做大了，迷路的风险也大了——不迷路，是设计出来的。M8-T1020：本界 18 个面板 + 19 卷年鉴 + 13 章说明书钉成 <strong>50 个真实坐标</strong>，
+          分散在 12 座岛屿上：船长日志（账本/脉搏/近况/日志）、工作台大厅（任务/工作区/活动/模板）、年鉴博物馆（19 颗卫星绕年鉴心脏旋转）、
+          说明书阅览室（13 颗卫星绕说明书心脏旋转）、铁律库、眺望塔、问仓库观测台、船厂、档案馆、小游戏乐园、诊断中心，以及守门人的那扇门。
+        </p>
+        <p>
+          展开是一张 canvas，拖拽的是整颗星——你不是在滚动一个列表，而是在驶过真实工作区的夜空。<strong>坐标都是真的</strong>：每一个节点字母都是它的标记（年鉴卫星用卷号，说明书卫星用章号），
+          <strong>探索也是真的</strong>：点开一个面板、翻完一个章节，对应的坐标才亮起琥珀色；没去过的地方，坐标永远按擦的灰。个人探索集存进 <code>localStorage["minicc-visited"]</code>——只在你的浏览器里，这份地图是付给你自己的诚实。
+        </p>
+        <p>
+          本卷不许写「游客模式」。哪怕你全程瞎点，这份地图也只会诚实地记录你点过的那些。<strong>展开它不是演示召集，而是生态位：你走得越远，它越亮。</strong>
+        </p>` : `<p>
+          A bigger world risks a bigger limbo — never getting lost was designed, never inherited. M8-T1020: 18 panes + 19 almanac chapters + 13 manual chapters
+          pinned onto <strong>50 real coordinates</strong>, spread across 12 islands: the Captain's Log (ledger/pulse/recent/journal), the Workbench Hall (tasks/workspaces/activity/templates),
+          the Museum of Volumes (nineteen satellites orbiting the almanac heart), the Reading Room (thirteen satellites orbiting the manual heart), the Axiom Vault, the Overlook,
+          the Repo Observatory, the Dockyard, the Archive Shelves, the Arcade, the Infirmary — and the door the gatekeeper keeps.
+        </p>
+        <p>
+          The map is a canvas, not a list — you are not scrolling a sidebar, you are sailing over your own night sky. <strong>The coordinates are real</strong>: every glyph is the sign of the
+          surface it opens (almanac satellites show the volume number, manual satellites show the chapter number). <strong>Exploration is real too</strong>: a coordinate lights up amber only when you
+          actually open that surface — never-explored stays honest grey. Your visited set lives in <code>localStorage["minicc-visited"]</code>: this map is a private page paid to you, not the site, keeping your truth, not a demo.
+        </p>
+        <p>
+          This chapter does not ship a "tourist mode". Even if you click randomly, this map only ever records what you genuinely touched. <strong>Opening it is not a demo call — it is the ecological niche: the farther you walk, the brighter it burns.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "岛屿" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">50</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "面板坐标" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴卫星" : "Almanac satellites"}</div><div class="almanac-instrument-value">19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书卫星" : "Manual satellites"}</div><div class="almanac-instrument-value">13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "已完成任务(真)" : "Completed tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "被中断(真)" : "Interrupted (live)"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "探索存储" : "Visited store"}</div><div class="almanac-instrument-value">minicc-visited</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["拖拽平移", "不是滚动，是驾驶——世界以手掌推出来的"],
+        ["滚轮缩放", "每个人都在自己的节奏里读世界"],
+        ["点击直达", "画布裂出 minicc:nav 事件 → main.js dispatchView 接住 → Esc 随时回地图"],
+        ["50 个坐标", "18 面板 + 19 年鉴卷 + 13 说明书章——坐标是真的，探索也是真的"],
+        ["琥珀=去过 / 灰=未去过", "localStorage 里只有你自己的足迹，任何人的路都照亮另一人的路"],
+      ] : [
+        ["Drag to pan", "not a scroll, a drive — the world is pushed forward by the palm"],
+        ["Scroll to zoom", "everyone reads the world at their own tempo"],
+        ["Click to teleport", "the canvas dispatches minicc:nav → main.js dispatchView catches it → Esc walks you back"],
+        ["50 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters — the map is real, the exploring is real"],
+        ["Amber = walked there · grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "迷路的自由，来自不需要问路的自由；看清楚了世界，就永远不需要理由受困。"
+          : "Freedom from getting lost comes from not needing directions; once the world is seen, you are never held."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1276,6 +1347,7 @@ const CHAPTER_RENDERERS = {
   fever: () => feverMarkup(),
   lighthouse: () => lighthouseMarkup(),
   gatekeeper: () => gatekeeperMarkup(),
+  meridian: () => meridianMarkup(),
 };
 
 async function loadChapter(id) {
@@ -1340,7 +1412,7 @@ async function loadChapter(id) {
   refreshIcons();
 }
 
-export async function openAlmanacPanel() {
+export async function openAlmanacPanel(chapterId) {
   const current = beginPanelRequest(t("almanac.title"));
   try {
     const rail = CHAPTERS.map(chapterMarkup).join("");
@@ -1355,10 +1427,14 @@ export async function openAlmanacPanel() {
         document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b === button));
         currentChapter = button.getAttribute("data-chapter") || "prologue";
         loadChapter(currentChapter);
+        markVisited(`chapter:${currentChapter}`);
       });
     });
-    document.querySelector('.almanac-chapter[data-chapter="prologue"]')?.classList.add("active");
+    const wanted = chapterId && CHAPTER_RENDERERS[chapterId] ? chapterId : "prologue";
+    document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b.getAttribute("data-chapter") === wanted));
     refreshIcons();
+    if (wanted !== "prologue") currentChapter = wanted;
+    markVisited(`chapter:${chapterId && CHAPTER_RENDERERS[chapterId] ? chapterId : "prologue"}`);
     requestJson("/api/digest")
       .then((digest) => {
         digestCache = digest;

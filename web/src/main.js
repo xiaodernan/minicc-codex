@@ -2,7 +2,8 @@ import { requestJson } from "./core/transport.js";
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
-import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openAlmanacPanel, openArchivePanel, openAskDocsPanel, openAxiomsPanel, openJournalPanel, openRecentPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openDoctorStage, openDockyard, openAdmin, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openAlmanacPanel, openArchivePanel, openAskDocsPanel, openAxiomsPanel, openJournalPanel, openRecentPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openDoctorStage, openDockyard, openAdmin, openAtlas, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { markVisited } from "./core/visited.js";
 import { startTour, maybeOfferTour } from "./panels/onboarding.js";
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
@@ -65,6 +66,10 @@ export function bindUI() {
   document.querySelectorAll(".seed-card").forEach((card) => card.addEventListener("click", () => window.selectPlant?.(card)));
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if ($("#atlasStage")?.getAttribute("aria-hidden") === "false") {
+        $("#atlasStage").setAttribute("aria-hidden", "true");
+        return;
+      }
       if ($("#pulseStage")?.getAttribute("aria-hidden") === "false") {
         $("#pulseStage").setAttribute("aria-hidden", "true");
         return;
@@ -222,9 +227,8 @@ export function bindUI() {
     const pathNode = event.target.closest(".tool-path");
     if (pathNode && looksLikeWorkspacePath(pathNode.textContent)) openFilePreview(pathNode.textContent.trim());
   });
-  document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", () => {
-    const view = button.dataset.view;
-    document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
+  function dispatchView(view, chapter) {
+    if (view) markVisited(`panel:${view}`);
     if (view === "tasks") { closePanel(); }
     else if (view === "workspaces") openWorkspacesPanel();
     else if (view === "promo") openPromoPanel();
@@ -233,17 +237,27 @@ export function bindUI() {
     else if (view === "doctor") openDoctorStage();
     else if (view === "dockyard") openDockyard();
     else if (view === "admin") openAdmin();
+    else if (view === "atlas") openAtlas();
     else if (view === "templates") openTemplatesPanel();
-    else if (view === "almanac") openAlmanacPanel();
+    else if (view === "almanac") openAlmanacPanel(chapter);
     else if (view === "axioms") openAxiomsPanel();
     else if (view === "journal") openJournalPanel();
     else if (view === "archive") openArchivePanel();
     else if (view === "askdocs") openAskDocsPanel();
     else if (view === "recent") openRecentPanel();
-    else if (view === "manual") openManualPanel();
+    else if (view === "manual") openManualPanel(chapter);
     else if (view === "ledger") openLedgerPanel();
     else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
     else closePanel();
+  }
+  window.addEventListener("minicc:nav", (event) => {
+    const detail = (event && event.detail) || {};
+    dispatchView(detail.view, detail.chapter);
+  });
+  document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", () => {
+    const view = button.dataset.view;
+    document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
+    dispatchView(view);
   }));
   document.querySelectorAll(".action-chip").forEach((button) => button.addEventListener("click", () => {
     const prompt = state.locale === "zh" ? button.dataset.promptZh : button.dataset.promptEn;

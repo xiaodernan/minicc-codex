@@ -720,6 +720,16 @@
       "nav.doctor": "\u8BCA\u65AD",
       "nav.dockyard": "\u8239\u5382",
       "nav.admin": "\u7BA1\u7406",
+      "nav.atlas": "\u5730\u56FE",
+      "atlas.kicker": "\u4E16\u754C\u5730\u56FE \xB7 \u771F\u5B9E\u5750\u6807 \xB7 \u62D6\u62FD\u5E73\u79FB",
+      "atlas.title": "\u8FD9\u7247\u4E16\u754C\u6CA1\u6709\u5C3D\u5934\uFF0C\u5BFC\u822A\u5374\u4ECE\u4E0D\u8FF7\u8DEF\u3002",
+      "atlas.charted": "\u5DF2\u6807\u6CE8 {n} / {total} \u4E2A\u5750\u6807",
+      "atlas.hint": "\u62D6\u62FD\u5E73\u79FB \xB7 \u6EDA\u8F6E\u7F29\u653E \xB7 \u70B9\u51FB\u524D\u5F80 \xB7 \u95EE\u4ED3\u5E93\u67E5\u6E90\u7801",
+      "atlas.legendWork": "\u7425\u73C0 \xB7 \u5DE5\u4F5C\u9762",
+      "atlas.legendFact": "Mint \xB7 \u4E8B\u5B9E\u9762",
+      "atlas.legendExperiment": "\u7D2B\u7F57\u5170 \xB7 \u5B9E\u9A8C\u9762",
+      "atlas.close": "\u5173\u95ED\u5730\u56FE",
+      "atlas.reset": "\u56DE\u5230\u4E2D\u5FC3",
       "admin.kicker": "\u5B9E\u65F6 \xB7 read-only \xB7 \u6570\u5B57\u6765\u81EA\u771F\u5B9E\uFF0C\u4ECE\u4E0D\u4F2A\u9020",
       "admin.title": "\u7BA1\u7406\u5458",
       "admin.tagline": "\u5BC6\u7801 123 \u2014\u2014 \u672C\u5730\u5171\u4EAB\u95E8\u3002\u4EFB\u4F55\u77E5\u9053\u5B83\u7684\u4EBA\u90FD\u53EF\u4EE5\u6253\u5F00\u8FD9\u4E2A\u9762\u677F\uFF1B\u5B83\u4E0D\u662F\u767B\u5F55\u7CFB\u7EDF\uFF0C\u53EA\u662F\u4E00\u9053\u5171\u4EAB\u95E8\u3002",
@@ -1430,6 +1440,16 @@
       "nav.doctor": "Doctor",
       "nav.dockyard": "Dockyard",
       "nav.admin": "Admin",
+      "nav.atlas": "Atlas",
+      "atlas.kicker": "World map \xB7 real coordinates \xB7 drag to pan",
+      "atlas.title": "This world has no edge \u2014 but you are never lost.",
+      "atlas.charted": "Charted {n} / {total} coordinates",
+      "atlas.hint": "Drag to pan \xB7 scroll to zoom \xB7 click to walk there \xB7 Esc to close",
+      "atlas.legendWork": "Amber \xB7 working surfaces",
+      "atlas.legendFact": "Mint \xB7 fact surfaces",
+      "atlas.legendExperiment": "Violet \xB7 experimental surfaces",
+      "atlas.close": "Close map",
+      "atlas.reset": "Re-center",
       "admin.kicker": "live \xB7 read-only \xB7 numbers from real runs, nothing fabricated",
       "admin.title": "Admin",
       "admin.tagline": "Password 123 \u2014 a shared door. Anyone who knows it can open this panel; it is not a login, it is a shared door.",
@@ -2511,8 +2531,8 @@
     const binding = runningTasks.get(taskId) || { taskId, sessionId: state.sessionId, workspacePath: state.workspacePath, loadingId };
     finishLiveTask(binding.loadingId || loadingId);
     stopTaskTimer(taskId);
-    const zh10 = state.locale === "zh";
-    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh10 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh10 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
+    const zh11 = state.locale === "zh";
+    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh11 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh11 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
     cacheTaskDetail(finalData);
     runningTasks.delete(taskId);
     if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
@@ -2571,6 +2591,27 @@
     }
   }
 
+  // web/src/core/visited.js
+  var KEY = "minicc-visited";
+  function markVisited(id) {
+    if (!id) return;
+    try {
+      const set = new Set(JSON.parse(localStorage.getItem(KEY) || "[]"));
+      set.add(String(id));
+      localStorage.setItem(KEY, JSON.stringify([...set]));
+    } catch {
+    }
+  }
+  function readVisited() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return new Set(Array.isArray(raw) ? raw.map(String) : []);
+    } catch {
+      return /* @__PURE__ */ new Set();
+    }
+  }
+  var ATLAS_COORDINATES = 50;
+
   // web/src/panels/almanac.js
   var zh = () => state.locale === "zh";
   var CHAPTERS = [
@@ -2592,7 +2633,8 @@
     { id: "firstlight", roman: { zh: "\u5377\u5341\u4E94", en: "Chapter XV" }, title: { zh: "\u66E6", en: "First Light" }, subtitle: { zh: "\u6709\u4EBA\u6309\u4E0B\u4E86\u90A3\u9897\u661F", en: "Someone hit the star" } },
     { id: "fever", roman: { zh: "\u5377\u5341\u516D", en: "Chapter XVI" }, title: { zh: "\u9AD8\u70E7", en: "The Fever" }, subtitle: { zh: "\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8", en: "Every near-miss grew into a gate" } },
     { id: "lighthouse", roman: { zh: "\u5377\u5341\u4E03", en: "Chapter XVII" }, title: { zh: "\u706F\u5854", en: "The Lighthouse" }, subtitle: { zh: "\u5FD9\u89E3\u51B3\u95EE\u9898\u7684\u4EBA\uFF0C\u4E5F\u8BE5\u88AB\u5B88\u4F4F", en: "Even the one fixing things deserves to be kept" } },
-    { id: "gatekeeper", roman: { zh: "\u5377\u5341\u516B", en: "Chapter XVIII" }, title: { zh: "\u5B88\u95E8\u4EBA", en: "The Gatekeeper" }, subtitle: { zh: "\u77E5\u9053\u5BC6\u7801\u7684\u4EBA\uFF0C\u770B\u89C1\u540C\u4E00\u4EFD\u8BDA\u5B9E", en: "Everyone with the 123 door sees the same honest ledger" } }
+    { id: "gatekeeper", roman: { zh: "\u5377\u5341\u516B", en: "Chapter XVIII" }, title: { zh: "\u5B88\u95E8\u4EBA", en: "The Gatekeeper" }, subtitle: { zh: "\u77E5\u9053\u5BC6\u7801\u7684\u4EBA\uFF0C\u770B\u89C1\u540C\u4E00\u4EFD\u8BDA\u5B9E", en: "Everyone with the 123 door sees the same honest ledger" } },
+    { id: "meridian", roman: { zh: "\u5377\u5341\u4E5D", en: "Chapter XIX" }, title: { zh: "\u955C\u95E8", en: "The Meridian" }, subtitle: { zh: "\u6709\u4EBA\u95EE\u8DEF\u7684\u5730\u65B9\uFF0C\u5C31\u662F\u7B54\u6848", en: "Where directions are given for walks never taken" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3743,6 +3785,70 @@
       </p>
     </div>`;
   }
+  function meridianMarkup() {
+    const s = statsCache;
+    const total = s?.tasks && typeof s.tasks.total === "number" ? String(s.tasks.total) : "\u2014";
+    const completed = s?.tasks?.by_status && typeof s.tasks.by_status.completed === "number" ? String(s.tasks.by_status.completed) : "\u2014";
+    const interrupted = s?.tasks?.by_status && typeof s.tasks.by_status.interrupted === "number" ? String(s.tasks.by_status.interrupted) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-meridian">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E5D \xB7 \u955C\u95E8" : "Chapter XIX \xB7 The Meridian"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? `\u6709\u4EBA\u95EE\u8DEF\u7684\u5730\u65B9\u2014\u2014<br/><span class="almanac-title-accent">\u8FD9\u91CC\u5C31\u662F\u7B54\u6848\u3002</span>` : `Where directions are given \u2014<br/><span class="almanac-title-accent">this is the answer.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u4E16\u754C\u505A\u5927\u4E86\uFF0C\u8FF7\u8DEF\u7684\u98CE\u9669\u4E5F\u5927\u4E86\u2014\u2014\u4E0D\u8FF7\u8DEF\uFF0C\u662F\u8BBE\u8BA1\u51FA\u6765\u7684\u3002M8-T1020\uFF1A\u672C\u754C 18 \u4E2A\u9762\u677F + 19 \u5377\u5E74\u9274 + 13 \u7AE0\u8BF4\u660E\u4E66\u9489\u6210 <strong>50 \u4E2A\u771F\u5B9E\u5750\u6807</strong>\uFF0C
+          \u5206\u6563\u5728 12 \u5EA7\u5C9B\u5C7F\u4E0A\uFF1A\u8239\u957F\u65E5\u5FD7\uFF08\u8D26\u672C/\u8109\u640F/\u8FD1\u51B5/\u65E5\u5FD7\uFF09\u3001\u5DE5\u4F5C\u53F0\u5927\u5385\uFF08\u4EFB\u52A1/\u5DE5\u4F5C\u533A/\u6D3B\u52A8/\u6A21\u677F\uFF09\u3001\u5E74\u9274\u535A\u7269\u9986\uFF0819 \u9897\u536B\u661F\u7ED5\u5E74\u9274\u5FC3\u810F\u65CB\u8F6C\uFF09\u3001
+          \u8BF4\u660E\u4E66\u9605\u89C8\u5BA4\uFF0813 \u9897\u536B\u661F\u7ED5\u8BF4\u660E\u4E66\u5FC3\u810F\u65CB\u8F6C\uFF09\u3001\u94C1\u5F8B\u5E93\u3001\u773A\u671B\u5854\u3001\u95EE\u4ED3\u5E93\u89C2\u6D4B\u53F0\u3001\u8239\u5382\u3001\u6863\u6848\u9986\u3001\u5C0F\u6E38\u620F\u4E50\u56ED\u3001\u8BCA\u65AD\u4E2D\u5FC3\uFF0C\u4EE5\u53CA\u5B88\u95E8\u4EBA\u7684\u90A3\u6247\u95E8\u3002
+        </p>
+        <p>
+          \u5C55\u5F00\u662F\u4E00\u5F20 canvas\uFF0C\u62D6\u62FD\u7684\u662F\u6574\u9897\u661F\u2014\u2014\u4F60\u4E0D\u662F\u5728\u6EDA\u52A8\u4E00\u4E2A\u5217\u8868\uFF0C\u800C\u662F\u5728\u9A76\u8FC7\u771F\u5B9E\u5DE5\u4F5C\u533A\u7684\u591C\u7A7A\u3002<strong>\u5750\u6807\u90FD\u662F\u771F\u7684</strong>\uFF1A\u6BCF\u4E00\u4E2A\u8282\u70B9\u5B57\u6BCD\u90FD\u662F\u5B83\u7684\u6807\u8BB0\uFF08\u5E74\u9274\u536B\u661F\u7528\u5377\u53F7\uFF0C\u8BF4\u660E\u4E66\u536B\u661F\u7528\u7AE0\u53F7\uFF09\uFF0C
+          <strong>\u63A2\u7D22\u4E5F\u662F\u771F\u7684</strong>\uFF1A\u70B9\u5F00\u4E00\u4E2A\u9762\u677F\u3001\u7FFB\u5B8C\u4E00\u4E2A\u7AE0\u8282\uFF0C\u5BF9\u5E94\u7684\u5750\u6807\u624D\u4EAE\u8D77\u7425\u73C0\u8272\uFF1B\u6CA1\u53BB\u8FC7\u7684\u5730\u65B9\uFF0C\u5750\u6807\u6C38\u8FDC\u6309\u64E6\u7684\u7070\u3002\u4E2A\u4EBA\u63A2\u7D22\u96C6\u5B58\u8FDB <code>localStorage["minicc-visited"]</code>\u2014\u2014\u53EA\u5728\u4F60\u7684\u6D4F\u89C8\u5668\u91CC\uFF0C\u8FD9\u4EFD\u5730\u56FE\u662F\u4ED8\u7ED9\u4F60\u81EA\u5DF1\u7684\u8BDA\u5B9E\u3002
+        </p>
+        <p>
+          \u672C\u5377\u4E0D\u8BB8\u5199\u300C\u6E38\u5BA2\u6A21\u5F0F\u300D\u3002\u54EA\u6015\u4F60\u5168\u7A0B\u778E\u70B9\uFF0C\u8FD9\u4EFD\u5730\u56FE\u4E5F\u53EA\u4F1A\u8BDA\u5B9E\u5730\u8BB0\u5F55\u4F60\u70B9\u8FC7\u7684\u90A3\u4E9B\u3002<strong>\u5C55\u5F00\u5B83\u4E0D\u662F\u6F14\u793A\u53EC\u96C6\uFF0C\u800C\u662F\u751F\u6001\u4F4D\uFF1A\u4F60\u8D70\u5F97\u8D8A\u8FDC\uFF0C\u5B83\u8D8A\u4EAE\u3002</strong>
+        </p>` : `<p>
+          A bigger world risks a bigger limbo \u2014 never getting lost was designed, never inherited. M8-T1020: 18 panes + 19 almanac chapters + 13 manual chapters
+          pinned onto <strong>50 real coordinates</strong>, spread across 12 islands: the Captain's Log (ledger/pulse/recent/journal), the Workbench Hall (tasks/workspaces/activity/templates),
+          the Museum of Volumes (nineteen satellites orbiting the almanac heart), the Reading Room (thirteen satellites orbiting the manual heart), the Axiom Vault, the Overlook,
+          the Repo Observatory, the Dockyard, the Archive Shelves, the Arcade, the Infirmary \u2014 and the door the gatekeeper keeps.
+        </p>
+        <p>
+          The map is a canvas, not a list \u2014 you are not scrolling a sidebar, you are sailing over your own night sky. <strong>The coordinates are real</strong>: every glyph is the sign of the
+          surface it opens (almanac satellites show the volume number, manual satellites show the chapter number). <strong>Exploration is real too</strong>: a coordinate lights up amber only when you
+          actually open that surface \u2014 never-explored stays honest grey. Your visited set lives in <code>localStorage["minicc-visited"]</code>: this map is a private page paid to you, not the site, keeping your truth, not a demo.
+        </p>
+        <p>
+          This chapter does not ship a "tourist mode". Even if you click randomly, this map only ever records what you genuinely touched. <strong>Opening it is not a demo call \u2014 it is the ecological niche: the farther you walk, the brighter it burns.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u5C9B\u5C7F" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5750\u6807\u603B\u6570" : "Coordinates"}</div><div class="almanac-instrument-value">50</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u9762\u677F\u5750\u6807" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274\u536B\u661F" : "Almanac satellites"}</div><div class="almanac-instrument-value">19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u8BF4\u660E\u4E66\u536B\u661F" : "Manual satellites"}</div><div class="almanac-instrument-value">13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5DF2\u5B8C\u6210\u4EFB\u52A1(\u771F)" : "Completed tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u88AB\u4E2D\u65AD(\u771F)" : "Interrupted (live)"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u63A2\u7D22\u5B58\u50A8" : "Visited store"}</div><div class="almanac-instrument-value">minicc-visited</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["\u62D6\u62FD\u5E73\u79FB", "\u4E0D\u662F\u6EDA\u52A8\uFF0C\u662F\u9A7E\u9A76\u2014\u2014\u4E16\u754C\u4EE5\u624B\u638C\u63A8\u51FA\u6765\u7684"],
+      ["\u6EDA\u8F6E\u7F29\u653E", "\u6BCF\u4E2A\u4EBA\u90FD\u5728\u81EA\u5DF1\u7684\u8282\u594F\u91CC\u8BFB\u4E16\u754C"],
+      ["\u70B9\u51FB\u76F4\u8FBE", "\u753B\u5E03\u88C2\u51FA minicc:nav \u4E8B\u4EF6 \u2192 main.js dispatchView \u63A5\u4F4F \u2192 Esc \u968F\u65F6\u56DE\u5730\u56FE"],
+      ["50 \u4E2A\u5750\u6807", "18 \u9762\u677F + 19 \u5E74\u9274\u5377 + 13 \u8BF4\u660E\u4E66\u7AE0\u2014\u2014\u5750\u6807\u662F\u771F\u7684\uFF0C\u63A2\u7D22\u4E5F\u662F\u771F\u7684"],
+      ["\u7425\u73C0=\u53BB\u8FC7 / \u7070=\u672A\u53BB\u8FC7", "localStorage \u91CC\u53EA\u6709\u4F60\u81EA\u5DF1\u7684\u8DB3\u8FF9\uFF0C\u4EFB\u4F55\u4EBA\u7684\u8DEF\u90FD\u7167\u4EAE\u53E6\u4E00\u4EBA\u7684\u8DEF"]
+    ] : [
+      ["Drag to pan", "not a scroll, a drive \u2014 the world is pushed forward by the palm"],
+      ["Scroll to zoom", "everyone reads the world at their own tempo"],
+      ["Click to teleport", "the canvas dispatches minicc:nav \u2192 main.js dispatchView catches it \u2192 Esc walks you back"],
+      ["50 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters \u2014 the map is real, the exploring is real"],
+      ["Amber = walked there \xB7 grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u8FF7\u8DEF\u7684\u81EA\u7531\uFF0C\u6765\u81EA\u4E0D\u9700\u8981\u95EE\u8DEF\u7684\u81EA\u7531\uFF1B\u770B\u6E05\u695A\u4E86\u4E16\u754C\uFF0C\u5C31\u6C38\u8FDC\u4E0D\u9700\u8981\u7406\u7531\u53D7\u56F0\u3002" : "Freedom from getting lost comes from not needing directions; once the world is seen, you are never held."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3762,7 +3868,8 @@
     firstlight: () => firstlightMarkup(),
     fever: () => feverMarkup(),
     lighthouse: () => lighthouseMarkup(),
-    gatekeeper: () => gatekeeperMarkup()
+    gatekeeper: () => gatekeeperMarkup(),
+    meridian: () => meridianMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -3812,7 +3919,7 @@
     slot.innerHTML = slow(metricsCache);
     refreshIcons();
   }
-  async function openAlmanacPanel() {
+  async function openAlmanacPanel(chapterId) {
     const current = beginPanelRequest(t("almanac.title"));
     try {
       const rail = CHAPTERS.map(chapterMarkup).join("");
@@ -3827,10 +3934,14 @@
           document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b === button));
           currentChapter = button.getAttribute("data-chapter") || "prologue";
           loadChapter(currentChapter);
+          markVisited(`chapter:${currentChapter}`);
         });
       });
-      document.querySelector('.almanac-chapter[data-chapter="prologue"]')?.classList.add("active");
+      const wanted = chapterId && CHAPTER_RENDERERS[chapterId] ? chapterId : "prologue";
+      document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b.getAttribute("data-chapter") === wanted));
       refreshIcons();
+      if (wanted !== "prologue") currentChapter = wanted;
+      markVisited(`chapter:${chapterId && CHAPTER_RENDERERS[chapterId] ? chapterId : "prologue"}`);
       requestJson("/api/digest").then((digest) => {
         digestCache = digest;
         digestFetchedAt = Date.now();
@@ -4010,7 +4121,7 @@
   `;
   }
   function zhKeys() {
-    const rows = SHORTCUT_GROUPS.flatMap((group) => group.rows.map(([zh10, _en, key]) => `<div><kbd>${escapeHtml(key)}</kbd><span>${escapeHtml(zh10)}</span></div>`)).join("\n      ");
+    const rows = SHORTCUT_GROUPS.flatMap((group) => group.rows.map(([zh11, _en, key]) => `<div><kbd>${escapeHtml(key)}</kbd><span>${escapeHtml(zh11)}</span></div>`)).join("\n      ");
     return `
     <div class="manual-keys">
       ${rows}
@@ -4331,10 +4442,10 @@
     arch: { zh: zhArch, en: enArch }
   };
   function chapterMarkup2(chapter) {
-    const zh10 = state.locale === "zh";
-    const title = zh10 ? chapter.titleZh : chapter.title;
+    const zh11 = state.locale === "zh";
+    const title = zh11 ? chapter.titleZh : chapter.title;
     return `<button class="manual-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
-            <span class="manual-chapter-roman">${escapeHtml(zh10 ? chapter.roman : chapter.romanEn)}</span>
+            <span class="manual-chapter-roman">${escapeHtml(zh11 ? chapter.roman : chapter.romanEn)}</span>
             <span class="manual-chapter-body"><strong>${escapeHtml(title)}</strong></span>
           </button>`;
   }
@@ -4345,11 +4456,11 @@
     const slot = $("#manualCanvas");
     const chapter = CHAPTERS2.find((c) => c.id === id) ?? CHAPTERS2[0];
     if (!slot) return;
-    const zh10 = state.locale === "zh";
-    const body = (zh10 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
+    const zh11 = state.locale === "zh";
+    const body = (zh11 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
     slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh10 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapterTitle(chapter))}</div>
+      <div class="manual-kicker">${zh11 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapterTitle(chapter))}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;
@@ -4359,8 +4470,9 @@
     });
     refreshIcons();
   }
-  async function openManualPanel() {
-    const zh10 = state.locale === "zh";
+  async function openManualPanel(chapterId) {
+    const zh11 = state.locale === "zh";
+    const wanted = chapterId && CHAPTERS2.some((c) => c.id === chapterId) ? chapterId : "start";
     const current = beginPanelRequest(t("manual.title"));
     try {
       const rail = CHAPTERS2.map(chapterMarkup2).join("");
@@ -4370,14 +4482,17 @@
         <div class="manual-canvas-shell"><div class="manual-canvas" id="manualCanvas"></div></div>
       </div>
     `, { wide: true, immersive: true });
-      renderChapter("start");
+      renderChapter(wanted);
+      markVisited(`manual:${wanted}`);
       document.querySelectorAll(".manual-chapter").forEach((button) => {
         button.addEventListener("click", () => {
           document.querySelectorAll(".manual-chapter").forEach((b) => b.classList.toggle("active", b === button));
-          renderChapter(button.getAttribute("data-chapter") || "start");
+          const id = button.getAttribute("data-chapter") || "start";
+          renderChapter(id);
+          markVisited(`manual:${id}`);
         });
       });
-      document.querySelector('.manual-chapter[data-chapter="start"]')?.classList.add("active");
+      document.querySelectorAll(".manual-chapter").forEach((b) => b.classList.toggle("active", b.getAttribute("data-chapter") === wanted));
       refreshIcons();
     } catch (error) {
       if (!current()) return;
@@ -5117,6 +5232,447 @@
     }
   }
 
+  // web/src/panels/atlas.js
+  var zh9 = () => state.locale === "zh";
+  var WORLD = Object.freeze({ w: 2600, h: 1600 });
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a |= 0;
+      a = a + 1831565813 | 0;
+      let t2 = Math.imul(a ^ a >>> 15, 1 | a);
+      t2 = t2 + Math.imul(t2 ^ t2 >>> 7, 61 | t2) ^ t2;
+      return ((t2 ^ t2 >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var rng = mulberry32(24301);
+  var STARS = Array.from({ length: 520 }, () => ({
+    x: rng() * WORLD.w,
+    y: rng() * WORLD.h,
+    r: 0.4 + rng() * 1.6,
+    twinkle: rng() * Math.PI * 2,
+    speed: 0.6 + rng() * 1.4
+  }));
+  var REGIONS = [
+    { id: "museum", zh: "\u5E74\u9274\u535A\u7269\u9986", en: "Museum of Volumes", tint: "#f0b35e", x: 1e3, y: 260, r: 190 },
+    { id: "vault", zh: "\u94C1\u5F8B\u5E93", en: "The Axiom Vault", tint: "#f0b35e", x: 1750, y: 240, r: 150 },
+    { id: "overlook", zh: "\u773A\u671B\u5854", en: "The Overlook", tint: "#b39af7", x: 850, y: 340, r: 120 },
+    { id: "gatekeeper", zh: "\u7BA1\u7406\u5458\u95E8", en: "The Gatekeeper Door", tint: "#b39af7", x: 2320, y: 330, r: 150 },
+    { id: "captain", zh: "\u8239\u957F\u65E5\u5FD7", en: "The Captain's Log", tint: "#f0b35e", x: 190, y: 700, r: 195 },
+    { id: "workbench", zh: "\u5DE5\u4F5C\u53F0\u5927\u5385", en: "The Workbench Hall", tint: "#f0b35e", x: 760, y: 640, r: 210 },
+    { id: "reading", zh: "\u8BF4\u660E\u4E66\u9605\u89C8\u5BA4", en: "The Reading Room", tint: "#f0b35e", x: 1370, y: 620, r: 200 },
+    { id: "observatory", zh: "\u95EE\u4ED3\u5E93\u89C2\u6D4B\u53F0", en: "Repo Observatory", tint: "#b39af7", x: 2270, y: 700, r: 160 },
+    { id: "dockyard", zh: "\u8239\u575E", en: "The Dockyard", tint: "#8fd6a1", x: 360, y: 1180, r: 175 },
+    { id: "archive", zh: "\u6863\u6848\u9986", en: "Archive Shelves", tint: "#8fd6a1", x: 1010, y: 1230, r: 170 },
+    { id: "arcade", zh: "\u5C0F\u6E38\u620F\u4E50\u56ED", en: "The Arcade", tint: "#b39af7", x: 1600, y: 1170, r: 190 },
+    { id: "infirmary", zh: "\u8BCA\u65AD\u4E2D\u5FC3", en: "The Infirmary", tint: "#8fd6a1", x: 2050, y: 1270, r: 150 }
+  ];
+  var PANES = [
+    { id: "tasks", region: "workbench", zh: "\u4EFB\u52A1", en: "Tasks", dx: 0, dy: -60, letter: "T" },
+    { id: "workspaces", region: "workbench", zh: "\u5DE5\u4F5C\u533A", en: "Workspaces", dx: -105, dy: 25, letter: "W" },
+    { id: "activity", region: "workbench", zh: "\u6D3B\u52A8", en: "Activity", dx: -35, dy: 105, letter: "A" },
+    { id: "templates", region: "workbench", zh: "\u6A21\u677F", en: "Templates", dx: 105, dy: 25, letter: "T" },
+    { id: "ledger", region: "captain", zh: "\u8D26\u672C", en: "Ledger", dx: 0, dy: -55, letter: "L" },
+    { id: "pulse", region: "captain", zh: "\u8109\u640F", en: "Pulse", dx: -80, dy: 30, letter: "P" },
+    { id: "recent", region: "captain", zh: "\u8FD1\u51B5", en: "Recent", dx: 0, dy: 95, letter: "R" },
+    { id: "journal", region: "captain", zh: "\u65E5\u5FD7", en: "Journal", dx: 80, dy: 30, letter: "J" },
+    { id: "almanac", region: "museum", zh: "\u5E74\u9274", en: "Almanac", dx: 0, dy: 15, letter: "A" },
+    { id: "manual", region: "reading", zh: "\u8BF4\u660E\u4E66", en: "Manual", dx: 0, dy: 50, letter: "M" },
+    { id: "axioms", region: "vault", zh: "\u94C1\u5F8B", en: "Axioms", dx: 0, dy: 10, letter: "X" },
+    { id: "promo", region: "overlook", zh: "\u5BA3\u4F20\u9875", en: "Promo", dx: 0, dy: 10, letter: "P" },
+    { id: "dockyard", region: "dockyard", zh: "\u8239\u5382", en: "Dockyard", dx: 0, dy: 15, letter: "D" },
+    { id: "doctor", region: "infirmary", zh: "\u8BCA\u65AD", en: "Doctor", dx: 0, dy: 5, letter: "D" },
+    { id: "admin", region: "gatekeeper", zh: "\u7BA1\u7406", en: "Admin", dx: 0, dy: 10, letter: "G" },
+    { id: "arcade", region: "arcade", zh: "\u5C0F\u6E38\u620F", en: "Arcade", dx: -50, dy: 0, letter: "A" },
+    { id: "askdocs", region: "observatory", zh: "\u95EE\u4ED3\u5E93", en: "Ask the Repo", dx: 0, dy: 10, letter: "Q" },
+    { id: "archive", region: "archive", zh: "\u6863\u6848\u9986", en: "Archive", dx: 0, dy: 10, letter: "X" }
+  ];
+  var REGION_INDEX = new Map(REGIONS.map((r) => [r.id, r]));
+  var PANE_NODES = PANES.map((p) => {
+    const region = REGION_INDEX.get(p.region);
+    return {
+      ...p,
+      regionName: zh9() ? region.zh : region.en,
+      x: region.x + p.dx,
+      y: region.y + p.dy,
+      kind: "panel",
+      idLabel: p.id
+    };
+  });
+  var ALMANAC_SATELLITES = CHAPTERS.map((ch, i) => {
+    const ring = i < 10 ? 268 : 345;
+    const step = Math.PI * 2 / (i < 10 ? 10 : 9);
+    const angle = (i < 10 ? i * step : (i - 10) * step + step / 2) - Math.PI / 2;
+    const museum = REGION_INDEX.get("museum");
+    return {
+      id: `chapter:${ch.id}`,
+      chapterId: ch.id,
+      zh: ch.roman?.zh ? `${ch.roman.zh} \xB7 ${ch.title?.zh ?? ch.title}` : ch.id,
+      en: ch.roman?.en ? `${ch.roman.en} \xB7 ${ch.title?.en ?? ch.title}` : ch.id,
+      x: museum.x + Math.cos(angle) * ring,
+      y: museum.y + Math.sin(angle) * ring,
+      region: "museum",
+      regionName: zh9() ? "\u5E74\u9274\u535A\u7269\u9986" : "Museum of Volumes",
+      kind: "almanac",
+      letter: String(i % 9 + 1),
+      r: 17
+    };
+  });
+  var MANUAL_SATELLITES = CHAPTERS2.map((ch, i) => {
+    const ring = 262;
+    const step = Math.PI * 2 / CHAPTERS2.length;
+    const angle = i * step - Math.PI / 2 - 0.4;
+    const reading = REGION_INDEX.get("reading");
+    return {
+      id: `manual:${ch.id}`,
+      chapterId: ch.id,
+      zh: `${ch.roman} \xB7 ${ch.titleZh}`,
+      en: `${ch.romanEn} \xB7 ${ch.title}`,
+      x: reading.x + Math.cos(angle) * ring,
+      y: reading.y + Math.sin(angle) * ring,
+      region: "reading",
+      regionName: zh9() ? "\u8BF4\u660E\u4E66\u9605\u89C8\u5BA4" : "The Reading Room",
+      kind: "manual",
+      letter: String(i + 1),
+      r: 16
+    };
+  });
+  var ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
+  var camera = { x: WORLD.w / 2, y: WORLD.h / 2, zoom: 0.52 };
+  var MIN_ZOOM = 0.42;
+  var MAX_ZOOM = 1.9;
+  function screenToWorld(canvas, clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = clientX - rect.left - rect.width / 2;
+    const sy = clientY - rect.top - rect.height / 2;
+    return {
+      x: camera.x + sx / camera.zoom,
+      y: camera.y + sy / camera.zoom
+    };
+  }
+  function drawNode(ctx, node, visited, hovered, dpr) {
+    const r = node.r ?? 30;
+    const { x, y } = node;
+    const lit = visited.has(node.id);
+    const color = lit ? "#fbbf24" : "#7d8694";
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = lit ? "rgba(251,191,36,0.95)" : "rgba(148,163,184,0.55)";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = lit ? "rgba(251,191,36,0.22)" : "rgba(30,41,59,0.9)";
+    ctx.beginPath();
+    ctx.arc(x, y, r - 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = lit ? "#fde68a" : "#cbd5e1";
+    ctx.font = `600 ${Math.max(10, Math.round(r * 0.72))}px 'DM Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(node.letter ?? "?", x, y + 1);
+    if (hovered) {
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "#fde68a";
+      ctx.beginPath();
+      ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  function drawIsland(ctx, region, time) {
+    const { x, y, r, tint, zh: nameZh, en: nameEn } = region;
+    const grad = ctx.createRadialGradient(x, y, 8, x, y, r * 1.55);
+    grad.addColorStop(0, `${tint}26`);
+    grad.addColorStop(1, `${tint}00`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    const pts = 14;
+    for (let i = 0; i <= pts; i++) {
+      const a = i / pts * Math.PI * 2;
+      const wob = 1 + 0.1 * Math.sin(i * 2.35 + region.id.length);
+      const px = x + Math.cos(a) * r * wob;
+      const py = y + Math.sin(a) * r * wob;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "rgba(23,32,45,0.92)";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 7]);
+    ctx.strokeStyle = `${tint}66`;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = tint;
+    ctx.beginPath();
+    ctx.arc(x, y - r * 0.52, 4.6 + Math.sin(time * 2e-3 + region.id.length) * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(230,237,247,0.92)";
+    ctx.font = "700 15px 'Manrope', system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(zh9() ? nameZh : nameEn, x, y + r + 18);
+  }
+  var stateRef = { canvas: null, raf: 0, hovered: null, dragging: false, panned: 0, lastX: 0, lastY: 0, visited: /* @__PURE__ */ new Set() };
+  function render3(time = 0) {
+    const canvas = stateRef.canvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const bg = ctx.createLinearGradient(0, 0, 0, height);
+    bg.addColorStop(0, "#0b1016");
+    bg.addColorStop(0.5, "#101a26");
+    bg.addColorStop(1, "#0b1016");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
+    const nebulas = [
+      { x: 700, y: 300, r: 620, c: "240,179,94", a: 0.055 },
+      { x: 1800, y: 500, r: 720, c: "143,214,161", a: 0.05 },
+      { x: 1250, y: 1150, r: 700, c: "179,154,247", a: 0.05 }
+    ];
+    for (const n of nebulas) {
+      const g = ctx.createRadialGradient(n.x, n.y, 40, n.x, n.y, n.r);
+      g.addColorStop(0, `rgba(${n.c},${n.a})`);
+      g.addColorStop(1, `rgba(${n.c},0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+    }
+    for (const s of STARS) {
+      const tw = 0.55 + 0.45 * Math.sin(time * 1e-3 * s.speed + s.twinkle);
+      ctx.globalAlpha = tw;
+      ctx.fillStyle = "#e8edf5";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 14]);
+    ctx.strokeStyle = "rgba(148,163,184,0.13)";
+    for (let x = 200; x < WORLD.w; x += 200) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, WORLD.h);
+      ctx.stroke();
+    }
+    for (let y = 200; y < WORLD.h; y += 200) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(WORLD.w, y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.setLineDash([14, 10]);
+    ctx.strokeStyle = "rgba(143,214,161,0.28)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(60, 60);
+    ctx.bezierCurveTo(700, 10, 1400, 120, 2540, 40);
+    ctx.bezierCurveTo(2580, 700, 2520, 1200, 2500, 1560);
+    ctx.bezierCurveTo(1500, 1620, 800, 1520, 60, 1560);
+    ctx.bezierCurveTo(10, 1100, 30, 500, 60, 60);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const region of REGIONS) drawIsland(ctx, region, time);
+    ctx.setLineDash([4, 9]);
+    ctx.strokeStyle = "rgba(240,179,94,0.35)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(REGION_INDEX.get("museum").x, REGION_INDEX.get("museum").y, 268, 0, Math.PI * 2);
+    ctx.beginPath();
+    ctx.arc(REGION_INDEX.get("museum").x, REGION_INDEX.get("museum").y, 345, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(240,179,94,0.3)";
+    ctx.beginPath();
+    ctx.arc(REGION_INDEX.get("reading").x, REGION_INDEX.get("reading").y, 262, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const node of ALL_NODES) drawNode(ctx, node, stateRef.visited, stateRef.hovered === node, 1);
+    ctx.restore();
+    const v = ctx.createRadialGradient(width / 2, height / 2, height * 0.45, width / 2, height / 2, height * 0.95);
+    v.addColorStop(0, "rgba(5,8,12,0)");
+    v.addColorStop(1, "rgba(5,8,12,0.55)");
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, width, height);
+    stateRef.raf = requestAnimationFrame(render3);
+  }
+  function fitCamera(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    camera.x = WORLD.w / 2;
+    camera.y = WORLD.h / 2;
+    camera.zoom = Math.min(rect.width / WORLD.w, rect.height / WORLD.h) * 0.97;
+  }
+  function hitNode(canvas, clientX, clientY) {
+    const p = screenToWorld(canvas, clientX, clientY);
+    let best = null, bestD = Infinity;
+    for (const node of ALL_NODES) {
+      const r = (node.r ?? 30) + 2;
+      const d = Math.hypot(node.x - p.x, node.y - p.y);
+      if (d <= r && d < bestD) {
+        best = node;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+  async function openAtlas() {
+    const modal = $("#atlasStage");
+    if (!modal) return;
+    stateRef.visited = readVisited();
+    modal.setAttribute("aria-hidden", "false");
+    if (!stateRef.canvas) {
+      stateRef.canvas = $("#atlasCanvas");
+      wireAtlas(stateRef.canvas);
+      fitCamera(stateRef.canvas);
+      stateRef.fitted = true;
+    }
+    const closeBtn = $("#atlasClose");
+    if (closeBtn) {
+      closeBtn.onclick = () => closeAtlas();
+    }
+    const resetBtn = $("#atlasReset");
+    if (resetBtn) {
+      resetBtn.onclick = () => {
+        const c = stateRef.canvas;
+        if (c) fitCamera(c);
+      };
+    }
+    resizeAtlas();
+    updateHUD();
+    refreshIcons();
+    cancelAnimationFrame(stateRef.raf);
+    stateRef.raf = requestAnimationFrame(render3);
+  }
+  function closeAtlas() {
+    const modal = $("#atlasStage");
+    if (!modal) return;
+    modal.setAttribute("aria-hidden", "true");
+    cancelAnimationFrame(stateRef.raf);
+  }
+  function updateHUD() {
+    const visited = readVisited();
+    let charted = 0;
+    for (const node of ALL_NODES) if (visited.has(node.id)) charted += 1;
+    const el = $("#atlasCharted");
+    if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_COORDINATES));
+  }
+  function wireAtlas(canvas) {
+    const tooltip = $("#atlasTooltip");
+    const showTip = (clientX, clientY, node) => {
+      if (!tooltip) return;
+      const visited = readVisited();
+      const name = zh9() ? node.zh : node.en;
+      const region = node.regionName;
+      const tag = visited.has(node.id) ? zh9() ? "\u5DF2\u63A2\u7D22" : "charted" : zh9() ? "\u672A\u63A2\u7D22" : "uncharted";
+      tooltip.innerHTML = `<strong>${escapeTip(name)}</strong><span>${escapeTip(region)} \xB7 ${escapeTip(tag)}</span>`;
+      tooltip.style.left = `${clientX + 14}px`;
+      tooltip.style.top = `${clientY + 14}px`;
+      tooltip.hidden = false;
+    };
+    const hideTip = () => {
+      if (tooltip) tooltip.hidden = true;
+    };
+    canvas.addEventListener("pointerdown", (ev) => {
+      stateRef.dragging = true;
+      stateRef.panned = 0;
+      stateRef.lastX = ev.clientX;
+      stateRef.lastY = ev.clientY;
+      canvas.setPointerCapture(ev.pointerId);
+    });
+    canvas.addEventListener("pointermove", (ev) => {
+      if (stateRef.dragging) {
+        const dx = ev.clientX - stateRef.lastX;
+        const dy = ev.clientY - stateRef.lastY;
+        stateRef.panned += Math.abs(dx) + Math.abs(dy);
+        camera.x -= dx / camera.zoom;
+        camera.y -= dy / camera.zoom;
+        camera.x = Math.max(-200, Math.min(WORLD.w + 200, camera.x));
+        camera.y = Math.max(-160, Math.min(WORLD.h + 160, camera.y));
+        stateRef.lastX = ev.clientX;
+        stateRef.lastY = ev.clientY;
+        hideTip();
+        return;
+      }
+      const node = hitNode(canvas, ev.clientX, ev.clientY);
+      stateRef.hovered = node;
+      canvas.style.cursor = node ? "pointer" : "grab";
+      if (node) showTip(ev.clientX, ev.clientY, node);
+      else hideTip();
+    });
+    const drop = (ev) => {
+      if (!stateRef.dragging) return;
+      stateRef.dragging = false;
+      try {
+        canvas.releasePointerCapture(ev.pointerId);
+      } catch {
+      }
+      hideTip();
+    };
+    canvas.addEventListener("pointerup", drop);
+    canvas.addEventListener("pointercancel", drop);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && $("#atlasStage")?.getAttribute("aria-hidden") === "false") {
+        event.preventDefault();
+        closeAtlas();
+      }
+    });
+    canvas.addEventListener("click", (ev) => {
+      if (stateRef.panned > 6) return;
+      const node = hitNode(canvas, ev.clientX, ev.clientY);
+      if (!node) return;
+      closeAtlas();
+      if (node.kind === "panel") {
+        window.dispatchEvent(new CustomEvent("minicc:nav", { detail: { view: node.id } }));
+      } else if (node.kind === "almanac") {
+        window.dispatchEvent(new CustomEvent("minicc:nav", { detail: { view: "almanac", chapter: node.chapterId } }));
+      } else if (node.kind === "manual") {
+        window.dispatchEvent(new CustomEvent("minicc:nav", { detail: { view: "manual", chapter: node.chapterId } }));
+      }
+    });
+    canvas.addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const pivot = screenToWorld(canvas, ev.clientX, ev.clientY);
+      const factor = Math.exp(-ev.deltaY * 12e-4);
+      camera.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, camera.zoom * factor));
+      const after = screenToWorld(canvas, ev.clientX, ev.clientY);
+      camera.x += pivot.x - after.x;
+      camera.y += pivot.y - after.y;
+    }, { passive: false });
+    window.addEventListener("resize", resizeAtlas);
+  }
+  var escapeTip = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  function resizeAtlas() {
+    const canvas = stateRef.canvas;
+    if (!canvas) return;
+    const wrapper = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(320, wrapper.clientWidth);
+    const h = Math.max(320, wrapper.clientHeight);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!stateRef.fitted) {
+      fitCamera(canvas);
+      stateRef.fitted = true;
+    }
+    if (camera.zoom < MIN_ZOOM || camera.zoom > MAX_ZOOM) fitCamera(canvas);
+  }
+
   // web/src/chat/stream.js
   function streamTask(taskId) {
     const binding = runningTasks.get(taskId);
@@ -5840,55 +6396,55 @@
     return { gateway: "wkapi.pro" };
   }
   function openTemplatesPanel() {
-    const zh10 = state.locale === "zh";
+    const zh11 = state.locale === "zh";
     const cards = [
       {
         icon: "file-search-2",
-        title: zh10 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
-        subtitle: zh10 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
-        prompt: zh10 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
+        title: zh11 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
+        subtitle: zh11 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
+        prompt: zh11 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
       },
       {
         icon: "shield-check",
-        title: zh10 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
-        subtitle: zh10 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
-        prompt: zh10 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
+        title: zh11 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
+        subtitle: zh11 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
+        prompt: zh11 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
       },
       {
         icon: "git-compare",
-        title: zh10 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
-        subtitle: zh10 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
-        prompt: zh10 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
+        title: zh11 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
+        subtitle: zh11 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
+        prompt: zh11 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
       },
       {
         icon: "book-open",
-        title: zh10 ? "\u751F\u6210 README" : "Write README",
-        subtitle: zh10 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
-        prompt: zh10 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
+        title: zh11 ? "\u751F\u6210 README" : "Write README",
+        subtitle: zh11 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
+        prompt: zh11 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
       },
       {
         icon: "globe-2",
-        title: zh10 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
-        subtitle: zh10 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
-        prompt: zh10 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
+        title: zh11 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
+        subtitle: zh11 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
+        prompt: zh11 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
       },
       {
         icon: "refresh-cw",
-        title: zh10 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
-        subtitle: zh10 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
-        prompt: zh10 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
+        title: zh11 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
+        subtitle: zh11 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
+        prompt: zh11 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
       },
       {
         icon: "sparkles",
-        title: zh10 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
-        subtitle: zh10 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
-        prompt: zh10 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
+        title: zh11 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
+        subtitle: zh11 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
+        prompt: zh11 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
       },
       {
         icon: "list-checks",
-        title: zh10 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
-        subtitle: zh10 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
-        prompt: zh10 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
+        title: zh11 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
+        subtitle: zh11 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
+        prompt: zh11 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
       }
     ];
     const zhCards = cards;
@@ -6280,11 +6836,11 @@
     });
   }
   function openHelpPanel() {
-    const zh10 = state.locale === "zh";
+    const zh11 = state.locale === "zh";
     const list = SHORTCUT_GROUPS.map((group) => `
     <div class="help-group">
-      <div class="help-group-title">${escapeHtml(zh10 ? group.zh : group.en)}</div>
-      ${group.rows.map(([labelZh, labelEn, key]) => `<div class="help-shortcut"><span>${escapeHtml(zh10 ? labelZh : labelEn)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("")}
+      <div class="help-group-title">${escapeHtml(zh11 ? group.zh : group.en)}</div>
+      ${group.rows.map(([labelZh, labelEn, key]) => `<div class="help-shortcut"><span>${escapeHtml(zh11 ? labelZh : labelEn)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("")}
     </div>`).join("");
     openPanel(t("help.title"), `<div class="help-panel"><div class="help-groups">${list}</div><div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
     $("#helpArcadeButton")?.addEventListener("click", () => {
@@ -6540,14 +7096,14 @@
   }
 
   // web/src/streak.js
-  var KEY = "minicc-streak-v1";
+  var KEY2 = "minicc-streak-v1";
   function dayKey(d) {
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
   function parseStored() {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(KEY2);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (typeof parsed?.count !== "number" || !parsed?.day) return null;
@@ -6588,7 +7144,7 @@
       next2 = { day: today, count: 1 };
     }
     try {
-      localStorage.setItem(KEY, JSON.stringify(next2));
+      localStorage.setItem(KEY2, JSON.stringify(next2));
     } catch {
     }
     updateStreakChip();
@@ -6949,12 +7505,12 @@
       networkCheckbox.disabled = state.permissionMode === "yolo";
       networkCheckbox.closest(".safe-toggle")?.classList.toggle("locked", networkCheckbox.disabled);
     }
-    const zh10 = state.locale === "zh";
+    const zh11 = state.locale === "zh";
     const write = effective.mode === "acceptEdits" || effective.allowChanges;
     const command = effective.allowChanges;
     const label2 = $("#modeLabel");
     if (label2) label2.textContent = t("capability.executeToggle");
-    const summary = zh10 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
+    const summary = zh11 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
     $("#permissionHint").textContent = summary;
     $("#permissionSummary").textContent = summary;
     $("#modeBadge").textContent = t(`perm.${effective.mode}`);
@@ -7426,15 +7982,15 @@
     const epoch = Date.parse(String(value || ""));
     if (!Number.isFinite(epoch)) return "--";
     const seconds = Math.max(0, Math.round((Date.now() - epoch) / 1e3));
-    const zh10 = state.locale === "zh";
-    if (seconds < 60) return zh10 ? "\u521A\u521A" : "just now";
+    const zh11 = state.locale === "zh";
+    if (seconds < 60) return zh11 ? "\u521A\u521A" : "just now";
     const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return zh10 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
+    if (minutes < 60) return zh11 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return zh10 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
+    if (hours < 24) return zh11 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
     const days = Math.round(hours / 24);
-    if (days < 30) return zh10 ? `${days} \u5929\u524D` : `${days}d ago`;
-    return new Date(epoch).toLocaleDateString(zh10 ? "zh-CN" : "en-US");
+    if (days < 30) return zh11 ? `${days} \u5929\u524D` : `${days}d ago`;
+    return new Date(epoch).toLocaleDateString(zh11 ? "zh-CN" : "en-US");
   }
   function highlightSearchText(text, query) {
     const escaped = escapeHtml(String(text || ""));
@@ -7661,9 +8217,9 @@
     const target = $("#verificationList");
     if (!target) return;
     const events = (data?.events || []).filter((event) => /verification_|completion_assessed/.test(event.code || ""));
-    const zh10 = state.locale === "zh";
+    const zh11 = state.locale === "zh";
     if (!events.length) {
-      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh10 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh10 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
+      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh11 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh11 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
       return;
     }
     target.innerHTML = events.slice(-12).reverse().map((event) => `<details class="verification-card" data-status="${escapeHtml(event.status || "pending")}"><summary>${icon(event.status === "error" ? "alert-circle" : "list-checks")}<span>${escapeHtml(event.summary || traceLabel(event))}</span></summary><pre>${escapeHtml(JSON.stringify(event.detail || {}, null, 2))}</pre></details>`).join("");
@@ -8699,7 +9255,7 @@
     return null;
   }
   function emptySessionMarkup() {
-    const zh10 = state.locale === "zh";
+    const zh11 = state.locale === "zh";
     const aria = escapeHtml(t("session.emptyChipsAria"));
     const chips = [
       { icon: "scan-search", zh: "session.emptyChip1", en: "session.emptyChip1", promptZh: "\u8BFB\u4E00\u4E0B README.md\uFF0C\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684", promptEn: "Read README.md and tell me what this project is" },
@@ -8897,7 +9453,7 @@
 
   // web/src/panels/onboarding.js
   var SEEN_KEY = "minicc-tour-v1";
-  var zh9 = () => state.locale === "zh";
+  var zh10 = () => state.locale === "zh";
   var STEPS = [
     {
       id: "welcome",
@@ -8965,15 +9521,15 @@
     if (id === "composer") {
       const input = $("#promptInput");
       if (input) {
-        input.value = zh9() ? "\u8BFB\u4E00\u4E0B README.md\uFF0C\u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684" : "Read README.md and tell me what this project does";
+        input.value = zh10() ? "\u8BFB\u4E00\u4E0B README.md\uFF0C\u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684" : "Read README.md and tell me what this project does";
         input.focus();
         input.dispatchEvent(new Event("input", { bubbles: true }));
-        showToast(zh9() ? "\u5DF2\u5E2E\u4F60\u586B\u597D\u8FD9\u53E5\u8BDD\uFF0C\u56DE\u8F66\u53D1\u9001\u5373\u53EF" : "Filled it in for you \u2014 press Enter to send");
+        showToast(zh10() ? "\u5DF2\u5E2E\u4F60\u586B\u597D\u8FD9\u53E5\u8BDD\uFF0C\u56DE\u8F66\u53D1\u9001\u5373\u53EF" : "Filled it in for you \u2014 press Enter to send");
       }
       return;
     }
     if (id === "demo") {
-      showToast(zh9() ? "\u6B63\u5728\u4E3A\u4F60\u8DD1\u4E00\u904D\u6F14\u793A\u2026" : "Running the demo for you\u2026");
+      showToast(zh10() ? "\u6B63\u5728\u4E3A\u4F60\u8DD1\u4E00\u904D\u6F14\u793A\u2026" : "Running the demo for you\u2026");
       Promise.resolve().then(() => runDemoFlow()).catch(() => {
       });
     }
@@ -8982,7 +9538,7 @@
     const { overlay, card } = $overlayParts();
     if (!overlay || !card) return;
     const step = STEPS[index];
-    const local = zh9() ? step.zh : step.en;
+    const local = zh10() ? step.zh : step.en;
     const rect = rectFor(step.anchor);
     positionSpotlight(rect);
     card.querySelector(".tour-step").textContent = local.kicker;
@@ -8992,13 +9548,13 @@
     const next2 = card.querySelector(".tour-next");
     const interact = card.querySelector(".tour-interact");
     back2.hidden = index === 0;
-    back2.textContent = zh9() ? "\u4E0A\u4E00\u6B65" : "Back";
-    next2.textContent = index === STEPS.length - 1 ? zh9() ? "\u5F00\u59CB\u5DE5\u4F5C" : "Start building" : zh9() ? "\u4E0B\u4E00\u6B65" : "Next";
+    back2.textContent = zh10() ? "\u4E0A\u4E00\u6B65" : "Back";
+    next2.textContent = index === STEPS.length - 1 ? zh10() ? "\u5F00\u59CB\u5DE5\u4F5C" : "Start building" : zh10() ? "\u4E0B\u4E00\u6B65" : "Next";
     const skip = card.querySelector(".tour-skip");
-    skip.textContent = zh9() ? "\u8DF3\u8FC7" : "Skip tour";
+    skip.textContent = zh10() ? "\u8DF3\u8FC7" : "Skip tour";
     if (step.interact) {
       interact.hidden = false;
-      interact.textContent = step.interact === "composer" ? zh9() ? "\u5E2E\u6211\u586B\u597D\u8FD9\u53E5\u8BDD" : "Fill it in for me" : zh9() ? "\u7ACB\u5373\u8DD1\u6F14\u793A" : "Run the demo now";
+      interact.textContent = step.interact === "composer" ? zh10() ? "\u5E2E\u6211\u586B\u597D\u8FD9\u53E5\u8BDD" : "Fill it in for me" : zh10() ? "\u7ACB\u5373\u8DD1\u6F14\u793A" : "Run the demo now";
     } else {
       interact.hidden = true;
     }
@@ -9017,7 +9573,7 @@
         localStorage.setItem(SEEN_KEY, "done");
       } catch {
       }
-      showToast(zh9() ? "\u8F9B\u82E6\u4E86\u2014\u2014\u53BB\u505A\u70B9\u771F\u4E8B\u5427" : "You're ready \u2014 go build something real");
+      showToast(zh10() ? "\u8F9B\u82E6\u4E86\u2014\u2014\u53BB\u505A\u70B9\u771F\u4E8B\u5427" : "You're ready \u2014 go build something real");
     } else if (outcome === "skipped") {
       try {
         localStorage.setItem(SEEN_KEY, "skipped");
@@ -9071,7 +9627,7 @@
     overlay.innerHTML = `
     <div class="tour-dim"></div>
     <div class="tour-spot" hidden></div>
-    <div class="tour-card" role="dialog" aria-modal="true" aria-label="${escapeHtmlAttr(zh9() ? "\u4E0A\u624B\u6F14\u7EC3" : "Product tour")}">
+    <div class="tour-card" role="dialog" aria-modal="true" aria-label="${escapeHtmlAttr(zh10() ? "\u4E0A\u624B\u6F14\u7EC3" : "Product tour")}">
       <div class="tour-step"></div>
       <h3 class="tour-title"></h3>
       <p class="tour-body"></p>
@@ -9110,7 +9666,7 @@
     button.type = "button";
     button.id = "tourOffer";
     button.className = "tour-offer";
-    button.innerHTML = `<i data-lucide="sparkles"></i><span>${escapeHtmlAttr(zh9() ? "\u7B2C\u4E00\u6B21\u6765\uFF1F2 \u5206\u949F\u5E26\u4F60\u8FC7\u4E00\u904D" : "First visit? Two minutes, I've got you")}</span>`;
+    button.innerHTML = `<i data-lucide="sparkles"></i><span>${escapeHtmlAttr(zh10() ? "\u7B2C\u4E00\u6B21\u6765\uFF1F2 \u5206\u949F\u5E26\u4F60\u8FC7\u4E00\u904D" : "First visit? Two minutes, I've got you")}</span>`;
     document.body.append(button);
     button.addEventListener("click", () => {
       button.remove();
@@ -9188,15 +9744,15 @@
     const sidebarButton = $("#sidebarOpen");
     const inspectorButton = $("#inspectorToggle");
     if (sidebarButton && desktop) {
-      const zh10 = state.locale === "zh";
-      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh10 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh10 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
-      sidebarButton.title = state.sidebarCollapsed ? zh10 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh10 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
+      const zh11 = state.locale === "zh";
+      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh11 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh11 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
+      sidebarButton.title = state.sidebarCollapsed ? zh11 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh11 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
       sidebarButton.innerHTML = icon(state.sidebarCollapsed ? "panel-left-open" : "panel-left-close");
     }
     if (inspectorButton && desktop) {
-      const zh10 = state.locale === "zh";
-      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh10 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh10 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
-      inspectorButton.title = state.inspectorCollapsed ? zh10 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh10 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
+      const zh11 = state.locale === "zh";
+      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh11 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh11 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
+      inspectorButton.title = state.inspectorCollapsed ? zh11 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh11 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
       inspectorButton.innerHTML = icon(state.inspectorCollapsed ? "panel-right-open" : "panel-right-close");
     }
     refreshIcons();
@@ -9416,7 +9972,7 @@
     return translated === id ? fallback : translated;
   }
   function commands() {
-    const zh10 = state.locale === "zh";
+    const zh11 = state.locale === "zh";
     const themeTarget = state.theme === "dark" ? label("palette.toLight", "Switch to light theme") : label("palette.toDark", "Switch to dark theme");
     return [
       { id: "newTask", glyph: "plus", group: "palette.group.task", run: () => resetTask() },
@@ -9441,7 +9997,7 @@
       { id: "help", glyph: "circle-help", group: "palette.group.surface", run: () => openHelpPanel() },
       { id: "arcade", glyph: "gamepad-2", group: "palette.group.surface", run: () => openArcade() },
       { id: "theme", glyph: "moon-star", group: "palette.group.surface", labelOverride: themeTarget, run: () => setTheme(state.theme === "dark" ? "light" : "dark") },
-      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh10 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh10 ? "en" : "zh") },
+      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh11 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh11 ? "en" : "zh") },
       { id: "sidebar", glyph: "panel-left", group: "palette.group.surface", run: () => setSidebarCollapsed(!state.sidebarCollapsed) },
       { id: "inspector", glyph: "panel-right", group: "palette.group.surface", run: () => setInspectorCollapsed(!state.inspectorCollapsed) },
       { id: "focus", glyph: "scan-line", group: "palette.group.surface", run: () => setFocusMode(!state.focusMode) },
@@ -9472,7 +10028,7 @@
     }
     return 60 - index * 0.2 + runs * 2;
   }
-  function render3() {
+  function render4() {
     const query = inputNode.value.trim();
     const all = commands();
     filtered = query ? all.map((command) => ({ command, points: score(query, command) })).filter((entry) => entry.points >= 0).sort((a, b) => b.points - a.points).map((entry) => entry.command) : all;
@@ -9546,13 +10102,13 @@
     inputNode.value = "";
     modal.classList.add("show");
     modal.setAttribute("aria-hidden", "false");
-    render3();
+    render4();
     setActive(activeIndex);
     activateDialog(modal, { initialFocus: "#paletteInput", onEscape: closeCommandPalette });
     inputNode.focus({ preventScroll: true });
     inputNode.oninput = () => {
       activeIndex = 0;
-      render3();
+      render4();
       setActive(activeIndex);
     };
     inputNode.onkeydown = (event) => {
@@ -9864,6 +10420,10 @@
     document.querySelectorAll(".seed-card").forEach((card) => card.addEventListener("click", () => window.selectPlant?.(card)));
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        if ($("#atlasStage")?.getAttribute("aria-hidden") === "false") {
+          $("#atlasStage").setAttribute("aria-hidden", "true");
+          return;
+        }
         if ($("#pulseStage")?.getAttribute("aria-hidden") === "false") {
           $("#pulseStage").setAttribute("aria-hidden", "true");
           return;
@@ -10059,9 +10619,8 @@
       const pathNode = event.target.closest(".tool-path");
       if (pathNode && looksLikeWorkspacePath(pathNode.textContent)) openFilePreview(pathNode.textContent.trim());
     });
-    document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", () => {
-      const view = button.dataset.view;
-      document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
+    function dispatchView(view, chapter) {
+      if (view) markVisited(`panel:${view}`);
       if (view === "tasks") {
         closePanel();
       } else if (view === "workspaces") openWorkspacesPanel();
@@ -10071,17 +10630,27 @@
       else if (view === "doctor") openDoctorStage();
       else if (view === "dockyard") openDockyard();
       else if (view === "admin") openAdmin();
+      else if (view === "atlas") openAtlas();
       else if (view === "templates") openTemplatesPanel();
-      else if (view === "almanac") openAlmanacPanel();
+      else if (view === "almanac") openAlmanacPanel(chapter);
       else if (view === "axioms") openAxiomsPanel();
       else if (view === "journal") openJournalPanel();
       else if (view === "archive") openArchivePanel();
       else if (view === "askdocs") openAskDocsPanel();
       else if (view === "recent") openRecentPanel();
-      else if (view === "manual") openManualPanel();
+      else if (view === "manual") openManualPanel(chapter);
       else if (view === "ledger") openLedgerPanel();
       else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
       else closePanel();
+    }
+    window.addEventListener("minicc:nav", (event) => {
+      const detail = event && event.detail || {};
+      dispatchView(detail.view, detail.chapter);
+    });
+    document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", () => {
+      const view = button.dataset.view;
+      document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
+      dispatchView(view);
     }));
     document.querySelectorAll(".action-chip").forEach((button) => button.addEventListener("click", () => {
       const prompt = state.locale === "zh" ? button.dataset.promptZh : button.dataset.promptEn;
