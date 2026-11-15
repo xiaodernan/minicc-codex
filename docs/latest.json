@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T17:36:23.461Z",
+  "generated_at": "2026-11-15T18:01:13.400Z",
   "branch": "main",
-  "head": "a93d92a",
-  "total_commits": 1656,
+  "head": "9f9daf2",
+  "total_commits": 1659,
   "recent_commits": [
+    {
+      "short": "9f9daf2",
+      "at": "2026-11-16T01:59:24+08:00",
+      "subject": "M8-T1038: wkapi.pro accepts Responses ONLY as a streaming channel - live probe proved HTTP 400 on atomic answer; atomic envelope path silently flipped the turn "
+    },
+    {
+      "short": "e61c737",
+      "at": "2026-11-16T01:59:24+08:00",
+      "subject": "M8-T1037: admin completion streak - /api/admin/summary gains completion_streak{current,best,days,last_completed} read from real tasks.sqlite3 rows (UTC day set,"
+    },
+    {
+      "short": "153c0c1",
+      "at": "2026-11-15T17:36:23Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a93d92a",
       "at": "2026-11-16T01:35:58+08:00",
@@ -14,27 +29,12 @@
       "short": "a5a70e7",
       "at": "2026-11-16T01:35:58+08:00",
       "subject": "M8-T1035: stardust milestones - 52-coordinate world now celebrates 25/50/75/100% bilingual toasts, persisted one-shot, honest reset with clearVisitHistory; visi"
-    },
-    {
-      "short": "04b94c5",
-      "at": "2026-11-15T17:05:31Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "909f975",
-      "at": "2026-11-16T01:04:19+08:00",
-      "subject": "M8-T1034: en-mode CJK parity gate - tests/en_cjk_smoke.mjs (test:parity, wired into test:arcade); gate caught 4 real leaks (Atlas HUD stale zh until first open "
-    },
-    {
-      "short": "9386280",
-      "at": "2026-11-15T16:37:07Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 348,
+  "roadmap_batches": 350,
   "changelog_entries": 1,
-  "roadmap_lines": 53346,
+  "roadmap_lines": 53385,
   "tracked_files": 1077,
   "test_files": 712,
   "almanac_chapters": 22,
