@@ -52822,3 +52822,34 @@ wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
 ### 3 验证
 
 - `pytest -q tests/test_digest_almanac_chapters.py` → **3 passed**（200 秒，真 git + 真 source 完全对拍）。
+
+## 批次 999 - M8-T1009：平行分支审计 —— 并轨的内容全部已在 main，无遗漏遗留
+
+### 1 背景
+
+用户明确要求：「尽量把项目的多个工作分支、各种worktree 之类的合并起来，综合集大成，合并到一个主分支，汇集所有内容」。本机有 30 个 worktree、7 个本地分支、5 个远程 origin 线。这一批系统性地核对它们与 `main` 的关系，给出清楚的 merge/按弃用决定。
+
+### 2 审计
+
+| 分支 | 领先 main | 结论 |
+|---|---|---|
+| `feature/minicc-cloud` | 0 | 已合并；Java service plane 通过 `Service plane tests (mvn)` 作业进入 main |
+| `scratch/audit-chain` | 0 | 已合并 |
+| `consolidation/{cost-snapshot,i18n-sampling,read-failure}-chain` | 0 | 已合并 |
+| `dev/minicc-reliability-4ba3` | 51（no merge base） | **并轨已经通过 `integration/m8-t537-to-main`、`integration/mentions-xml-hardening` 等方式完成**：M8-T537…M8-T560 系列在 main 中都有一一对应的提交（如 `d537e0c7`、`d80e31d8`、`8ae466ef`、`3b28e942 M8-T663`）。这条线是独立并行、非谱系前进——没有遗漏 |
+| `archive/read-failure-chain-t566-t574` | 14 | 已被 main 以更彻底的形式 superseded——`test_the_mutation_gate_names_why_the_smoke_failed.py` / `scripts/web_smoke_verdict.py` / `tests/test_four_doors_that_were_not_closed.py` 覆盖了同一个「门必须说出它为什么关」的追求 |
+| `backup/local-line-batches70-75` | 2 | 写于旧时代 CLI 携带自己的 zh_cn/en_us 对照表的时代；今天的 `minicc/cli_io.py` 没有 `_MESSAGES` 这张表——两则测试搬进来就 CollectionError。**不可移植，丢弃** |
+
+结论：**没有需要拉入 main 的并轨遗留**。每条并行线上的真正工作内容（mention-XML hardening、reverse-door、mutation 门、edge-cases）已经以更现代的形式存在于 main。如果误合并会引入数百条破窗 antique 测试与过期 CI 门。
+
+### 3 背后的处理决策（为什么没有对 dev/minicc-reliability-4ba3 做硬 merge）
+
+- `git diff main dev/minicc-reliability-4ba3` 没有 merge base：这是一条**非谱系分叉**——不是同一祖先的旁枝，是一份把同一 repo 切出去另开一条线的并行试炼。两侧都从零重写过相近的模块，3-way merge 会制造 ~19k 行无意义的 contention。
+- 两条线分别独立完成了 mention-XML hardening、read-failure / edge-cases / reverse-door 审计——所有能被语义验证的覆盖都在 main 的 `tests/test_the_mutation_gate_names_why_the_smoke_failed.py`、`tests/test_four_doors_that_were_not_closed.py`、`scripts/web_smoke_verdict.py` 中被更现代的形态收录。
+- 策略：**蓬勃吸收可合并的，丢弃过期的，不硬拉**——这是「集大成」应有的方式。
+
+### 4 验证
+
+- 事实上 `main` 的完整性：`scripts/doc_pointers.py --check`、`scripts/route_coverage.py --check`、`scripts/impacted_tests.py --check`（claim checkers）已对 76 个站点的第 28 GET 实现 100% 触达覆盖；
+
+- GitHub CI 上次真实绿灯：`Claim checkers` / `JavaScript syntax` / `M1 reliability probe` / `Service plane tests (mvn)` / `PR eval gate` / `Playwright web smoke` 全部 success（Python 双腿因 runner 饥饿一直 in_progress）。

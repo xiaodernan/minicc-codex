@@ -374,3 +374,5 @@
 - **年鉴第十七卷「灯塔 / The Lighthouse」（M8-T1007）**：把「为什么 cache 命中率这么低 + 一直显示非流」这场能查实的辩论直接写进年鉴——共享 prefix 逐轮 ~7,424/7,537 命中的真实账本、任务间 5+ 分钟空窗是杀手的真实 62,005-token 全 miss、keeper warm #2 的 95.4% 真实读数、网关只应答 SDK 的指纹门真相、T879/T897/T900 恢复锁已移除；18 章双语 smoke 全绿（manual/README/digest 同步）。
 
 - **fact-pack 计数器防漂（M8-T1008）**：`/api/digest` 的 `almanac_chapters` 必须等于 `web/src/panels/almanac.js` 真实章节数——新测试以 `almanac.js` 直接 source 扫描为基准对拍，加 missing-file 降级路径。
+
+- **平行分支审计（M8-T1009）**：30 worktree / 7 本地分支 / 5 远程 origin 线逐条核对——所有 fork 上的真正工作已经经过 `integration/*` 合并 / superseded；`dev/minicc-reliability-4ba3` 是非谱系分叉，但其核心内容（mention-XML hardening / reverse-door / edge-cases）在 main 中以更现代的形态存在；没有需要拉入 main 的遗留
