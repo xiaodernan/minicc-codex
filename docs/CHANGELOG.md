@@ -368,3 +368,5 @@
 - **前缀缓存守护 Cache Keeper（M8-T1004）**：每 220s 用官方 SDK 以 agent 同款派生 prompt_cache_key 喂热共享 system prompt——实测 warm #2 cached_tokens=4992/5229=95.4%（fake provider / Anthropic wire 自动关闭，`MINICC_CACHE_KEEPER=0` 一键关停）；`/api/provider-ping` 新增 `keeper` 账本，Doctor 面板新增守护状态灯；5 个单元测试全绿。附：网关只应答官方 SDK 的实测记录（裸 HTTP 生全军覆没）——keeper 不走裸 urllib，与 agent 同一条调用路径。
 
 - **船厂 Dockyard（M8-T1005）**：第六个真实模块——航海日志 6 格（首次提交 / 提交 / 完成任务 / 年鉴 17 卷 / 累计 token / 缓存亲和率，直接读 /api/digest（新增 almanac_chapters）、/api/metrics、/api/worldpulse）+ 灯塔十座，全按真实指标逐格解锁；676 键双语 parity；manual/README 双语入列。 /api/digest 新增 almanac_chapters 字段（扫描 almanac.js `roman: { zh:` 计数，无硬编码）。
+
+- **宽面板自适应（M8-T1006）**：widemodal 920→1180px、immersive 1280→1440px、脉搏 stage 1280→1380px、船厂 1120→1240px、诊断 1100→1180px——4K/超宽屏不再有"小盒子"感；1200px 以下屏保持原尺寸。

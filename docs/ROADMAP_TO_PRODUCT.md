@@ -52757,3 +52757,28 @@ wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
 - Playwright 真浏览器（zh + en）：10 枚勋章 8 解锁 / 2 诚实锁定（VII 守夜人 62%→80%、VIII 千兆航程 876k→1M）；6 格航海日志全部填入真实数字；中英两套逐字渲染，en 模式零 CJK 泄漏；
 - `npm run build:web` / `check:web` 干净；i18n parity 676 键；`doc_pointers` rc=0；
 - 未新增 HTTP 路由；route coverage 无变化。
+
+## 批次 996 - M8-T1006：宽面板在 4K/超宽屏上不再被挤压 —— modal/wide/immersive/脉搏/船厂/诊断全部随屏幕放大
+
+### 1 背景
+
+用户再次明确："前端有很多不合理的地方 …… 需要修改一下 不然看着很不整洁 很不美观。" 本轮用 1920×1080 / 2560×1440（DPR 1.5）四图定位：
+
+- 宽模态（说明书/年鉴）只有 920px —— 在 4K 上看起来像一个小盒子；
+- immersive 模态 1280px，与 4K 屏幕严重不相称；
+- 脉搏 stage 1280px、船厂 1120px、诊断中心 1100px —— 超宽屏只吃得下一半。
+
+### 2 修复
+
+- `.panel-modal.wide-modal .panel-card` 920px → **min(1180px, calc(100vw - 32px))**；
+- `.panel-modal.immersive-modal .panel-card` 1280px → **min(1440px, calc(100vw - 32px))**；
+- `.pulse-stage-card` 1280 → 1380；
+- `.dockyard-stage-card` 1120 → 1240；
+- `.doctor-stage-card` 1100 → 1180；
+- 全部仍然 `min(..., 100% / calc(...))` 保证 1280px 及以下屏保持原状。
+
+### 3 验证
+
+- 1920×1080 @1.5 DPR：pulse/almanac/manual/dockyard/doctor 五张截图全部填满合理空间，阅读舒适；
+- `npm run build:web` / `check:web` 干净；CSS 花括号 2508 == 2508；无 BOM / 无 NUL；
+- 本批纯 CSS；未触碰任何 Python。

@@ -782,8 +782,8 @@ button { color: inherit; }
 .panel-modal { align-items: center; background: rgba(8, 9, 11, .72); display: flex; inset: 0; justify-content: center; opacity: 0; pointer-events: none; position: fixed; transition: opacity .2s ease, visibility .2s ease .2s; visibility: hidden; z-index: 25; }
 .panel-modal.show { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity .2s ease, visibility 0s; }
 .panel-card { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 10px; box-shadow: var(--shadow); max-height: min(760px, calc(100vh - 40px)); max-width: calc(100vw - 32px); overflow: hidden; width: min(640px, 92vw); }
-.panel-modal.wide-modal .panel-card { width: min(920px, calc(100vw - 42px)); }
-.panel-modal.immersive-modal .panel-card { width: min(1280px, calc(100vw - 44px)); max-height: calc(100vh - 28px); }
+.panel-modal.wide-modal .panel-card { width: min(1180px, calc(100vw - 32px)); }
+.panel-modal.immersive-modal .panel-card { width: min(1440px, calc(100vw - 32px)); max-height: calc(100vh - 28px); }
 .panel-modal.immersive-modal .panel-body { max-height: calc(100vh - 116px); }
 .panel-modal.fullscreen .panel-card { border-radius: 0; height: 100vh; max-height: 100vh; max-width: none; width: 100vw; }
 .panel-modal.fullscreen .panel-body { max-height: calc(100vh - 96px); }
@@ -3127,7 +3127,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   pointer-events: auto;
 }
 .pulse-stage-card {
-  width: min(1280px, 100%);
+  width: min(1380px, 100%);
   min-height: min(720px, 100%);
   display: grid;
   grid-template-rows: auto 1fr;
@@ -5273,7 +5273,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
    dots, borders and the big numerals (large text needs 3:1, not 4.5:1). */
 .doctor-stage { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 28px 32px; background: radial-gradient(1100px 600px at 12% -5%, color-mix(in srgb, var(--mint) 9%, transparent) 0%, transparent 55%), radial-gradient(800px 520px at 105% 115%, color-mix(in srgb, var(--amber) 9%, transparent) 0%, transparent 55%), color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity .28s ease; }
 .doctor-stage[aria-hidden="false"] { opacity: 1; pointer-events: auto; }
-.doctor-stage-card { position: relative; width: min(1100px, 100%); max-height: 100%; overflow-y: auto; display: grid; gap: 14px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 26px; box-shadow: 0 30px 80px rgba(0, 0, 0, .38); }
+.doctor-stage-card { position: relative; width: min(1180px, 100%); max-height: 100%; overflow-y: auto; display: grid; gap: 14px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 26px; box-shadow: 0 30px 80px rgba(0, 0, 0, .38); }
 .doctor-stage-close { position: absolute; top: 14px; right: 14px; }
 .doctor-kicker { font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--quiet); display: flex; align-items: center; gap: 8px; }
 .doctor-kicker::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--mint); }
@@ -5405,7 +5405,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
    mono + tabular-nums; small caps labels use AA-safe muted/quiet inks. */
 .dockyard-stage { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 26px 30px; background: radial-gradient(1100px 620px at 10% -8%, color-mix(in srgb, var(--amber) 10%, transparent) 0%, transparent 55%), radial-gradient(900px 540px at 108% 112%, color-mix(in srgb, var(--mint) 8%, transparent) 0%, transparent 55%), color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity .28s ease; }
 .dockyard-stage[aria-hidden="false"] { opacity: 1; pointer-events: auto; }
-.dockyard-stage-card { position: relative; width: min(1120px, 100%); max-height: 100%; overflow-y: auto; display: grid; gap: 14px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, .38); }
+.dockyard-stage-card { position: relative; width: min(1240px, 100%); max-height: 100%; overflow-y: auto; display: grid; gap: 14px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, .38); }
 .dockyard-stage-close { position: absolute; top: 14px; right: 14px; }
 .dockyard-kicker { font-size: 10.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--quiet); display: flex; align-items: center; gap: 8px; }
 .dockyard-kicker svg { width: 13px; height: 13px; color: var(--amber); }
