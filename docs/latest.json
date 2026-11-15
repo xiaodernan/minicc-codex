@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:22:18.207Z",
+  "generated_at": "2026-11-15T09:27:10.971Z",
   "branch": "main",
-  "head": "beeff4a",
-  "total_commits": 1604,
+  "head": "4677f67",
+  "total_commits": 1606,
   "recent_commits": [
+    {
+      "short": "4677f67",
+      "at": "2026-11-15T17:26:52+08:00",
+      "subject": "M8-T1010: manual chapter XII 'Spring Cloud plane' - teach the user to stand up the whole distributed plane on their own machine with real commands verified end-"
+    },
+    {
+      "short": "5383f7e",
+      "at": "2026-11-15T09:22:18Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "beeff4a",
       "at": "2026-11-15T17:21:59+08:00",
@@ -19,22 +29,12 @@
       "short": "d9009fe",
       "at": "2026-11-15T17:14:39+08:00",
       "subject": "M8-T1008: fact-pack counter honesty - digest.almanac_chapters must equal almanac.js source rail count; 3 tests, all pending verify"
-    },
-    {
-      "short": "14f5409",
-      "at": "2026-11-15T09:07:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c207253",
-      "at": "2026-11-15T17:06:37+08:00",
-      "subject": "M8-T1007: almanac chapter XVII 'The Lighthouse' - honest walkthrough of the cache/ttl/http-gate story with real per-turn numbers (keeper warm #2 95.4%, 62,005-t"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 324,
+  "roadmap_batches": 325,
   "changelog_entries": 1,
-  "roadmap_lines": 52856,
+  "roadmap_lines": 52877,
   "tracked_files": 1069,
   "test_files": 707,
   "almanac_chapters": 18,
