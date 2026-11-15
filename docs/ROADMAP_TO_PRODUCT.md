@@ -53419,3 +53419,23 @@ Wayfinder 从 6 步扩到 9 步、Esc 契约、每个按钮带双语教学 aria�
 ### 实测验证
 
 - `almanac_smoke` — 23 chapters, both locales green; atlas_smoke "54-coordinate charted line renders" green; parity smoke green; all CRLF pin gates green; `python -m pytest tests/test_http_surface.py -k admin` green.
+## 批次 1026 - M8-T1041: 年鉴卷二十三「深空 / The Deep Field」— 世界不会完成，只会更准；admin smoke hydration 等待根除红的 race
+
+### 目的
+
+"勘完不是目的"是这个世界最残酷又最诚实的注脚。现在世界大概是 55 个坐标、24 卷博物馆、12 座岛屿志（每一本都按 ALL_NODES+visited 现场时算）——这一卷讲的是勘完之后还能干什么。同期：admin_smoke 那条红腿在共用机器竞争下被 GIL 慢到 1400ms 刷不出来，走 deterministic 等待等任一非"—"字符为止；不靠 sleep。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `deepfield`（卷二十三 · 深空 / Chapter XXIII · The Deep Field）；新增 `deepfieldMarkup()`：提交/任务数 live 数值（digest/stats 同步读）、instrument 格（展示 24/24 museum volumes / 13/13 manual chapters / 12/12 islands charted / ∞ star 终局）；gate-list 五条勘完即望远镜校准 / commit messages 是引力 / interrupted tasks 是迈步；`CHAPTER_RENDERERS` 注册。en 侧 innerText 0 CJK。
+- **atlas 世界长到 55 坐标** — compass 的 54 证明了 055 是可推的；fenc 的上一格是 52/53/54；现在 `ALL_NODES.length=55`（18+24+13）。所有活的 claim 全量迁移（index.html 占位符 → `— / 55`；atlas_smoke contract → 55；onboarding/manual/README twenty-four chapters; museum/'reading' island satellite counts 23→24; 54 → 55 coordinates）；"54"历史 claim 冻结在 compass 章节（frozen historical copy）；`.minicc` memory 不碰。
+- **`tests/admin_smoke.mjs`** — 解锁后 `waitForFunction` 等 `#adminTotalTasks` 非空/非"—"（timeout 45 s），不再等固定 1400ms；实测通过；CI 并发更强的因子就地免疫。
+- **live verify** — 24 卷 rail 计数、`output/deepfield_zh.png / .en.png`；en CJK 余量 0；manual smoke 13 chapters green；parity opacity walk zero CJK。
+
+### 实测验证
+
+- `node tests/almanac_smoke.mjs` — 24 chapters bilingual pass。
+- `node tests/atlas_smoke.mjs` — 55-coordinate charted line renders。
+- `node tests/admin_smoke.mjs` — hydration wait 替换固定 sleep；全绿。
+- `node tests/en_cjk_smoke.mjs` — en 全走一遍 0 CJK 保持。
+- `node tests/manual_smoke.mjs` — 13 chapters green。

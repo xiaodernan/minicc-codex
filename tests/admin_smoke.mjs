@@ -25,7 +25,12 @@ async function checkMode(locale, expectCjk) {
   // unlock with 123
   await page.fill("#adminPassword", "123");
   await page.click("#adminUnlockBtn");
-  await page.waitForTimeout(1400);
+  // wait for the summary to hydrate rather than sleep a fixed window —
+  // the numbers are genuinely fetched from disk and may take a beat
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminTotalTasks");
+    return el && el.innerText.trim() && el.innerText.trim() !== "—";
+  }, null, { timeout: 45000 });
 
   // unlocked state must be visible
   assert.ok(await page.locator("#adminUnlocked").isVisible(), "unlocked dashboard must render");

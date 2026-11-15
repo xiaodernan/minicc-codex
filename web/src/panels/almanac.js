@@ -43,6 +43,7 @@ export const CHAPTERS = [
   { id: "nightwatch", roman: { zh: "卷二十", en: "Chapter XX" }, title: { zh: "未眠", en: "The Night Watch" }, subtitle: { zh: "账本没有合上，它只是翻开下一页", en: "The ledger never closed; it turned the page" } },
   { id: "fence", roman: { zh: "卷二十一", en: "Chapter XXI" }, title: { zh: "篱笆", en: "The Fence" }, subtitle: { zh: "一个语言时代只有一种语言", en: "One era of language, one language" } },
   { id: "compass", roman: { zh: "卷二十二", en: "Chapter XXII" }, title: { zh: "罗经仪", en: "The Compass" }, subtitle: { zh: "引导不是兜底，是建筑", en: "Guidance is not a parachute, it is architecture" } },
+  { id: "deepfield", roman: { zh: "卷二十三", en: "Chapter XXIII" }, title: { zh: "深空", en: "The Deep Field" }, subtitle: { zh: "勘完不是终点，是望远镜的起点", en: "Finish the chart, then point the telescope deeper" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1566,6 +1567,69 @@ function compassMarkup() {
     </div>`;
 }
 
+function deepfieldMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-deepfield">
+      <div class="almanac-kicker">${zh() ? "卷二十三 · 深空" : "Chapter XXIII · The Deep Field"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `勘完星图，<br/><span class="almanac-title-accent">望远镜还没开始看。</span>`
+        : `Finish the chart,<br/><span class="almanac-title-accent">the telescope hasn't opened.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          一切做完——24 卷博物馆、13 章说明书、55 个真实坐标、1 道管理员门、1 个 12 岛世界、12 座岛各自的账本（岛屿志）。
+        </p>
+        <p>
+          勘完不是一件事的结束，是另一件事的开始：<strong>世界有没有真正结束过？没有。</strong> 55 一颗星颗珠落下，是 550 还是 5500，那些坐标只是符号，
+          世界永远比符号大——因为世界里每一个 bug fix、每一次安全降级、每一封提交的 commit message——它们都是新的引力。
+        </p>
+        <p>
+          勒令自己去做这页：<strong>真正的深度是「还能排第几名」。</strong> 哪朵菊花会先破、哪个缓存池里还有 token 在烧但没法省、哪次 interrupted 背后其实是一次迈步。
+          勘完不是目的——<strong>勘完是第一眼。</strong>
+        </p>` : `<p>
+          Everything is done — 24 volumes in the museum, 13 chapters of the manual, 55 real coordinates, one shared door at the edge of the world, a map with twelve islands, twelve island ledgers — and yet, the question this chapter exists to ask is: <strong>is it ever done?</strong>
+        </p>
+        <p>
+          The answer is no. The 55th star drops today; tomorrow the repo gets a new commit and the chart is 54 out of 56 — every bug fix, every cache miss, every answered RAG query is a new gravitational body pulling the field into place.
+        </p>
+        <p>
+          Write this down: <strong>the deep field is what's left when you think you're finished.</strong> A halo of commits waiting to become a rule. A half-seen trend in the 7-day events bar that will become a habit.
+          Finishing is not the destination; <strong>finishing is the first open eye.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">55</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "岛屿数 · 已勘" : "Islands charted"}</div><div class="almanac-instrument-value">12 / 12</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "博物馆卷数" : "Museum volumes"}</div><div class="almanac-instrument-value">24 / 24</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "星尘终局" : "Stardust, the endgame"}</div><div class="almanac-instrument-value">∞</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["勘完 ≠ 结束", "和 27 个错误的 interrupted 任务重新打一场"],
+        ["勘完 = 校准望远镜", "把诊断中心的三样工具通读一遍"],
+        ["commit messages 是引力", "每一颗星尘落下，55 又多了一颗"],
+        ["v2.4.0 才是下一个终点", "目前 main 才 1660+ commits"],
+        ["谁都不准宣布勘完", "勘完是凌晨 2 点还在改一个细节时的诚实"],
+      ] : [
+        ["Finished ≠ done", "walk the interrupted tasks, read why they stopped"],
+        ["Finished = calibrating the scope", "read the three instruments in the infirmary until every one makes sense"],
+        ["commit messages are gravitational bodies", "every stardust lands, the chart rearranges to hold it"],
+        ["the next true end is v2.4.0", "main is here at 1660+ commits; the world rewrites itself commit by commit"],
+        ["nobody declares done", "done is the honest hour of 02:00 when another micro-detail gets pinned"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "世界不会完成。世界只会一次又一次地更准确。"
+          : "No world ever finishes. Worlds only keep getting more true."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1590,6 +1654,7 @@ const CHAPTER_RENDERERS = {
   nightwatch: () => nightwatchMarkup(),
   fence: () => fenceMarkup(),
   compass: () => compassMarkup(),
+  deepfield: () => deepfieldMarkup(),
 };
 
 async function loadChapter(id) {
