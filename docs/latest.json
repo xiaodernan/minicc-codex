@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:45:28.047Z",
+  "generated_at": "2026-11-15T10:40:10.712Z",
   "branch": "main",
-  "head": "a117bdd",
-  "total_commits": 1614,
+  "head": "ba7e255",
+  "total_commits": 1616,
   "recent_commits": [
+    {
+      "short": "ba7e255",
+      "at": "2026-11-15T18:39:58+08:00",
+      "subject": "M8-T1014: admin panel - password-123 shared door, live read-only stats from real workspace data; /api/admin/summary; locked/unlocked zh/en verified; dockyard/ad"
+    },
+    {
+      "short": "b46a863",
+      "at": "2026-11-15T09:45:28Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a117bdd",
       "at": "2026-11-15T17:44:58+08:00",
@@ -19,23 +29,13 @@
       "short": "8ca28e8",
       "at": "2026-11-15T17:34:55+08:00",
       "subject": "M8-T1012: manual smoke test added - all 13 chapters render fully bilingual, no mixed-language prose, any uncaught pageerror counted as failure; test:manual wire"
-    },
-    {
-      "short": "92de8d4",
-      "at": "2026-11-15T09:31:42Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ef5d2f8",
-      "at": "2026-11-15T17:31:24+08:00",
-      "subject": "README: manual now thirteen chapters (added Full Stack chapter XII+XIII)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 328,
+  "roadmap_batches": 329,
   "changelog_entries": 1,
-  "roadmap_lines": 52957,
-  "tracked_files": 1070,
+  "roadmap_lines": 52979,
+  "tracked_files": 1072,
   "test_files": 708,
   "almanac_chapters": 18,
   "module_count": 14,
