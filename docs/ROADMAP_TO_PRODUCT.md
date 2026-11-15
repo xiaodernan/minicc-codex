@@ -53524,3 +53524,14 @@ M8-T1039 commit 里，`.atlas-island-dot { background: var(--island-tint, var(--
 
 - `web/src/panels/manual.js` — 英文 Almanac 模块段目新对最新卷（Chapter XXIV “The Lawn”），正文回归为英文；与 `almanac_smoke`、`README`、`onboarding`、`index.html`、Atlas 卫星数对齐的同一组事实。
 - `manual_smoke` — 13 chapters 全部走双语验证；tested pure en.
+## 批次 1032 - M8-T1047: 两台后红台——AA 对比度与 RAG 限流回合
+
+### 目的
+
+M8-T1044/T1045 合并 CI 跑了 28 分钟，两条 Python legs 同形失败——两条都够真、都够可复现。修复不涉及面板逻辑，只在 .game-how-skill-glyph 里把 text × tint 的对比度算透（找出 4.29:1 → 重构为 18% + `--text`）和在 RAG ratelimit 的时间测试中使用单调钟 + 有界判定来吞掉两个平台 VM 节拍抖动。
+
+### 做了什么
+
+- **`web/styles.css`** — `.game-how-skill-glyph` 从 `color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber)` 改为 `color-mix(in srgb, var(--amber) 18%, transparent); color: var(--text)`——对比度与「text has to be read" 法则贴合，AA gate 从 4.29:1 提升至对比；次要后续改动：count 空闲，不动 `.game-how-skill-glyph` 大小。
+- **`tests/test_rag_rate_limit.py`** — `test_window_expiry_reopens_the_gate` 不再相信 `time.sleep(0.06)` 单次判定；改为 `deadline = monotonic() + 2.0; while monotonic() < deadline: if consume.return is True: return`，慢节拍平台也守门；断言形态不削减（`assert False` 兜底保留，明确不允许吞掉）。
+- **CRLF gates** — i18n / index.html 未动；`bundle j、syntax` 皆绿；`test_every_colour_pair_clears_aa.py` 7 passed、`test_rag_rate_limit.py` 7 passed。

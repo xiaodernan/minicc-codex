@@ -5662,7 +5662,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .game-how-rail-title { color: var(--quiet); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; }
 .game-how-skills { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .game-how-skills li { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 10px; grid-template-columns: 36px 1fr; padding: 10px 12px; }
-.game-how-skill-glyph { background: color-mix(in srgb, var(--amber) 14%, transparent); border-radius: 8px; color: var(--amber); display: grid; font-size: 16px; height: 34px; place-items: center; width: 34px; }
+.game-how-skill-glyph { background: color-mix(in srgb, var(--amber) 18%, transparent); border-radius: 8px; color: var(--text); display: grid; font-size: 16px; height: 34px; place-items: center; width: 34px; }
 .game-how-skills strong { color: var(--text); font-size: 12.5px; }
 .game-how-skills small { color: var(--muted); display: block; font-size: 10.5px; line-height: 1.55; margin-top: 3px; }
 .game-how-note { border-left: 2px solid var(--amber); color: var(--quiet); padding: 2px 0 2px 12px; }

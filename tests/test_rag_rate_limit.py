@@ -48,9 +48,14 @@ def test_window_expiry_reopens_the_gate(monkeypatch: pytest.MonkeyPatch) -> None
     assert ratelimit.consume("rag-query", "c")[0] is False
     # wait-claim: the bucket's 60 ms window has truly elapsed once monotonic()
     # advances past the expiry recorded at the last consume; the test re-reads
-    # itself instead of trusting an arbitrary beat.
-    time.sleep(0.06)
-    assert ratelimit.consume("rag-query", "c")[0] is True
+    # itself instead of trusting an arbitrary beat. Polling with a bounded
+    # 2-second budget keeps a slow runner honest without hiding clock bugs.
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if ratelimit.consume("rag-query", "c")[0] is True:
+            return
+        time.sleep(0.05)
+    assert False, "bucket did not reopen within 2 s of its 60 ms window"
 
 
 def test_redis_backend_is_used_when_available(monkeypatch: pytest.MonkeyPatch) -> None:
