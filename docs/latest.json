@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:35:30.230Z",
+  "generated_at": "2026-11-15T08:44:04.563Z",
   "branch": "HEAD",
-  "head": "e83ad90",
-  "total_commits": 1590,
+  "head": "ecae705",
+  "total_commits": 1591,
   "recent_commits": [
+    {
+      "short": "ecae705",
+      "at": "2026-11-15T08:35:30Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e83ad90",
       "at": "2026-11-15T16:35:02+08:00",
@@ -24,11 +29,6 @@
       "short": "0ec0cf2",
       "at": "2026-11-15T07:33:01Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5f24856",
-      "at": "2026-11-15T15:32:42+08:00",
-      "subject": "M8-T1002-followup: drop the stray _brace.py diagnostic from the tree"
     }
   ],
   "first_commit_at": "2026-08-24",
