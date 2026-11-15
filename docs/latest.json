@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T22:47:40.029Z",
+  "generated_at": "2026-11-15T23:16:09.115Z",
   "branch": "main",
-  "head": "1da25af",
-  "total_commits": 1692,
+  "head": "733078c",
+  "total_commits": 1694,
   "recent_commits": [
+    {
+      "short": "733078c",
+      "at": "2026-11-16T07:15:49+08:00",
+      "subject": "M8-T1059: dockyard stake XI 'The Long Haul' (2000 commits live from digest; currently 1692=85%, locked honest with progress bar) + stale welcome chips refreshed"
+    },
+    {
+      "short": "7a63720",
+      "at": "2026-11-15T22:47:40Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1da25af",
       "at": "2026-11-16T06:47:06+08:00",
@@ -19,22 +29,12 @@
       "short": "c849512",
       "at": "2026-11-16T06:13:10+08:00",
       "subject": "M8-T1057: ci-leg red fix - loader gate caught the unregistered exec_module in M8-T1056's test (registered before execute, finally pop); ubuntu 5686 green + load"
-    },
-    {
-      "short": "8019720",
-      "at": "2026-11-15T21:47:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "19b06a2",
-      "at": "2026-11-16T05:47:38+08:00",
-      "subject": "M8-T1056: impact floor - new test reaches scripts/measure_cache_affinity.py (contiguous 'scripts/measure_cache_affinity.py' literal; env-over-.env precedence, N"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 370,
+  "roadmap_batches": 371,
   "changelog_entries": 1,
-  "roadmap_lines": 53660,
+  "roadmap_lines": 53673,
   "tracked_files": 1080,
   "test_files": 714,
   "almanac_chapters": 27,
