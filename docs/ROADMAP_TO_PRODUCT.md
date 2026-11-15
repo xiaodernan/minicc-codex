@@ -53191,3 +53191,18 @@ Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两
 - 浏览器截图（`output/admin_tool_fixed_{zh,en}.png`）：工具卡片渲染 6 行，全中文 / 全英文、amber 进度条清晰显示；recommendations 5 条 + 8 条最近任务齐平。
 - 完整 CRLF pinned（i18n.js 309 / index.html 645）未被触碰；`toolstream_chip_answers_its_own_keys` 全绿；`doc_pointers` 61 passed。
 - 诚实记录：本周再次出现数次本番测试期的服务重启，interrupt-by-restart 桶里已含 3 个真实胜重启任务——admin 建议 `restart-interrupt` 如实呈现，如实建议"收紧 minicc-web 的本地重启"。
+
+## 批次 1014 - M8-T1027: admin_smoke 加入 test:arcade —— 123 共享门从此有端到端护栏
+
+### 背景
+
+Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手工浏览器截图——缺少「哪些地方必须不红」的事实护栏。下一道工役必须覆盖「Admin 解锁有活数字 + tool-usage ≥1 + recs ≥1 + canvas > 0 + close 恢复」——这也是大多数用户会触碰的那一道门。
+
+### 做了什么
+
+- **新测试 `tests/admin_smoke.mjs`**：Playwright 脚本走 zh/en 两套真浏览器 — 清 `localStorage` → mock 语言入口 → 打开 admin → 默认锁 → 填 `123` 解锁 → 验证 unlocked → 验证 totals 活数字（>0）， audit 呈现、sessions 呈现， `elements` `#adminTotalTasks` / `#adminCompleted` / `#adminInterrupted` / `#adminCacheRate` / `#adminAuditLines` / `#adminSessions` 全有具体数字（非空字符串）， `#adminToolUsage li` ≥ 1（amber 进度条渲染）， `#adminRecommendations li` ≥ 1， `#adminRecentTasks li` ≥ 1， canvas 有 `width > 0`（requestAnimationFrame 已 draw，不是空画布）， unlock 与中文 tagline 比对 CJK， logout 关闭 restores `aria-hidden="true"`；zh 模式里 tagline 必有 CJK，en 模式里 tagline 必无 CJK。
+- **接入 test:arcade**：`npm run test:admin` 新脚本，`package.json` 把 test:arcade 扩为 game && codex && zombie && almanac && manual && atlas && admin — CI 复用这条链时自动执行。本地实测 2/2 passed（zh + en）。
+
+### 诚实记录
+
+首次运行 `tests/admin_smoke.mjs` 在 `8899` 端口上返回 `#adminPassword` 被 "intercepts pointer events" 拦截——根本原因是 8899 上有两个僵死的 `minicc-web` 进程（同一端口上重复的 stale listener），同时 8899 进程用的是上一个 build 的 DOM；修复：杀掉 8899 上 stale 进程、用干净进程 27394 重启、清空 `localStorage` 之后再解锁 —— 了即通。本地实测 zh/en 两套全绿。
