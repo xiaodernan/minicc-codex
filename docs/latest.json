@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:59:05.408Z",
+  "generated_at": "2026-11-15T09:07:02.812Z",
   "branch": "main",
-  "head": "c604eba",
-  "total_commits": 1597,
+  "head": "c207253",
+  "total_commits": 1600,
   "recent_commits": [
+    {
+      "short": "c207253",
+      "at": "2026-11-15T17:06:37+08:00",
+      "subject": "M8-T1007: almanac chapter XVII 'The Lighthouse' - honest walkthrough of the cache/ttl/http-gate story with real per-turn numbers (keeper warm #2 95.4%, 62,005-t"
+    },
+    {
+      "short": "2a531af",
+      "at": "2026-11-15T16:59:38+08:00",
+      "subject": "sync showcase fact pack after 4K wide-panel sweep"
+    },
+    {
+      "short": "9d8bcea",
+      "at": "2026-11-15T08:56:59Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c604eba",
       "at": "2026-11-15T16:56:34+08:00",
@@ -14,30 +29,15 @@
       "short": "deebbed",
       "at": "2026-11-15T08:55:51Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "bb558b4",
-      "at": "2026-11-15T16:55:33+08:00",
-      "subject": "M8-T1006: wide panels scale up 2XL/4K - wide modal 920->1180px, immersive 1280->1440px, pulse 1280->1380px, dockyard 1120->1240px, doctor 1100->1180px; sub-1200"
-    },
-    {
-      "short": "39ed870",
-      "at": "2026-11-15T08:51:25Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "eb4806f",
-      "at": "2026-11-15T16:51:07+08:00",
-      "subject": "M8-T1005: Dockyard - the evidence harbour: Captain's log of 6 real counters + ten lighthouse stakes unlocked entirely by live git/metrics/worldpulse numbers; di"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 321,
+  "roadmap_batches": 322,
   "changelog_entries": 1,
-  "roadmap_lines": 52785,
+  "roadmap_lines": 52808,
   "tracked_files": 1068,
   "test_files": 706,
-  "almanac_chapters": 17,
+  "almanac_chapters": 18,
   "module_count": 14,
   "feature_surface": [
     "workbench",
