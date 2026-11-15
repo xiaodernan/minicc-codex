@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T16:37:07.066Z",
+  "generated_at": "2026-11-15T17:05:31.643Z",
   "branch": "main",
-  "head": "415cd8e",
-  "total_commits": 1651,
+  "head": "909f975",
+  "total_commits": 1653,
   "recent_commits": [
+    {
+      "short": "909f975",
+      "at": "2026-11-16T01:04:19+08:00",
+      "subject": "M8-T1034: en-mode CJK parity gate - tests/en_cjk_smoke.mjs (test:parity, wired into test:arcade); gate caught 4 real leaks (Atlas HUD stale zh until first open "
+    },
+    {
+      "short": "9386280",
+      "at": "2026-11-15T16:37:07Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "415cd8e",
       "at": "2026-11-16T00:36:35+08:00",
@@ -19,24 +29,14 @@
       "short": "fcdfda4",
       "at": "2026-11-15T15:09:51Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "bfb751d",
-      "at": "2026-11-15T23:09:02+08:00",
-      "subject": "M8-T1031: manual modules - Atlas + Admin chapters written both sides; almanac 18->21; zh/en CJK leakage clean; manual_smoke 13 chapters passed"
-    },
-    {
-      "short": "76833e3",
-      "at": "2026-11-15T14:56:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 345,
+  "roadmap_batches": 346,
   "changelog_entries": 1,
-  "roadmap_lines": 53287,
-  "tracked_files": 1076,
-  "test_files": 711,
+  "roadmap_lines": 53305,
+  "tracked_files": 1077,
+  "test_files": 712,
   "almanac_chapters": 21,
   "module_count": 14,
   "feature_surface": [
