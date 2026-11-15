@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T22:13:41.041Z",
+  "generated_at": "2026-11-15T22:47:40.029Z",
   "branch": "main",
-  "head": "c849512",
-  "total_commits": 1690,
+  "head": "1da25af",
+  "total_commits": 1692,
   "recent_commits": [
+    {
+      "short": "1da25af",
+      "at": "2026-11-16T06:47:06+08:00",
+      "subject": "M8-T1058: stardust milestone copy switched to live math ({n}/{total}, ceil(x0.25/0.5/0.75/1.0) interpolated at render-time; 52-era stale literals removed) + alm"
+    },
+    {
+      "short": "5b02ea3",
+      "at": "2026-11-15T22:13:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c849512",
       "at": "2026-11-16T06:13:10+08:00",
@@ -19,25 +29,15 @@
       "short": "19b06a2",
       "at": "2026-11-16T05:47:38+08:00",
       "subject": "M8-T1056: impact floor - new test reaches scripts/measure_cache_affinity.py (contiguous 'scripts/measure_cache_affinity.py' literal; env-over-.env precedence, N"
-    },
-    {
-      "short": "a335ad8",
-      "at": "2026-11-15T21:35:25Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0459317",
-      "at": "2026-11-16T05:34:50+08:00",
-      "subject": "M8-T1054: CI-leg red fix - T1050 reintroduced '--island-tint' in README's The Litmus line (capability-claims gate read it as an unregistered CLI flag); ubuntu-l"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 369,
+  "roadmap_batches": 370,
   "changelog_entries": 1,
-  "roadmap_lines": 53647,
+  "roadmap_lines": 53660,
   "tracked_files": 1080,
   "test_files": 714,
-  "almanac_chapters": 26,
+  "almanac_chapters": 27,
   "module_count": 14,
   "feature_surface": [
     "workbench",
