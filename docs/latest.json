@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T15:09:51.406Z",
+  "generated_at": "2026-11-15T16:37:07.066Z",
   "branch": "main",
-  "head": "bfb751d",
-  "total_commits": 1648,
+  "head": "415cd8e",
+  "total_commits": 1651,
   "recent_commits": [
+    {
+      "short": "415cd8e",
+      "at": "2026-11-16T00:36:35+08:00",
+      "subject": "M8-T1033: Wayfinder tour 6->9 steps - Atlas/Dockyard/Admin interact auto-advances; overlay pinned above panels (z-index 900; spot/dim click-through); welcome 六-"
+    },
+    {
+      "short": "7207776",
+      "at": "2026-11-15T23:21:24+08:00",
+      "subject": "M8-T1032: backlog chapter no longer leaks CJK commit subjects into en mode - Latin-fold if any CJK present, else show raw subject (self-honest: we ship what pas"
+    },
+    {
+      "short": "fcdfda4",
+      "at": "2026-11-15T15:09:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "bfb751d",
       "at": "2026-11-15T23:09:02+08:00",
@@ -14,27 +29,12 @@
       "short": "76833e3",
       "at": "2026-11-15T14:56:43Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "eae477d",
-      "at": "2026-11-15T22:54:27+08:00",
-      "subject": "M8-T1030: atlas stardust inventory - every visited coordinate drops one shard; HUD chip (bottom-left violet, ✦ 星尘/Stardust, count uses ALL_NODES.length=52) hidd"
-    },
-    {
-      "short": "53197ac",
-      "at": "2026-11-15T22:44:30+08:00",
-      "subject": "fix(index.html): restore pinned CRLF - admin_tool_ui script rewrote index.html with LF endings (652 stray LF), tripping toolstream_chip_answers_its_own_keys pin"
-    },
-    {
-      "short": "4e470a4",
-      "at": "2026-11-15T14:39:58Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 343,
+  "roadmap_batches": 345,
   "changelog_entries": 1,
-  "roadmap_lines": 53246,
+  "roadmap_lines": 53287,
   "tracked_files": 1076,
   "test_files": 711,
   "almanac_chapters": 21,
