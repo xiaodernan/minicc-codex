@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T00:30:45.433Z",
+  "generated_at": "2026-11-15T00:39:32.931Z",
   "branch": "main",
-  "head": "705d12a",
-  "total_commits": 1555,
+  "head": "18a13bc",
+  "total_commits": 1557,
   "recent_commits": [
+    {
+      "short": "18a13bc",
+      "at": "2026-11-15T08:39:08+08:00",
+      "subject": "M8-T988: composer elevation - hairline gold top edge on the glass card, permission group becomes a sliding segmented control (CSS :has, zero JS), SVG arc contex"
+    },
+    {
+      "short": "8cac527",
+      "at": "2026-11-15T00:30:45Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "705d12a",
       "at": "2026-11-15T08:30:26+08:00",
@@ -19,22 +29,12 @@
       "short": "6125f66",
       "at": "2026-11-15T08:19:19+08:00",
       "subject": "M8-T985: empty hero redesign - aurora layers, blueprint dot grid, amber-mint orbit, mono uppercase caption (new i18n key session.emptyFoot, 593 keys both sides)"
-    },
-    {
-      "short": "4d96eee",
-      "at": "2026-11-15T00:02:02Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f9d202b",
-      "at": "2026-11-15T08:01:40+08:00",
-      "subject": "M8-T984: command palette visual elevation - frosted blur backdrop, gradient hairline, palette-arrive animation, amber gradient active rows with solid glyph keys"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 304,
+  "roadmap_batches": 305,
   "changelog_entries": 1,
-  "roadmap_lines": 52385,
+  "roadmap_lines": 52404,
   "tracked_files": 1063,
   "test_files": 705,
   "almanac_chapters": 13,
