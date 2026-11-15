@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T00:39:32.931Z",
+  "generated_at": "2026-11-15T00:48:40.050Z",
   "branch": "main",
-  "head": "18a13bc",
-  "total_commits": 1557,
+  "head": "93fd4ec",
+  "total_commits": 1559,
   "recent_commits": [
+    {
+      "short": "93fd4ec",
+      "at": "2026-11-15T08:48:19+08:00",
+      "subject": "M8-T989: interactive 6-step onboarding tour - mojibake fixed, dark-card contrast fixed, fill-the-composer and run-the-demo steps do real work, 13-volume almanac"
+    },
+    {
+      "short": "311bbde",
+      "at": "2026-11-15T00:39:33Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "18a13bc",
       "at": "2026-11-15T08:39:08+08:00",
@@ -19,22 +29,12 @@
       "short": "705d12a",
       "at": "2026-11-15T08:30:26+08:00",
       "subject": "M8-T987: sliding-window token bucket rate limiter for the RAG lane - Redis distributed INCR+PEXPIRE when available, local LRU fallback, fail-open on Redis death"
-    },
-    {
-      "short": "59e16f8",
-      "at": "2026-11-15T00:19:42Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "6125f66",
-      "at": "2026-11-15T08:19:19+08:00",
-      "subject": "M8-T985: empty hero redesign - aurora layers, blueprint dot grid, amber-mint orbit, mono uppercase caption (new i18n key session.emptyFoot, 593 keys both sides)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 305,
+  "roadmap_batches": 306,
   "changelog_entries": 1,
-  "roadmap_lines": 52404,
+  "roadmap_lines": 52428,
   "tracked_files": 1063,
   "test_files": 705,
   "almanac_chapters": 13,
