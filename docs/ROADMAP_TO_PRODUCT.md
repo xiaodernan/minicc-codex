@@ -52320,3 +52320,46 @@ M8-T979–982 把只读 HTTP 面压到了 50-way 全通量零错；但用户守�
 - Playwright 真浏览器截图：截图 `output/palette_after.png`（zh 模式、Ctrl+K 唤起、27 条命令、首行激活态渐变光带 + glyph 实心化）。
 - `npm run build:web` 干净；`check:web` 干净；js smoke（askdocs）PASS。
 - 行为零变更：键盘导航 / Esc / 鼠标指针选择 / zh/en 提示语不变。
+
+## 批次 977 - M8-T985：空状态英雄区焕新（Aurora + 蓝图网格）—— 第一个也是最多人看到的首屏
+
+### 1 背景
+
+用户反复要求「前端的魅力程度登峰造极」。工作台空状态（没有任务时的首屏）此前是一块孤零零的 M 标 + 虚线环，字重感一般。本批把它提升到年鉴/问仓库同级的博物馆气质，并补一行 mono 尾注（i18n 新键 `session.emptyFoot`，zh/en 双语 593 键对齐）。
+
+### 2 做了什么
+
+- `web/index.html`：hero 内加入 `<div class="empty-foot" data-i18n="session.emptyFoot">`。
+- `web/src/chat/markdown.js`：`emptySessionMarkup()` 同步输出尾注（JS 模板为 hero 的真渲染源）。
+- `web/src/core/i18n.js`：新增 `session.emptyFoot`（zh「本地运行 · 全程离线 · 你的数据只属于这台机器」/ en「Runs locally · fully offline · your data stays on this machine」）。
+- `web/styles.css` 追加 M8-T985 段：
+  - `.empty-session`：三层径向柔光（左琥珀 / 右 mint / 下琥珀）+ 蓝色 blueprint 点阵网格（radial-gradient mask 中心渐出）+ 内容层 z-index。
+  - `.empty-orbit`：色调改为琥珀；`empty-glyph` 加宽 104px；`.empty-glyph-ring-slow` 改 mint 描边；dot min；呼吸感。
+  - `.empty-session-title`：clamp(30,4.6vw,46px)，letter-spacing -0.045em，`text-wrap: balance`。
+  - `.empty-foot`：DM Mono 10px、大写、letter-spacing .34em、hairline 上边框、位于 hint 与 chips 之间（quiet 色；大写由 CSS 变换，不影响 zh/en 源文）。
+  - `.empty-chip`：方角 13px、琥珀 hairline、上光渐变背景、hover 浮起 + 琥珀 glow；图标琥珀化→hover mint。
+  - ≤640px 移动适配。
+
+### 3 验证
+
+- Playwright 真浏览器截图（zh/en 双模式）：zh kicker/hint/foot/title 全中文无 CJK 混入 EN；EN 模式 foot=“RUNS LOCALLY · …”，明暗两种状态均正常；`_probe_empty2.mjs` 截图存档。
+- i18n smoke：**zh/en 同为 593 键；224 literal t() 引用全部命中**；askdocs/helpshortcuts smoke PASS；`npm run build:web` 后 `check:web` 干净；`doc_pointers` rc=0。
+- 未改动行为；仅空状态宏观气质。
+
+## 批次 978 - M8-T986：session-view 缓存按 locale 分区 —— 英文模式英雄区不再漏中文
+
+### 1 背景
+
+M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-session` 内全部是中文（title/hint/foot/chips）。根因：`cachedSessionView()` 恢复的是 **localStorage 里存下的上一次渲染结果**——首次 boot（默认 zh）残渣持久化；随后用户切到 en，renderSession 直接喂了 zh 版本，`data-i18n` 属性也被抹掉了（模板里就没有）。违反「全内容中英文切换 / 不混杂」的硬约束。
+
+### 2 做了什么
+
+- `web/src/chat/markdown.js::sessionViewKey`：在 key 末尾追加 locale（`${workspace}:${session}:zh|en`）——渲染了哪种语言的缓存，只回放给同一把钥匙。
+- 影响面：`sessionViewKey` 全部调用方同步收益（`cachedSessionView`/`cacheSessionView`/`persistSessionView`），LRU 与 quota 驱逐原样；旧 key 自燃淘汰。
+- 未动 `renderSession` 的正确路径（locale 正确时照旧恢复同语种缓存）。
+
+### 3 实测（真浏览器 + localStorage 回放）
+
+- 新鲜 profile：首屏（zh 默认）→ 全中文；切 EN（reload）→ **foot「Runs locally · fully offline…」、title「Send a task to begin」、零 CJK**。
+- 冷启动仅有新鲜 localStorage 时亦不再经 zh 缓存。
+- 双语切换对称生效。

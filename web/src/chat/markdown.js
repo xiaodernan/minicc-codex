@@ -186,9 +186,14 @@ export function attachmentMarkup(items, className = "message-attachments") {
   }).join("")}</div>`;
 }
 
+// M8-T986: locale is part of the key — a cached view persisted under one
+// locale restores under the same one; stale cross-locale HTML never
+// surfaces (the hero is one visible victim: it restored as zh after an
+// en switch until M8-T986).
 export function sessionViewKey(sessionId, workspacePath = state.workspacePath) {
   const workspace = encodeURIComponent(workspacePath || "default");
-  return `${SESSION_VIEW_PREFIX}${workspace}:${encodeURIComponent(sessionId)}`;
+  const locale = state.locale === "en" ? "en" : "zh";
+  return `${SESSION_VIEW_PREFIX}${workspace}:${encodeURIComponent(sessionId)}:${locale}`;
 }
 
 export function compactSessionMarkup(markup) {
@@ -247,7 +252,7 @@ export function emptySessionMarkup() {
     { icon: "check-circle", zh: "session.emptyChip2", en: "session.emptyChip2", promptZh: "运行全部测试并报告失败项及根因", promptEn: "Run the full test suite and report failures with root causes" },
     { icon: "git-compare", zh: "session.emptyChip3", en: "session.emptyChip3", promptZh: "审查 git diff，指出可能的回归并给出修复建议", promptEn: "Review the current git diff and flag regressions with fixes" },
   ].map((chip) => `<button type="button" class="empty-chip" data-empty-prompt-zh="${escapeHtml(chip.promptZh)}" data-empty-prompt-en="${escapeHtml(chip.promptEn)}">${icon(chip.icon)}<span>${escapeHtml(t(chip.zh))}</span></button>`).join("");
-  return `<div class="empty-session"><div class="empty-orbit" aria-hidden="true"><svg class="empty-glyph" viewBox="0 0 96 96" fill="none"><circle class="empty-glyph-ring" cx="48" cy="48" r="34" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/><circle class="empty-glyph-ring empty-glyph-ring-slow" cx="48" cy="48" r="22" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/><path class="empty-glyph-m" d="M30 58 L40 34 L48 50 L56 34 L66 58" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="empty-glyph-dot" cx="48" cy="66" r="2.6" fill="currentColor"/></svg></div><strong class="empty-session-title">${escapeHtml(t("session.emptyTitle"))}</strong><span class="empty-session-hint">${escapeHtml(t("session.emptyHint"))}</span><div class="empty-chips" role="group" aria-label="${aria}">${chips}</div></div>`;
+  return `<div class="empty-session"><div class="empty-orbit" aria-hidden="true"><svg class="empty-glyph" viewBox="0 0 96 96" fill="none"><circle class="empty-glyph-ring" cx="48" cy="48" r="34" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/><circle class="empty-glyph-ring empty-glyph-ring-slow" cx="48" cy="48" r="22" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/><path class="empty-glyph-m" d="M30 58 L40 34 L48 50 L56 34 L66 58" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="empty-glyph-dot" cx="48" cy="66" r="2.6" fill="currentColor"/></svg></div><strong class="empty-session-title">${escapeHtml(t("session.emptyTitle"))}</strong><span class="empty-session-hint">${escapeHtml(t("session.emptyHint"))}</span><div class="empty-foot">${escapeHtml(t("session.emptyFoot"))}</div><div class="empty-chips" role="group" aria-label="${aria}">${chips}</div></div>`;
 }
 
 export function presetMessageMarkup(sessionId) {

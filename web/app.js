@@ -850,6 +850,7 @@
       "recent.title": "\u8FD1\u51B5",
       "palette.cmd.recent": "\u6253\u5F00\u8FD1\u51B5",
       "session.emptyChipsAria": "\u63A8\u8350\u4EFB\u52A1",
+      "session.emptyFoot": "\u672C\u5730\u8FD0\u884C \xB7 \u5168\u7A0B\u79BB\u7EBF \xB7 \u4F60\u7684\u6570\u636E\u53EA\u5C5E\u4E8E\u8FD9\u53F0\u673A\u5668",
       "session.emptyChip1": "\u8BFB README \u5E76\u544A\u8BC9\u6211\u5B83\u662F\u505A\u4EC0\u4E48\u7684",
       "session.emptyChip2": "\u8DD1\u6D4B\u8BD5\u5E76\u62A5\u544A\uFF1A\u54EA\u6302\u4E86\u3001\u4E3A\u4EC0\u4E48",
       "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669"
@@ -1444,6 +1445,7 @@
       "recent.title": "Recent",
       "palette.cmd.recent": "Open recent",
       "session.emptyChipsAria": "Suggested tasks",
+      "session.emptyFoot": "Runs locally \xB7 fully offline \xB7 your data stays on this machine",
       "session.emptyChip1": "Read the README and tell me what this is",
       "session.emptyChip2": "Run the test suite and report failures",
       "session.emptyChip3": "Review the diff and flag regressions"
@@ -7331,7 +7333,8 @@
   }
   function sessionViewKey(sessionId, workspacePath = state.workspacePath) {
     const workspace = encodeURIComponent(workspacePath || "default");
-    return `${SESSION_VIEW_PREFIX}${workspace}:${encodeURIComponent(sessionId)}`;
+    const locale = state.locale === "en" ? "en" : "zh";
+    return `${SESSION_VIEW_PREFIX}${workspace}:${encodeURIComponent(sessionId)}:${locale}`;
   }
   function compactSessionMarkup(markup) {
     const source = String(markup || "");
@@ -7380,7 +7383,7 @@
       { icon: "check-circle", zh: "session.emptyChip2", en: "session.emptyChip2", promptZh: "\u8FD0\u884C\u5168\u90E8\u6D4B\u8BD5\u5E76\u62A5\u544A\u5931\u8D25\u9879\u53CA\u6839\u56E0", promptEn: "Run the full test suite and report failures with root causes" },
       { icon: "git-compare", zh: "session.emptyChip3", en: "session.emptyChip3", promptZh: "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u53EF\u80FD\u7684\u56DE\u5F52\u5E76\u7ED9\u51FA\u4FEE\u590D\u5EFA\u8BAE", promptEn: "Review the current git diff and flag regressions with fixes" }
     ].map((chip) => `<button type="button" class="empty-chip" data-empty-prompt-zh="${escapeHtml(chip.promptZh)}" data-empty-prompt-en="${escapeHtml(chip.promptEn)}">${icon(chip.icon)}<span>${escapeHtml(t(chip.zh))}</span></button>`).join("");
-    return `<div class="empty-session"><div class="empty-orbit" aria-hidden="true"><svg class="empty-glyph" viewBox="0 0 96 96" fill="none"><circle class="empty-glyph-ring" cx="48" cy="48" r="34" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/><circle class="empty-glyph-ring empty-glyph-ring-slow" cx="48" cy="48" r="22" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/><path class="empty-glyph-m" d="M30 58 L40 34 L48 50 L56 34 L66 58" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="empty-glyph-dot" cx="48" cy="66" r="2.6" fill="currentColor"/></svg></div><strong class="empty-session-title">${escapeHtml(t("session.emptyTitle"))}</strong><span class="empty-session-hint">${escapeHtml(t("session.emptyHint"))}</span><div class="empty-chips" role="group" aria-label="${aria}">${chips}</div></div>`;
+    return `<div class="empty-session"><div class="empty-orbit" aria-hidden="true"><svg class="empty-glyph" viewBox="0 0 96 96" fill="none"><circle class="empty-glyph-ring" cx="48" cy="48" r="34" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/><circle class="empty-glyph-ring empty-glyph-ring-slow" cx="48" cy="48" r="22" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/><path class="empty-glyph-m" d="M30 58 L40 34 L48 50 L56 34 L66 58" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="empty-glyph-dot" cx="48" cy="66" r="2.6" fill="currentColor"/></svg></div><strong class="empty-session-title">${escapeHtml(t("session.emptyTitle"))}</strong><span class="empty-session-hint">${escapeHtml(t("session.emptyHint"))}</span><div class="empty-foot">${escapeHtml(t("session.emptyFoot"))}</div><div class="empty-chips" role="group" aria-label="${aria}">${chips}</div></div>`;
   }
   function presetMessageMarkup(sessionId) {
     return emptySessionMarkup();

@@ -332,3 +332,5 @@
 - **说明书第十一章「压测与容量 / Load & Capacity」上线（M8-T983）**：双语手册第十一章——local-first 模型、load-test 实操、六只读路径实测数字（c=50/2,490×200/0 错/p50≈160–200ms）、三道防线（prefetch / single-flight memo / backlog 128）、仍受 GIL 限制的诚实边界；Playwright 双 locale 截图验证；manual 计数更新至十一章。
 
 - **命令面板登峰造极（M8-T984）**：Ctrl/⌘K 从朴素面板升级博物馆级视觉——暗场柔焦 + 渐变琥珀发丝线 + 回弹入场动画 + 琥珀渐变激活行 + 实心 glyph 键 + mint 键帽 footer + ≤700px 移动适配；行为零变更；27 条命令 Playwright 截图验证。
+
+- **空状态英雄区重生（M8-T985）+ locale 分区缓存修复（M8-T986）**：hero 加三层径向光 + 蓝图点阵网格 + 琥珀/mint 双色 orbit + Mono uppercase 尾注（新 i18n key `session.emptyFoot`，双语 593 键齐平）；顺手修掉 session-view 缓存恢复陈旧 zh 残渣导致英文模式英雄区中文混入的 bug（sessionViewKey 增加 locale 段），zh/en 均已真浏览器验证切换干净。
