@@ -381,6 +381,7 @@
             </div>
             <p class="doctor-note" data-i18n="doctor.upstreamNote">对配置的 OpenAI 兼容网关发起一次 GET /models 探测——不消耗 token，不发送任何消息内容；密钥仅用于本机出站鉴权，绝不会出现在响应、日志或前端里。结果缓存 10 秒。</p>
             <button class="doctor-action" id="doctorPingButton" type="button"><i data-lucide="radar"></i><span data-i18n="doctor.pingButton">再测一次</span></button>
+            <div class="doctor-keeper" id="doctorKeeper" hidden><span class="doctor-keeper-dot" id="doctorKeeperDot" aria-hidden="true"></span><span class="doctor-keeper-text" id="doctorKeeperText"></span></div>
           </section>
           <section class="doctor-card-shell" aria-label="load lab">
             <div class="doctor-card-kicker"><span data-i18n="doctor.lab">负载实验室</span><span class="doctor-pill" id="doctorLabState" data-i18n="doctor.labIdle">未开始</span></div>

@@ -52708,3 +52708,28 @@ b6ef066 的 CI 里 Python tests（windows-latest 与 ubuntu-latest）都红了�
 
 - 本地：`test_the_panel_does_not_print_a_missing_count_as_zero.py` + `test_the_stylesheet_is_not_mixed_encoding.py` → 16 passed；`check:web` 干净；16 章年鉴/i18n/生命周期/规模冒烟无回归。
 - 诚实记账：b6ef066 两个 Python 腿红了；`--log-failed` 锁定以上两条；修复后再推送即重新验收。
+
+## 批次 994 - M8-T1004：前缀缓存守护 Cache Keeper —— 让共享系统提示词在上游缓存里永远续命
+
+### 1 背景（用户问：为什么缓存命中率这么低 + 一直显示「非流」——实测定位）
+
+wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
+
+- **共享前缀本身缓存得很好**：同一工作区每个新任务几乎都命中 ~7,424/7,537 token 的 system prompt（真实 usage_by_turn 逐轮证据）；
+- **真正的杀手是任务间的 5+ 分钟空窗**（长工具、用户停顿），上游前缀缓存 TTL 到，下一轮整段重付——一任务出现 62,005 token 全 miss；compaction 同样全量重写；
+- **网关只应答带 SDK 身份的请求**：urllib/httpx 与裸 HTTP/2 无论如何都收到 `upstream_error: one of input/previous_response_id/prompt/conversation must be provided` 或 `Upstream rejected the request`（指纹门，错误名具有迷惑性）——同一逻辑调用走官方 `AsyncOpenAI.responses.create(...)` 完全正常；
+- `/responses` 只应答至少一个 user turn——单独一条 system 消息也是 400。
+
+### 2 做了什么
+
+- **新增 `minicc/cache_keeper.py`**：守护线程每 220s（`MINICC_CACHE_KEEPER_INTERVAL`，默认 220s，夹在 60–900s）用官方 SDK 把与 agent 完全一致的共享 system prompt + 一个 user 占位 `在` 发往网关（`store=False`，无需 temperature），携带与 provider 同款派生 `prompt_cache_key`——与真实任务共享同一个亲和桶。
+- **守护状态全部公开**：`keeper` 块挂到 `/api/provider-ping`（warms / failures / last_warm_at / last_cached_tokens / last_elapsed_ms），Doctor 面板新增一行「前缀缓存守护」状态灯（mint 正常 / amber 有失败 / coral 关闭）。没有任何隐藏的开销。
+- **fake provider 与 Anthropic wire 自动关闭**；`MINICC_CACHE_KEEPER=0` 随时一键关停。
+- **实证**：重启后 8765 守护连续两次喂热——warm #1 cached_tokens=0（冷种回填，符合预期）；warm #2 cached_tokens=**4992/5229 = 95.4%**、`failures: 0`；`/api/provider-ping?fresh=1` 现场出示完整账目。
+- Doctor 面板截图佐证（`output/doctor_keeper.png`）：「前缀缓存守护 · 保温中 · 上次保温 115s · 2/0」。
+
+### 3 验证
+
+- `tests/test_cache_keeper.py`：5 个单元测试全绿（key 派生稳定性/模型敏感、开关、成功记账、失败记账不抛、无凭据拒绝启动）；
+- `tests/test_http_surface.py` 全套 91 通过；路由无新增；route_coverage 无变化；
+- 守护单次决策 ≈ 20 output tokens + 命中前缀读，成本 ≈ 0，无任何写入、无副作用、不改任何任务、不追加工具调用。

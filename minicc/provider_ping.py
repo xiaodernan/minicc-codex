@@ -20,6 +20,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .redis_cache import default_cache
+from .cache_keeper import keeper_status
 
 _TTL_SECONDS = 10
 _CACHE_KEY = "provider-ping:v1"
@@ -90,9 +91,11 @@ def fetch_provider_ping(*, force_refresh: bool = False) -> dict[str, Any]:
             "elapsed_ms": 0.0,
             "error": "MINICC_BASE_URL is not set",
             "probe": "GET /models",
+            "keeper": keeper_status(),
         }
     else:
         payload = _probe(base_url, api_key, model)
+        payload["keeper"] = keeper_status()
 
     try:
         default_cache.set(_CACHE_KEY, payload, ttl=_TTL_SECONDS)

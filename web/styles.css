@@ -5391,3 +5391,11 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .doctor-vitals-copy strong { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 10px; color: var(--muted); letter-spacing: .04em; }
 .doctor-vitals-copy span { color: var(--text); overflow-wrap: anywhere; }
 .doctor-vitals-copy small { color: var(--quiet); overflow-wrap: anywhere; }
+
+/* Doctor — prefix cache keeper line */
+.doctor-keeper { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 10.5px; color: var(--muted); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); overflow-wrap: anywhere; }
+.doctor-keeper[hidden] { display: none; }
+.doctor-keeper-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--quiet); }
+.doctor-keeper-dot[data-tone="ok"] { background: var(--mint); }
+.doctor-keeper-dot[data-tone="warn"] { background: var(--amber); }
+.doctor-keeper-dot[data-tone="bad"] { background: var(--coral); }

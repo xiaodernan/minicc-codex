@@ -714,6 +714,10 @@
       "ledger.perCallTitle": "\u9010\u6B21\u8C03\u7528\u7F13\u5B58\u547D\u4E2D",
       "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97",
       "nav.doctor": "\u8BCA\u65AD",
+      "doctor.keeper": "\u524D\u7F00\u7F13\u5B58\u5B88\u62A4",
+      "doctor.keeperOn": "\u4FDD\u6E29\u4E2D",
+      "doctor.keeperOff": "\u5DF2\u5173\u95ED",
+      "doctor.keeperLast": "\u4E0A\u6B21\u4FDD\u6E29",
       "doctor.vitals": "\u5DE5\u4F5C\u533A\u81EA\u68C0",
       "doctor.vitalsRunning": "\u81EA\u68C0\u4E2D",
       "doctor.vitalsDone": "\u5DF2\u5B8C\u6210",
@@ -1349,6 +1353,10 @@
       "ledger.perCallTitle": "Per-call cache hits",
       "ledger.costPartial": "Some models unpriced; estimate is a floor",
       "nav.doctor": "Doctor",
+      "doctor.keeper": "Prefix cache keeper",
+      "doctor.keeperOn": "warming",
+      "doctor.keeperOff": "disabled",
+      "doctor.keeperLast": "last warm",
       "doctor.vitals": "Workspace self-check",
       "doctor.vitalsRunning": "checking",
       "doctor.vitalsDone": "done",
@@ -5779,6 +5787,21 @@
         setDoctorPill("#doctorPingState", "doctor.pingOk", "ok");
       } else {
         setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
+      }
+      const keeper = data?.keeper || {};
+      const keeperBox = $("#doctorKeeper");
+      const keeperDot = $("#doctorKeeperDot");
+      const keeperText = $("#doctorKeeperText");
+      if (keeperBox && keeperDot && keeperText) {
+        keeperBox.hidden = false;
+        if (keeper.enabled === true) {
+          keeperDot.setAttribute("data-tone", keeper.failures > 0 ? "warn" : "ok");
+          const ago = Number.isFinite(keeper.last_warm_at) ? Math.max(0, Math.round(Date.now() / 1e3 - keeper.last_warm_at)) : null;
+          keeperText.textContent = `${t("doctor.keeper")} \xB7 ${t("doctor.keeperOn")} \xB7 ${t("doctor.keeperLast")} ${ago == null ? "\u2014" : `${ago}s`} \xB7 ${Number(keeper.warms || 0)}/${Number(keeper.failures || 0)}`;
+        } else {
+          keeperDot.setAttribute("data-tone", "bad");
+          keeperText.textContent = `${t("doctor.keeper")} \xB7 ${t("doctor.keeperOff")}`;
+        }
       }
     } catch (error) {
       setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");

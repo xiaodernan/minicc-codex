@@ -2421,6 +2421,21 @@ async function runDoctorPing(force) {
     } else {
       setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
     }
+    const keeper = data?.keeper || {};
+    const keeperBox = $("#doctorKeeper");
+    const keeperDot = $("#doctorKeeperDot");
+    const keeperText = $("#doctorKeeperText");
+    if (keeperBox && keeperDot && keeperText) {
+      keeperBox.hidden = false;
+      if (keeper.enabled === true) {
+        keeperDot.setAttribute("data-tone", keeper.failures > 0 ? "warn" : "ok");
+        const ago = Number.isFinite(keeper.last_warm_at) ? Math.max(0, Math.round((Date.now() / 1000) - keeper.last_warm_at)) : null;
+        keeperText.textContent = `${t("doctor.keeper")} · ${t("doctor.keeperOn")} · ${t("doctor.keeperLast")} ${ago == null ? "—" : `${ago}s`} · ${Number(keeper.warms || 0)}/${Number(keeper.failures || 0)}`;
+      } else {
+        keeperDot.setAttribute("data-tone", "bad");
+        keeperText.textContent = `${t("doctor.keeper")} · ${t("doctor.keeperOff")}`;
+      }
+    }
   } catch (error) {
     setDoctorPill("#doctorPingState", "doctor.pingDown", "bad");
     const msEl = $("#doctorPingMs");

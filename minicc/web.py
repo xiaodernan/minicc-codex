@@ -462,6 +462,26 @@ class AgentService:
         # always match a known secret shape, so register the exact value.
         register_secret(getattr(config, "api_key", ""))
         self.system_prompt = build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or ""))
+        # M8-T1003: keep the shared prefix warm upstream so idle gaps and
+        # turn-0 prefix reads stay cached.  Skipped for the offline fake
+        # provider and the Anthropic wire (its caching model differs); a
+        # keeper failure must never break service construction.
+        from .cache_keeper import CacheKeeper, anthropic_wire
+        from .llm.fake import fake_provider_active
+
+        try:
+            if not fake_provider_active() and not anthropic_wire(str(getattr(self.config, "provider_type", "openai") or "openai")):
+                self.cache_keeper: CacheKeeper | None = CacheKeeper(
+                    base_url=str(getattr(self.config, "base_url", "") or ""),
+                    model=str(getattr(self.config, "model", "") or ""),
+                    api_key=str(getattr(self.config, "api_key", "") or ""),
+                    system_prompt=self.system_prompt,
+                )
+                self.cache_keeper.start()
+            else:
+                self.cache_keeper = None
+        except Exception:  # noqa: BLE001 - keeper is optional, the service is not
+            self.cache_keeper = None
         self.workspace_catalog = WorkspaceCatalog()
         self.workspace_catalog.remember(workspace)
         self._workspace_guard = threading.RLock()

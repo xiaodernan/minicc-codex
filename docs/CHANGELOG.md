@@ -364,3 +364,5 @@
 - **Doctor 工作区自检（M8-T1001）**：诊断中心第三件真工具——`/api/doctor` 即 `minicc --doctor` 引擎直出（7 通过 / 2 警告 / 0 失败的真实截图）；检查名 mono + severity 圆点 + fix_hint，fatal 行 coral 边框；633 键双语 parity；manual/README 同步；零新增路由。
 
 - **CI 双腿红复盘（M8-T1002）**：bundle-slicing 门（panel_does_not_print_a_missing_count_as_zero）因模块级 softPath 不在切片清单而 ReferenceError——内联到两个渲染点后 16 项全绿；stylesheet-is-not-mixed-encoding 因 T989-era 残留的孤立 `}` + `transition:` + 旧 hover 行红（2489/2490）——删除残片后花括号 2508==2508。claims/js-check/web-smoke/mutation 全绿未动。
+
+- **前缀缓存守护 Cache Keeper（M8-T1004）**：每 220s 用官方 SDK 以 agent 同款派生 prompt_cache_key 喂热共享 system prompt——实测 warm #2 cached_tokens=4992/5229=95.4%（fake provider / Anthropic wire 自动关闭，`MINICC_CACHE_KEEPER=0` 一键关停）；`/api/provider-ping` 新增 `keeper` 账本，Doctor 面板新增守护状态灯；5 个单元测试全绿。附：网关只应答官方 SDK 的实测记录（裸 HTTP 生全军覆没）——keeper 不走裸 urllib，与 agent 同一条调用路径。
