@@ -1,41 +1,41 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T18:56:16.953Z",
+  "generated_at": "2026-11-15T19:42:04.009Z",
   "branch": "main",
-  "head": "4c39ae6",
-  "total_commits": 1666,
+  "head": "0fc6fff",
+  "total_commits": 1671,
   "recent_commits": [
     {
-      "short": "4c39ae6",
-      "at": "2026-11-16T02:55:43+08:00",
-      "subject": "M8-T1040 CI fix: the two bare legacy atomic-path test-name tokens in the ledger were dangling evidence pointers that turned the claim checkers red; rewritten as"
+      "short": "0fc6fff",
+      "at": "2026-11-16T03:35:41+08:00",
+      "subject": "M8-T1045: palette gate - declare --island-tint primal default on .atlas-island-dot (was JS-only custom property invisible to static css check); palette one-home"
     },
     {
-      "short": "830f9e0",
-      "at": "2026-11-16T02:55:43+08:00",
-      "subject": "docs: cache matrix - live agentic end-to-end evidence for M8-T1038 fix (real wkapi.pro key, plan mode, real tool call + correct answer, 45.4% cache hit on 2-tur"
+      "short": "e0fa384",
+      "at": "2026-11-16T03:35:40+08:00",
+      "subject": "M8-T1044: Wayfinder tour 9->10 steps - arcade step wired (interact auto-advances); composer/demo interact auto-advance too (two stuck steps unblocked); arcade t"
     },
     {
-      "short": "e548018",
-      "at": "2026-11-16T02:55:43+08:00",
-      "subject": "M8-T1041: almanac Ch.XXIII 'The Deep Field' - the world refuses to be finished (24 volumes, 55 coordinates); atlas milestone thresholds recompute automatically;"
+      "short": "9164362",
+      "at": "2026-11-16T03:35:40+08:00",
+      "subject": "M8-T1043: pre-game planting - plantAt no longer gates on game.running; startGame preserves the pre-planted board on first click (sessionStarted=false), initGame"
     },
     {
-      "short": "349f599",
-      "at": "2026-11-15T18:39:13Z",
+      "short": "cbaf4cf",
+      "at": "2026-11-16T03:35:40+08:00",
+      "subject": "M8-T1042: arcade field tutorial - 'Six steps to hold the lawn' embedded in the game modal; bilingual six-step walkthrough (economy first, wall-nut phalanx, clea"
+    },
+    {
+      "short": "d9dd796",
+      "at": "2026-11-15T18:56:17Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0f67f4a",
-      "at": "2026-11-16T02:38:47+08:00",
-      "subject": "M8-T1040: almanac Ch.XXII 'The Compass' - guidance as architecture (Wayfinder 6->9, every button teaches, Esc chains), 54 coordinates, 23 volumes bilingual; doc"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 353,
+  "roadmap_batches": 357,
   "changelog_entries": 1,
-  "roadmap_lines": 53442,
-  "tracked_files": 1077,
+  "roadmap_lines": 53504,
+  "tracked_files": 1080,
   "test_files": 712,
   "almanac_chapters": 24,
   "module_count": 14,
