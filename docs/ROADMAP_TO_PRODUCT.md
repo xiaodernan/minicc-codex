@@ -53093,3 +53093,23 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 ### 3 诚实记录
 
 Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两次 Python 腿红均为自家事故（wheel-invert EVIDENCE、index.html CRLF）；本批在 push 前逐门在本地跑过 i18n-pinned/doc-pointers/cites——如仍红，下一批会立刻如实修。
+
+## 批次 1011 - M8-T1022: 中断根因自动拆解 — 从「2 中断」到「两次都是服务重启」
+
+### 1 背景
+
+用户要求「基于数据下一步采取的深度优化措施」。此前 admin 面板只报 interrupted 数，不说明成因。真正的数据藏在 `~/.minicc/tasks.sqlite3` 的 interrupted 任务 `error` 字段里——如实看：全部 2 条 interrupted 的 `error` 原文是「服务重启时任务被中断，可重新运行」（任务在途 → 本地服务被重启 → worker 一起丢）。
+
+### 2 做了什么
+
+- **`minicc/admin.py` 新增 `_interrupt_cause_breakdown(state_dir)`**：home + workspace 双 store 合并读取（`~/.minicc/tasks.sqlite3` ∪ `<ws>/.minicc/tasks.sqlite3`），只认 status==interrupted，按 `error/cancel_reason` 子串诚实分桶（restart/timeout/permission/cancelled/other/unknown）。找不到/打不开 → `None` 不推荐任何虚假建议。
+- **新建议 `restart-interrupt`**：restart 中断数 > 0 时才派生——当前真实数据触发（2 个全是服务重启）。建议内容如实提：stop restarting minicc-web around long tasks; let running ones converge; re-run the interrupted ones.
+- **payload 新字段 `interrupt_causes{}`**：明示 total/restart/timeout/permission/cancelled/other/unknown —— admin 面板可读、可复核、可再查询。
+- **zh/en 双语建议 + 浏览器实测**：五条建议全部 live 渲染，zh 模式 5 条全中文、en 模式 5 条全英文（`output/admin_t1022_{zh,en}.png`）。
+
+### 3 实测证据
+
+- `/api/admin/summary?fresh=1` → `{"total":2,"restart":2,"timeout":0,"permission":0,"cancelled":0,"other":0,"unknown":0}`
+- 建议清单：restart-interrupt (medium) / fading-weekend-quiet (medium) / keeper-window (high) / interrupted-tasks (medium) / redis-live (low)
+- 门禁：doc-pointers / silence-must-state-its-reason / mutation cells / http-surface 174 passed 全绿
+- 诚实记录：发生在本批的事——`add_tasks.py` / `add_more_tasks.py` / `probe_i18n.py` 是 repo 已有文件（2026-10/2026-11-12 时间戳），不是本次产物；未触碰。

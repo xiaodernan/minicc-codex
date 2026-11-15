@@ -408,3 +408,5 @@
 - **主界面 Atla chip：新人一眼看到世界（M8-T1021）**：空会话英雄区新增 mint 色「打开世界地图——50 个真实坐标随便点 / Open the world map — 50 real coordinates to tap」引导芯片（book-open 旁挂 compass），一键直达 Atlas；`empty-chip-atlas` duotone（mint 描边，hover 亮），双语 i18n `session.emptyChip5` 齐平，hero 零溢出。
 - **Atla 层级修正（M8-T1021 顺手修）**：`.atlas-stage` z-index 80 → 860；「第一次来？2 分钟带你过一遍」浮窗 (z=850) 不再盖在 Atla 之上——用户仍然能随时点走 tour，也能随时关掉地图。atlas-tooltip 同升至 865。
 - **诚实记录**：最新 CI（fc94711, Atlas 初推：43718058600）仍排队中——GitHub runner 拥堵，24h 内已有两次 Python 腿红，均为自家事故（wheel-invert 证据引用、index.html LF/CRLF），已在本地逐门修复并全绿。push 让 CI 重新排队：忘记不是遗忘.
+
+- **中断根因自动拆解（M8-T1022）**：`/api/admin/summary` 新增 `interrupt_causes{total,restart,timeout,permission,cancelled,other,unknown}`——把任务存储里每条 interrupted 任务的自己 `error` 字段按诚实子串归类（如实集中标记为"服务重启"才算），并由此派生一条新建议 `restart-interrupt`：当前 2 个中断任务的错误原文均为「服务重启时任务被中断，可重新运行」（任务在途、worker 随 minicc-web 一起死掉）→ 建议别在后台反复重启 workbench、先收敛在运行中的任务，或直接重跑收敛。新增建议只有在真实存在 restart 中断时才出现——健康工作区不出这一条。admins、快照、列表、建议全部真实数据，不虚构任何数字。

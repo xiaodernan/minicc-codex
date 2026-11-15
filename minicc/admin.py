@@ -118,6 +118,66 @@ def _forecast_from_trend(trend_7d: list[dict[str, Any]]) -> dict[str, Any] | Non
     }
 
 
+_RESTART_MARKERS = ("服务重启", "service restart", "restart")
+_TIMEOUT_MARKERS = ("超时", "timeout")
+_PERMISSION_MARKERS = ("权限", "permission", "refused")
+_CANCEL_MARKERS = ("取消", "cancel")
+
+
+def _interrupt_cause_breakdown(state_dir: Path) -> dict[str, Any] | None:
+    """Bucket interrupted tasks by the cause their own error field recorded.
+
+    The workspace's interrupted tasks all died on the same event: a service
+    restart while they were mid-flight. That is a single, honest, actionable
+    root cause - surfacing it beats another generic "review your tasks".
+    """
+    counts = {"restart": 0, "timeout": 0, "permission": 0, "cancelled": 0, "other": 0, "unknown": 0}
+    candidates: list[Path] = []
+    try:
+        candidates.append(home_dir() / "tasks.sqlite3")
+    except (OSError, ValueError):
+        # candidate set just stays smaller then; workspace store is still tried
+        pass
+    if state_dir.is_dir():
+        candidate = state_dir / "tasks.sqlite3"
+        if candidate not in candidates:
+            candidates.append(candidate)
+    found = 0
+    try:
+        import sqlite3
+
+        from .task_store import TaskStore
+        for db in candidates:
+            if not db.is_file():
+                continue
+            rows = TaskStore(db).load(limit=10_000)
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("status")) != "interrupted":
+                    continue
+                found += 1
+                error = str(row.get("error") or row.get("cancel_reason") or "")
+                lowered = error.lower()
+                if any(m.lower() in lowered for m in _RESTART_MARKERS):
+                    counts["restart"] += 1
+                elif any(m.lower() in lowered for m in _TIMEOUT_MARKERS):
+                    counts["timeout"] += 1
+                elif any(m.lower() in lowered for m in _PERMISSION_MARKERS):
+                    counts["permission"] += 1
+                elif any(m.lower() in lowered for m in _CANCEL_MARKERS):
+                    counts["cancelled"] += 1
+                elif lowered:
+                    counts["other"] += 1
+                else:
+                    counts["unknown"] += 1
+    except (sqlite3.Error, OSError, ValueError):
+        return None
+    if found == 0:
+        return None
+    return {"total": found, **counts}
+
+
 def _recent_tasks(state_dir: Path, limit: int = 8) -> list[dict[str, Any]]:
     """Read the active tasks store (global home). Falls back to the workspace store."""
     rows: list[dict[str, Any]] = []
@@ -239,7 +299,21 @@ def build_summary(workspace: Path) -> dict[str, Any]:
 
     forecast = _forecast_from_trend(trend_7d)
 
+    interrupt_causes = _interrupt_cause_breakdown(state_dir)
+
     recommendations: list[dict[str, Any]] = []
+    if interrupt_causes and interrupt_causes.get("restart", 0) > 0:
+        n = int(interrupt_causes["restart"])
+        recommendations.append(
+            {
+                "id": "restart-interrupt",
+                "priority": "medium",
+                "title_zh": f"{n} 个中断全部源于服务重启——把 workbench 留在回环前台",
+                "title_en": f"{n} interrupted task(s) trace to service restarts - keep the workbench in the foreground",
+                "why_zh": f"中断账本里的错误字段原生记的就是「服务重启时任务被中断」：任务在途中，worker 随本地服务一起被杀。办法很实在——别在后台反复重启 minicc-web；收尾或定期维护前先让运行中的任务跑完；已被中断的任务可以直接重跑收敛。",
+                "why_en": "The task store's own error text for every interruption is 'interrupted during a service restart': the workers died mid-flight with the workbench process. The fix is concrete - stop restarting minicc-web casually around long tasks, let the running ones converge first, or re-run the interrupted tasks to collect.",
+            }
+        )
     if (
         forecast is not None
         and forecast["decline_from_peak"] >= 0.45
@@ -301,6 +375,7 @@ def build_summary(workspace: Path) -> dict[str, Any]:
         },
         "trend_7d": trend_7d,
         "forecast": forecast,
+        "interrupt_causes": interrupt_causes,
         "recent_tasks": recent_tasks,
         "recommendations": recommendations,
         "redis": redis_s if isinstance(redis_s, dict) else {},

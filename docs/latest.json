@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T13:29:02.762Z",
+  "generated_at": "2026-11-15T13:36:33.411Z",
   "branch": "main",
-  "head": "bb7303b",
-  "total_commits": 1630,
+  "head": "08d9ada",
+  "total_commits": 1631,
   "recent_commits": [
+    {
+      "short": "08d9ada",
+      "at": "2026-11-15T13:29:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "bb7303b",
       "at": "2026-11-15T21:28:22+08:00",
@@ -24,18 +29,13 @@
       "short": "3dc957e",
       "at": "2026-11-15T12:37:09Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5fdc35d",
-      "at": "2026-11-15T20:36:47+08:00",
-      "subject": "chore(latest): fact pack refresh at d84a51d - M8-T1019 composer hints + CI red repairs"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 335,
+  "roadmap_batches": 336,
   "changelog_entries": 1,
-  "roadmap_lines": 53096,
-  "tracked_files": 1075,
+  "roadmap_lines": 53116,
+  "tracked_files": 1077,
   "test_files": 710,
   "almanac_chapters": 20,
   "module_count": 14,
