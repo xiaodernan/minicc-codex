@@ -1784,8 +1784,26 @@
     return true;
   }
   function gameLoop(now = 0) {
-    if (!game.running || game.paused) return;
     const dt = Math.min(80, Math.max(8, now - game.last || 16));
+    if (!game.running || game.paused) {
+      game.last = now;
+      let cooling = false;
+      for (const type of PLANT_TYPES) {
+        if (game.seedCooldowns[type] > 0) {
+          game.seedCooldowns[type] = Math.max(0, game.seedCooldowns[type] - dt);
+          cooling = true;
+        }
+      }
+      for (const type of Object.keys(GAME_SKILLS)) {
+        if (game.skillCooldowns[type] > 0) {
+          game.skillCooldowns[type] = Math.max(0, game.skillCooldowns[type] - dt);
+          cooling = true;
+        }
+      }
+      updateGameHud(false);
+      if (cooling) game.frame = requestAnimationFrame(gameLoop);
+      return;
+    }
     rebuildGameIndexes();
     game.last = now;
     game.elapsed += dt;
@@ -2215,6 +2233,11 @@
     }
     game.sun -= cost;
     game.seedCooldowns[type] = plantCooldown[type] || 0;
+    if (!game.running && !game.paused) {
+      game.last = performance.now();
+      cancelAnimationFrame(game.frame);
+      game.frame = requestAnimationFrame(gameLoop);
+    }
     const planted = { type, hp: plantHealth[type], row: cell.row, col: cell.col, seed: Math.random() * 1e3, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: type !== "potatomine" };
     if (covering) game.plants.splice(game.plants.indexOf(existing), 1, { ...planted, underPlant: existing });
     else game.plants.push(planted);
@@ -2247,6 +2270,11 @@
     $("#gameModal").setAttribute("aria-hidden", "false");
     setGameWideMode(localStorage.getItem("minicc-game-wide-mode") === "on");
     initGame();
+    if (!game.running && !game.paused) {
+      game.last = performance.now();
+      cancelAnimationFrame(game.frame);
+      game.frame = requestAnimationFrame(gameLoop);
+    }
   }
   function openGameWindow() {
     window.open(location.origin + location.pathname + "?arcade=1", "minicc-arcade", "popup,width=980,height=760");

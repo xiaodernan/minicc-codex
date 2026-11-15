@@ -53535,3 +53535,16 @@ M8-T1044/T1045 合并 CI 跑了 28 分钟，两条 Python legs 同形失败—�
 - **`web/styles.css`** — `.game-how-skill-glyph` 从 `color-mix(in srgb, var(--amber) 14%, transparent); color: var(--amber)` 改为 `color-mix(in srgb, var(--amber) 18%, transparent); color: var(--text)`——对比度与「text has to be read" 法则贴合，AA gate 从 4.29:1 提升至对比；次要后续改动：count 空闲，不动 `.game-how-skill-glyph` 大小。
 - **`tests/test_rag_rate_limit.py`** — `test_window_expiry_reopens_the_gate` 不再相信 `time.sleep(0.06)` 单次判定；改为 `deadline = monotonic() + 2.0; while monotonic() < deadline: if consume.return is True: return`，慢节拍平台也守门；断言形态不削减（`assert False` 兜底保留，明确不允许吞掉）。
 - **CRLF gates** — i18n / index.html 未动；`bundle j、syntax` 皆绿；`test_every_colour_pair_clears_aa.py` 7 passed、`test_rag_rate_limit.py` 7 passed。
+## 批次 1033 - M8-T1048: 游戏厅开屏 1200×2560 的情形下——全屏按钮真可达 · 预游戏 tick 修好
+
+### 目的
+
+用户多次反馈「游戏厅里 Start Game 按钮完全看不到」——真实操作时没有人知道应该向下滚动底部的 scroll 区域来看见它。另一处没人意识到：`gameLoop` 以 `running === false` 早退，所以开局期间一个 seed cooldown 永远不倒计时——复杂用户植完一棵葵转向豌豆时才发现豌豆永远灰、植完第二棵葵也一样。 两件事都属于「游戏厅已经可用 && 用户却不知道怎么玩」的真 bug。
+
+### 做了什么
+
+- **`web/game.js` / `web/src/game.js`** — `gameLoop` 顶部重写为双分支：`pre-game idle tick` 分支（`!running || paused`，减少 seedCooldowns / skillCooldowns、rAF 续跑 idle 直到无冷却为止）+ `running branch`。`openGame()` 显式 `requestAnimationFrame(gameLoop)`；`plantAt()` 每种一株就重订阅一次，支持离屏 seeding。修复前 `sunflower` 按钮 `cooldown` 永久卡死。
+- **`web/index.html`** — 什么都不动（保持 CRLF pins）。
+- **`web/styles.css`** — 新增 `@media (min-width: 1500px) and (min-height: 900px)` block，把 `.game-modal.show` 默认形态改成 grid 两栏（seeds + canvas 横排），seed-card 变 18px icon，`#gameStart` 黄色按钮 Sticky 落在底部；`object-fit: contain` 让画布不溢出。`game-wide-layout` 默认化并保留 wide-mode 变体（190px-420px 甚至 1366×768 都算，不到此阈值的 fallback 依旧是 scroll）。
+- **实测**：1440×900 / 1366×768 / 2560×1200 三 viewport，`#gameStart` top 均 ≥ viewport height - 36px；zh/en smokes 双通。
+- **门禁**：5 smoke 全绿 / CRLF pin 绿。

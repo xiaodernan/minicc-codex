@@ -1,4 +1,0 @@
-﻿canvas bbox: {"x":925,"y":981,"width":710,"height":415}
-selected plant: sunflower
-after pre-game planting: {"sun":175,"plants":0,"plantTypes":[]}
-in-game after ~6s: {"running":true,"elapsed":1136,"plants":0,"zombies":0,"defeated":0,"sun":175,"score":0}

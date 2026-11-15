@@ -958,7 +958,7 @@ button { color: inherit; }
 .seed-card b { font-size: 20px; }
 .seed-card small { color: var(--muted); font-size: 12px; }
 #gameCanvas { background: #8fca68; border-radius: 7px; cursor: crosshair; display: block; height: auto; max-width: 100%; }
-.game-controls { align-items: center; color: var(--muted); display: flex; font-size: 12px; justify-content: space-between; margin-top: 12px; }
+.game-controls { align-items: center; background: color-mix(in srgb, var(--surface) 96%, transparent); border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 12px; justify-content: space-between; margin: 14px -24px -24px; padding: 10px 24px 16px; position: sticky; bottom: 0; z-index: 4; }
 .game-tools { align-items: stretch; display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
 .game-tool, .game-sound, .game-volume, .game-difficulty { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; color: var(--muted); cursor: pointer; display: inline-flex; gap: 7px; min-height: 38px; padding: 6px 10px; text-align: left; }
 .game-volume, .game-difficulty { cursor: default; font-size: 12px; }
@@ -5673,4 +5673,18 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .game-how-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
   .game-how-rail { border-left: 0; border-top: 1px solid var(--line); max-height: 220px; }
   .game-how-card { height: calc(100% - 14px); width: calc(100% - 14px); }
+}
+
+@media (min-width: 1500px) and (min-height: 900px) {
+  .game-modal.show .game-card { max-height: calc(100vh - 20px); max-width: min(1320px, calc(100vw - 20px)); width: min(1320px, calc(100vw - 20px)); overflow: auto; padding: 16px 18px; }
+  .game-modal.show .game-wide-layout { align-items: start; display: grid; gap: 14px; grid-template-columns: minmax(280px, .34fr) minmax(0, .66fr); min-height: 0; }
+  .game-modal.show .game-sidebar { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .game-modal.show .seed-bank { align-content: start; display: grid; gap: 6px; grid-template-columns: repeat(4, minmax(0, 1fr)); max-height: none; margin: 6px 0 8px; overflow: visible; }
+  .game-modal.show .seed-card { align-items: center; display: grid; gap: 2px 6px; grid-template-columns: 22px minmax(0, 1fr); min-width: 0; padding: 5px 7px; }
+  .game-modal.show .seed-card b { font-size: 18px; grid-row: span 2; }
+  .game-modal.show .seed-card span, .game-modal.show .seed-card small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .game-modal.show .game-tools { align-content: start; display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+  .game-modal.show .game-board { display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+  .game-modal.show #gameCanvas { max-height: min(52vh, 500px); object-fit: contain; width: 100%; }
+  .game-modal.show .game-controls { margin: 10px -18px -16px; padding: 10px 18px 14px; }
 }

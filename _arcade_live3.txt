@@ -1,7 +1,0 @@
-﻿canvas bbox: {"x":925,"y":981,"width":710,"height":415}
-selected: sunflower
-click cell 0 1 at {"x":1105.4583333333333,"y":1082.7738095238096}
-click cell 1 1 at {"x":1105.4583333333333,"y":1147}
-click cell 3 1 at {"x":1105.4583333333333,"y":1275.452380952381}
-after pre-game planting: {"sun":125,"plants":1,"types":["sunflower"]}
-in-game after ~7s: {"running":true,"paused":false,"elapsed":2400,"plants":0,"zombies":1,"defeated":0,"sun":175,"score":0}
