@@ -1,42 +1,42 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T07:33:01.273Z",
+  "generated_at": "2026-11-15T08:34:45.529Z",
   "branch": "main",
-  "head": "5814008",
-  "total_commits": 1585,
+  "head": "6f152a8",
+  "total_commits": 1589,
   "recent_commits": [
+    {
+      "short": "6f152a8",
+      "at": "2026-11-15T16:26:33+08:00",
+      "subject": "M8-T1004-followup: drop the stray _keeper_shot.mjs probe from the tree"
+    },
+    {
+      "short": "a2c50fb",
+      "at": "2026-11-15T16:26:00+08:00",
+      "subject": "M8-T1004: prefix cache keeper - a daemon thread re-warms the shared system prompt every 220s via the official SDK (the only client the gateway answers), derivin"
+    },
+    {
+      "short": "0ec0cf2",
+      "at": "2026-11-15T07:33:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "5f24856",
+      "at": "2026-11-15T15:32:42+08:00",
+      "subject": "M8-T1002-followup: drop the stray _brace.py diagnostic from the tree"
+    },
     {
       "short": "5814008",
       "at": "2026-11-15T15:32:25+08:00",
       "subject": "M8-T1002: ubuntu/windows Python red fix - inline the break-opportunity into both path renderers (bundle-slicing gate saw a free variable), drop the orphan brace"
-    },
-    {
-      "short": "bbe1c04",
-      "at": "2026-11-15T15:32:24+08:00",
-      "subject": "M8-T1001: Doctor workspace self-check card - reuses the minicc --doctor engine via /api/doctor (7 pass / 2 warn / 0 fail rendered live), mono check names + seve"
-    },
-    {
-      "short": "e21fcd2",
-      "at": "2026-11-15T06:58:34Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b6ef066",
-      "at": "2026-11-15T14:54:49+08:00",
-      "subject": "M8-T1000: <=940px hero compaction (chat-inner/session-heading/divider/orbit/title/chips; hero scrolls safely, chips never slide under composer) + <=900px sideba"
-    },
-    {
-      "short": "81bfdd2",
-      "at": "2026-11-15T06:42:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 318,
+  "roadmap_batches": 319,
   "changelog_entries": 1,
-  "roadmap_lines": 52711,
-  "tracked_files": 1066,
-  "test_files": 705,
+  "roadmap_lines": 52736,
+  "tracked_files": 1067,
+  "test_files": 706,
   "almanac_chapters": 17,
   "module_count": 14,
   "feature_surface": [
@@ -55,6 +55,11 @@
     "spring-cloud-plane",
     "redis-cache",
     "cached-first-call",
+    "doctor-panel",
+    "prefix-cache-keeper",
+    "workspace-vitals",
+    "upstream-echo",
+    "load-lab",
     "cli-digest",
     "api-digest"
   ],
