@@ -158,11 +158,11 @@ class FakeProvider:
             match = marker.search(prompt_text)
             assert match is not None
             start = match.end()
-            rest = prompt_text[start:]
-            end = rest.find("\n\n请严格返回 JSON")
-            packet_text = rest[:end] if end >= 0 else rest
+            rest = prompt_text[start:].lstrip()
             try:
-                packet = json.loads(packet_text)
+                # raw_decode parses exactly the packet JSON and ignores any prose that follows;
+                # no terminator text is needed and the shape survives surrounding notes.
+                packet, _ = json.JSONDecoder().raw_decode(rest)
             except (json.JSONDecodeError, TypeError):
                 packet = {}
             if isinstance(packet, dict):

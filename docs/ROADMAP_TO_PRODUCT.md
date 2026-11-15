@@ -52976,3 +52976,30 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - `.venv/Scripts/python.exe -m pytest tests/test_http_surface.py -k admin` 1 passed；`test_the_panel_does_not_print_a_missing_count_as_zero.py` 13 passed；`test_a_line_a_test_docstring_cites_can_be_read.py` 6 passed；CRLF 门禁 passed
 - 锁定/解锁截图：`output/admin_locked_{zh,en}.png`、`output/admin_unlocked_{zh,en}.png`
 - **诚实记录**：CI run `43700750043`（docs-only `a117bdd`）双 Python 腿红，三因全部在本批可追溯修复。本批提交后 CI 结果将以 `gh run view` 实测为准。
+
+## 批次 1005 - M8-T1015: 完成评估器的前缀缓存杠杆 — 从 cached=0 到唯一包 ~93% 命中
+
+### 1 背景
+
+用户点名「一直显示非流、流的时候命中率高」。拆审计账本后确认真相不是调用方式错误，而是**流量构成**：62.0% 聚合命中 = 主任务流式回合（turn 内 75~98% 命中）+ 完成评估计（completion_judge，原子/非流，每轮 cached=0）+ 两次压缩事件（62,005 与 90,850 token 前缀全灭）+ 首轮冷启动。主杠杆是 judge：persona 仅 ~300 token，低于网关前缀缓存门槛，每轮全额计费。
+
+### 2 做了什么
+
+- **新增 `COMPLETION_REVIEW_PROTOCOL`**（system 第二层）：证据包协议（events / verification_results / conversation 三个分区的字段/id 形状）+ 输出契约（仅一个 JSON 对象、键恰好六项、evidence 必须逐字复制）——**逐字节常量，不含任何 f-string 占位符**，wire 顺序 system(persona) → system(protocol) → user(packet)。
+- 用户包里的「请严格返回 JSON，例如 …」示例移入 protocol 常量；packet 只保留指向「证据包协议与输出格式」节的指针。
+- fake provider 的包提取改为 `json.JSONDecoder().raw_decode`，不再依赖结尾标记（修掉常态路径依赖）。
+- 新增 `tests/test_completion_judge_protocol.py`：wire 顺序、常量无占位符、persona+protocol 跨任务逐字节相同、包不再重复示例 —— 4 条测试全绿；`test_core_agent.py` 的视觉上下文评测用例同步改为双 system wire；邻近的 judge/llm 151 条测试全绿。
+
+### 3 实测证据
+
+真实网关（wkapi.pro / gpt-6-sol）三次调用：
+- call A（冷启动，同 wire）prompt=5593 cached=0；
+- call C（persona+protocol 完全一致，task 只差 18 个字符）**prompt=5591 cached=5248**（~93%）；
+- call D（唯一 evidence 数据包）**cached=5248** — 协议常量层确实在命中；
+- 异常项如实记录：call B prompt=1220 cached=0（网关计数器飘忽）；call E（大包唯一）prompt=19718 cached=0，疑似路由到不同上游/记账飘忽 — 用户侧无法根治，ghost 指标不写进文档结论。
+
+### 4 影响
+
+- judge 每次评审节省 ~5k 缓存 token（按企业计价 ≈ 省一半 judge 成本）；多处会随任务入账自动体现在 /api/admin/summary 的缓存率上。
+- 主任务流式回合的命中率维持 75~98% 的真态，不做任何「数字变好看」式 hack。
+- 压缩事件（前缀全灭）依旧是 agent 内生约束，没有伪造改进空间，继续靠 keeper 热系统提示 + 同 prompt_cache_key 共享做最佳努力。

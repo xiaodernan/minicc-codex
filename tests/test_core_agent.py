@@ -175,7 +175,9 @@ def test_completion_judge_receives_persistent_visual_context() -> None:
 
     assert decision.status == "complete"
     assert requests
-    review_content = requests[0][1]["content"]
+    # M8-T1015: the wire is now system(persona) + system(protocol) + user(packet)
+    assert [m["role"] for m in requests[0]] == ["system", "system", "user"]
+    review_content = requests[0][2]["content"]
     assert isinstance(review_content, list)
     assert "已提供 1 张图片" in review_content[0]["text"]
     assert review_content[1]["type"] == "image_url"

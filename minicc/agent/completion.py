@@ -63,6 +63,35 @@ status 只能是：
 - blocked：目前无法继续，必须向用户说明阻塞原因
 """
 
+# M8-T1015: the reviewer's byte-stable protocol layer. ``COMPLETION_REVIEW_SYSTEM``
+# stays the task-juror persona; this constant carries the *packet grammar* and the
+# *output contract*.  Both messages are 100% constant across every review call, so
+# prepending them gives the gateway a shared cacheable prefix above its ~1024-token
+# threshold - the old shape (persona ~300 tokens) never cached, and every
+# completion_judge call paid full price.  The unique evidence packet lives in the
+# final user message and changes per call, which is unavoidable.
+COMPLETION_REVIEW_PROTOCOL = """证据包协议与输出格式（常量；所有完成评估调用逐字节相同，与被评估任务无关）：
+
+执行证据格式：
+- events：每项一条工具调用/阶段 trace，字段 id、name、status、phase、code、command（可空）、write（是否文件写入）、kind。id 形如 "event-<N>"。
+- verification_results：字段 id、status(passed/failed/skipped)、command、skipped_reason（可空）、checks（可空数组，每项 command/status）。id 形如 "verification-<N>"。
+- conversation：字段 id("message-<N>")、role、content；只有原始用户需求指向对话本身（回忆/总结/复述/沿用约定）时才是合法证据。
+
+评判优先级：events / verification_results > conversation；conversation 不得替代写文件或测试证据。
+
+输出契约（只返回一个 JSON 对象，不要 Markdown 围栏、不要前后缀、不要注释；键恰好是 status、confidence、rationale、missing、next_action、evidence）：
+- status 只能是 complete | continue | blocked；
+- confidence 是 0 到 1 之间的数字；
+- missing 是字符串数组（允许空数组，不要 null）；
+- next_action 是字符串（只有 complete 时允许空字符串）或 null；
+- evidence 是字符串数组，complete 时至少包含一项；id 必须逐字复制 packet 中真实出现过的值；
+- evidence 的每一项只能是 event-<N> / verification-<N> / message-<N> 之一；
+- rationale 必填，最多一句话说清判定依据。
+
+样例（一个合法的 continue 返回）：
+{"status":"continue","confidence":0.9,"rationale":"还有目标未达","missing":["运行测试"],"next_action":"pytest -x","evidence":["event-3"]}
+"""
+
 
 @dataclass
 class CompletionDecision:
@@ -186,8 +215,7 @@ agent 最终回答：
 执行证据（工具调用、阶段 trace、修改、对话记录和验证结果）：
 {evidence}
 {no_check_note}
-请严格返回 JSON，例如：
-{{"status":"continue","confidence":0.92,"rationale":"还缺少...","missing":["..."],"next_action":"...","evidence":["...","..."]}}
+请按 system 中「证据包协议与输出格式」一节的输出契约原样返回 JSON。
 """
     redacted, _ = redact_text(prompt)
     return redacted
@@ -301,6 +329,7 @@ async def judge_completion(
             provider,
             messages=[
                 system_msg(COMPLETION_REVIEW_SYSTEM),
+                system_msg(COMPLETION_REVIEW_PROTOCOL),
                 user_msg(_review_content(review_prompt, vision_context)),
             ],
             tools=None,
@@ -811,6 +840,7 @@ __all__ = [
     "COMPLETION_STATUSES",
     "CompletionDecision",
     "COMPLETION_REVIEW_SYSTEM",
+    "COMPLETION_REVIEW_PROTOCOL",
     "build_completion_review_prompt",
     "is_citable_evidence_item",
     "judge_completion",
