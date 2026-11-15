@@ -53022,3 +53022,22 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - `npm run build:web && npm run check:web` ✓；`node --check web/src/panels/almanac.js` ✓
 - `output/almanac_gatekeeper_{zh,en}.png` —— kicker/title/instruments/gates/quote 全部落在卷首；en 界面 100% 英文
 - **诚实记录**：CI 上一跑（43705234876）是 failure，修毕本地全绿；以推送后的新 run 实测为准
+
+## 批次 1007 - M8-T1017/T1018: 滚轮交还浏览器 + 管理员预测线
+
+### 1 背景
+
+两个用户点名项：鼠标引擎做反了、管理员面板要有趋势预测。两者都要求「不浮于表面」——按钮文案、实测行为、落到真实数据。
+
+### 2 做了什么
+
+- **T1017 滚轮归位**：旧 `wheel-invert.js`（文档级 preventDefault + 自行 scrollTop 换算）删除——它是「看上去很聪明」的那一类干涉：浏览器原生的滚动已经满足全部约定（Windows 传统 ＝ 往下滑往下看）。方向判定交给系统；mac 用户保留 mac 的默认自然滚动；想要反转方向就去 OS 设置改。设置面板如实写明「跟随系统滚动方向」+ 两行双语解释；启动时静默清理 `minicc-invert-wheel` / `minicc-scroll-natural` 两个历史键（不再留有任何暗示性按钮）；不再拦截任何 wheel 事件。i18n 保留 19/21 键对齐。
+- **T1018 管理员预测线**：`/api/admin/summary` 的 payload 新增 `forecast{}`：最小二乘斜率（签名保留）、avg_events、next_day_events、direction、peak_day、peak_events、decline_from_peak、last_2_avg。面板趋势卡下方新增预测条；**显著冷却（decline_from_peak≥0.45 且方向 down 且均量≥4）时才追加 fading-weekend-quiet 建议**——不是每周都有的「假建议」，只有数据说确实在冷却才会出现。真实数据（11-13 峰值 177，最近两日均值 27.0，回落 85%）触发此建议。
+- 宣传页同步小批次自动同步；bundle ✓；i18n zh/en 键齐平；双 locale 实机截图 ✓。
+
+### 3 验证
+
+- `node --check` admin.js / i18n.js / stream.js / main.js ✓；`npm run build:web && npm run check:web` ✓
+- Playwright 2560×1440 双 locale：预测条渲染、4 条建议（含 fading-weekend-quiet）、峰值标注 177@11-13 ✓（`output/admin_forecast_{zh,en}.png`）
+- 后端 `build_summary` 现场打印：slope=+11.86 / forecast 完整；_recent_tasks 依然 8 条真实数据；noqa/门语义不变
+- CI 43708117227 仍在跑（runner 排队），本批以本地全套为准，推送后交由下一个 run 盖章

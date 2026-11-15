@@ -72,6 +72,52 @@ def _audit_trend(state_dir: Path) -> list[dict[str, Any]]:
     return out
 
 
+
+def _least_squares_slope(ys: list[float]) -> float:
+    n = len(ys)
+    if n < 2:
+        return 0.0
+    xs = list(range(n))
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    denom = sum((x - mean_x) ** 2 for x in xs)
+    if denom == 0:
+        return 0.0
+    return sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denom
+
+
+def _forecast_from_trend(trend_7d: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """A deliberately naive, honest projection over the 7-day event counts.
+
+    Fits a straight line over the 7 real buckets; returns the signed slope and a
+    next-day estimate. Also measures last-two-days vs the peak, which is the
+    honest "is the building cooling off" number the recommendation keys on.
+    Never pretends to be statistical rigour.
+    """
+    if not trend_7d:
+        return None
+    ys = [float(d.get("events") or 0) for d in trend_7d]
+    n = len(ys)
+    avg = sum(ys) / n
+    slope = _least_squares_slope(ys)
+    intercept = (sum(ys) - slope * sum(range(n))) / n
+    peak_day = max(trend_7d, key=lambda d: float(d.get("events") or 0))
+    peak = float(peak_day.get("events") or 0)
+    last2 = sum(ys[-2:]) / 2 if n >= 2 else avg
+    decline_from_peak = max(0.0, 1 - (last2 / peak)) if peak > 0 else 0.0
+    direction = "down" if decline_from_peak >= 0.45 else ("up" if last2 > avg * 1.15 else "flat")
+    return {
+        "slope_per_day": round(slope, 2),
+        "avg_events": round(avg, 1),
+        "next_day_events": int(max(0, round(intercept + slope * n))),
+        "direction": direction,
+        "peak_day": str(peak_day.get("day", "—")),
+        "peak_events": int(peak_day.get("events") or 0),
+        "decline_from_peak": round(decline_from_peak, 2),
+        "last_2_avg": round(last2, 1),
+    }
+
+
 def _recent_tasks(state_dir: Path, limit: int = 8) -> list[dict[str, Any]]:
     """Read the active tasks store (global home). Falls back to the workspace store."""
     rows: list[dict[str, Any]] = []
@@ -191,7 +237,25 @@ def build_summary(workspace: Path) -> dict[str, Any]:
         if isinstance(sessions_info, dict):
             sessions_count = int(sessions_info.get("count", 0) or 0)
 
+    forecast = _forecast_from_trend(trend_7d)
+
     recommendations: list[dict[str, Any]] = []
+    if (
+        forecast is not None
+        and forecast["decline_from_peak"] >= 0.45
+        and forecast["avg_events"] >= 4.0
+        and forecast["direction"] == "down"
+    ):
+        recommendations.append(
+            {
+                "id": "fading-weekend-quiet",
+                "priority": "medium",
+                "title_zh": "事件频率从峰值回落——安排下一批航程",
+                "title_en": "Event rate fell off the peak — queue the next voyage",
+                "why_zh": f"{forecast['peak_day']} 出现 {forecast['peak_events']} 次后，最近两天均值仅 {forecast['last_2_avg']}（回落 {forecast['decline_from_peak'] * 100:.0f}%）。显著冷却是真实发生的，不是一条温吞的新闻——开个新 session，或把手册翻到下一章，或看 Doctor 的缓存守护是否还在值班。",
+                "why_en": f"{forecast['peak_day']} hit {forecast['peak_events']}; the last two days average {forecast['last_2_avg']} (down {forecast['decline_from_peak'] * 100:.0f}% from the peak). That cooling-off is real, not a soft note — open a fresh session, flip to the next manual chapter, or check the cache keeper in the Doctor panel.",
+            }
+        )
     if cache_rate is not None and cache_rate < 0.8:
         recommendations.append(
             {
@@ -236,6 +300,7 @@ def build_summary(workspace: Path) -> dict[str, Any]:
             "sessions": sessions_count,
         },
         "trend_7d": trend_7d,
+        "forecast": forecast,
         "recent_tasks": recent_tasks,
         "recommendations": recommendations,
         "redis": redis_s if isinstance(redis_s, dict) else {},

@@ -735,6 +735,12 @@
       "admin.trend": "\u4E03\u65E5\u4E8B\u4EF6/\u5929",
       "admin.recommendations": "\u57FA\u4E8E\u771F\u5B9E\u6570\u636E\u7684\u4F18\u5316\u5EFA\u8BAE",
       "admin.recent": "\u6700\u8FD1\u4EFB\u52A1 \xB7 \u771F\u5B9E\u5217\u8868",
+      "admin.forecastLabel": "\u9884\u6D4B",
+      "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
+      "admin.forecastRising": "\u4E0A\u884C\u4E2D",
+      "admin.forecastFlat": "\u5E73\u7A33",
+      "admin.forecastNote": "7 \u65E5\u7EBF\u6027\u6295\u5F71\u3001\u5916\u63A8\u5230\u6B21\u65E5\uFF0C\u4E0D\u662F\u4FDD\u8BC1\u2014\u2014{lines} \u884C\u771F\u5B9E\u5BA1\u8BA1",
+      "admin.forecastLine": "\u4E8B\u4EF6/\u5929\uFF1A\u4E0A\u65E5 \u2248 {n} \xB7 \u659C\u7387 {slope}/\u5929",
       "yard.title": "\u8239\u5382",
       "yard.kicker": "\u8BC1\u636E\u6BBF\u5802 \xB7 \u6BCF\u8258\u8239\u90FD\u7559\u4E00\u518C",
       "yard.close": "\u5173\u95ED\u8239\u5382",
@@ -1433,6 +1439,12 @@
       "admin.trend": "Events per day \xB7 last 7",
       "admin.recommendations": "Recommendations from real data",
       "admin.recent": "Recent tasks",
+      "admin.forecastLabel": "Forecast",
+      "admin.forecastFading": "cooling off from the peak",
+      "admin.forecastRising": "rising",
+      "admin.forecastFlat": "steady",
+      "admin.forecastNote": "Linear projection over 7 days, extrapolated one day out \u2014 not a guarantee; {lines} real audit lines",
+      "admin.forecastLine": "events/day: last \u2248 {n} \xB7 slope {slope}/day",
       "yard.title": "Dockyard",
       "yard.kicker": "Evidence harbour \u2014 every ship is logged",
       "yard.close": "Close dockyard",
@@ -5056,6 +5068,20 @@
             ctx.fillStyle = cssVar("--muted", "#94a3b8");
             ctx.fillText(String(v), x + barW / 2 - 4, y - 2);
           });
+        }
+      }
+      const forecast = data?.forecast;
+      const fcWrap = $("#adminForecast");
+      if (fcWrap) {
+        if (forecast && typeof forecast === "object") {
+          fcWrap.removeAttribute("hidden");
+          const dir = forecast.direction === "down" ? t("admin.forecastFading") : forecast.direction === "up" ? t("admin.forecastRising") : t("admin.forecastFlat");
+          const headline = $("#adminForecastHeadline");
+          const note = $("#adminForecastNote");
+          if (headline) headline.textContent = `${t("admin.forecastLine").replace("{n}", String(forecast.last_2_avg ?? "\u2014")).replace("{slope}", String(forecast.slope_per_day >= 0 ? `+${forecast.slope_per_day}` : forecast.slope_per_day))} \xB7 ${dir}`;
+          if (note) note.textContent = t("admin.forecastNote").replace("{lines}", String(totals.audit_lines ?? "\u2014"));
+        } else {
+          fcWrap.setAttribute("hidden", "");
         }
       }
       const recList = $("#adminRecommendations");

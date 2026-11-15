@@ -108,6 +108,22 @@ export async function openAdmin() {
       }
     }
 
+    // forecast line from a real 7-day linear projection
+    const forecast = data?.forecast;
+    const fcWrap = $("#adminForecast");
+    if (fcWrap) {
+      if (forecast && typeof forecast === "object") {
+        fcWrap.removeAttribute("hidden");
+        const dir = forecast.direction === "down" ? t("admin.forecastFading") : forecast.direction === "up" ? t("admin.forecastRising") : t("admin.forecastFlat");
+        const headline = $("#adminForecastHeadline");
+        const note = $("#adminForecastNote");
+        if (headline) headline.textContent = `${t("admin.forecastLine").replace("{n}", String(forecast.last_2_avg ?? "—")).replace("{slope}", String(forecast.slope_per_day >= 0 ? `+${forecast.slope_per_day}` : forecast.slope_per_day))} · ${dir}`;
+        if (note) note.textContent = t("admin.forecastNote").replace("{lines}", String(totals.audit_lines ?? "—"));
+      } else {
+        fcWrap.setAttribute("hidden", "");
+      }
+    }
+
     const recList = $("#adminRecommendations");
     if (recList) {
       recList.innerHTML = recs.length
