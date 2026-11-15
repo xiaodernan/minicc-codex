@@ -982,9 +982,9 @@ export function openPanel(title, body, options = {}) {
 
     expand.hidden = false;
 
-    expand.title = state.locale === "zh" ? "展开全屏" : "Expand fullscreen";
+    expand.title = t("panel.expand");
 
-    expand.setAttribute("aria-label", state.locale === "zh" ? "展开全屏" : "Expand fullscreen");
+    expand.setAttribute("aria-label", t("panel.expand"));
 
     expand.innerHTML = icon("maximize-2");
 
@@ -1048,7 +1048,7 @@ export function togglePanelFullscreen() {
 
   if (!button) return;
 
-  button.title = fullscreen ? (state.locale === "zh" ? "退出全屏" : "Collapse fullscreen") : (state.locale === "zh" ? "展开全屏" : "Expand fullscreen");
+  button.title = t(fullscreen ? "panel.collapse" : "panel.expand");
 
   button.setAttribute("aria-label", button.title);
 

@@ -53284,3 +53284,21 @@ Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手�
 - CRLF gates 未动：index.html 仍 655 CRLF；styles.css / onboarding.js 保持 LF。
 - `npm run build:web` 绿（game.js 115,708 chars，asset-manifest 更新，旧 bundle 清理 2 个）。
 - CI 基线：`43729619732`（7207776，M8-T1032）= 10 个 job 全绿：PR eval gate / M1 reliability probe / mvn / Python windows + ubuntu / Claim checkers / JavaScript syntax / Playwright + unreachable-provider。
+## 批次 1019 - M8-T1034: en 模式 CJK 门禁 — 一个语言时代只有一种语言，一个泄露都不许留
+
+### 目的
+
+"全内容中英切换，不混排"是用户的硬性要求。中文仓库推进了二十余轮后，en 模式下仍可能出现三类泄露：① 自定义字符串（非 data-i18n 路径）停在默认语言；② 元素属性（title/aria-label/placeholder/alt）硬编码中文；③ 仓库自己的提交主题——那是数据，不是错，需要门禁按类处理而不是误报。这次把整个应用扫了一遍，逐类修干净，然后把扫描写成永久门禁。
+
+### 做了什么
+
+- **新门禁 `tests/en_cjk_smoke.mjs`**（`test:parity`，已纳入 `test:arcade`，CI 复用 fake-provider 的 8765 端口）：en 模式下依次打开工作台空态 → 12 个 nav 视图（workspaces … almanac）→ 6 个 stage 浮层（pulse/doctor/dockyard/atlas/admin锁定态+123解锁）→ arcade 壳 → Wayfinder 9 步演练；每站点用 `checkVisibility({checkOpacity:true, checkVisibilityCSS:true})` 只扫**真实可见**的文本与属性（placeholder/aria-label/title/alt），任一 CJK 即失败并打印元素选择器与片段；zh 模式抽样验证 nav 携带 CJK（防误伤 locale 翻转）。
+- **豁免清单（明文写进测试头部，全部是用户/仓库自有数据，绝不翻译）**：自己人的 prompt 与模型回答（thread/message/task-prompt/admin 近任务）、todo 文本、`#localeZh` 的"中"、真实文件系统路径（`D:/面试项目/…`）、git commit subject（`.archive-title`/`.recent-title`/`.journal-subject`/`.commit-subject`/`.dockyard-commit`）及作者提交分类标签（`.archive-tag`）、pulse 里的任务预览与路径（`.pulse-archive-row`/`.pulse-timeline-node`/`#pulseIdentityPath`）。
+- **门禁抓出的四个真 bug（已修复）**：
+  1. **Atlas HUD 中文钉死**：`#atlasCharted` 是 boot-time 自定义串，静态 markup 写死 zh；现模块 boot 时按 `state.locale` 立即调用 `updateHUD()`/`updateShardsHUD()`，并在 `setLocale()` 后广播 `minicc:locale-changed`，atlas.js 监听刷新（静态占位改为 `— / 52`）。
+  2. **次级导航 aria-label 中文**：`<nav class="secondary-nav" aria-label="更多功能">` 硬编码 → 新键 `nav.more`（"更多功能"/"More features"），`data-i18n-aria` 接管。
+  3. **arcade 全屏钮 title 中文裸键**：`#gameFullscreen` 的 `title="全屏"` → `data-i18n-title="game.fullscreen"`（该键双侧已存在）。
+  4. **主面板展开钮中英双钉不等价**：`#panelExpand` 的 title/aria-label 写死"展开全屏" → 新键 `panel.expand`/`panel.collapse`，`openPanel()` 与 `togglePanelFullscreen()` 改走 `t()`。
+- **连带证据链（UX bug 也被这一轮揪出并处理）**：本项目面板 `.panel-modal` 在 fade-out 期间仍拦截指针；parity 巡检脚本一度因点选穿透失败表现出"按钮点不动"——收敛为门禁内的 `settlePanelModal()`（`waitForFunction` 等真实关闭 + 450ms 过渡收尾），确定性通过。没有产品 bug 夹带其中。
+- **验证**：`node tests/en_cjk_smoke.mjs` 全绿（含 en: 12视图×(扫+Esc)、6浮层、admin123解锁、arcade、wayfinder 9步；zh: nav 携带 CJK）；atlas/manual/almanac/admin smokes 不受影响；CRLF gates 865=655+309 零漂移；`npm run build:web` 绿，app.js bundle 重哈希。
+- **记录**：本批提交时 CI `43736466300`（M8-T1033, 415cd8e8）仍在跑，push 将等远端落地以免 cancel-in-progress。

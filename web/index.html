@@ -104,7 +104,7 @@
         <div class="thread-list" id="threadList"><div class="thread-empty" data-i18n="tasks.historyLoading">正在加载任务…</div></div>
 
         <div class="sidebar-bottom">
-          <nav class="secondary-nav" aria-label="更多功能">          <button class="nav-item pulse-nav" id="pulseButton" data-view="pulse"><i data-lucide="activity"></i><span data-i18n="pulse.title">脉搏</span><b>NEW</b></button>
+          <nav class="secondary-nav" aria-label="更多功能" data-i18n-aria="nav.more">          <button class="nav-item pulse-nav" id="pulseButton" data-view="pulse"><i data-lucide="activity"></i><span data-i18n="pulse.title">脉搏</span><b>NEW</b></button>
           <button class="nav-item promo-nav" data-view="promo"><i data-lucide="megaphone"></i><span data-i18n="nav.promo">宣传页</span><b>NEW</b></button>          <button class="nav-item arcade-nav" id="arcadeButton" data-view="arcade"><i data-lucide="gamepad-2"></i><span data-i18n="nav.arcade">小游戏</span><b>NEW</b></button></nav>
           <button type="button" class="running-light" id="runningLight" data-tone="quiet" data-i18n-title="light.title" data-i18n-aria="light.title" title="航行灯" aria-label="航行灯"><span class="running-light-dot" aria-hidden="true"></span><span class="running-light-text"><span data-i18n="light.cache">缓存</span> <b id="runningLightCache">—</b><i>·</i><span data-i18n="light.tasks">任务</span> <b id="runningLightTasks">—</b></span><span class="running-light-branch" id="runningLightBranch">—</span></button>
           <div class="streak-chip" id="streakChip" hidden role="status" data-i18n-title="streak.title" title="连续完成任务的活跃天数" aria-label="连续活跃天数"><i data-lucide="flame" aria-hidden="true"></i><b id="streakCount">0</b><span data-i18n="streak.days">天连击</span></div>
@@ -548,7 +548,7 @@
         <div class="atlas-hud-inner">
           <div class="atlas-kicker"><i data-lucide="compass"></i><span data-i18n="atlas.kicker">世界地图 · 真实坐标 · 拖拽平移</span></div>
           <h2 class="atlas-title" id="atlasTitle" data-i18n="atlas.title">这片世界没有尽头，导航却从不迷路。</h2>
-          <div class="atlas-charted-line"><i data-lucide="map-pin"></i><span class="atlas-charted" id="atlasCharted">已标注 — / 52 个坐标</span></div>
+          <div class="atlas-charted-line"><i data-lucide="map-pin"></i><span class="atlas-charted" id="atlasCharted">— / 52</span></div>
         </div>
         <div class="atlas-hud-buttons">
           <button class="atlas-icon-button atlas-clear-trail" id="atlasClearTrail" type="button" data-i18n-aria="atlas.clearTrail" data-i18n-title="atlas.clearTrail" aria-label="清除足迹" title="清除足迹"><i data-lucide="trash-2"></i></button>
@@ -568,7 +568,7 @@
 
     <div class="game-modal" id="gameModal" aria-hidden="true">
       <div class="game-card" role="dialog" aria-modal="true" aria-labelledby="gameTitle">
-        <div class="game-actions"><button class="game-tool icon-text" id="gameNewWindow" type="button" title="Open in new tab" data-i18n-title="game.newWindow"><i data-lucide="external-link"></i><span data-i18n="game.newWindow">新窗口</span></button><button class="game-tool icon-text" id="gameWideMode" type="button" title="Wide mode" data-i18n-title="game.wideMode" aria-pressed="false"><i data-lucide="layout-dashboard"></i><span data-i18n="game.wideMode">大屏模式</span></button><button class="game-tool icon-text" id="gameCodex" type="button" title="Open the codex" data-i18n-title="game.codexOpen"><i data-lucide="book-open"></i><span data-i18n="game.codex">图鉴</span></button><button class="game-tool icon-text" id="gameFullscreen" type="button" title="全屏"><i data-lucide="maximize"></i><span data-i18n="game.fullscreen">全屏</span></button><button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button></div>
+        <div class="game-actions"><button class="game-tool icon-text" id="gameNewWindow" type="button" title="Open in new tab" data-i18n-title="game.newWindow"><i data-lucide="external-link"></i><span data-i18n="game.newWindow">新窗口</span></button><button class="game-tool icon-text" id="gameWideMode" type="button" title="Wide mode" data-i18n-title="game.wideMode" aria-pressed="false"><i data-lucide="layout-dashboard"></i><span data-i18n="game.wideMode">大屏模式</span></button><button class="game-tool icon-text" id="gameCodex" type="button" title="Open the codex" data-i18n-title="game.codexOpen"><i data-lucide="book-open"></i><span data-i18n="game.codex">图鉴</span></button><button class="game-tool icon-text" id="gameFullscreen" type="button" title="Fullscreen" data-i18n-title="game.fullscreen"><i data-lucide="maximize"></i><span data-i18n="game.fullscreen">全屏</span></button><button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button></div>
         <div class="game-kicker" data-i18n="game.kicker">MINICC ARCADE · MINI LAWN</div>
         <h2 id="gameTitle" data-i18n="game.title">植物大战僵尸 · 草坪保卫战</h2>
         <p class="game-subtitle" data-i18n="game.subtitle">10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。</p>
@@ -620,7 +620,7 @@
     <div class="toast" id="toast" role="status"></div>
     <div class="panel-modal" id="panelModal" aria-hidden="true">
       <section class="panel-card" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
-        <header class="panel-header"><div><span class="eyebrow" data-i18n="panel.title">工作台</span><h2 id="panelTitle" data-i18n="panel.title">工作台</h2></div><div class="panel-header-actions"><button class="icon-button" id="panelExpand" aria-label="展开全屏" title="展开全屏"><i data-lucide="maximize-2"></i></button><button class="icon-button" id="panelClose" aria-label="关闭" data-i18n-aria="panel.close"><i data-lucide="x"></i></button></div></header>
+        <header class="panel-header"><div><span class="eyebrow" data-i18n="panel.title">工作台</span><h2 id="panelTitle" data-i18n="panel.title">工作台</h2></div><div class="panel-header-actions"><button class="icon-button" id="panelExpand" aria-label="展开全屏" title="展开全屏" data-i18n-aria="panel.expand" data-i18n-title="panel.expand"><i data-lucide="maximize-2"></i></button><button class="icon-button" id="panelClose" aria-label="关闭" data-i18n-aria="panel.close"><i data-lucide="x"></i></button></div></header>
         <div class="panel-body" id="panelBody"></div>
       </section>
     </div>

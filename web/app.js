@@ -476,6 +476,8 @@
       "panel.noTasks": "\u8FD8\u6CA1\u6709\u540E\u53F0\u4EFB\u52A1",
       "panel.refresh": "\u5237\u65B0",
       "panel.close": "\u5173\u95ED",
+      "panel.expand": "\u5C55\u5F00\u5168\u5C4F",
+      "panel.collapse": "\u9000\u51FA\u5168\u5C4F",
       "tasks.detail": "\u67E5\u770B\u8BE6\u60C5",
       "tasks.openSession": "\u6253\u5F00\u4F1A\u8BDD",
       "batch.title": "\u62C6\u5206\u5E76\u884C\u4EFB\u52A1",
@@ -721,6 +723,7 @@
       "nav.dockyard": "\u8239\u5382",
       "nav.admin": "\u7BA1\u7406",
       "nav.atlas": "\u5730\u56FE",
+      "nav.more": "\u66F4\u591A\u529F\u80FD",
       "atlas.kicker": "\u4E16\u754C\u5730\u56FE \xB7 \u771F\u5B9E\u5750\u6807 \xB7 \u62D6\u62FD\u5E73\u79FB",
       "atlas.title": "\u8FD9\u7247\u4E16\u754C\u6CA1\u6709\u5C3D\u5934\uFF0C\u5BFC\u822A\u5374\u4ECE\u4E0D\u8FF7\u8DEF\u3002",
       "atlas.charted": "\u5DF2\u6807\u6CE8 {n} / {total} \u4E2A\u5750\u6807",
@@ -1202,6 +1205,8 @@
       "panel.noTasks": "No background tasks yet",
       "panel.refresh": "Refresh",
       "panel.close": "Close",
+      "panel.expand": "Expand fullscreen",
+      "panel.collapse": "Collapse fullscreen",
       "tasks.detail": "Details",
       "tasks.openSession": "Open session",
       "batch.title": "Split parallel tasks",
@@ -1447,6 +1452,7 @@
       "nav.dockyard": "Dockyard",
       "nav.admin": "Admin",
       "nav.atlas": "Atlas",
+      "nav.more": "More features",
       "atlas.kicker": "World map \xB7 real coordinates \xB7 drag to pan",
       "atlas.title": "This world has no edge \u2014 but you are never lost.",
       "atlas.charted": "Charted {n} / {total} coordinates",
@@ -5839,6 +5845,18 @@
     window.addEventListener("resize", resizeAtlas);
   }
   var escapeTip = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  try {
+    updateHUD();
+    updateShardsHUD();
+  } catch {
+  }
+  window.addEventListener("minicc:locale-changed", () => {
+    try {
+      updateHUD();
+      updateShardsHUD();
+    } catch {
+    }
+  });
   function resizeAtlas() {
     const canvas = stateRef.canvas;
     if (!canvas) return;
@@ -6300,8 +6318,8 @@
     const expand = $("#panelExpand");
     if (expand) {
       expand.hidden = false;
-      expand.title = state.locale === "zh" ? "\u5C55\u5F00\u5168\u5C4F" : "Expand fullscreen";
-      expand.setAttribute("aria-label", state.locale === "zh" ? "\u5C55\u5F00\u5168\u5C4F" : "Expand fullscreen");
+      expand.title = t("panel.expand");
+      expand.setAttribute("aria-label", t("panel.expand"));
       expand.innerHTML = icon("maximize-2");
     }
     modal.classList.add("show");
@@ -6330,7 +6348,7 @@
     const fullscreen = modal.classList.toggle("fullscreen");
     const button = $("#panelExpand");
     if (!button) return;
-    button.title = fullscreen ? state.locale === "zh" ? "\u9000\u51FA\u5168\u5C4F" : "Collapse fullscreen" : state.locale === "zh" ? "\u5C55\u5F00\u5168\u5C4F" : "Expand fullscreen";
+    button.title = t(fullscreen ? "panel.collapse" : "panel.expand");
     button.setAttribute("aria-label", button.title);
     button.innerHTML = icon(fullscreen ? "minimize-2" : "maximize-2");
     refreshIcons();
@@ -10039,6 +10057,7 @@
     state.locale = locale === "en" ? "en" : "zh";
     localStorage.setItem("minicc-locale", state.locale);
     applyLocale();
+    window.dispatchEvent(new Event("minicc:locale-changed"));
     showToast(state.locale === "zh" ? "\u5DF2\u5207\u6362\u4E2D\u6587" : "Switched to English");
   }
 

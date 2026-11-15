@@ -143,6 +143,7 @@ export function setLocale(locale) {
   state.locale = locale === "en" ? "en" : "zh";
   localStorage.setItem("minicc-locale", state.locale);
   applyLocale();
+  window.dispatchEvent(new Event("minicc:locale-changed"));
   showToast(state.locale === "zh" ? "已切换中文" : "Switched to English");
 }
 // Keep this module's public helpers grouped at the end of the bundle.

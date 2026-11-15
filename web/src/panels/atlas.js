@@ -537,6 +537,14 @@ function wireAtlas(canvas) {
 const escapeTip = (value) =>
   String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// Keep the pre-rendered HUD honest before the first Atlas open: the static
+// markup ships a zh placeholder, and state.locale is already loaded from
+// localStorage long before this module evaluates.
+try { updateHUD(); updateShardsHUD(); } catch { /* HUD not in DOM yet - fine */ }
+window.addEventListener("minicc:locale-changed", () => {
+  try { updateHUD(); updateShardsHUD(); } catch { /* same best-effort guarantee */ }
+});
+
 export function resizeAtlas() {
   const canvas = stateRef.canvas;
   if (!canvas) return;
