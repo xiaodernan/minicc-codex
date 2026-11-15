@@ -1,43 +1,43 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T20:41:55.664Z",
+  "generated_at": "2026-11-15T21:10:14.676Z",
   "branch": "main",
-  "head": "74ece51",
-  "total_commits": 1678,
+  "head": "9c2037a",
+  "total_commits": 1683,
   "recent_commits": [
     {
-      "short": "74ece51",
-      "at": "2026-11-16T04:41:32+08:00",
-      "subject": "M8-T1049: CI-leg red fix - README had '--island-tint' which the capability-claims gate reads as an unregistered CLI flag (it's a CSS custom property); dropped t"
+      "short": "9c2037a",
+      "at": "2026-11-16T05:09:54+08:00",
+      "subject": "M8-T1052: live wkapi.pro re-measure after the M8-T1038 streaming-rail fix - fresh 2026-11-16 lane key: cold 5729->4224 (73.7%), warm repeat 5504/5733=96.0%, nea"
     },
     {
-      "short": "137c897",
-      "at": "2026-11-16T04:41:31+08:00",
-      "subject": "M8-T1048: pre-game idle tick silences the cooldown freeze + 2560x1200 viewport now shows full Start flow (seeds above canvas above sticky controls; @media 1500x"
+      "short": "a1d2cab",
+      "at": "2026-11-16T05:09:54+08:00",
+      "subject": "M8-T1051: storm regression - 24 threads x (120 reads across health/digest/stats/worldpulse/admin/metrics all 200+JSON; 64 malformed-body POSTs all 400 never 500"
     },
     {
-      "short": "21e5f88",
-      "at": "2026-11-15T20:10:50Z",
+      "short": "f9e97fe",
+      "at": "2026-11-16T05:09:54+08:00",
+      "subject": "M8-T1050: almanac Ch.XXV 'The Litmus' - the week three red lights only stated facts (AA 4.29:1 amber-on-amber fixed; CI-VM RAG ratelimit sleep(0.06) replaced wi"
+    },
+    {
+      "short": "6be75cb",
+      "at": "2026-11-16T05:09:54+08:00",
+      "subject": "manual: zh Atlas module + zh Almanac module stale facts fixed (Effective 56 coordinates / 25 satellites / Ch.XXIV The Lawn synopsis); en Atlas line matched; man"
+    },
+    {
+      "short": "1093f8e",
+      "at": "2026-11-15T20:41:55Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3bf51ca",
-      "at": "2026-11-16T04:08:18+08:00",
-      "subject": "M8-T1047: CI-leg red fix - .game-how-skill-glyph text-on-tint fails AA (amber on amber 4.29:1); color to --text, 18% tint; test_rag_rate_limit test_window_expir"
-    },
-    {
-      "short": "2874be3",
-      "at": "2026-11-16T03:52:42+08:00",
-      "subject": "docs: manual en modules almanac stale chapter citation fixed - Chapter XXIV 'The Lawn' (was XXIVI 'The Compass'); manual_smoke 13/13 green; recorded in ledger ("
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 362,
+  "roadmap_batches": 365,
   "changelog_entries": 1,
-  "roadmap_lines": 53562,
-  "tracked_files": 1077,
-  "test_files": 712,
-  "almanac_chapters": 25,
+  "roadmap_lines": 53600,
+  "tracked_files": 1079,
+  "test_files": 713,
+  "almanac_chapters": 26,
   "module_count": 14,
   "feature_surface": [
     "workbench",
