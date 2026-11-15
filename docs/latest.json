@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:23:41.325Z",
+  "generated_at": "2026-11-15T14:26:01.953Z",
   "branch": "main",
-  "head": "a9e4cbd",
-  "total_commits": 1638,
+  "head": "659d3e9",
+  "total_commits": 1639,
   "recent_commits": [
+    {
+      "short": "659d3e9",
+      "at": "2026-11-15T22:24:00+08:00",
+      "subject": "M8-T1025: README tracks the current shape - almanac 21 volumes; feature list gains Admin (123 shared door, real stats + trend + forecast + interrupt-cause bucke"
+    },
     {
       "short": "a9e4cbd",
       "at": "2026-11-15T22:05:07+08:00",
@@ -24,11 +29,6 @@
       "short": "fec12fe",
       "at": "2026-11-15T13:43:15Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1dbe0c6",
-      "at": "2026-11-15T21:41:58+08:00",
-      "subject": "M8-T1022: almanac chapter XX The Night Watch - this week's pages turned: 24 tasks / 22 done / 2 restart-interrupts / 1515 audit / 1632 commits / 62% cache (keep"
     }
   ],
   "first_commit_at": "2026-08-24",
