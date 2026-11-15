@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T18:01:13.400Z",
+  "generated_at": "2026-11-15T18:39:13.372Z",
   "branch": "main",
-  "head": "9f9daf2",
-  "total_commits": 1659,
+  "head": "0f67f4a",
+  "total_commits": 1662,
   "recent_commits": [
+    {
+      "short": "0f67f4a",
+      "at": "2026-11-16T02:38:47+08:00",
+      "subject": "M8-T1040: almanac Ch.XXII 'The Compass' - guidance as architecture (Wayfinder 6->9, every button teaches, Esc chains), 54 coordinates, 23 volumes bilingual; doc"
+    },
+    {
+      "short": "67820d7",
+      "at": "2026-11-16T02:38:47+08:00",
+      "subject": "M8-T1039: islands ledger in the Atlas - right-side 'Islands, twelve' drawer lists every island with live charted/total counts read from ALL_NODES + visited.js ("
+    },
+    {
+      "short": "76df81e",
+      "at": "2026-11-15T18:01:13Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9f9daf2",
       "at": "2026-11-16T01:59:24+08:00",
@@ -14,30 +29,15 @@
       "short": "e61c737",
       "at": "2026-11-16T01:59:24+08:00",
       "subject": "M8-T1037: admin completion streak - /api/admin/summary gains completion_streak{current,best,days,last_completed} read from real tasks.sqlite3 rows (UTC day set,"
-    },
-    {
-      "short": "153c0c1",
-      "at": "2026-11-15T17:36:23Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a93d92a",
-      "at": "2026-11-16T01:35:58+08:00",
-      "subject": "M8-T1036: almanac Ch.XXI 'The Fence' - the season the app was scanned byte by byte in en mode; 4 hardcoded Chinese strings retired + en side zero residue; world"
-    },
-    {
-      "short": "a5a70e7",
-      "at": "2026-11-16T01:35:58+08:00",
-      "subject": "M8-T1035: stardust milestones - 52-coordinate world now celebrates 25/50/75/100% bilingual toasts, persisted one-shot, honest reset with clearVisitHistory; visi"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 350,
+  "roadmap_batches": 352,
   "changelog_entries": 1,
-  "roadmap_lines": 53385,
+  "roadmap_lines": 53422,
   "tracked_files": 1077,
   "test_files": 712,
-  "almanac_chapters": 22,
+  "almanac_chapters": 23,
   "module_count": 14,
   "feature_surface": [
     "workbench",
