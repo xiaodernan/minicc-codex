@@ -437,9 +437,30 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # M8-T973: full RAG — retrieve top-k docs BM25, then ask the configured
             # chat model with the retrieved chunks as evidence. Pure lexical→chat;
             # never runs an unknown model; reports usage when the gateway gives it.
+            # M8-T987: each question spawns a real gateway call that spends
+            # real tokens, so a sliding-window token bucket guards the door
+            # (Resilience4j-shaped; Redis when configured, local LRU otherwise;
+            # never raises - fails open honestly and counts the degradation).
             try:
+                client_addr = getattr(self, "client_address", None) or ("local", 0)
+                client_key = client_addr[0] if client_addr else "local"
+                from .ratelimit import consume as _rl_consume
+
+                allowed, _meta = _rl_consume("rag-query", client_key)
                 query = parse_qs(parsed.query)
                 q = (query.get("q") or [""])[0].strip()
+                if not allowed:
+                    self._json({
+                        "query": q,
+                        "answer": "",
+                        "sources": [],
+                        "model": None,
+                        "usage": None,
+                        "rate_limited": True,
+                        "retry_after_seconds": _meta.get("window_seconds", 60),
+                        "error": "RAG rate limit exceeded; retry shortly.",
+                    })
+                    return
                 try:
                     limit = int((query.get("k") or ["4"])[0])
                 except ValueError:

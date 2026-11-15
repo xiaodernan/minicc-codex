@@ -334,3 +334,5 @@
 - **命令面板登峰造极（M8-T984）**：Ctrl/⌘K 从朴素面板升级博物馆级视觉——暗场柔焦 + 渐变琥珀发丝线 + 回弹入场动画 + 琥珀渐变激活行 + 实心 glyph 键 + mint 键帽 footer + ≤700px 移动适配；行为零变更；27 条命令 Playwright 截图验证。
 
 - **空状态英雄区重生（M8-T985）+ locale 分区缓存修复（M8-T986）**：hero 加三层径向光 + 蓝图点阵网格 + 琥珀/mint 双色 orbit + Mono uppercase 尾注（新 i18n key `session.emptyFoot`，双语 593 键齐平）；顺手修掉 session-view 缓存恢复陈旧 zh 残渣导致英文模式英雄区中文混入的 bug（sessionViewKey 增加 locale 段），zh/en 均已真浏览器验证切换干净。
+
+- **RAG 通道限流上线（M8-T987）**：新增 `minicc/ratelimit.py` —— 行业形态滑动窗口令牌桶；Redis 可达走分布式 INCR+PEXPIRE（共享 redis_cache 连接池/重试窗口），否则本地 LRU 降级；**Redis 中途死掉 fail-open 继续放行并计入 `degraded_open`**，不允许网络抖动击垮产品；`/api/rag/query` 超限返回 `200 + rate_limited + retry_after_seconds`（绝不伪装模型失败，绝不烧额外 token）；`MINICC_RATE_LIMIT_PER_MINUTE` / `MINICC_RATE_LIMIT_WINDOW` 可配；7 条新测试全绿，Route Coverage 100% 保持，silent-handler 边界全覆盖。

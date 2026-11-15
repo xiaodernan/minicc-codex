@@ -52363,3 +52363,22 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - 新鲜 profile：首屏（zh 默认）→ 全中文；切 EN（reload）→ **foot「Runs locally · fully offline…」、title「Send a task to begin」、零 CJK**。
 - 冷启动仅有新鲜 localStorage 时亦不再经 zh 缓存。
 - 双语切换对称生效。
+
+## 批次 979 - M8-T987：RAG 通道接入滑动窗口令牌桶限流 —— 走 Redis 的分布式计数 / 本地 LRU 降级
+
+### 1 背景
+
+`/api/rag/query` 把每一次提问都变成真实的 wkapi.pro 调用（真 key、真 token）。路由面少 50 年 token 安全但 RAG 通道一路烧到当初模型的上限——本批补上「不会烧爆你每天例行的 token 预算」的最后一环：行业形态的滑动窗口令牌桶（Resilience4j 同形），带 Redis 分布式计数与本地降级。
+
+### 2 做了什么
+
+- 新增 `minicc/ratelimit.py`：`consume(route, client_key)` —— `_MAX_CALLS=20 / 60s`（`MINICC_RATE_LIMIT_PER_MINUTE`、`MINICC_RATE_LIMIT_WINDOW` 可配）；Redis 可达时 `INCR + PEXPIRE`（与 `redis_cache._shared_client` 同一连接池/重试窗口），否则本地 `OrderedDict` LRU（4096 上限）；**Redis 中途死掉：fail-open 继续放行并计数 `degraded_open`**——fail-closed 让网络抖动击垮问产品不被允许。
+- `stats()` 只读观测：`allowed_local / allowed_redis / denied / degraded_open / remaining_local_windows`。
+- 接线 `minicc/webserver.py::do_GET /api/rag/query`：超过额度 → **HTTP 200 + `rate_limited: true` + `retry_after_seconds: N` + 空 answer**（不伪装模型失败；不烧 token；问仓库面板会走 `error` 字段显示「请求过于频繁」）。默认不改任何现有成功路径行为（20/60s 正好够用）。
+- 新增 `tests/test_rag_rate_limit.py`：**7 条**覆盖 本地桶放行→拒绝、客户端独立计数、窗口过期重开、Redis 可达走 Redis（`incr`/`pexpire` 计数 + 臂到窗口）、Redis 死掉 fail-open + `degraded_open` 计数、`stats()` 只读边界、route 集成（monkeypatch `consume` → 断言 `rate_limited` 协议、never leak `sk-`）。
+
+### 3 验证
+
+- `pytest tests/test_rag_rate_limit.py` → **7 passed**；`pytest tests/test_http_surface.py tests/test_rag_bm25_index.py` → **91 passed**；Route Coverage **26/26 GET + 14/14 POST = 100%**；包级静默处理 sim 32/32 均陈述边界（0 offenders）；RAG 路由默认行为不变。
+- 面板行为：用量页若收到 `rate_limited: true` 会为真实用户显示 `RAG rate limit exceeded; retry shortly.`，不将其伪装成「模型错误」。
+- 边界：客户端 key 为 `client_address[0]`（源 IP）；IPv6 作为 key 原样使用（不解析、不二次哈希）；反向代理统一视为单一 IP——刻意简化，对单用户单机语义无影响。
