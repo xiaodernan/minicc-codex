@@ -52805,3 +52805,20 @@ wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
 - `node tests/almanac_smoke.mjs` → **18 chapters render fully bilingual, chapter switching verified, no mixed-language prose**；
 - zh/en 真实浏览器截图：卷十七 keeper/灯塔 mint 仪表 8 格（220s / warm #1=0 / warm #2 95.4% / failures=0 / 提交(真) / 批次(真) / 缓存 TTL 攻击 ∞ / 门抬高 0）、5 条 gate 列全部来自实测；en 模式零 CJK 泄漏；
 - `npm run build:web` / `check:web` 干净。
+
+## 批次 998 - M8-T1008：事实包计数器不许漂——digest.almanac_chapters 必须等于 almanac.js 真实章节
+
+### 1 背景
+
+`/api/digest` 新增了 `almanac_chapters` 字段（T1005 加入）——船厂面板需要它去解锁「卷典者 · 17 chapter」勋章。但两处代码各是一份：`minicc/digest.py`（Python 直接 source 扫描）和 `scripts/update-latest-json.mjs`（fact-pack bot 的 JS 版——同一个 `roman: { zh:` 计数算法）。如果有一天有人忘记同步两个实现，展示页就会写出一个新章节而 /api/digest 永远差一章——事实还是漂的。
+
+### 2 做了什么
+
+- 新增 `tests/test_digest_almanac_chapters.py`：
+  - `test_rail_count_in_source_file_is_seventeen_plus_prologue` —— 直接观测 almanac.js 的章节入口数；
+  - `test_digest_reports_almanac_chapters_aligned_with_source` —— 断言 `build_digest(ROOT).get("almanac_chapters")` 与真实 source 计数严格相等；
+  - `test_digest_survives_a_missing_almanac_file` —— 缺 almanac 的临时仓库 digest 给出 0 而非崩溃（与路由清单门禁同一个前固约定）。
+
+### 3 验证
+
+- `pytest -q tests/test_digest_almanac_chapters.py` → **3 passed**（200 秒，真 git + 真 source 完全对拍）。

@@ -372,3 +372,5 @@
 - **宽面板自适应（M8-T1006）**：widemodal 920→1180px、immersive 1280→1440px、脉搏 stage 1280→1380px、船厂 1120→1240px、诊断 1100→1180px——4K/超宽屏不再有"小盒子"感；1200px 以下屏保持原尺寸。
 
 - **年鉴第十七卷「灯塔 / The Lighthouse」（M8-T1007）**：把「为什么 cache 命中率这么低 + 一直显示非流」这场能查实的辩论直接写进年鉴——共享 prefix 逐轮 ~7,424/7,537 命中的真实账本、任务间 5+ 分钟空窗是杀手的真实 62,005-token 全 miss、keeper warm #2 的 95.4% 真实读数、网关只应答 SDK 的指纹门真相、T879/T897/T900 恢复锁已移除；18 章双语 smoke 全绿（manual/README/digest 同步）。
+
+- **fact-pack 计数器防漂（M8-T1008）**：`/api/digest` 的 `almanac_chapters` 必须等于 `web/src/panels/almanac.js` 真实章节数——新测试以 `almanac.js` 直接 source 扫描为基准对拍，加 missing-file 降级路径。
