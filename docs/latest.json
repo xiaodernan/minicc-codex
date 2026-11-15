@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:27:10.971Z",
+  "generated_at": "2026-11-15T09:30:57.434Z",
   "branch": "main",
-  "head": "4677f67",
-  "total_commits": 1606,
+  "head": "60ed56f",
+  "total_commits": 1608,
   "recent_commits": [
+    {
+      "short": "60ed56f",
+      "at": "2026-11-15T17:30:37+08:00",
+      "subject": "M8-T1011: manual chapter XIII 'Full Stack' - walk the whole architecture front-to-back with measurements (FastAPI+vanilla JS, local Python agent, optional Sprin"
+    },
+    {
+      "short": "7423da0",
+      "at": "2026-11-15T09:27:11Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4677f67",
       "at": "2026-11-15T17:26:52+08:00",
@@ -19,22 +29,12 @@
       "short": "beeff4a",
       "at": "2026-11-15T17:21:59+08:00",
       "subject": "M8-T1009: branch/worktree audit - 30 worktrees, 7 local branches, 5 origin lines verified; all real features already merged or superceded; no outstanding merge "
-    },
-    {
-      "short": "1184273",
-      "at": "2026-11-15T09:14:59Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d9009fe",
-      "at": "2026-11-15T17:14:39+08:00",
-      "subject": "M8-T1008: fact-pack counter honesty - digest.almanac_chapters must equal almanac.js source rail count; 3 tests, all pending verify"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 325,
+  "roadmap_batches": 326,
   "changelog_entries": 1,
-  "roadmap_lines": 52877,
+  "roadmap_lines": 52906,
   "tracked_files": 1069,
   "test_files": 707,
   "almanac_chapters": 18,
