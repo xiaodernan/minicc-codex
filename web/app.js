@@ -4468,7 +4468,7 @@
       <strong>\u4E0D\u60F3\u8BFB\u5B57\uFF1F\u76F4\u63A5\u770B\u4E00\u904D\u3002</strong>
       <p>\u70B9\u4E0B\u9762\u8FD9\u4E2A\u6309\u94AE\uFF0C\u5DE5\u4F5C\u53F0\u4F1A\u73B0\u573A\u6F14\u793A\u4E00\u6B21\u5B8C\u6574 Agent \u4EFB\u52A1\uFF1A\u8F93\u5165 \u2192 \u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u6D4B\u8BD5\u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u2014\u2014\u770B\u5B8C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002</p>
       <button type="button" class="manual-demo-run" data-manual-demo>\u8FD0\u884C\u4E00\u6B21\u5B8C\u6574\u6F14\u793A</button>
-      <p class="manual-sidenote">\u7B2C\u4E00\u6B21\u6253\u5F00\u5DE5\u4F5C\u53F0\u65F6\u53F3\u4E0B\u89D2\u4F1A\u957F\u51FA\u4E00\u679A\u300C\u4E0A\u624B\u6F14\u7EC3\u300D\u6309\u94AE\uFF1A6 \u6B65\u5E26\u4F60\u628A\u5DE5\u4F5C\u53F0\u8D70\u4E00\u904D\uFF1B\u2318K \u641C\u300Ctour\u300D\u968F\u65F6\u91CD\u6765\u3002</p>
+      <p class="manual-sidenote">\u7B2C\u4E00\u6B21\u6253\u5F00\u5DE5\u4F5C\u53F0\u65F6\u53F3\u4E0B\u89D2\u4F1A\u957F\u51FA\u4E00\u679A\u300C\u4E0A\u624B\u6F14\u7EC3\u300D\u6309\u94AE\uFF1A10 \u6B65\u5E26\u4F60\u628A\u5DE5\u4F5C\u53F0\u3001\u4E16\u754C\u3001\u6E38\u620F\u3001\u7BA1\u7406\u5458\u95E8\u4E00\u6761\u6761\u8D70\u4E00\u904D\uFF1B\u2318K \u641C\u300Ctour\u300D\u968F\u65F6\u91CD\u6765\u3002</p>
     </div>
     <p>\u4E0D\u60F3\u6253\u5F00\u6D4F\u89C8\u5668\uFF1F\u547D\u4EE4\u884C\u4E5F\u80FD\u76F4\u63A5\u7528\uFF1A<code>minicc "\u8BFB README \u5E76\u603B\u7ED3"</code>\uFF0C\u6216 <code>minicc --stats</code> \u770B\u5DE5\u4F5C\u533A\u4F53\u5F81\u3002</p>
   `;
@@ -4487,7 +4487,7 @@
       <strong>Would rather watch than read?</strong>
       <p>Click the button below and the workbench will run a full agent task for you, live: intake \u2192 plan \u2192 tool calls \u2192 test verification \u2192 delivery summary. Watch it once and you know the product.</p>
       <button type="button" class="manual-demo-run" data-manual-demo>Run the live demo</button>
-      <p class="manual-sidenote">First time here? A \u201CStart tour\u201D pill grows in the bottom-right corner \u2014 six steps, two minutes. Search \u201Ctour\u201D in \u2318K to replay it anytime.</p>
+      <p class="manual-sidenote">First time here? A \u201CStart tour\u201D pill grows in the bottom-right corner \u2014 ten steps across the workbench, the world map, the arcade, and the shared door. Search \u201Ctour\u201D in \u2318K to replay it anytime.</p>
     </div>
     <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;
@@ -10076,61 +10076,68 @@
     {
       id: "welcome",
       anchor: null,
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 1 \u6B65 / \u5171 9 \u6B65", title: "\u6B22\u8FCE\u6765\u5230 minicc", body: "\u4E00\u4E2A\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u5DE5\u4F5C\u53F0\u3002\u63A5\u4E0B\u6765\u4E24\u5206\u949F\u5185\uFF0C\u6211\u4F1A\u5E26\u4F60\u8D70\u8FC7\u4E5D\u4E2A\u5730\u65B9\uFF0C\u6BCF\u4E00\u7AD9\u90FD\u53EF\u4EE5\u52A8\u624B\u3002Esc \u968F\u65F6\u9000\u51FA\uFF1B\u2318K \u641C\u300Ctour\u300D\u968F\u65F6\u518D\u6765\u3002" },
-      en: { kicker: "Start here \xB7 Step 1 of 9", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past nine places \u2014 each one is hands-on. Esc exits anytime; search \u201Ctour\u201D in the palette to come back." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 1 \u6B65 / \u5171 10 \u6B65", title: "\u6B22\u8FCE\u6765\u5230 minicc", body: "\u4E00\u4E2A\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u5DE5\u4F5C\u53F0\u3002\u63A5\u4E0B\u6765\u4E24\u5206\u949F\u5185\uFF0C\u6211\u4F1A\u5E26\u4F60\u8D70\u8FC7\u5341\u4E2A\u5730\u65B9\uFF0C\u6BCF\u4E00\u7AD9\u90FD\u53EF\u4EE5\u52A8\u624B\u3002Esc \u968F\u65F6\u9000\u51FA\uFF1B\u2318K \u641C\u300Ctour\u300D\u968F\u65F6\u518D\u6765\u3002" },
+      en: { kicker: "Start here \xB7 Step 1 of 10", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past ten places \u2014 each one is hands-on. Esc exits anytime; search \u201Ctour\u201D in the palette to come back." }
     },
     {
       id: "sidebar",
       anchor: "#sidebar",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 2 \u6B65 / \u5171 9 \u6B65", title: "\u5DE6\u4FA7\u662F\u8FD9\u53F0\u673A\u5668\u7684\u63A7\u53F0", body: "\u4EFB\u52A1\u3001\u6D3B\u52A8\u3001\u8D26\u672C\u3001\u6A21\u677F\u3001\u8BF4\u660E\u4E66\u3001\u5E74\u9274\u3001\u94C1\u5F8B\u3001\u65E5\u5FD7\u3001\u6863\u6848\u9986\u2014\u2014\u4EA7\u54C1\u7684\u6240\u6709\u9762\u677F\u90FD\u4ECE\u8FD9\u91CC\u6253\u5F00\uFF0C\u800C\u4E14\u4E2D\u6587\u82F1\u6587\u4E24\u5957\u7248\u672C\u6C38\u8FDC\u540C\u65F6\u6709\u6548\u3002" },
-      en: { kicker: "Start here \xB7 Step 2 of 9", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive \u2014 every panel opens from here, in Chinese and English, at parity." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 2 \u6B65 / \u5171 10 \u6B65", title: "\u5DE6\u4FA7\u662F\u8FD9\u53F0\u673A\u5668\u7684\u63A7\u53F0", body: "\u4EFB\u52A1\u3001\u6D3B\u52A8\u3001\u8D26\u672C\u3001\u6A21\u677F\u3001\u8BF4\u660E\u4E66\u3001\u5E74\u9274\u3001\u94C1\u5F8B\u3001\u65E5\u5FD7\u3001\u6863\u6848\u9986\u2014\u2014\u4EA7\u54C1\u7684\u6240\u6709\u9762\u677F\u90FD\u4ECE\u8FD9\u91CC\u6253\u5F00\uFF0C\u800C\u4E14\u4E2D\u6587\u82F1\u6587\u4E24\u5957\u7248\u672C\u6C38\u8FDC\u540C\u65F6\u6709\u6548\u3002" },
+      en: { kicker: "Start here \xB7 Step 2 of 10", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive \u2014 every panel opens from here, in Chinese and English, at parity." }
     },
     {
       id: "composer",
       anchor: "#promptInput",
       interact: "composer",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 3 \u6B65 / \u5171 9 \u6B65", title: "\u8BF4\u4EBA\u8BDD\u5C31\u884C", body: "\u8BD5\u8BD5\u5199\u4E00\u6B21\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u2014\u2014\u56DE\u8F66\u53D1\u9001\uFF0C\u5B83\u4F1A\u771F\u7684\u8BFB\u6587\u4EF6\u3001\u771F\u7684\u8DD1\u5DE5\u5177\u3001\u628A\u5E26\u8BC1\u636E\u7684\u7B54\u6848\u4EA4\u56DE\u7ED9\u4F60\u3002" },
-      en: { kicker: "Start here \xB7 Step 3 of 9", title: "Just say what you want", body: "Try \u201CRead README.md and tell me what this project does\u201D \u2014 press Enter. It will really read the files, really run tools, and hand you an evidence-backed answer." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 3 \u6B65 / \u5171 10 \u6B65", title: "\u8BF4\u4EBA\u8BDD\u5C31\u884C", body: "\u8BD5\u8BD5\u5199\u4E00\u6B21\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u2014\u2014\u56DE\u8F66\u53D1\u9001\uFF0C\u5B83\u4F1A\u771F\u7684\u8BFB\u6587\u4EF6\u3001\u771F\u7684\u8DD1\u5DE5\u5177\u3001\u628A\u5E26\u8BC1\u636E\u7684\u7B54\u6848\u4EA4\u56DE\u7ED9\u4F60\u3002" },
+      en: { kicker: "Start here \xB7 Step 3 of 10", title: "Just say what you want", body: "Try \u201CRead README.md and tell me what this project does\u201D \u2014 press Enter. It will really read the files, really run tools, and hand you an evidence-backed answer." }
     },
     {
       id: "demo",
       anchor: "#demoFlowButton",
       interact: "demo",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 4 \u6B65 / \u5171 9 \u6B65", title: "\u4E0D\u60F3\u6253\u5B57\uFF1F\u770B\u5B83\u73B0\u573A\u6F14\u4E00\u904D", body: "\u70B9\u300C\u6F14\u793A\u6D41\u7A0B\u300D\uFF0C60 \u79D2\u770B\u5B83\u5B8C\u6574\u8DD1\u4E00\u904D\uFF1A\u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u3002\u4EB2\u773C\u770B\u5B8C\uFF0C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002" },
-      en: { kicker: "Start here \xB7 Step 4 of 9", title: "Prefer to watch?", body: "Hit \u201CDemo flow\u201D and watch a full pass in sixty seconds: plan \u2192 tools \u2192 verification \u2192 delivery. See it once and you know the product." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 4 \u6B65 / \u5171 10 \u6B65", title: "\u4E0D\u60F3\u6253\u5B57\uFF1F\u770B\u5B83\u73B0\u573A\u6F14\u4E00\u904D", body: "\u70B9\u300C\u6F14\u793A\u6D41\u7A0B\u300D\uFF0C60 \u79D2\u770B\u5B83\u5B8C\u6574\u8DD1\u4E00\u904D\uFF1A\u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u3002\u4EB2\u773C\u770B\u5B8C\uFF0C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002" },
+      en: { kicker: "Start here \xB7 Step 4 of 10", title: "Prefer to watch?", body: "Hit \u201CDemo flow\u201D and watch a full pass in sixty seconds: plan \u2192 tools \u2192 verification \u2192 delivery. See it once and you know the product." }
     },
     {
       id: "atlas",
       anchor: "#atlasButton",
       interact: "atlas",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 9 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C12 \u5EA7\u5C9B\u5C7F\u300155 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 24 \u5377\u5E74\u9274\u536B\u661F + 13 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
-      en: { kicker: "Start here \xB7 Step 5 of 9", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: twelve islands, fifty-five real coordinates \u2014 18 panes, 24 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 10 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C12 \u5EA7\u5C9B\u5C7F\u300155 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 24 \u5377\u5E74\u9274\u536B\u661F + 13 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
+      en: { kicker: "Start here \xB7 Step 5 of 10", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: twelve islands, fifty-five real coordinates \u2014 18 panes, 24 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
     },
     {
       id: "dockyard",
       anchor: "#dockyardButton",
       interact: "dockyard",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 6 \u6B65 / \u5171 9 \u6B65", title: "\u8239\u5382\uFF1A\u770B\u770B\u8FD9\u8258\u8239\u81EA\u5DF1\u5199\u8FC7\u7684\u8D26", body: "\u4FA7\u8FB9\u680F\u300C\u8239\u5382\u300D\u2014\u2014\u6BCF\u4E00\u6B21 git commit\u3001\u6BCF\u4E00\u4EFD\u63D0\u4EA4\u6B21\u6570\u3001\u6BCF\u4E00\u6B21 LIVE metrics\uFF08\u9996\u6B21\u63D0\u4EA4\u65E5\u671F\u3001\u5B8C\u6210\u4EFB\u52A1\u6570\u3001\u7D2F\u8BA1\u7F13\u5B58\u4EB2\u548C\u7387\uFF09\uFF0C\u5168\u90E8\u6839\u636E git \u5143\u6570\u636E\u4E0E /api/digest \u73B0\u573A\u8BFB\u3002" },
-      en: { kicker: "Start here \xB7 Step 6 of 9", title: "The Dockyard \u2014 your own ledger, live", body: "Sidebar \u201CDockyard\u201D: six counters straight from real git + /api/digest \u2014 first-commit date, total commits, completed tasks, almanac chapters, cumulative tokens, cache affinity. Nothing is invented." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 6 \u6B65 / \u5171 10 \u6B65", title: "\u8239\u5382\uFF1A\u770B\u770B\u8FD9\u8258\u8239\u81EA\u5DF1\u5199\u8FC7\u7684\u8D26", body: "\u4FA7\u8FB9\u680F\u300C\u8239\u5382\u300D\u2014\u2014\u6BCF\u4E00\u6B21 git commit\u3001\u6BCF\u4E00\u4EFD\u63D0\u4EA4\u6B21\u6570\u3001\u6BCF\u4E00\u6B21 LIVE metrics\uFF08\u9996\u6B21\u63D0\u4EA4\u65E5\u671F\u3001\u5B8C\u6210\u4EFB\u52A1\u6570\u3001\u7D2F\u8BA1\u7F13\u5B58\u4EB2\u548C\u7387\uFF09\uFF0C\u5168\u90E8\u6839\u636E git \u5143\u6570\u636E\u4E0E /api/digest \u73B0\u573A\u8BFB\u3002" },
+      en: { kicker: "Start here \xB7 Step 6 of 10", title: "The Dockyard \u2014 your own ledger, live", body: "Sidebar \u201CDockyard\u201D: six counters straight from real git + /api/digest \u2014 first-commit date, total commits, completed tasks, almanac chapters, cumulative tokens, cache affinity. Nothing is invented." }
     },
     {
       id: "admin",
       anchor: "#adminButton",
       interact: "admin",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 7 \u6B65 / \u5171 9 \u6B65", title: "\u7BA1\u7406\u5458\u95E8 \xB7 \u5BC6\u7801 123", body: "\u4FA7\u8FB9\u680F\u6700\u5E95\u90A3\u4E2A\u300C\u7BA1\u7406\u300D\u9501\u5F62\u56FE\u6807\u2014\u2014\u5BC6\u7801 123\u3002\u91CC\u9762\u6709\u771F\u5B9E\u7EDF\u8BA1 / \u4E03\u65E5\u4E8B\u4EF6\u67F1\u72B6\u56FE / \u7EBF\u6027\u9884\u6D4B / \u4E2D\u65AD\u539F\u56E0\u81EA\u52A8\u5206\u6876 / \u5DE5\u5177\u4F7F\u7528\u76F4\u65B9\u56FE\uFF0C\u5168\u90E8\u57FA\u4E8E\u672C\u5DE5\u4F5C\u533A\u771F\u5B9E\u4EFB\u52A1\u6570\u636E\u3002" },
-      en: { kicker: "Start here \xB7 Step 7 of 9", title: "Admin \u2014 password 123", body: "The lock-shaped \u201CAdmin\u201D entry at the bottom of the sidebar: password 123. Inside you find live stats, a 7-day events bar chart, a least-squares trend forecast (an estimate, not a promise), interrupt-cause breakdown, and a tool-usage histogram \u2014 every number comes from real local tasks." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 7 \u6B65 / \u5171 10 \u6B65", title: "\u7BA1\u7406\u5458\u95E8 \xB7 \u5BC6\u7801 123", body: "\u4FA7\u8FB9\u680F\u6700\u5E95\u90A3\u4E2A\u300C\u7BA1\u7406\u300D\u9501\u5F62\u56FE\u6807\u2014\u2014\u5BC6\u7801 123\u3002\u91CC\u9762\u6709\u771F\u5B9E\u7EDF\u8BA1 / \u4E03\u65E5\u4E8B\u4EF6\u67F1\u72B6\u56FE / \u7EBF\u6027\u9884\u6D4B / \u4E2D\u65AD\u539F\u56E0\u81EA\u52A8\u5206\u6876 / \u5DE5\u5177\u4F7F\u7528\u76F4\u65B9\u56FE\uFF0C\u5168\u90E8\u57FA\u4E8E\u672C\u5DE5\u4F5C\u533A\u771F\u5B9E\u4EFB\u52A1\u6570\u636E\u3002" },
+      en: { kicker: "Start here \xB7 Step 7 of 10", title: "Admin \u2014 password 123", body: "The lock-shaped \u201CAdmin\u201D entry at the bottom of the sidebar: password 123. Inside you find live stats, a 7-day events bar chart, a least-squares trend forecast (an estimate, not a promise), interrupt-cause breakdown, and a tool-usage histogram \u2014 every number comes from real local tasks." }
+    },
+    {
+      id: "arcade",
+      anchor: "#arcadeButton",
+      interact: "arcade",
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 8 \u6B65 / \u5171 10 \u6B65", title: "\u5C0F\u6E38\u620F\uFF1F\u8FDB\u6765\u5B88\u4E00\u573A\u82B1\u56ED", body: "\u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u2014\u2014Plants vs. Zombies \u98CE\u683C\u7684\u5854\u9632\u3002\u91CC\u9762\u6709\u300C\u6559\u7A0B\u300D\u6309\u94AE\uFF08\u516D\u6B65\u4E13\u5C5E\u624B\u518C\uFF09\uFF0C\u544A\u8BC9\u4F60\u5148\u79CD\u592A\u9633\u82B1\u518D\u653E\u9632\u7EBF\uFF1B\u6BCF\u4E00\u6CE2\u90FD\u5B9E\u65F6\u8BFB\u4F60\u82B1\u56ED\u7684\u8282\u594F\u3002\u79CD\u5B50\u662F\u9633\u5149\uFF0C\u4E0D\u662F\u4FE1\u4EF0\u3002" },
+      en: { kicker: "Start here \xB7 Step 8 of 10", title: "The Arcade, where the lawn bites back", body: "Sidebar \u201CArcade\u201D \u2014 a Plants vs. Zombies tower defense. Inside there's a \u201CGuide\u201D button (a six-step field manual): grow economy first, then plant peashooters behind the wall-nuts. Sun is the currency, not prayers." }
     },
     {
       id: "almanac",
       anchor: '.nav-item[data-view="almanac"]',
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 8 \u6B65 / \u5171 9 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u4E8C\u5341\u56DB\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6BCF\u7B14\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
-      en: { kicker: "Start here \xB7 Step 8 of 9", title: "The Almanac \u2014 a museum in twenty-four halls", body: "Twenty-four chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 9 \u6B65 / \u5171 10 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u4E8C\u5341\u56DB\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6BCF\u7B14\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
+      en: { kicker: "Start here \xB7 Step 9 of 10", title: "The Almanac \u2014 a museum in twenty-four halls", body: "Twenty-four chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." }
     },
     {
       id: "done",
       anchor: null,
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 9 \u6B65 / \u5171 9 \u6B65", title: "\u597D\u4E86\uFF0C\u4F60\u53EF\u4EE5\u51FA\u53D1\u4E86", body: "\u81EA\u5DF1\u53D1\u4E00\u6761\u4EFB\u52A1\u8BD5\u8BD5\uFF1B\u9047\u4E8B\u6309\u300C\uFF1F\u300D\u770B\u5FEB\u6377\u952E\u6E05\u5355\uFF1B\u9047\u4E8B\u4E0D\u4F1A\u6309 \u2318K \u641C\u4E00\u5207\u3002\u6B22\u8FCE\u6765\u5230 minicc\u3002" },
-      en: { kicker: "Start here \xB7 Step 9 of 9", title: "That's it, you know it now", body: "Send your first real task next. Whenever you get stuck, press \u201C?\u201D for the shortcut reference \u2014 or \u2318/Ctrl K to search everything. Welcome to minicc." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 10 \u6B65 / \u5171 10 \u6B65", title: "\u597D\u4E86\uFF0C\u4F60\u53EF\u4EE5\u51FA\u53D1\u4E86", body: "\u81EA\u5DF1\u53D1\u4E00\u6761\u4EFB\u52A1\u8BD5\u8BD5\uFF1B\u9047\u4E8B\u6309\u300C\uFF1F\u300D\u770B\u5FEB\u6377\u952E\u6E05\u5355\uFF1B\u9047\u4E8B\u4E0D\u4F1A\u6309 \u2318K \u641C\u4E00\u5207\u3002\u6B22\u8FCE\u6765\u5230 minicc\u3002" },
+      en: { kicker: "Start here \xB7 Step 10 of 10", title: "That's it, you know it now", body: "Send your first real task next. Whenever you get stuck, press \u201C?\u201D for the shortcut reference \u2014 or \u2318/Ctrl K to search everything. Welcome to minicc." }
     }
   ];
   var $tour = {};
@@ -10165,12 +10172,14 @@
         input.dispatchEvent(new Event("input", { bubbles: true }));
         showToast(zh10() ? "\u5DF2\u5E2E\u4F60\u586B\u597D\u8FD9\u53E5\u8BDD\uFF0C\u56DE\u8F66\u53D1\u9001\u5373\u53EF" : "Filled it in for you \u2014 press Enter to send");
       }
+      next();
       return;
     }
     if (id === "demo") {
       showToast(zh10() ? "\u6B63\u5728\u4E3A\u4F60\u8DD1\u4E00\u904D\u6F14\u793A\u2026" : "Running the demo for you\u2026");
       Promise.resolve().then(() => runDemoFlow()).catch(() => {
       });
+      next();
       return;
     }
     if (id === "atlas") {
@@ -10187,6 +10196,12 @@
     }
     if (id === "admin") {
       const btn = $("#adminButton");
+      if (btn) btn.click();
+      next();
+      return;
+    }
+    if (id === "arcade") {
+      const btn = $("#arcadeButton");
       if (btn) btn.click();
       next();
       return;
@@ -10216,6 +10231,7 @@
         composer: zh10() ? "\u5E2E\u6211\u586B\u597D\u8FD9\u53E5\u8BDD" : "Fill it in for me",
         demo: zh10() ? "\u7ACB\u5373\u8DD1\u6F14\u793A" : "Run the demo now",
         atlas: zh10() ? "\u5C55\u5F00\u4E16\u754C\u5730\u56FE" : "Unfold the map",
+        arcade: zh10() ? "\u6253\u5F00\u5C0F\u6E38\u620F" : "Open the Arcade",
         dockyard: zh10() ? "\u6253\u5F00\u8239\u5382" : "Open the dockyard",
         admin: zh10() ? "\u6253\u5F00\u7BA1\u7406\u5458\u9762\u677F" : "Open admin panel"
       };

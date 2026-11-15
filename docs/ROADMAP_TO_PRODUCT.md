@@ -53472,3 +53472,22 @@ M8-T1042 写了一份教程，说"经济优先"要开局先翻向日葵。但机
 - **真实验证**：zh 下预种 sunflower + wallnut（175→75 ✓），点"开始"——植物还在（running=true, elapsed 增长，僵尸方向开冲）；点"重新开始"后棋盘先清（plants=0, sun 重置为 175）✓；僵尸出现 ✓；不存在死循环 `requestAnimationFrame` 被双持有的情况（startGame 里 cancel 了旧 frame）。
 - **教程一致**：M8-T1042 三段文里的"开局先存草"这句话现在机制上是可以执行的；`#gameHow` 浮层不改动。
 - **门禁验证**：atlas / admin / en_cjk / almanac 继续常青；游戏 sprite 流畅度和 Eager layout 不变。
+## 批次 1029 - M8-T1044: Wayfinder 演练第 8 步「小游戏」— 引导的时代覆盖到草坪
+
+### 目的
+
+前一步模拟用户第一次跟着演练走到 Arcade——结果卡在第 3 步 composer / 第 4 步 demo 不动（interact 点了没有 `next()`），这是演练卡住的真 bug。顺手把整个演练扩到第 10 步，覆盖 Arcade 这一整块 PvZ 草坪：六步草坪指南（作战手册）现在也列入教学路径。
+
+### 做了什么
+
+- **`web/src/panels/onboarding.js`** — STEPS 由 9 步扩到 10 步：新增 `arcade` 步骤（`#arcadeButton` · interact="arcade"），放在 Admin（第 7 步）和 Almanac（第 9 步）之间；performInteraction 新增 `arcade` 分支（btn.click() + next()）；interactLabels 新增 `arcade: 打开小游戏 / Open the Arcade`；composer / demo 两组 interact 在执行后显式调用 next()——这两处是前面真掉进过的两处卡死。kicker 全部重排为 共 10 步 / Step N of 10，欢迎语"九个地方" → "十个地方 / ten places"；Esc 优先级链顶端增加 `gameHowPanel → gameCodexPanel`（先于 adminStage）。
+- **`web/index.html`** — 教程按钮和面板（`#gameHow` · `.game-how` · `.game-how-card`）：经济/纵深/爆炸/节奏/能量/终局六步（双语）+ 4 张技能速查卡（寒冰脉冲 / 阳光爆发 / 战线超载 / 时停领域）+ 60 秒内通读 + Esc 先于图鉴/admin/pulse 退。`<ol>` 语义 + `<aside>` 速查 + `aria-live` 图鉴 WCAG 契约保留。CRLF 687/695 全 CRLF-only。
+- **`tests/en_cjk_smoke.mjs`** — Arcade 段新增 `arcade-guide` 子段：打开 `#gameHow` → expectClean → 关闭；Walk 中 `console.log` 行由 "9-step Wayfinder" 更新为 "10-step"。
+- **`web/src/main.js`** — `#gameHow` button click / `#gameHowClose` / `#gameHowReady`（Esc 契约），配以 `#gameHowPanel` outside-click 关闭；`#arcadeButton` 在 `view === "arcade"` 已有分支不中断。
+- **`web/game.js`** — `openGameHow` / `closeGameHow` 与 `openGame` / `closeGame` 并列挂到 `window`，和 codex 同 pattern；`#gameHow` 在 `#gameCodex`（图会/手册/图鉴/全屏）被自动加好 Esc 顶上限。`.game-how` CSS 完整设计系统（全双语）。
+- **`web/src/panels/onboarding.js`** — 教程引擎本身不重写，只增入口和按钮节奏。
+- **CI 联动**：`atlas / admin / almanac / manual / parity` 全绿。
+
+### 实测验证
+
+- Playwright zh/en 完整闭环：offer → 欢迎（Step 1）→ 侧栏（Step 2）→ composer auto-fill（Step 3 → interact → auto-advance）→ demo（Step 4 → auto-fire → auto-advance）→ Atlas（Step 5 → click → auto-advance）→ Dockyard（Step 6 → click → auto-advance）→ Admin（Step 7 → click → auto-advance）→ **Arcade（Step 8 → click → auto-advance）** → Almanac（Step 9）→ done（Step 10）→ overlay closes，零 pageerror。

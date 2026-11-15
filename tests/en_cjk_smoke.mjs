@@ -197,5 +197,5 @@ if (errors.length) {
   for (const e of errors) console.error("  " + e);
   process.exit(1);
 }
-console.log("parity smoke passed: en mode renders zero CJK across workbench, all 12 nav views, 6 stage overlays, the 9-step Wayfinder tour, and boot-time custom strings; zh mode toggles correctly");
+console.log("parity smoke passed: en mode renders zero CJK across workbench, all 12 nav views, 6 stage overlays, the 10-step Wayfinder tour, and boot-time custom strings; zh mode toggles correctly");
 process.exit(0);
