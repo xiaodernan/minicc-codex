@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:34:45.529Z",
-  "branch": "main",
-  "head": "6f152a8",
-  "total_commits": 1589,
+  "generated_at": "2026-11-15T08:35:30.230Z",
+  "branch": "HEAD",
+  "head": "e83ad90",
+  "total_commits": 1590,
   "recent_commits": [
+    {
+      "short": "e83ad90",
+      "at": "2026-11-15T16:35:02+08:00",
+      "subject": "showcase fact pack: feature_surface gains doctor-panel/prefix-cache-keeper/workspace-vitals/upstream-echo/load-lab (M8-T1004 follow-through)"
+    },
     {
       "short": "6f152a8",
       "at": "2026-11-15T16:26:33+08:00",
@@ -24,18 +29,13 @@
       "short": "5f24856",
       "at": "2026-11-15T15:32:42+08:00",
       "subject": "M8-T1002-followup: drop the stray _brace.py diagnostic from the tree"
-    },
-    {
-      "short": "5814008",
-      "at": "2026-11-15T15:32:25+08:00",
-      "subject": "M8-T1002: ubuntu/windows Python red fix - inline the break-opportunity into both path renderers (bundle-slicing gate saw a free variable), drop the orphan brace"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 319,
   "changelog_entries": 1,
   "roadmap_lines": 52736,
-  "tracked_files": 1067,
+  "tracked_files": 1069,
   "test_files": 706,
   "almanac_chapters": 17,
   "module_count": 14,
