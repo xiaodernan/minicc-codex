@@ -53610,3 +53610,15 @@ Mega-spec §五：“在主界面上给各种按键和操作加上附带的教�
 - **`web/src/chat/stream.js`** — 最近工作区行内按钮显式 teaching title（`workspace.switchToWorkspace` / `workspace.currentWorkspaceTitle` 双语键）。
 - **`web/src/core/i18n.js`** — 加两个键且**重新 pin 回 CRLF**（误写 LF 之后强制 309 CRLF）；`web/index.html` 未动（695 CRLF）。
 - **门禁验证**：en_cjk_smoke 绿（此前它立刻抓到 button[title] 里的 CJK 路径）；manual/admin/almanac/atlas 4 个全部绿；`test_doc_pointers`（含 bare control bytes 全库扫描）绿；`test_the_palette_has_one_home.py` 绿。
+## 批次 1039 - M8-T1054: CI 复红补丁——README 的 `--island-tint` 又一次越界
+
+### 目的
+
+M8-T1050 的 README The Litmus 条目把一串散文 `--island-tint` 写了进去；能力门两 leg 同时红（ubuntu-latest + Claim checkers）。与 批次 1034 同属一次类：README 是旗标的登记簿，横线只归合法国旗。
+
+### 做了什么
+
+- README：删除该处 `--island-tint` token（改写为「被能力门读成 CLI 旗标的两个横线被去掉的那一夜」）。
+- 本地 `test_readme_capability_claims.py` 8/8 绿；docs index enumeration green。
+- i18n.js 继续 CRLF 309/0。
+- **发现途径**：M8-T1053 推送前的本机门禁没跑全（capability-claims 这种只看 README 的门躲过了 last-minute diff review）——本次登记：以后任何 README 改动后，必须先跑 capability-claims 再 commit，不放 PR 端兜底。
