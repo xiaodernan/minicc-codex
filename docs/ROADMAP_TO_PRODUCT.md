@@ -53514,3 +53514,13 @@ M8-T1039 commit 里，`.atlas-island-dot { background: var(--island-tint, var(--
 - **25 卷年鉴**——`almanac_smoke.chapters` + `CHAPTER_MARKERS` 双侧扩；log 行 24→25。
 - **深度语义** — 每一行都不是装饰：175、60s、M8-T1042/43/44/45 的 batch id、`--island-tint` 的 static/动态对仗。舱读完，任何一口气换气到下一章都会接受「garden grows before zombie」这条律令。
 - **门禁验证**：`almanac_smoke` — 25 chapters bilingual pass；`atlas_smoke` — 56-coordinate contract；`parity` — 全部通读零撒粉；manual / admin / en_cjk / CRLF 全绿。
+## 批次 1031 补遗 - manual en 侧陈年错引已订正："The Lawn" 指向正确
+
+### 目的
+
+`web/src/panels/manual.js` 英文模块的 Almanac 条目曾写 `Chapter XXIVI “The Compass”`——两个错：章号多了一个「I」、最新卷名停在上一批的《罗经仪》。卷二十四《深空》落地时这一条没人巡检——一篇既英文又模块又卷数，错了不写。本次顺手订正并覆盖 manual_smoke 回归。
+
+### 做了什么
+
+- `web/src/panels/manual.js` — 英文 Almanac 模块段目新对最新卷（Chapter XXIV “The Lawn”），正文回归为英文；与 `almanac_smoke`、`README`、`onboarding`、`index.html`、Atlas 卫星数对齐的同一组事实。
+- `manual_smoke` — 13 chapters 全部走双语验证；tested pure en.
