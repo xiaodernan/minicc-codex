@@ -14,7 +14,6 @@ import { bindCommandPalette, closeCommandPalette, openCommandPalette } from "./c
 import { handleFileTreeKeydown } from "./panels/index.js";
 import { updateStreakChip } from "./streak.js";
 import { initThreadFilter } from "./thread-filter.js";
-import { initWheelToggle } from "./core/wheel-invert.js";
 import { openReplayForTask } from "./panels/replay.js";
 import { updateRunningLight, updateRunningLightDigest } from "./panels/index.js";
 import { PERMISSION_MODES, addAssistantMessage, addLoadingMessage, addUserMessage, applyMentionOption, assistantMessageMarkup, bindRunningTask, closeMentionPopover, effectiveTaskPermissions, eventTimelineMarkup, handleMentionKeydown, mentionState, openGlobalSearchPanel, refreshFileTree, scrollChat, setBusy, setPermissionMode, setSession, showAuthModal, showToast, stopTaskTimer, submitAuthToken, taskSessionKey, toggleFileDir, toggleTodoSection, updateChatFollowState, updateMentionPopover, updateMode, updateReasoningControl, updateTaskDock, visibleAgentEvents } from "./panels/index.js";
@@ -545,7 +544,10 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 export function exposeWorkbenchGlobals() {
-  initWheelToggle();
+  // One-time legacy cleanup: the old custom wheel engine fought the OS convention
+// (M8-T967-era keys) — native scrolling always wins, so those keys no longer
+// mean anything. Remove them silently; direction is governed by the OS.
+try { localStorage.removeItem('minicc-invert-wheel'); localStorage.removeItem('minicc-scroll-natural'); } catch { /* private mode */ }
   Object.assign(window, {
     $, $$, t, state, icon, refreshIcons, applyIcons, showToast, openPanel, closePanel, escapeHtml,
     eventTimelineMarkup, assistantMessageMarkup, visibleAgentEvents, addLoadingMessage, bindRunningTask,
