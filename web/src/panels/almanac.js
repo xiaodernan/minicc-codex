@@ -46,6 +46,7 @@ export const CHAPTERS = [
   { id: "deepfield", roman: { zh: "卷二十三", en: "Chapter XXIII" }, title: { zh: "深空", en: "The Deep Field" }, subtitle: { zh: "勘完不是终点，是望远镜的起点", en: "Finish the chart, then point the telescope deeper" } },
   { id: "lawn", roman: { zh: "卷二十四", en: "Chapter XXIV" }, title: { zh: "翠茵", en: "The Lawn" }, subtitle: { zh: "先给草插上旗子，再让僵尸来", en: "Plant the flag before the zombie learns the gate" } },
   { id: "litmus", roman: { zh: "卷二十五", en: "Chapter XXV" }, title: { zh: "试纸", en: "The Litmus" }, subtitle: { zh: "红门只说一件事：这里有事没说完", en: "Red only ever means one thing: something here is unfinished" } },
+  { id: "harbour", roman: { zh: "卷二十六", en: "Chapter XXVI" }, title: { zh: "港灯", en: "The Harbour Light" }, subtitle: { zh: "每一盏灯都指得出来真礁的那一夜", en: "The night every lamp finally named the rocks" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1794,6 +1795,90 @@ function litmusMarkup() {
     </div>`;
 }
 
+function harbourMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-harbour">
+      <div class="almanac-kicker">${zh() ? "卷二十六 · 港灯" : "Chapter XXVI · The Harbour Light"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `港灯从不撒谎，<br/><span class="almanac-title-accent">港灯只报告确切的暗礁。</span>`
+        : `The harbour never lies,<br/><span class="almanac-title-accent">it only reports the rocks.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 15 日到 16 日凌晨——三个红轮换着来了三轮：README 里的一个散文标点、写了但没人看见的脚本、也没登记就执行的模块。<strong>每一盏灯都在指着真礁。</strong>
+        </p>
+        <p>
+          第一盏：<strong>claim checkers</strong>。M8-T1050 把 <code>--island-tint</code> 当散文写进了 README——<code>test_readme_capability_claims.py</code> 按固定算法扫描每一个以 <code>--</code> 开头的 token，不问语境。散文不是 CLI 旗标，但门不会先拗折它的规则去原谅谁。T1054 把横线去掉，8/8 复绿。
+        </p>
+        <p>
+          第二盏：<strong>撞库压力守卫</strong>。M8-T1051 让 24 个线程同时绑腿跑——120 次读全 200，64 次畸形线帧全 400，48 次跨源 <code>Origin: https://credential-stuffing.example.invalid</code> 全 403。系统在风暴中没有任何一次越出边界。
+        </p>
+        <p>
+          第三盏：<strong>影响力地板</strong>。M8-T1052 的 <code>scripts/measure_cache_affinity.py</code> 是个「有人写了但没人看见」的脚本——<code>impacted_tests.py --check</code> 要求每一个脚本必须被至少一个测试到达。T1056 补上 <code>test_measure_cache_affinity.py</code>，复绿。
+        </p>
+        <p>
+          第四盏：<strong>loader 登记门</strong>。M8-T1056 虽然有了测试，手写 loader 却没把模块登记进 <code>sys.modules</code>。ubuntu-latest 在 5,686 个测试里单独抓住了它：登记在先，执行在后。T1057 一补齐，Windows + Ubuntu 双腿全绿。
+        </p>
+        <p>
+          也许最值得写进港灯这件事的是：<strong>每一次红都没有弱过一次门</strong>——要么散文先越界，要么工序先越界，门只陈述它看到的。2026-11-16 凌晨，这个世界的警报终于没有一条是误报。
+        </p>
+        <p>
+          1690 次提交之后，1691 次又在路上。港灯的功劳不是漂亮，是从不撒。<strong>世界可以辽阔，但锚不能是假的。</strong>
+        </p>` : `<p>
+          Three red rounds in a single night — first a prose token in a README, then a script someone wrote and nobody watched, then a module executed without registration. A harbour doesn't care about flags; it cares about<strong> whether the rocks are named exactly where they are</strong>.
+        </p>
+        <p>
+          The first lamp: <strong>claim checkers</strong>. M8-T1050 wrote <code>--island-tint</code> into the README as prose. The gate scans every <code>--</code>-prefixed token with a fixed grammar — it never learned to excuse it. T1054 removed the dashes; the gate went 8/8 green.
+        </p>
+        <p>
+          The second lamp: <strong>the storm guard</strong> (M8-T1051) — 24 threads, 120 reads (all 200 + JSON), 64 malformed frames (all 400, zero 500), 48 replayed cross-site POSTs from a credential-stuffing origin (all 403). The surface did not once cross a boundary.
+        </p>
+        <p>
+          The third lamp: <strong>the impact floor</strong>. M8-T1052's probe existed but no test reached it; <code>impacted_tests.py --check</code> demanded audience. T1056 added <code>test_measure_cache_affinity.py</code> with a contiguous literal the floor could parse — floor green.
+        </p>
+        <p>
+          The fourth lamp: <strong>the loader registration gate</strong>. M8-T1056's test loaded the probe with <code>spec_from_file_location</code> but never registered it in <code>sys.modules</code>. Ubuntu 5,686-1 found it, alone. Registration before execution; Ubuntu + Windows both clean.
+        </p>
+        <p>
+          The singular fact this chapter is pinned to: <strong>not one gate was weakened along the way.</strong> Every red was prose or process crossing a line first; the gate only stated it. A harbour's honest election plays out this way, wheel after wheel.
+        </p>
+        <p>
+          1690 commits in, the next one is on its way. The harbour's job is not to be pretty — it never needs to misname a single rock. <strong>The world may be boundless, but the anchor must not be counterfeit.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">58</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">27 / 27</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "里程碑 · 真算" : "Milestones · live math"}</div><div class="almanac-instrument-value">${zh() ? "25·50·75·100%" : "25·50·75·100%"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "双腿 · 全绿" : "Both legs"}</div><div class="almanac-instrument-value">100%</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["登记在先 · 执行在后", "sys.modules 登记门拦下手写 loader——5686 绿后 Windows 也绿"],
+        ["影响力地板不给无人脚本豁免", "每个 scripts/*.py 都必须有 audience——否则 CI 不作证"],
+        ["能力门就是旗标登记簿", "README 里每个 -- 引导的 token 都被核查——散文不能借道 CLI 旗标"],
+        ["风暴回归不靠底概率", "24 线程读、400 线帧、403 撞库——全部确定性断言"],
+        ["星尘里程碑改用真数学", "ceil(×0.25/0.5/0.75/1.0)，{n}/{total} 当场插——不再是于哪年抄下的旧世界"],
+      ] : [
+        ["Registration before execution", "the sys.modules gate caught an unregistered hand loader — 5686 green, then Windows followed"],
+        ["No audience, no certificate", "every scripts/*.py must earn an audience — otherwise CI won't certify it"],
+        ["The claims gate is a registry, not a mood", "every —-prefixed token in the README is checked against the known surface"],
+        ["The storm is deterministic", "24-thread reads, 400 frames, 403 credential replays — no probabilistic mercy"],
+        ["Milestones now compute live", "ceil(×0.25/0.5/0.75/1.0) with {n}/{total} interpolated — never again the 52-era copy"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "港灯不会替你驶回码头——但它永远不撒珊瑚的位置。"
+          : "The harbour won't sail you home — but it will never misname the rocks."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1821,6 +1906,7 @@ const CHAPTER_RENDERERS = {
   deepfield: () => deepfieldMarkup(),
   lawn: () => lawnMarkup(),
   litmus: () => litmusMarkup(),
+  harbour: () => harbourMarkup(),
 };
 
 async function loadChapter(id) {

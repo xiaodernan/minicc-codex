@@ -181,6 +181,12 @@ function stardustCount() {
   return count;
 }
 
+function milestoneText(index) {
+  const total = ALL_NODES.length;
+  const target = Math.ceil(total * MILESTONE_THRESHOLDS[index]);
+  return t(MILESTONE_KEYS[index]).replace("{n}", String(target)).replace("{total}", String(total));
+}
+
 function checkStardustMilestones() {
   const total = ALL_NODES.length;
   const count = stardustCount();
@@ -191,7 +197,7 @@ function checkStardustMilestones() {
   const stored = readStardustMilestone();
   if (pending <= stored) return;
   writeStardustMilestone(pending);
-  showMilestoneToast(t(MILESTONE_KEYS[pending - 1]));
+  showMilestoneToast(milestoneText(pending - 1));
 }
 
 setStardustListener(checkStardustMilestones);

@@ -53644,3 +53644,16 @@ CI ubuntu-latest 5686 全绿、唯一一红：`test_a_module_is_registered_befor
 - `tests/test_measure_cache_affinity.py` — 手写 loader 现在照 `_load_by_path` 的注册习惯：`sys.modules[spec.name] = module` 先登记、`try/finally` 弹出避免二次进入污染。
 - 本地：failing gate 两文件一并 9/9 绿。
 - ubuntu leg 此前唯一红点收口。
+## 批次 1043 - M8-T1058: 星尘里程碑真数学化 + 年鉴卷二十六《港灯》
+
+### 目的
+
+回头看那一整串红—绿的七批（T1050..T1057）——星尘里程碑的文案还活在 52 个坐标的时代，把 ceil 阈值和文案硬编码为同一份。这次修：ceil 算出来的数到文案里去、`{n}/{total}` 每次插。然后把这整段「红过—修过—无弱门」的血缘，放进年鉴卷二十六。
+
+### 做了什么
+
+- **`web/src/panels/atlas.js`** — 新增 `milestoneText(index)`：同 ceil 公式从 i18n `{n}/{total}` 占位插；`checkStardustMilestones` 改用 live math 构建 toast 文本。
+- **`web/src/core/i18n.js`**（CRLF re-pin 不变量）— 四枚里程碑 key 去掉硬编码 `52`，改为 `{n}/{total}` 占位。
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `harbour`（卷二十六 · 港灯 / Chapter XXVI · The Harbour Light）；`harbourMarkup()` 完整叙事（M8-T1050 旗标 → M8-T1051 风暴 → M8-T1052/1056 influence floor → M8-T1057 loader 登记门 → Windows+Ubuntu 双腿全绿），instrument 格 58 坐标 / 27·27 bilingual / 13·13 manual chapters / live math milestone / 100% both legs；CHAPTER_RENDERERS 登记。
+- **Atlas 世界 58 坐标**（18+27+13）—— onboarding / manual / README / index.html 占位符全量迁移（含 en「The Harbour Light」最新卷引用）。Manual 叙事改指卷二十六；Almanac smokes 27 chapters；en_cjk 绿、zero CJK 泄露。M8-T1058.
+- **门禁验证**：27-chapter almanac smoke；58-coordinate atlas smoke；parity；manual；admin；doc_pointers（案板 T1059 议题跟进）；i18n.js CRLF 309/0；index.html CRLF 695/0。
