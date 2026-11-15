@@ -75,7 +75,8 @@ try {
     window.dispatchEvent(new Event("beforeunload"));
     return Object.keys(localStorage).filter((key) => key.startsWith("minicc-session-view:"));
   });
-  assert(stored.some((key) => key.endsWith(":shared")), "unload stores the current session");
+  // M8-T986: locale is part of the key, so assert the shape, not the tail.
+  assert(stored.some((key) => /:shared:(zh|en)$/.test(key)), "unload stores the current session");
   assert(!stored.some((key) => key.includes("Event")), "unload event must not be used as a session id");
   await context.close();
 

@@ -22,9 +22,10 @@ import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, re
 
 import { icon, refreshIcons } from "../icons.js";
 
-// Insert zero-width spaces after path separators so long latin paths
-// break at directory boundaries instead of orphan-wrapping one glyph.
-const softPath = (value) => escapeHtml(value).replace(/\//g, "/\u200B"); // after each / + zero-width space
+// Give the renderer a break opportunity after each path separator. <wbr>
+// is a zero-width element — unlike U+200B it adds no character to
+// textContent, so copy/paste and text assertions see the untouched path.
+const softPath = (value) => escapeHtml(value).replace(/\//g, "/<wbr>");
 
 import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, cacheDonut, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 

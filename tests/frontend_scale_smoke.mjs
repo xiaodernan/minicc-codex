@@ -79,18 +79,19 @@ try {
     state.sessionId = "oversized";
     messageList.innerHTML = `<article>${"c".repeat(220000)}</article><article>LATEST_MESSAGE</article>`;
     window.dispatchEvent(new Event("beforeunload"));
-    const bounded = localStorage.getItem(`${prefix}scale-workspace:oversized`);
+    const findKey = (name) => Object.keys(localStorage).find((key) => key.startsWith(`${prefix}scale-workspace:${name}:`));
+    const bounded = ((key) => (key ? localStorage.getItem(key) : null))(findKey("oversized"));
     state.sessionId = "retry";
     messageList.innerHTML = "<article>QUOTA_RETRY</article>";
     const originalSet = Storage.prototype.setItem;
     let retries = 0;
     Storage.prototype.setItem = function(key, value) {
-      if (key === `${prefix}scale-workspace:retry` && retries++ === 0) throw new DOMException("fixture quota", "QuotaExceededError");
+      if (key.startsWith(`${prefix}scale-workspace:retry:`) && retries++ === 0) throw new DOMException("fixture quota", "QuotaExceededError");
       return originalSet.call(this, key, value);
     };
     try { window.dispatchEvent(new Event("beforeunload")); }
     finally { Storage.prototype.setItem = originalSet; }
-    return { entries: keys.length, chars, newest: keys.includes(`${prefix}scale-workspace:scale-29`), noLegacy: keys.every((key) => !key.startsWith(`${prefix}old:`)), bounded, retry: localStorage.getItem(`${prefix}scale-workspace:retry`), retries, token: localStorage.getItem("minicc-web-token"), theme: localStorage.getItem("minicc-theme") };
+    return { entries: keys.length, chars, newest: keys.some((key) => key.startsWith(`${prefix}scale-workspace:scale-29:`)), noLegacy: keys.every((key) => !key.startsWith(`${prefix}old:`)), bounded, retry: ((key) => (key ? localStorage.getItem(key) : null))(findKey("retry")), retries, token: localStorage.getItem("minicc-web-token"), theme: localStorage.getItem("minicc-theme") };
   });
   assert(storage.entries <= 24 && storage.chars <= 1_200_000);
   assert(storage.newest && storage.noLegacy);

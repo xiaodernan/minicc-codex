@@ -4425,7 +4425,7 @@
   }
 
   // web/src/chat/stream.js
-  var softPath = (value) => escapeHtml(value).replace(/\//g, "/\u200B");
+  var softPath = (value) => escapeHtml(value).replace(/\//g, "/<wbr>");
   function streamTask(taskId) {
     const binding = runningTasks.get(taskId);
     const loadingId = binding?.loadingId || "";

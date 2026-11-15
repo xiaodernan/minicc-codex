@@ -52595,3 +52595,27 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - 自定义图标入库：stethoscope / radar / flask-conical / zap / database / timer（SVG + glyph 双映射，vendored 离线集不再出现 • 黑点）。
 - 说明书「七个模块，一个世界」章节（双语）新增 Doctor 条目。
 - `node --check`、`npm run build:web`/`check:web` 干净；manual/router/i18n/http_surface/almanac/route-coverage 全绿。
+
+## 批次 989 - M8-T998：js-check 三红修复 —— U+200B 让位于 <wbr>，两个被 cancel 掩盖的旧冒烟复活
+
+### 1 背景（含诚实记账）
+
+T997 的 CI「JavaScript syntax」任务红了。本地把该任务的完整命令电池逐条复跑，定位到三个失败：
+
+1. **test:optimization（T997 自己引入的回归）**：`/#changeList` 的 textContent 断言 `includes("B/入口.js")`，而 T997 的 `softPath` 在每个 `/` 后插入了 **U+200B** 零宽空格 → 文本不再是 `B/入口.js`。更糟的是，让用户复制一个文件路径会把零宽字符一起拷进剪贴板。修复：`softPath` 改用 **`<wbr>`**——断行机会元素，textContent 完全不受影响，复制内容保持原样。
+2. **test:lifecycle（自 M8-T986 起红）**：`sessionViewKey` 自 M8-T986 起带 `:zh|:en` 后缀，本测试仍断言 `endsWith(":shared")`。之所以没被发现：T993 之后的每次推送都 cancel 掉前一次 CI，js-check 从未有过一次完整跑完。
+3. **test:scale（自 M8-T986 起红）**：同根因——断言 `scale-29`、`oversized`、`retry` 的精确 key 名，没有 locale 后缀；以及 setItem 的配额故障注入用精确 key 匹配。改为 `startsWith(`${prefix}…:name:`)` + 全量 key 扫描后缀；不变量（卸载持久化当前会话、24 条上限、总字符上限、最新消息保留、配额重试成功）逐条未变。
+
+### 2 验证（全部本地实测）
+
+- `npm ci --dry-run` 干净；`npm run check:web` 干净。
+- **23 个 `npm run test:*` 全部退出 0**（此前失败的 optimization / lifecycle / scale 三个已恢复绿）。
+- `web_smoke.mjs` 对本机 fake provider（127.0.0.1:8899，`MINICC_FAKE_PROVIDER=1` + 无效网关地址）**exit 0**：产品路径 `completion_complete` 真实走通，与 CI web-smoke 作业的环境一致。
+- `tests/test_http_surface.py` 98 个测试过；`scripts/route_coverage.py --check` GET 28/28、POST 14/14 = 100%。
+- 本批不触碰任何 Python 源码。
+
+### 3 修复说明
+
+- `web/src/chat/stream.js`：`softPath = escapeHtml(v).replace(/\//g, "/<wbr>")`；源文件不再含任何 U+200B/U+200B 转义残留。
+- `tests/frontend_lifecycle_smoke.mjs`：`/:shared:(zh|en)$/` 断言卸载持久化。
+- `tests/frontend_scale_smoke.mjs`：locale 不可知的 key 查找（findKey + startsWith 后缀匹配）。
