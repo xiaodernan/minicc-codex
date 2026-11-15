@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -38,10 +38,7 @@ def _today_utc() -> datetime:
 
 
 def _day_key(ts: str) -> str | None:
-    try:
-        return ts[:10]
-    except Exception:
-        return None
+    return ts[:10] if isinstance(ts, str) else None
 
 
 def _audit_trend(state_dir: Path) -> list[dict[str, Any]]:
@@ -81,7 +78,8 @@ def _recent_tasks(state_dir: Path, limit: int = 8) -> list[dict[str, Any]]:
     candidates: list[Path] = []
     try:
         candidates.append(home_dir() / "tasks.sqlite3")
-    except Exception:
+    except (OSError, ValueError):
+        # a missing/locked/unparseable home dir only disqualifies the home store candidate
         pass
     if state_dir.is_dir():
         candidate = state_dir / "tasks.sqlite3"
@@ -91,12 +89,15 @@ def _recent_tasks(state_dir: Path, limit: int = 8) -> list[dict[str, Any]]:
         if not db.is_file():
             continue
         try:
+            import sqlite3
+
             from .task_store import TaskStore
             rows.extend(
                 row for row in TaskStore(db).load(limit=max(limit, 32))
                 if isinstance(row, dict)
             )
-        except Exception:
+        except (sqlite3.Error, OSError, ValueError):
+            # a locked/corrupt home store is a finding, not a crash - try the next candidate
             continue
     def _first_line(value: Any) -> str:
         lines = str(value or "").splitlines()
@@ -145,27 +146,25 @@ def build_summary(workspace: Path) -> dict[str, Any]:
     """Build the admin-panel payload. Never raises; returns {} on failure."""
     try:
         s = stats_gather(workspace)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - an unreadable workspace degrades every counter to honest blanks, never a 500
         s = {}
     try:
         redis_s = redis_stats()
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - redis telemetry is best-effort; the panel reports honest zeros when the pool is gone
         redis_s = {}
     try:
         rlimit_s = ratelimit_stats()
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - ratelimit telemetry is best-effort; the panel reports honest zeros when the bucket is gone
         rlimit_s = {}
-    try:
-        state_dir = workspace / ".minicc" if (workspace / ".minicc").is_dir() else home_dir()
-    except Exception:
-        state_dir = workspace / ".minicc"
+    state_dir = workspace / ".minicc" if (workspace / ".minicc").is_dir() else home_dir()
     try:
         trend_7d = _audit_trend(state_dir)
-    except Exception:
+    except OSError:
+        # an unreadable audit log is an honest blank chart, never a 500
         trend_7d = []
     try:
         recent_tasks = _recent_tasks(state_dir)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - task-store failure is an honest blank list; the panel still shows totals/trend/recommendations
         recent_tasks = []
 
     # measurable totals — read the exact shape the stats surface emits

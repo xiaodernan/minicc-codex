@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T10:40:48.911Z",
+  "generated_at": "2026-11-15T11:15:38.644Z",
   "branch": "main",
-  "head": "f091560",
-  "total_commits": 1617,
+  "head": "a1be4f9",
+  "total_commits": 1619,
   "recent_commits": [
+    {
+      "short": "a1be4f9",
+      "at": "2026-11-15T19:14:54+08:00",
+      "subject": "M8-T1015: completion judge prefix cache - two-system wire (persona + byte-constant protocol) crosses the gateway cache threshold; user packet dedup example JSON"
+    },
+    {
+      "short": "bec6b9b",
+      "at": "2026-11-15T10:40:49Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f091560",
       "at": "2026-11-15T18:40:22+08:00",
@@ -19,25 +29,15 @@
       "short": "b46a863",
       "at": "2026-11-15T09:45:28Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a117bdd",
-      "at": "2026-11-15T17:44:58+08:00",
-      "subject": "M8-T1013: ledger records run 43699944605 - full CI green pass (Claim checkers/Python tests windows+ubuntu/Java Syntax/Service plane mvn/M1 probe/PR eval/Playwri"
-    },
-    {
-      "short": "655b2a6",
-      "at": "2026-11-15T09:35:11Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 329,
+  "roadmap_batches": 331,
   "changelog_entries": 1,
-  "roadmap_lines": 52979,
-  "tracked_files": 1072,
-  "test_files": 708,
-  "almanac_chapters": 18,
+  "roadmap_lines": 53025,
+  "tracked_files": 1075,
+  "test_files": 709,
+  "almanac_chapters": 19,
   "module_count": 14,
   "feature_surface": [
     "workbench",

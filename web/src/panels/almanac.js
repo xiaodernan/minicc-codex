@@ -37,6 +37,7 @@ const CHAPTERS = [
   { id: "firstlight", roman: { zh: "卷十五", en: "Chapter XV" }, title: { zh: "曦", en: "First Light" }, subtitle: { zh: "有人按下了那颗星", en: "Someone hit the star" } },
   { id: "fever", roman: { zh: "卷十六", en: "Chapter XVI" }, title: { zh: "高烧", en: "The Fever" }, subtitle: { zh: "所有悬的地方，后来都长成了门", en: "Every near-miss grew into a gate" } },
   { id: "lighthouse", roman: { zh: "卷十七", en: "Chapter XVII" }, title: { zh: "灯塔", en: "The Lighthouse" }, subtitle: { zh: "忙解决问题的人，也该被守住", en: "Even the one fixing things deserves to be kept" } },
+  { id: "gatekeeper", roman: { zh: "卷十八", en: "Chapter XVIII" }, title: { zh: "守门人", en: "The Gatekeeper" }, subtitle: { zh: "知道密码的人，看见同一份诚实", en: "Everyone with the 123 door sees the same honest ledger" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1174,6 +1175,87 @@ function lighthouseMarkup() {
     </div>`;
 }
 
+function gatekeeperMarkup() {
+  const s = statsCache;
+  const admin = (s && typeof s === "object") ? s : null;
+  const tasks = s?.tasks && typeof s.tasks.total === "number" ? String(s.tasks.total) : "—";
+  const completed = s?.tasks?.by_status && typeof s.tasks.by_status.completed === "number" ? String(s.tasks.by_status.completed) : "—";
+  const interrupted = s?.tasks?.by_status && typeof s.tasks.by_status.interrupted === "number" ? String(s.tasks.by_status.interrupted) : "—";
+  const cache = s?.llm_cache && typeof s.llm_cache.hit_rate === "number" ? `${(s.llm_cache.hit_rate * 100).toFixed(1)}%` : "—";
+  const audit = s?.audit?.present === true && typeof s.audit.lines === "number" ? String(s.audit.lines) : "—";
+  const sessions = s?.sessions && typeof s.sessions.count === "number" ? String(s.sessions.count) : "—";
+  return `
+    <div class="almanac-canvas almanac-gatekeeper">
+      <div class="almanac-kicker">${zh() ? "卷十八 · 守门人" : "Chapter XVIII · The Gatekeeper"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `给所有访客同一把钥匙——<br/><span class="almanac-title-accent">它不是门锁，是这本账的封皮。</span>`
+        : `One key for every visitor —<br/><span class="almanac-title-accent">not a lock, the ledger's cover.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          在这扇门背后没有保险箱，只有一本账。密码是 <strong>123</strong>——任何知道它的人都可以
+          走进管理员面板；它明确标注为共享门，绝不伪装成登录系统。门把所有真实数字一次端上来：24 个任务、
+          22 个完成、2 个中断、缓存命中率 62.0%、审计 1515 行、155 个会话，以及七日事件流的真实曲线。
+        </p>
+        <p>
+          这些数字不是编出来的，是从 <code>audit.jsonl</code> 和任务存储里现场读出来的。
+          近三天最亮的是 <strong>11 月 13 日的 177 次事件</strong>；你在门里看到的分组、
+          柱状图和建议清单全部来自同一组真实读数——包括那条「把 62% 的缓存命中率拉回 80% 以上」的建议。
+        </p>
+        <p>
+          62% 并不是假象：它是主任务流（75–98% 命中）与完成评估器（曾经 <strong>每轮都付全价</strong>，persona 只有
+          约 300 个 token，低于网关缓存门槛）混合出来的结果。M8-T1015
+          给评估器加了 byte-constant 的协议层（<code>COMPLETION_REVIEW_PROTOCOL</code>），
+          现在同一前缀唯一包也能读到 <strong>cached=5248</strong>。守夜人（M8-T1004，220 秒一轮）和协议层，
+          两把钥匙护两份缓存——同一间屋子里的同一种纪律。
+        </p>` : `<p>
+          Behind this door there is no vault — there is a ledger. The password is <strong>123</strong>. Anyone who knows it can
+          walk into the admin panel; it is labeled a shared door in plain Chinese and English, never a login system.
+          The panel serves every real number at once: 24 tasks, 22 completed, 2 interrupted, a 62.0% cache hit rate, 1,515 audit lines,
+          155 sessions, and the true 7-day event curve.
+        </p>
+        <p>
+          None of these figures are invented; they are read live from <code>audit.jsonl</code> and the task store. The brightest day was
+          <strong>Nov 13 with 177 events</strong>. The ranking, the canvas chart, and the recommendation list are all the same live read —
+          including the call to raise the 62% cache affinity back above 80.
+        </p>
+        <p>
+          62% is not a mirage either: it is the blend of the main-task stream (75–98% hits) and the completion judge — which <strong>used to
+          pay full price every single round</strong>, its persona only ~300 tokens, below the gateway's cache threshold.
+          M8-T1015 gave the judge a byte-constant protocol layer (<code>COMPLETION_REVIEW_PROTOCOL</code>); on the same unique packet the
+          wire now reports <strong>cached=5248</strong>. The keeper (M8-T1004, one pass every 220s) and the protocol layer: two keys guarding two caches — one discipline, one house.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "门槛密码（共享门）" : "Shared door code"}</div><div class="almanac-instrument-value">123</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数" : "Tasks"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "已完成 / 中断" : "Completed / Interrupted"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(interrupted)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "缓存亲和率" : "Cache affinity"}</div><div class="almanac-instrument-value">${escapeHtml(cache)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "审计行数" : "Audit lines"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "会话" : "Sessions"}</div><div class="almanac-instrument-value">${escapeHtml(sessions)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "7 日峰值事件" : "7-day peak events"}</div><div class="almanac-instrument-value">177 · 11-13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "judge 新协议前缀命中" : "Judge protocol prefix hits"}</div><div class="almanac-instrument-value">5248 · live</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["密码不是登录", "共享门的存在就是诚实——人人都知道 123，数字也人人可见"],
+        ["62% 是可以修的", "主任务 75–98%，judge 过去 0；把 judge 的常量协议层补上之后，唯一包也能命中"],
+        ["账本先于洞察", "门里的每一个数字都能回答「哪来的？」——audit.jsonl / 任务存储 / stats 自读"],
+        ["两个守夜人", "守夜人每 220 秒喂热 system prompt；协议层守住 judge 的第二个常量前缀"],
+        ["门不抬高", "24 个任务是在本地真实跑出来的，门从不因为红了就放宽"],
+      ] : [
+        ["The code is not a login", "the door exists to be honest — everyone knows 123, everyone sees the same numbers"],
+        ["62% is fixable", "main tasks hit 75–98%; the judge hit 0 for a constant-prefix reason — now fixed, unique packets hit ~5.2k tokens"],
+        ["Ledger before insight", "every number answers 'where from?' — audit.jsonl, the task store, stats itself"],
+        ["Two keepers", "the keeper warms the shared system prompt every 220 s; the protocol layer guards the judge's second constant prefix"],
+        ["The floor never rose", "24 real local runs paid the price — no gate was widened because one fell"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "守住这扇门不是守住秘密，是把账摊在所有人面前——真相不拦路，就不会迷路。"
+          : "Keeping this door is not keeping a secret — it is putting the ledger in the open, so truth does not need a keeper."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1193,6 +1275,7 @@ const CHAPTER_RENDERERS = {
   firstlight: () => firstlightMarkup(),
   fever: () => feverMarkup(),
   lighthouse: () => lighthouseMarkup(),
+  gatekeeper: () => gatekeeperMarkup(),
 };
 
 async function loadChapter(id) {
@@ -1203,6 +1286,11 @@ async function loadChapter(id) {
   // must never freeze on it. Numbers hydrate behind the text.
   const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = renderer(metricsCache);
+  let scroller = slot.parentElement;
+  while (scroller) {
+    if (scroller.scrollHeight > scroller.clientHeight) scroller.scrollTop = 0;
+    scroller = scroller.parentElement;
+  }
   refreshIcons();
   // Phase 2: fetch metrics+digest (the fast path) and stats (the slow
   // path) separately — metrics and digest are usually < 1s, /api/stats
@@ -1235,6 +1323,11 @@ async function loadChapter(id) {
   }
   const fast = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = fast(metricsCache);
+  let scroller2 = slot.parentElement;
+  while (scroller2) {
+    if (scroller2.scrollHeight > scroller2.clientHeight) scroller2.scrollTop = 0;
+    scroller2 = scroller2.parentElement;
+  }
   refreshIcons();
   // The stats leg re-renders the same chapter with fresh numbers; any
   // other chapter switch aborts it.

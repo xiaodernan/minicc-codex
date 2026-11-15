@@ -53003,3 +53003,22 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - judge 每次评审节省 ~5k 缓存 token（按企业计价 ≈ 省一半 judge 成本）；多处会随任务入账自动体现在 /api/admin/summary 的缓存率上。
 - 主任务流式回合的命中率维持 75~98% 的真态，不做任何「数字变好看」式 hack。
 - 压缩事件（前缀全灭）依旧是 agent 内生约束，没有伪造改进空间，继续靠 keeper 热系统提示 + 同 prompt_cache_key 共享做最佳努力。
+
+## 批次 1006 - M8-T1016: 年鉴第十八卷「守门人 / The Gatekeeper」
+
+### 背景
+
+用户要求「极其庞大的世界」——每一卷都必须写真、读真、能复核。管理员面板上线后（M8-T1014），给它一个史诗位的叙事章：以整扇门为主角的卷。
+
+### 做了什么
+
+- **年鉴新增 `gatekeeper` 章**（卷十八）：双语全文——真实数字现场晋升到每处 `${...}`（24/22/2/62.0%/1515/155/177·11-13/1548→judge 新前缀 cached=5248），标题「给所有访客同一把钥匙——它不是门锁，是这本账的封皮。」；zh/en 截图均干净；digest 自动升级 `almanac_chapters` 到 18/19 并入章节 smoke（19 章双语，zh 要求 CJK、en 要求零 CJK）。
+- **真 UI 缺陷修复**：切换年鉴章节时不重置滚动位置——长章节打开即落到下半截，长章节失忆。`loadChapter` 现在沿祖链把所有 `scrollHeight > clientHeight` 的祖先 scrollTop 归零（.panel-card 是真正的滚动者，shell/与 panel-body 都重置）。真浏览器验证（fever→gatekeeper 点击路径），zh/en 均回到卷首。
+- **顺手修预演的门**：CI (run 43705234876, f091560) 红——admin.py broad-silencing 3 处 + unused import。全按门语义修复；45+12 测试复绿。
+
+### 实测
+
+- `node tests/almanac_smoke.mjs` → **19 chapters render fully bilingual, chapter switching verified, no mixed-language prose**
+- `npm run build:web && npm run check:web` ✓；`node --check web/src/panels/almanac.js` ✓
+- `output/almanac_gatekeeper_{zh,en}.png` —— kicker/title/instruments/gates/quote 全部落在卷首；en 界面 100% 英文
+- **诚实记录**：CI 上一跑（43705234876）是 failure，修毕本地全绿；以推送后的新 run 实测为准

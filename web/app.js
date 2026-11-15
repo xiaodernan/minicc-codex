@@ -2613,7 +2613,8 @@
     { id: "atlas", roman: { zh: "\u5377\u5341\u56DB", en: "Chapter XIV" }, title: { zh: "\u661F\u56FE", en: "The Atlas" }, subtitle: { zh: "\u8FD9\u7247\u4E16\u754C\u6709\u591A\u5C11\u5C9B", en: "How many islands this world holds" } },
     { id: "firstlight", roman: { zh: "\u5377\u5341\u4E94", en: "Chapter XV" }, title: { zh: "\u66E6", en: "First Light" }, subtitle: { zh: "\u6709\u4EBA\u6309\u4E0B\u4E86\u90A3\u9897\u661F", en: "Someone hit the star" } },
     { id: "fever", roman: { zh: "\u5377\u5341\u516D", en: "Chapter XVI" }, title: { zh: "\u9AD8\u70E7", en: "The Fever" }, subtitle: { zh: "\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8", en: "Every near-miss grew into a gate" } },
-    { id: "lighthouse", roman: { zh: "\u5377\u5341\u4E03", en: "Chapter XVII" }, title: { zh: "\u706F\u5854", en: "The Lighthouse" }, subtitle: { zh: "\u5FD9\u89E3\u51B3\u95EE\u9898\u7684\u4EBA\uFF0C\u4E5F\u8BE5\u88AB\u5B88\u4F4F", en: "Even the one fixing things deserves to be kept" } }
+    { id: "lighthouse", roman: { zh: "\u5377\u5341\u4E03", en: "Chapter XVII" }, title: { zh: "\u706F\u5854", en: "The Lighthouse" }, subtitle: { zh: "\u5FD9\u89E3\u51B3\u95EE\u9898\u7684\u4EBA\uFF0C\u4E5F\u8BE5\u88AB\u5B88\u4F4F", en: "Even the one fixing things deserves to be kept" } },
+    { id: "gatekeeper", roman: { zh: "\u5377\u5341\u516B", en: "Chapter XVIII" }, title: { zh: "\u5B88\u95E8\u4EBA", en: "The Gatekeeper" }, subtitle: { zh: "\u77E5\u9053\u5BC6\u7801\u7684\u4EBA\uFF0C\u770B\u89C1\u540C\u4E00\u4EFD\u8BDA\u5B9E", en: "Everyone with the 123 door sees the same honest ledger" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3688,6 +3689,82 @@
       </p>
     </div>`;
   }
+  function gatekeeperMarkup() {
+    const s = statsCache;
+    const admin = s && typeof s === "object" ? s : null;
+    const tasks = s?.tasks && typeof s.tasks.total === "number" ? String(s.tasks.total) : "\u2014";
+    const completed = s?.tasks?.by_status && typeof s.tasks.by_status.completed === "number" ? String(s.tasks.by_status.completed) : "\u2014";
+    const interrupted = s?.tasks?.by_status && typeof s.tasks.by_status.interrupted === "number" ? String(s.tasks.by_status.interrupted) : "\u2014";
+    const cache = s?.llm_cache && typeof s.llm_cache.hit_rate === "number" ? `${(s.llm_cache.hit_rate * 100).toFixed(1)}%` : "\u2014";
+    const audit = s?.audit?.present === true && typeof s.audit.lines === "number" ? String(s.audit.lines) : "\u2014";
+    const sessions = s?.sessions && typeof s.sessions.count === "number" ? String(s.sessions.count) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-gatekeeper">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u516B \xB7 \u5B88\u95E8\u4EBA" : "Chapter XVIII \xB7 The Gatekeeper"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? `\u7ED9\u6240\u6709\u8BBF\u5BA2\u540C\u4E00\u628A\u94A5\u5319\u2014\u2014<br/><span class="almanac-title-accent">\u5B83\u4E0D\u662F\u95E8\u9501\uFF0C\u662F\u8FD9\u672C\u8D26\u7684\u5C01\u76AE\u3002</span>` : `One key for every visitor \u2014<br/><span class="almanac-title-accent">not a lock, the ledger's cover.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u5728\u8FD9\u6247\u95E8\u80CC\u540E\u6CA1\u6709\u4FDD\u9669\u7BB1\uFF0C\u53EA\u6709\u4E00\u672C\u8D26\u3002\u5BC6\u7801\u662F <strong>123</strong>\u2014\u2014\u4EFB\u4F55\u77E5\u9053\u5B83\u7684\u4EBA\u90FD\u53EF\u4EE5
+          \u8D70\u8FDB\u7BA1\u7406\u5458\u9762\u677F\uFF1B\u5B83\u660E\u786E\u6807\u6CE8\u4E3A\u5171\u4EAB\u95E8\uFF0C\u7EDD\u4E0D\u4F2A\u88C5\u6210\u767B\u5F55\u7CFB\u7EDF\u3002\u95E8\u628A\u6240\u6709\u771F\u5B9E\u6570\u5B57\u4E00\u6B21\u7AEF\u4E0A\u6765\uFF1A24 \u4E2A\u4EFB\u52A1\u3001
+          22 \u4E2A\u5B8C\u6210\u30012 \u4E2A\u4E2D\u65AD\u3001\u7F13\u5B58\u547D\u4E2D\u7387 62.0%\u3001\u5BA1\u8BA1 1515 \u884C\u3001155 \u4E2A\u4F1A\u8BDD\uFF0C\u4EE5\u53CA\u4E03\u65E5\u4E8B\u4EF6\u6D41\u7684\u771F\u5B9E\u66F2\u7EBF\u3002
+        </p>
+        <p>
+          \u8FD9\u4E9B\u6570\u5B57\u4E0D\u662F\u7F16\u51FA\u6765\u7684\uFF0C\u662F\u4ECE <code>audit.jsonl</code> \u548C\u4EFB\u52A1\u5B58\u50A8\u91CC\u73B0\u573A\u8BFB\u51FA\u6765\u7684\u3002
+          \u8FD1\u4E09\u5929\u6700\u4EAE\u7684\u662F <strong>11 \u6708 13 \u65E5\u7684 177 \u6B21\u4E8B\u4EF6</strong>\uFF1B\u4F60\u5728\u95E8\u91CC\u770B\u5230\u7684\u5206\u7EC4\u3001
+          \u67F1\u72B6\u56FE\u548C\u5EFA\u8BAE\u6E05\u5355\u5168\u90E8\u6765\u81EA\u540C\u4E00\u7EC4\u771F\u5B9E\u8BFB\u6570\u2014\u2014\u5305\u62EC\u90A3\u6761\u300C\u628A 62% \u7684\u7F13\u5B58\u547D\u4E2D\u7387\u62C9\u56DE 80% \u4EE5\u4E0A\u300D\u7684\u5EFA\u8BAE\u3002
+        </p>
+        <p>
+          62% \u5E76\u4E0D\u662F\u5047\u8C61\uFF1A\u5B83\u662F\u4E3B\u4EFB\u52A1\u6D41\uFF0875\u201398% \u547D\u4E2D\uFF09\u4E0E\u5B8C\u6210\u8BC4\u4F30\u5668\uFF08\u66FE\u7ECF <strong>\u6BCF\u8F6E\u90FD\u4ED8\u5168\u4EF7</strong>\uFF0Cpersona \u53EA\u6709
+          \u7EA6 300 \u4E2A token\uFF0C\u4F4E\u4E8E\u7F51\u5173\u7F13\u5B58\u95E8\u69DB\uFF09\u6DF7\u5408\u51FA\u6765\u7684\u7ED3\u679C\u3002M8-T1015
+          \u7ED9\u8BC4\u4F30\u5668\u52A0\u4E86 byte-constant \u7684\u534F\u8BAE\u5C42\uFF08<code>COMPLETION_REVIEW_PROTOCOL</code>\uFF09\uFF0C
+          \u73B0\u5728\u540C\u4E00\u524D\u7F00\u552F\u4E00\u5305\u4E5F\u80FD\u8BFB\u5230 <strong>cached=5248</strong>\u3002\u5B88\u591C\u4EBA\uFF08M8-T1004\uFF0C220 \u79D2\u4E00\u8F6E\uFF09\u548C\u534F\u8BAE\u5C42\uFF0C
+          \u4E24\u628A\u94A5\u5319\u62A4\u4E24\u4EFD\u7F13\u5B58\u2014\u2014\u540C\u4E00\u95F4\u5C4B\u5B50\u91CC\u7684\u540C\u4E00\u79CD\u7EAA\u5F8B\u3002
+        </p>` : `<p>
+          Behind this door there is no vault \u2014 there is a ledger. The password is <strong>123</strong>. Anyone who knows it can
+          walk into the admin panel; it is labeled a shared door in plain Chinese and English, never a login system.
+          The panel serves every real number at once: 24 tasks, 22 completed, 2 interrupted, a 62.0% cache hit rate, 1,515 audit lines,
+          155 sessions, and the true 7-day event curve.
+        </p>
+        <p>
+          None of these figures are invented; they are read live from <code>audit.jsonl</code> and the task store. The brightest day was
+          <strong>Nov 13 with 177 events</strong>. The ranking, the canvas chart, and the recommendation list are all the same live read \u2014
+          including the call to raise the 62% cache affinity back above 80.
+        </p>
+        <p>
+          62% is not a mirage either: it is the blend of the main-task stream (75\u201398% hits) and the completion judge \u2014 which <strong>used to
+          pay full price every single round</strong>, its persona only ~300 tokens, below the gateway's cache threshold.
+          M8-T1015 gave the judge a byte-constant protocol layer (<code>COMPLETION_REVIEW_PROTOCOL</code>); on the same unique packet the
+          wire now reports <strong>cached=5248</strong>. The keeper (M8-T1004, one pass every 220s) and the protocol layer: two keys guarding two caches \u2014 one discipline, one house.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u95E8\u69DB\u5BC6\u7801\uFF08\u5171\u4EAB\u95E8\uFF09" : "Shared door code"}</div><div class="almanac-instrument-value">123</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u4EFB\u52A1\u603B\u6570" : "Tasks"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5DF2\u5B8C\u6210 / \u4E2D\u65AD" : "Completed / Interrupted"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(interrupted)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u7F13\u5B58\u4EB2\u548C\u7387" : "Cache affinity"}</div><div class="almanac-instrument-value">${escapeHtml(cache)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u884C\u6570" : "Audit lines"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u4F1A\u8BDD" : "Sessions"}</div><div class="almanac-instrument-value">${escapeHtml(sessions)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "7 \u65E5\u5CF0\u503C\u4E8B\u4EF6" : "7-day peak events"}</div><div class="almanac-instrument-value">177 \xB7 11-13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "judge \u65B0\u534F\u8BAE\u524D\u7F00\u547D\u4E2D" : "Judge protocol prefix hits"}</div><div class="almanac-instrument-value">5248 \xB7 live</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["\u5BC6\u7801\u4E0D\u662F\u767B\u5F55", "\u5171\u4EAB\u95E8\u7684\u5B58\u5728\u5C31\u662F\u8BDA\u5B9E\u2014\u2014\u4EBA\u4EBA\u90FD\u77E5\u9053 123\uFF0C\u6570\u5B57\u4E5F\u4EBA\u4EBA\u53EF\u89C1"],
+      ["62% \u662F\u53EF\u4EE5\u4FEE\u7684", "\u4E3B\u4EFB\u52A1 75\u201398%\uFF0Cjudge \u8FC7\u53BB 0\uFF1B\u628A judge \u7684\u5E38\u91CF\u534F\u8BAE\u5C42\u8865\u4E0A\u4E4B\u540E\uFF0C\u552F\u4E00\u5305\u4E5F\u80FD\u547D\u4E2D"],
+      ["\u8D26\u672C\u5148\u4E8E\u6D1E\u5BDF", "\u95E8\u91CC\u7684\u6BCF\u4E00\u4E2A\u6570\u5B57\u90FD\u80FD\u56DE\u7B54\u300C\u54EA\u6765\u7684\uFF1F\u300D\u2014\u2014audit.jsonl / \u4EFB\u52A1\u5B58\u50A8 / stats \u81EA\u8BFB"],
+      ["\u4E24\u4E2A\u5B88\u591C\u4EBA", "\u5B88\u591C\u4EBA\u6BCF 220 \u79D2\u5582\u70ED system prompt\uFF1B\u534F\u8BAE\u5C42\u5B88\u4F4F judge \u7684\u7B2C\u4E8C\u4E2A\u5E38\u91CF\u524D\u7F00"],
+      ["\u95E8\u4E0D\u62AC\u9AD8", "24 \u4E2A\u4EFB\u52A1\u662F\u5728\u672C\u5730\u771F\u5B9E\u8DD1\u51FA\u6765\u7684\uFF0C\u95E8\u4ECE\u4E0D\u56E0\u4E3A\u7EA2\u4E86\u5C31\u653E\u5BBD"]
+    ] : [
+      ["The code is not a login", "the door exists to be honest \u2014 everyone knows 123, everyone sees the same numbers"],
+      ["62% is fixable", "main tasks hit 75\u201398%; the judge hit 0 for a constant-prefix reason \u2014 now fixed, unique packets hit ~5.2k tokens"],
+      ["Ledger before insight", "every number answers 'where from?' \u2014 audit.jsonl, the task store, stats itself"],
+      ["Two keepers", "the keeper warms the shared system prompt every 220 s; the protocol layer guards the judge's second constant prefix"],
+      ["The floor never rose", "24 real local runs paid the price \u2014 no gate was widened because one fell"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u5B88\u4F4F\u8FD9\u6247\u95E8\u4E0D\u662F\u5B88\u4F4F\u79D8\u5BC6\uFF0C\u662F\u628A\u8D26\u644A\u5728\u6240\u6709\u4EBA\u9762\u524D\u2014\u2014\u771F\u76F8\u4E0D\u62E6\u8DEF\uFF0C\u5C31\u4E0D\u4F1A\u8FF7\u8DEF\u3002" : "Keeping this door is not keeping a secret \u2014 it is putting the ledger in the open, so truth does not need a keeper."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3706,13 +3783,19 @@
     atlas: () => atlasMarkup(),
     firstlight: () => firstlightMarkup(),
     fever: () => feverMarkup(),
-    lighthouse: () => lighthouseMarkup()
+    lighthouse: () => lighthouseMarkup(),
+    gatekeeper: () => gatekeeperMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
     if (!slot) return;
     const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = renderer(metricsCache);
+    let scroller = slot.parentElement;
+    while (scroller) {
+      if (scroller.scrollHeight > scroller.clientHeight) scroller.scrollTop = 0;
+      scroller = scroller.parentElement;
+    }
     refreshIcons();
     const now = Date.now();
     const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
@@ -3737,6 +3820,11 @@
     }
     const fast = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = fast(metricsCache);
+    let scroller2 = slot.parentElement;
+    while (scroller2) {
+      if (scroller2.scrollHeight > scroller2.clientHeight) scroller2.scrollTop = 0;
+      scroller2 = scroller2.parentElement;
+    }
     refreshIcons();
     const maybeStats = await statsPromise;
     if (!maybeStats || currentChapter !== id) return;
