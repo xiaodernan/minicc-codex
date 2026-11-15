@@ -53622,3 +53622,14 @@ M8-T1050 的 README The Litmus 条目把一串散文 `--island-tint` 写了进�
 - 本地 `test_readme_capability_claims.py` 8/8 绿；docs index enumeration green。
 - i18n.js 继续 CRLF 309/0。
 - **发现途径**：M8-T1053 推送前的本机门禁没跑全（capability-claims 这种只看 README 的门躲过了 last-minute diff review）——本次登记：以后任何 README 改动后，必须先跑 capability-claims 再 commit，不放 PR 端兜底。
+## 批次 1041 - M8-T1056: 影响力地板——新脚本也要有人看见它
+
+### 目的
+
+CI「Claim checkers」在 M8-T1052 首推 head 上红了一片——根因：`scripts/measure_cache_affinity.py` 是一个**有人写了但没人看见**的脚本（无测试到达它）。影响力地板 `scripts/impacted_tests.py --check` 把 CI 按钮按下的那一下也算 audience，缺人就红；修法在 M8-T1056 里：给它配上测试并把 `PROBE_RELPATH` 写成 audience 可解析的连续字面量。
+
+### 做了什么
+
+- `tests/test_measure_cache_affinity.py`（新）：六个确定性断言（env>disk 优先级、.env 回退解析仅已知键、全缺钥返回 None、dry-run 只打形状退出码 0、缺钥 NO_KEY 退出码 2 且不出声 sk- 字节、模块源码无 key 形状字节）。
+- `impacted_tests.py --check` 本地 EXIT 0 —— audience 解析成功。
+- 不改门绝不减弱地板：修的是 audience，不是阈值。
