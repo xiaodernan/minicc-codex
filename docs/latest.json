@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:44:04.563Z",
-  "branch": "HEAD",
-  "head": "ecae705",
-  "total_commits": 1591,
+  "generated_at": "2026-11-15T08:51:25.518Z",
+  "branch": "main",
+  "head": "eb4806f",
+  "total_commits": 1593,
   "recent_commits": [
+    {
+      "short": "eb4806f",
+      "at": "2026-11-15T16:51:07+08:00",
+      "subject": "M8-T1005: Dockyard - the evidence harbour: Captain's log of 6 real counters + ten lighthouse stakes unlocked entirely by live git/metrics/worldpulse numbers; di"
+    },
+    {
+      "short": "fb55aa6",
+      "at": "2026-11-15T08:44:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ecae705",
       "at": "2026-11-15T08:35:30Z",
@@ -19,23 +29,13 @@
       "short": "6f152a8",
       "at": "2026-11-15T16:26:33+08:00",
       "subject": "M8-T1004-followup: drop the stray _keeper_shot.mjs probe from the tree"
-    },
-    {
-      "short": "a2c50fb",
-      "at": "2026-11-15T16:26:00+08:00",
-      "subject": "M8-T1004: prefix cache keeper - a daemon thread re-warms the shared system prompt every 220s via the official SDK (the only client the gateway answers), derivin"
-    },
-    {
-      "short": "0ec0cf2",
-      "at": "2026-11-15T07:33:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 319,
+  "roadmap_batches": 320,
   "changelog_entries": 1,
-  "roadmap_lines": 52736,
-  "tracked_files": 1069,
+  "roadmap_lines": 52760,
+  "tracked_files": 1068,
   "test_files": 706,
   "almanac_chapters": 17,
   "module_count": 14,
