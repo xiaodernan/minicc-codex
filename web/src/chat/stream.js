@@ -22,6 +22,10 @@ import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, re
 
 import { icon, refreshIcons } from "../icons.js";
 
+// Insert zero-width spaces after path separators so long latin paths
+// break at directory boundaries instead of orphan-wrapping one glyph.
+const softPath = (value) => escapeHtml(value).replace(/\//g, "/\u200B"); // after each / + zero-width space
+
 import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, cacheDonut, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 
 
@@ -870,7 +874,7 @@ export function changeFileRow(item) {
 
   const deletions = countLabel(item.deletions);
 
-  return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${escapeHtml(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} · <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
+  return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${softPath(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} · <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
 
 }
 
@@ -906,7 +910,7 @@ export function renderChanges(data) {
 
     changeList.innerHTML = files.length
 
-      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
+      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${softPath(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
 
       : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
 

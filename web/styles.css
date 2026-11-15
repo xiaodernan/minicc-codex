@@ -593,7 +593,7 @@ button { color: inherit; }
 .change-bar.deleted { background: var(--coral); }
 .change-bar.muted { background: var(--quiet); }
 .change-item > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; }
-.change-item strong { font-size: 12px; }
+.change-item strong { font-size: 11px; letter-spacing: -0.01em; }
 .change-item small, .change-time { color: var(--quiet); font-size: 12px; }
 .change-time { margin-left: auto; }
 .change-item-button { background: transparent; border: 1px solid transparent; color: inherit; cursor: pointer; padding: 6px 5px; text-align: left; width: 100%; }
@@ -930,7 +930,7 @@ button { color: inherit; }
 .game-subtitle { color: var(--muted); margin: 0 0 16px; }
 .game-hud { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; display: flex; gap: 18px; padding: 9px 12px; }
 .game-hud strong { color: var(--mint); font-family: "DM Mono", Consolas, monospace; }
-.game-status { color: var(--amber); margin-left: auto; }
+.game-status { color: var(--amber); margin-left: auto; white-space: nowrap; flex-shrink: 0; }
 .game-performance { color: var(--quiet); font: 12px "DM Mono", Consolas, monospace; margin-left: auto; white-space: nowrap; }
 .game-performance strong { color: var(--muted); }
 .game-performance.warning, .game-performance.warning strong { color: var(--coral); }
@@ -950,7 +950,7 @@ button { color: inherit; }
 .game-skill span { color: var(--text); font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-skill small { color: var(--quiet); font: 12px "DM Mono", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-skill.cooling, .game-skill:disabled { cursor: not-allowed; filter: saturate(.45); opacity: .58; }
-.seed-bank { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; max-height: 150px; overflow-y: auto; }
+.seed-bank { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; max-height: none; overflow-y: visible; }
 .seed-card { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; cursor: pointer; display: grid; gap: 2px; padding: 7px 10px; text-align: left; }
 .seed-card:hover, .seed-card.selected { border-color: var(--coral); background: var(--coral-soft); }
 .seed-card.cooling { cursor: not-allowed; filter: saturate(.35); opacity: .62; overflow: hidden; position: relative; }
@@ -3204,6 +3204,9 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   box-shadow: var(--shadow-lg);
 }
 .pulse-card-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: .12em;
@@ -3260,7 +3263,18 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 }
 
 .pulse-archive-shell { display: grid; grid-template-rows: auto 1fr; min-height: 100%; }
-.pulse-archive-count { font-size: 11px; color: var(--muted); }
+.pulse-archive-count, .pulse-card-kicker strong {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--quiet);
+  background: color-mix(in srgb, var(--surface-soft) 70%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: auto;
+  letter-spacing: 0;
+}
 .pulse-archive-list { display: grid; gap: 8px; align-content: start; overflow: auto; min-height: 0; }
 .pulse-archive-row {
   display: grid;
@@ -3854,10 +3868,10 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mint) 45%, transparent); }
   50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 14%, transparent); }
 }
-.running-light-text { align-items: baseline; color: var(--quiet); display: inline-flex; font-size: 10.5px; gap: 6px; min-width: 0; }
+.running-light-text { align-items: baseline; white-space: nowrap; color: var(--quiet); display: inline-flex; font-size: 10.5px; gap: 6px; min-width: 0; }
 .running-light-text b { color: var(--text); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-variant-numeric: tabular-nums; font-weight: 650; }
 .running-light-text i { color: var(--quiet); font-style: normal; }
-.running-light-branch { color: var(--quiet); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-size: 10px; margin-left: auto; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.running-light-branch { color: var(--quiet); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-size: 9.5px; margin-left: auto; max-width: 84px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .running-light[data-tone="high"] .running-light-dot { animation: none; } }
 /* ============================================================
    The manual — pocket book. Reader-first, dense with keyboard hints.
@@ -4729,7 +4743,9 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 
 /* M8-T962: compact sidebar for short windows — every row stays reachable
    without a scroll odyssey; the grid only shrinks when there is no air. */
-@media (max-height: 1020px) {
+/* Compact rhythm kicks in earlier: at common 1080px laptops the sidebar
+   used to clip its own workspace-mini card below the fold. */
+@media (max-height: 1180px) {
   .sidebar { padding: 10px 10px 8px; }
   .brand-row { padding: 0 8px 6px; gap: 8px; }
   .brand-mark { width: 30px; height: 30px; min-width: 30px; font-size: 10px; }
@@ -5244,4 +5260,13 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .change-item strong {
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+/* Empty-hero compaction for 1080px laptops: the second chip row used to
+   slide underneath the composer and clip mid-glyph. */
+@media (max-height: 1180px) {
+  .empty-session { gap: 12px; padding: 16px 16px; align-content: safe center; }
+  .empty-orbit { width: 96px; height: 96px; }
+  .empty-glyph { width: 84px; height: 84px; }
+  .empty-session-title { font-size: clamp(26px, 2.6vw, 34px); }
 }

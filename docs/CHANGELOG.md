@@ -350,3 +350,5 @@
 - **年鉴第十六卷「曦 / First Light」上线（M8-T993）+ `/api/worldpulse`**：第一口外部真实数据——`GET /api/worldpulse`（real GitHub public API，8s 超时，5 分钟共享缓存，fail-open），实测 2026-11-15 真 star=1 / forks=0 / open_issues=1 / default_branch=main / pushed_at=最新；第十六章全部从 worldpulse+digest 现场水润；16 章双语 smoke 全绿；Route Coverage 27/27 GET + 14/14 POST = 100%。
 
 - **视觉债三连修（M8-T994）**：侧栏三栏由横 layout → 纵 icon-above-label 对齐，中文/日文全字显示；inspector-tab 单行不再截断/挤压计数；changes 长文件路径 anywhere 换行不再溢出破坏；Playwright 真浏览器截图佐证。
+
+- **视觉债清扫二期（M8-T996）**：Pulse 眉标改为右侧圆角 mono 计数徽章；航行灯条 `white-space: nowrap` 单行，分支名收窄；侧栏与空态紧凑断点放宽到 1180px，1080px 笔记本不再裁掉工作区卡片与第二排 chips；植物卡库取消 150px 硬上限；小游戏 HUD 状态不再断词；变更/文件路径以 U+200B 目录边界换行（辅助函数显式 `\u200B`，不藏不可见字符）。

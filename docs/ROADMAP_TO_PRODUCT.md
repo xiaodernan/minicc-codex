@@ -52545,3 +52545,26 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 - Playwright 真浏览器 zh locale（`output/sidebar_bottom_fixed.png`）：三栏全文字完整 100%（工作区脉搏 / 宣传页 / 小游戏，左对齐垂直居中），不歪曲；
 - inspector-eye screenshot `output/insp_fixed.png`：变更 13 徽章右对齐、未截断、可点继续遮盖合适；
 - `npm run build:web`、`check:web` 干净、`doc_pointers` rc=0。
+
+## 批次 987 - M8-T996：视觉债清扫二期 —— Pulse 角标化、航行灯单行化、1080px 笔记本布局到底、植物卡不再被裁、HUD 不再断词、路径在字典边界换行
+
+### 1 背景
+
+用户再次明确："前端有很多不合理的地方 有很多字体的变形 歪曲 重叠 扭曲 实体块的互相重叠 挤压，需要修改一下 不然看着很不整洁 很不美观。"
+本批用 Playwright + `getBoundingClientRect` 实测逐项定位，再动手修。
+
+### 2 实测发现的问题 → 修复
+
+1. **Pulse 卡片眉标挤压**：`任务时间轴12`/`会话数148` 数字与文字粘在一起。→ `.pulse-card-kicker` 改为 `flex + gap`，`.pulse-archive-count` 与 `.pulse-card-kicker strong` 统一为右侧圆角 mono 计数徽章（tabular-nums）。
+2. **航行灯条断成两行**（`缓 存` 竖排栈）：行内没有 `white-space: nowrap`，分支名 max-width 96px 挤爆布局。→ 文本 nowrap，分支 max-width 84px、9.5px、可省略；高度 44px → 24px 单行。
+3. **1600×1080 下侧栏自我裁剪**：`.sidebar` `scrollH=1144` > `clientH=1042`，`.workspace-mini` 底边 1105px（视口 1080）—— 最底卡片永远伸出视口 25px。→ 紧凑断点 `@media (max-height: 1020px)` 放宽到 **1180px**；实测 `scrollH == clientH == 1042`，`.workspace-mini` 底边 1018px，完全可见。
+4. **空态 hero 第二排 chips 被 composer 压住**：`.empty-chips` 底边 807px > `.chat-area` 可见底边 780px（横跨在 composer 之下）。→ 新增 `@media (max-height: 1180px)`：空态 `gap`/`padding`/轨道 128→96px/标题 clamp 下限 26px、`align-content: safe center`。实测 chips 底边 660px，距 composer 顶边 120px。
+5. **植物卡区 `max-height: 150px` 硬切**：四排植物卡只露两排多，第二排下半截被裁（正是用户说的「实体块相互挤压」）。→ 取消上限，自然换行。
+6. **小游戏 HUD「准备就绪」折成两行**（「准备就 / 绪」）。→ `.game-status { white-space: nowrap; flex-shrink: 0 }`。
+7. **长路径单字孤儿换行**：`docs/ROADMAP_TO_PRODUCT.md` 在检查器窄列里换成 `…PRODUCT.` + `md`。→ 模块级 `softPath`：`escapeHtml(v).replace(/\//g, "/\u200B")`，路径在目录边界换行（`docs/` + `ROADMAP_TO_PRODUCT.md`），`.change-item strong` 12px → 11px；该辅助函数用显式 `\u200B` 转义，不往源码里塞不可见字符。
+
+### 3 验证
+
+- Playwright 真浏览器（zh-CN, 1600×1080）：主页/Pulse/小游戏三张截图逐一核对；`.empty-chips` 660px < `.composer-wrap` 780px；侧栏 `scrollH == clientH`。
+- `npm run build:web` + `check:web` 干净；`node --check web/app.js` 通过；almanac/web_smoke 的 web 前置套件在产品路径断言之前全部通过。
+- 产品路径实跑（真实 wkapi provider）：agent 在最大推理强度下对本仓库的巡检循环超过 240s 默认期限（模型明确存活：直测 2.8s 返回 `ok`，`prompt_tokens=4593`）。这是 provider 耗时问题，不是前端回归；CI 的 fake provider 路径不受影响。本地复跑请设 `MINICC_SMOKE_TERMINAL_DEADLINE_MS`。
