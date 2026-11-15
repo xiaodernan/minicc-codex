@@ -53076,3 +53076,20 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - `digest` 首次自报 `almanac_chapters: 20`（自动读 almanac.js，无硬编码）
 - Playwright 双 locale 实机截图（`output/atlas_{zh,en}.png`、`output/almanac_meridian_{zh,en}.png`）人工校验：12 岛、50 坐标、commits 真值、全两语零泄漏
 - 诚实记录：CI run 43714755731(5fdc35d 前序提交)双腿红 + Claim checkers 红——**均为自家事故，全部在本批如实修复**——更根本的教训是「改完只看 build，不跑门」，本批在 commit 前把 doc-pointers / toolstream CRLF pinned gate 全部贴身重跑
+
+## 批次 1010 - M8-T1021: 空主界面直接挂 Atlas 入口 + Atla z-index 翻上台
+
+### 1 背景
+
+用户要求无尽开放世界但不能迷路；Atla 上线后发现它被「第一次来？2 分钟带你过一遍」旅游浮窗遮盖在右下角（z-index 850 > 80）；更根本的是主界面新人没入口"
+
+### 2 做了什么
+
+- **`markdown.js` emptySessionMarkup**：空会话渲染增加第三枚引导芯片——照搬 saga 同款 emptyChip-manual 模式：mint 描边 + `compass` glyph + `data-empty-atlas`，一行直达 `openAtlas()`；中文「打开世界地图——50 个真实坐标随便点」，英文「Open the world map — 50 real coordinates to tap」，新 i18n 键 `session.emptyChip5` 双语对齐。
+- **`styles.css`**：`empty-chip-atlas` mint 调调（边框/文字/hover 背景 + mint line hover）——core change 一行两行，零重构。
+- **z-index**：atlas-stage 80 → 860；atlas-tooltip 85 → 865——tour-offer（850）落到地图后面，不再遮盖 legend/hint 区；GameModal/tour 退场后地图依旧完整。
+- **bundle**：build:web ✓，web_smoke ✓（timeline / product path / desktop / mobile）；chip 截图双 locale ✓（`output/atlas_chip_{zh,en}.png`）。
+
+### 3 诚实记录
+
+Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两次 Python 腿红均为自家事故（wheel-invert EVIDENCE、index.html CRLF）；本批在 push 前逐门在本地跑过 i18n-pinned/doc-pointers/cites——如仍红，下一批会立刻如实修。

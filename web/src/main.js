@@ -183,6 +183,11 @@ export function bindUI() {
       openManualPanel();
       return;
     }
+    const openAtlasChip = event.target.closest("[data-empty-atlas]");
+    if (openAtlasChip) {
+      openAtlas();
+      return;
+    }
     const chip = event.target.closest(".empty-chip[data-empty-prompt-zh]");
     if (chip) {
       const prompt = state.locale === "zh" ? chip.dataset.emptyPromptZh : chip.dataset.emptyPromptEn;
