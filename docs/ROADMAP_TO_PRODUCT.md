@@ -53113,3 +53113,20 @@ Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两
 - 建议清单：restart-interrupt (medium) / fading-weekend-quiet (medium) / keeper-window (high) / interrupted-tasks (medium) / redis-live (low)
 - 门禁：doc-pointers / silence-must-state-its-reason / mutation cells / http-surface 174 passed 全绿
 - 诚实记录：发生在本批的事——`add_tasks.py` / `add_more_tasks.py` / `probe_i18n.py` 是 repo 已有文件（2026-10/2026-11-12 时间戳），不是本次产物；未触碰。
+
+## 批次 1012 - M8-T1023: 年鉴第二十卷「未眠 / The Night Watch」—— 本周账本翻页
+
+### 背景
+
+每周应有账可翻。本周交付了「管理员共享门 → Atla 世界地图 → 中断根因拆解 → 主界面 Atla 引导芯片 → 修复地图被旅游浮窗盖住」——这些应当合进一页账，否则读者只会以为这是凭空长出一串功能。新的一卷把它们用同一股气讲完，并且全部仪表都按本周真实数据——没有「只要没人看」的数字。
+
+### 做了什么
+
+- **新章节 `nightwatch`**（卷二十），双语全文。中文 kicker 是「卷二十 · 未眠」，正文写了「别把‘能行了’当作结尾——把它当作‘下一页从这里开始’」；英文按本仓库语法写同义英文原样。
+- **仪表盘八个真数据**：1,632 次提交（digest live）· 24 个任务（tasks store live）· 22 完成 / 2 中断 · 1,515 审计行 · 158 会话 / 2,754 消息 · 聚合亲和率 62.0% · 守夜人 warm #2 95.4% · 子批次「4 doors · 1 atlas」。
+- **gates list 五条铁誓**：每一条都对应着今天实装的一处真东西（restart 自动抓根因；2000+ commits；cache 里真实的单次 write 上涨；没有人装饰出来的数字）。
+- **年鉴冒烟升至 21 卷**（`CHAPTER_MARKERS.nightwatch = ["未眠", "The Night Watch"]`）。其它计数（digest `almanac_chapters`）自动按源计数 —— 21。本批经 `output/almanac_nightwatch_{zh,en}.png` 校验中文全出中文、英文全出英文、E7 美学一致。
+
+### 诚实记录
+
+本章体的仪表数表含 digest 单次 HEAD（`fc94711/0e8de31` 与前一周峰值），CI 最新一次 Python 腿红仍在 43714755731 / 43719196011 长队 —— 已在前批修复，本批反复核准各项门（含 toolstream CRLF/`doc_pointers`/apps）仍绿。如 CI 续航到、也红，会照实记账。

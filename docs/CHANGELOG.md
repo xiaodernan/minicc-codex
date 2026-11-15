@@ -410,3 +410,5 @@
 - **诚实记录**：最新 CI（fc94711, Atlas 初推：43718058600）仍排队中——GitHub runner 拥堵，24h 内已有两次 Python 腿红，均为自家事故（wheel-invert 证据引用、index.html LF/CRLF），已在本地逐门修复并全绿。push 让 CI 重新排队：忘记不是遗忘.
 
 - **中断根因自动拆解（M8-T1022）**：`/api/admin/summary` 新增 `interrupt_causes{total,restart,timeout,permission,cancelled,other,unknown}`——把任务存储里每条 interrupted 任务的自己 `error` 字段按诚实子串归类（如实集中标记为"服务重启"才算），并由此派生一条新建议 `restart-interrupt`：当前 2 个中断任务的错误原文均为「服务重启时任务被中断，可重新运行」（任务在途、worker 随 minicc-web 一起死掉）→ 建议别在后台反复重启 workbench、先收敛在运行中的任务，或直接重跑收敛。新增建议只有在真实存在 restart 中断时才出现——健康工作区不出这一条。admins、快照、列表、建议全部真实数据，不虚构任何数字。
+
+- **年鉴第二十卷「未眠 / The Night Watch」上线（M8-T1022）**：本周的账本翻页——24 任务 · 22 完成 · 2 中断（restart，已自动抓出）、提交 1,632、audit 1515 行、158 会话 / 2,754 消息、聚合 62% / keeper warm #2 95.4%、Atla 世界地图、Admin 共享门、中断根因拆解。每一个仪表都是这周真实发生过的事——本卷不许写「只要没人看就会随便造数字」。年鉴冒烟门升级至 21 卷，全双语双 locale 截图验证（`output/almanac_nightwatch_{zh,en}.png`）。

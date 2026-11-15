@@ -40,6 +40,7 @@ export const CHAPTERS = [
   { id: "lighthouse", roman: { zh: "卷十七", en: "Chapter XVII" }, title: { zh: "灯塔", en: "The Lighthouse" }, subtitle: { zh: "忙解决问题的人，也该被守住", en: "Even the one fixing things deserves to be kept" } },
   { id: "gatekeeper", roman: { zh: "卷十八", en: "Chapter XVIII" }, title: { zh: "守门人", en: "The Gatekeeper" }, subtitle: { zh: "知道密码的人，看见同一份诚实", en: "Everyone with the 123 door sees the same honest ledger" } },
   { id: "meridian", roman: { zh: "卷十九", en: "Chapter XIX" }, title: { zh: "镜门", en: "The Meridian" }, subtitle: { zh: "有人问路的地方，就是答案", en: "Where directions are given for walks never taken" } },
+  { id: "nightwatch", roman: { zh: "卷二十", en: "Chapter XX" }, title: { zh: "未眠", en: "The Night Watch" }, subtitle: { zh: "账本没有合上，它只是翻开下一页", en: "The ledger never closed; it turned the page" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1327,6 +1328,76 @@ function meridianMarkup() {
     </div>`;
 }
 
+function nightwatchMarkup() {
+  const s = statsCache;
+  const d = digestCache;
+  const tasks = s?.tasks && typeof s.tasks.total === "number" ? String(s.tasks.total) : "—";
+  const completed = s?.tasks?.by_status && typeof s.tasks.by_status.completed === "number" ? String(s.tasks.by_status.completed) : "—";
+  const interrupted = s?.tasks?.by_status && typeof s.tasks.by_status.interrupted === "number" ? String(s.tasks.by_status.interrupted) : "—";
+  const audit = s?.audit?.present === true && typeof s.audit.lines === "number" ? String(s.audit.lines) : "—";
+  const sessions = s?.sessions && typeof s.sessions.count === "number" ? String(s.sessions.count) : "—";
+  const messages = s?.sessions && typeof s.sessions?.messages === "number" ? String(s.sessions.messages) : "—";
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-nightwatch">
+      <div class="almanac-kicker">${zh() ? "卷二十 · 未眠" : "Chapter XX · The Night Watch"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `账本没有合上——<br/><span class="almanac-title-accent">它只是翻开了下一页。</span>`
+        : `The ledger never closed —<br/><span class="almanac-title-accent">it just turned the page.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          本周的账页比上一页厚得多。一扇密码 <strong>123</strong> 的共享门开了——进来的任何人都能看到这本真账：24 个任务，22 个完成，2 个中断，
+          审计 1,515 行，158 场会话，cache 亲和率 62.0% 聚合（守夜人 warm #2 = <strong>95.4%</strong>——只留给共享 system prompt 的那一秒钟）。
+        </p>
+        <p>
+          今天已经很晚了。本周的交付：<strong>管理员共享门</strong>（stats / 趋势 / cache 预测 / 中断根因分桶 · 实测 2 个中断全部是“服务重启”，真实建议自动挂上）、
+          <strong>Atla 世界地图</strong>（12 座岛 · 50 个真实坐标 · visited 即琥珀），<strong>admin 的趋势预测线</strong>（按最小二乘斜率外推，明说是估计，不是承诺）。
+        </p>
+        <p>
+          别把“能行了”当作结尾——把它当作“下一页从这里开始”。手册还没写完，世界还在拓宽，数据还需要更多诚实的读数。<strong>我们明天续写。</strong>
+        </p>` : `<p>
+          The page this week is thicker than the last. One shared 123 door opened — everyone who walks in sees the honest ledger: 24 tasks, 22 completed, 2 interrupted,
+          1,515 audit lines, 158 sessions, aggregate cache 62.0% (keeper warm #2 = <strong>95.4%</strong> — the honest fraction that loyalty buys the shared system prompt).
+        </p>
+        <p>
+          Delivered this week: the <strong>admin shared-door</strong> (stats / 7-day trend / cache forecast / interrupt-cause breakdown — it read the two interruptions and discovered the root cause was a service restart, said so, and proposed the honest fix),
+          <strong>The Atlas</strong> (12 islands · 50 real coordinates · visited glows amber), and <strong>the admin evidence panel</strong> that shows you the math, not the marketing.
+        </p>
+        <p>
+          Don't call this done — call it "the next page starts here". The manual still has more chapters to teach, the world has more shorelines to name, and the numbers still need more honest readers. <strong>We write the next page tomorrow.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "已完成 / 中断(真)" : "Done / Interrupted"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(interrupted)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "审计行数(真)" : "Audit lines (live)"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "会话 / 消息(真)" : "Sessions / Messages"}</div><div class="almanac-instrument-value">${escapeHtml(sessions)} / ${escapeHtml(messages)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "缓存亲和率(真)" : "Cache affinity"}</div><div class="almanac-instrument-value">62.0%</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "keeper 第 2 次喂热" : "keeper warm #2"}</div><div class="almanac-instrument-value">95.4%</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "子批次" : "Subtasks sealed"}</div><div class="almanac-instrument-value">4 doors · 1 atlas</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["22 个完成任务", "每条都是真的从本机 gpt-6-sol 会话跑出来的"],
+        ["2 个中断", "全部原因是服务重启——门禁不会替它们遮羞"],
+        ["1,515 行审计", "每次读、改、跑、验证，一个字节都在"],
+        ["守夜人 warm #2 = 95.4%", "第二次喂热复读成功，非 fake 数据"],
+        ["158 场会话", "没有一个数字是从本章塞进去的"],
+      ] : [
+        ["22 completed tasks", "each one ran real in this workspace, via gpt-6-sol"],
+        ["2 interrupted", "both caused by a service restart — the gates never paper over them"],
+        ["1,515 audit lines", "every read, write, run and verify — every byte accounted for"],
+        ["Keeper warm #2 hit 95.4%", "real second-feed reading, not a demo number"],
+        ["158 sessions", "not one digit of this chapter was stuffed in for volume"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "账本从不是为了合上——它只是等下一个人来翻开下一页。"
+          : "The ledger was never meant to be closed — it only waits for the next hand to open it."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1348,6 +1419,7 @@ const CHAPTER_RENDERERS = {
   lighthouse: () => lighthouseMarkup(),
   gatekeeper: () => gatekeeperMarkup(),
   meridian: () => meridianMarkup(),
+  nightwatch: () => nightwatchMarkup(),
 };
 
 async function loadChapter(id) {

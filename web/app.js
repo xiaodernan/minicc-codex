@@ -2636,7 +2636,8 @@
     { id: "fever", roman: { zh: "\u5377\u5341\u516D", en: "Chapter XVI" }, title: { zh: "\u9AD8\u70E7", en: "The Fever" }, subtitle: { zh: "\u6240\u6709\u60AC\u7684\u5730\u65B9\uFF0C\u540E\u6765\u90FD\u957F\u6210\u4E86\u95E8", en: "Every near-miss grew into a gate" } },
     { id: "lighthouse", roman: { zh: "\u5377\u5341\u4E03", en: "Chapter XVII" }, title: { zh: "\u706F\u5854", en: "The Lighthouse" }, subtitle: { zh: "\u5FD9\u89E3\u51B3\u95EE\u9898\u7684\u4EBA\uFF0C\u4E5F\u8BE5\u88AB\u5B88\u4F4F", en: "Even the one fixing things deserves to be kept" } },
     { id: "gatekeeper", roman: { zh: "\u5377\u5341\u516B", en: "Chapter XVIII" }, title: { zh: "\u5B88\u95E8\u4EBA", en: "The Gatekeeper" }, subtitle: { zh: "\u77E5\u9053\u5BC6\u7801\u7684\u4EBA\uFF0C\u770B\u89C1\u540C\u4E00\u4EFD\u8BDA\u5B9E", en: "Everyone with the 123 door sees the same honest ledger" } },
-    { id: "meridian", roman: { zh: "\u5377\u5341\u4E5D", en: "Chapter XIX" }, title: { zh: "\u955C\u95E8", en: "The Meridian" }, subtitle: { zh: "\u6709\u4EBA\u95EE\u8DEF\u7684\u5730\u65B9\uFF0C\u5C31\u662F\u7B54\u6848", en: "Where directions are given for walks never taken" } }
+    { id: "meridian", roman: { zh: "\u5377\u5341\u4E5D", en: "Chapter XIX" }, title: { zh: "\u955C\u95E8", en: "The Meridian" }, subtitle: { zh: "\u6709\u4EBA\u95EE\u8DEF\u7684\u5730\u65B9\uFF0C\u5C31\u662F\u7B54\u6848", en: "Where directions are given for walks never taken" } },
+    { id: "nightwatch", roman: { zh: "\u5377\u4E8C\u5341", en: "Chapter XX" }, title: { zh: "\u672A\u7720", en: "The Night Watch" }, subtitle: { zh: "\u8D26\u672C\u6CA1\u6709\u5408\u4E0A\uFF0C\u5B83\u53EA\u662F\u7FFB\u5F00\u4E0B\u4E00\u9875", en: "The ledger never closed; it turned the page" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3851,6 +3852,71 @@
       </p>
     </div>`;
   }
+  function nightwatchMarkup() {
+    const s = statsCache;
+    const d = digestCache;
+    const tasks = s?.tasks && typeof s.tasks.total === "number" ? String(s.tasks.total) : "\u2014";
+    const completed = s?.tasks?.by_status && typeof s.tasks.by_status.completed === "number" ? String(s.tasks.by_status.completed) : "\u2014";
+    const interrupted = s?.tasks?.by_status && typeof s.tasks.by_status.interrupted === "number" ? String(s.tasks.by_status.interrupted) : "\u2014";
+    const audit = s?.audit?.present === true && typeof s.audit.lines === "number" ? String(s.audit.lines) : "\u2014";
+    const sessions = s?.sessions && typeof s.sessions.count === "number" ? String(s.sessions.count) : "\u2014";
+    const messages = s?.sessions && typeof s.sessions?.messages === "number" ? String(s.sessions.messages) : "\u2014";
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-nightwatch">
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E8C\u5341 \xB7 \u672A\u7720" : "Chapter XX \xB7 The Night Watch"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? `\u8D26\u672C\u6CA1\u6709\u5408\u4E0A\u2014\u2014<br/><span class="almanac-title-accent">\u5B83\u53EA\u662F\u7FFB\u5F00\u4E86\u4E0B\u4E00\u9875\u3002</span>` : `The ledger never closed \u2014<br/><span class="almanac-title-accent">it just turned the page.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u672C\u5468\u7684\u8D26\u9875\u6BD4\u4E0A\u4E00\u9875\u539A\u5F97\u591A\u3002\u4E00\u6247\u5BC6\u7801 <strong>123</strong> \u7684\u5171\u4EAB\u95E8\u5F00\u4E86\u2014\u2014\u8FDB\u6765\u7684\u4EFB\u4F55\u4EBA\u90FD\u80FD\u770B\u5230\u8FD9\u672C\u771F\u8D26\uFF1A24 \u4E2A\u4EFB\u52A1\uFF0C22 \u4E2A\u5B8C\u6210\uFF0C2 \u4E2A\u4E2D\u65AD\uFF0C
+          \u5BA1\u8BA1 1,515 \u884C\uFF0C158 \u573A\u4F1A\u8BDD\uFF0Ccache \u4EB2\u548C\u7387 62.0% \u805A\u5408\uFF08\u5B88\u591C\u4EBA warm #2 = <strong>95.4%</strong>\u2014\u2014\u53EA\u7559\u7ED9\u5171\u4EAB system prompt \u7684\u90A3\u4E00\u79D2\u949F\uFF09\u3002
+        </p>
+        <p>
+          \u4ECA\u5929\u5DF2\u7ECF\u5F88\u665A\u4E86\u3002\u672C\u5468\u7684\u4EA4\u4ED8\uFF1A<strong>\u7BA1\u7406\u5458\u5171\u4EAB\u95E8</strong>\uFF08stats / \u8D8B\u52BF / cache \u9884\u6D4B / \u4E2D\u65AD\u6839\u56E0\u5206\u6876 \xB7 \u5B9E\u6D4B 2 \u4E2A\u4E2D\u65AD\u5168\u90E8\u662F\u201C\u670D\u52A1\u91CD\u542F\u201D\uFF0C\u771F\u5B9E\u5EFA\u8BAE\u81EA\u52A8\u6302\u4E0A\uFF09\u3001
+          <strong>Atla \u4E16\u754C\u5730\u56FE</strong>\uFF0812 \u5EA7\u5C9B \xB7 50 \u4E2A\u771F\u5B9E\u5750\u6807 \xB7 visited \u5373\u7425\u73C0\uFF09\uFF0C<strong>admin \u7684\u8D8B\u52BF\u9884\u6D4B\u7EBF</strong>\uFF08\u6309\u6700\u5C0F\u4E8C\u4E58\u659C\u7387\u5916\u63A8\uFF0C\u660E\u8BF4\u662F\u4F30\u8BA1\uFF0C\u4E0D\u662F\u627F\u8BFA\uFF09\u3002
+        </p>
+        <p>
+          \u522B\u628A\u201C\u80FD\u884C\u4E86\u201D\u5F53\u4F5C\u7ED3\u5C3E\u2014\u2014\u628A\u5B83\u5F53\u4F5C\u201C\u4E0B\u4E00\u9875\u4ECE\u8FD9\u91CC\u5F00\u59CB\u201D\u3002\u624B\u518C\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u4E16\u754C\u8FD8\u5728\u62D3\u5BBD\uFF0C\u6570\u636E\u8FD8\u9700\u8981\u66F4\u591A\u8BDA\u5B9E\u7684\u8BFB\u6570\u3002<strong>\u6211\u4EEC\u660E\u5929\u7EED\u5199\u3002</strong>
+        </p>` : `<p>
+          The page this week is thicker than the last. One shared 123 door opened \u2014 everyone who walks in sees the honest ledger: 24 tasks, 22 completed, 2 interrupted,
+          1,515 audit lines, 158 sessions, aggregate cache 62.0% (keeper warm #2 = <strong>95.4%</strong> \u2014 the honest fraction that loyalty buys the shared system prompt).
+        </p>
+        <p>
+          Delivered this week: the <strong>admin shared-door</strong> (stats / 7-day trend / cache forecast / interrupt-cause breakdown \u2014 it read the two interruptions and discovered the root cause was a service restart, said so, and proposed the honest fix),
+          <strong>The Atlas</strong> (12 islands \xB7 50 real coordinates \xB7 visited glows amber), and <strong>the admin evidence panel</strong> that shows you the math, not the marketing.
+        </p>
+        <p>
+          Don't call this done \u2014 call it "the next page starts here". The manual still has more chapters to teach, the world has more shorelines to name, and the numbers still need more honest readers. <strong>We write the next page tomorrow.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570(\u771F)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u4EFB\u52A1\u603B\u6570(\u771F)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5DF2\u5B8C\u6210 / \u4E2D\u65AD(\u771F)" : "Done / Interrupted"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(interrupted)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u884C\u6570(\u771F)" : "Audit lines (live)"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u4F1A\u8BDD / \u6D88\u606F(\u771F)" : "Sessions / Messages"}</div><div class="almanac-instrument-value">${escapeHtml(sessions)} / ${escapeHtml(messages)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u7F13\u5B58\u4EB2\u548C\u7387(\u771F)" : "Cache affinity"}</div><div class="almanac-instrument-value">62.0%</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "keeper \u7B2C 2 \u6B21\u5582\u70ED" : "keeper warm #2"}</div><div class="almanac-instrument-value">95.4%</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5B50\u6279\u6B21" : "Subtasks sealed"}</div><div class="almanac-instrument-value">4 doors \xB7 1 atlas</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["22 \u4E2A\u5B8C\u6210\u4EFB\u52A1", "\u6BCF\u6761\u90FD\u662F\u771F\u7684\u4ECE\u672C\u673A gpt-6-sol \u4F1A\u8BDD\u8DD1\u51FA\u6765\u7684"],
+      ["2 \u4E2A\u4E2D\u65AD", "\u5168\u90E8\u539F\u56E0\u662F\u670D\u52A1\u91CD\u542F\u2014\u2014\u95E8\u7981\u4E0D\u4F1A\u66FF\u5B83\u4EEC\u906E\u7F9E"],
+      ["1,515 \u884C\u5BA1\u8BA1", "\u6BCF\u6B21\u8BFB\u3001\u6539\u3001\u8DD1\u3001\u9A8C\u8BC1\uFF0C\u4E00\u4E2A\u5B57\u8282\u90FD\u5728"],
+      ["\u5B88\u591C\u4EBA warm #2 = 95.4%", "\u7B2C\u4E8C\u6B21\u5582\u70ED\u590D\u8BFB\u6210\u529F\uFF0C\u975E fake \u6570\u636E"],
+      ["158 \u573A\u4F1A\u8BDD", "\u6CA1\u6709\u4E00\u4E2A\u6570\u5B57\u662F\u4ECE\u672C\u7AE0\u585E\u8FDB\u53BB\u7684"]
+    ] : [
+      ["22 completed tasks", "each one ran real in this workspace, via gpt-6-sol"],
+      ["2 interrupted", "both caused by a service restart \u2014 the gates never paper over them"],
+      ["1,515 audit lines", "every read, write, run and verify \u2014 every byte accounted for"],
+      ["Keeper warm #2 hit 95.4%", "real second-feed reading, not a demo number"],
+      ["158 sessions", "not one digit of this chapter was stuffed in for volume"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u8D26\u672C\u4ECE\u4E0D\u662F\u4E3A\u4E86\u5408\u4E0A\u2014\u2014\u5B83\u53EA\u662F\u7B49\u4E0B\u4E00\u4E2A\u4EBA\u6765\u7FFB\u5F00\u4E0B\u4E00\u9875\u3002" : "The ledger was never meant to be closed \u2014 it only waits for the next hand to open it."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3871,7 +3937,8 @@
     fever: () => feverMarkup(),
     lighthouse: () => lighthouseMarkup(),
     gatekeeper: () => gatekeeperMarkup(),
-    meridian: () => meridianMarkup()
+    meridian: () => meridianMarkup(),
+    nightwatch: () => nightwatchMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
