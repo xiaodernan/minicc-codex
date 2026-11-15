@@ -5602,3 +5602,12 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .atlas-shards span { font-size: 10px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; color: #c4b5fd; }
 .atlas-shards strong { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-size: 13px; font-weight: 700; color: #ddd6fe; font-variant-numeric: tabular-nums; }
 .atlas-shards small { font-size: 9px; color: #a7acb6; max-width: 260px; }
+
+#tourOverlay { z-index: 900 !important; pointer-events: none; }
+#tourOverlay .tour-card,
+#tourOverlay .tour-skip,
+#tourOverlay .tour-interact,
+#tourOverlay .tour-back,
+#tourOverlay .tour-next { pointer-events: auto; }
+#tourOverlay .tour-spot { pointer-events: none; }
+#tourOverlay .tour-dim { pointer-events: none; }

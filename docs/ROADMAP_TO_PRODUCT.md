@@ -53243,3 +53243,44 @@ Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手�
 - **almanac 计数 18 → 21**：双语 both sides now 一致叙述。
 - **manual_smoke**：13 章节双语仍通过。
 - 诚实记录：CI 仍在 11+ 分钟 queued/runner starvation；只能以本地闸门为准。
+## 批次 1017 - M8-T1032: 年鉴 backlog 章节 — en 模式不再泄露 CJK 提交主题
+
+### 目的
+
+年鉴（Almanac）的 backlog 章节会把最近几条真实 git commit 主题挂上展览墙；commit subject 是人类随手写的，中文仓库推了四连中文主题后，en 模式下 en 读者会看到一串读不懂的汉字。用户明确要求"所有内容统一用中文或英文表示，两个都得支持"——这是一处真实的泄露，不是可以容忍的瑕疵。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — 新增 `subjectFor()`：Latin-fold 检查；subject 含 CJK 字符时 en 模式回落到 `"git commit"`（说得过去的原文术语，不假翻译），不含 CJK 则原样显示。不改写、不美化 commit 原文——自我诚实：我们交付的是通过了门禁的东西，不是翻译的樱桃。
+- 修正 `almanac_smoke` 的 en/backlog 断言面：en 模式下渲染文本不得出现 CJK 字符。
+
+### 实测验证
+
+- `almanac_smoke` en/backlog 场景通过；zh 模式不受影响。
+- CRLF gates：`i18n.js` = 309 CRLF，`index.html` = 655 CRLF。
+
+## 批次 1018 - M8-T1033: Wayfinder 上手演练 6→9 步 — Atlas/Dockyard/Admin 可交互自动前进
+
+### 目的
+
+原 Wayfinder 六步上手演练只覆盖 workbench 一侧（欢迎 → 侧栏 → composer → 演示流 → 年鉴 → 完成）。Atlas / Dockyard / Admin 三个面板上线后，新用户跑完演练仍不知道世界地图、船厂账本、管理员门在哪里。tour 是"用户不会迷路"承诺的第一道关，必须把新面板全部纳入，并保证交互按钮把人带到正确的地方。
+
+### 做了什么
+
+- **`web/src/panels/onboarding.js`** — STEPS 由 6 扩到 9：
+  - step 5 `atlas`（#atlasButton，"12 座岛屿、52 个坐标——18 个面板 + 20 卷年鉴卫星 + 13 章说明书"）
+  - step 6 `dockyard`（#dockyardButton，六个计数全部来自 git + /api/digest：首次提交日期 / 总提交数 / 完成任务数 / 年鉴章数 / 累计 token / 累计缓存亲和率）
+  - step 7 `admin`（#adminButton，"侧边栏最底那个「管理」锁形图标——密码 123"：真实统计 / 七日柱状图 / 线性预测 / 中断原因自动分桶 / 工具使用直方图，全部基于本工作区真实任务数据）
+  - 原 step 5/6（almanac / done）顺移为 step 8/9。15 处 kicker 全部 "of 9"，almanac 引用由十三改为二十一（与 21 章实际对齐）。
+- **interact 自动前进**：atlas / dockyard / admin 的 interact 按钮点击后先打开对应面板再 `next()` 自动推进 tour，不再卡在原地等用户自己找 Next。
+- **interact 按钮双语标签**：`atlas` = 展开世界地图 / Unfold the map；`dockyard` = 打开船厂 / Open the dockyard；`admin` = 打开管理员面板 / Open admin panel（`interactLabels` 查表 + 兜底 "继续 / Continue"）。
+- **`web/styles.css`** — `#tourOverlay { z-index: 900 !important; pointer-events: none; }`；`.tour-card / .tour-skip / .tour-interact / .tour-back / .tour-next` 全部 `pointer-events: auto`（dim/spot 仍 click-through）。修复了 Atlas（z-index 860）盖住 tour 的 Next 按钮（原 z-index 80）的遮挡 bug——新用户在 step 5 手足无措的根因。
+- **欢迎语**："六个地方" → "九个地方"（中英双语两处）。
+
+### 实测验证
+
+- Playwright zh/en 双语全走一遍：tourOffer 点击开场 → 9 步顺序推进（interact 自动前进把 5→6→7 串起来）→ overlay 正常关闭；zh 走到 "开始工作" 终局屏；en 同流通过。
+- Esc 退出行为保持不变（tour 设计上 Esc 即退出，符合预期）；截图 `output/wayfinder_*.png` 留档（offer / step1 / step3 / step5 / atlas / dockyard / admin / done）。
+- CRLF gates 未动：index.html 仍 655 CRLF；styles.css / onboarding.js 保持 LF。
+- `npm run build:web` 绿（game.js 115,708 chars，asset-manifest 更新，旧 bundle 清理 2 个）。
+- CI 基线：`43729619732`（7207776，M8-T1032）= 10 个 job 全绿：PR eval gate / M1 reliability probe / mvn / Python windows + ubuntu / Claim checkers / JavaScript syntax / Playwright + unreachable-provider。

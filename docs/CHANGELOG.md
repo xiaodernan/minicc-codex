@@ -433,3 +433,5 @@
 - 诚实记录：本批如期把 atlas_smoke's 渐进式 HUD 校验 line 升到 52 个坐标（此前是 50），已经被 `tests/atlas_smoke.mjs` 固化为 52-coordinate contract；还把 Esc 链路补到 `adminStage`（Esc 关闭 admin 面板，此前只知道认 `pulseStage` / `atlasStage` / `gameModal`——之前 admin 出不去 Esc）。实测 zh/en 双语截图正常。
 
 - **说明书补全 Admin + Atlas 两个模块（M8-T1031）**：modules 章节（zh 与 en）齐平补充「Admin 管理员共享门」+「Atlas 世界地图」——两门里我们现在写得清楚到脚注：Admin 密码 123 解锁、 stats/7日 canvas / 最小二乘预测（明示是估计而已）/ 中断原因分桶 / tool-usage 真实计数；Atlas 12 岛屿 52 真实坐标、拖拽平移/滚轮缩放/点击直达/visited 琥珀颜色/undo-my-visited 全本地。Almanac 数字从 18 → 21。
+- **年鉴 backlog 章节 en 不再泄露 CJK commit 主题（M8-T1032）**：`subjectFor()` 做 Latin-fold 检查；含汉字的 subject 在 en 下回落 `git commit`，不含则原样显示。
+- **Wayfinder 演练 6 → 9 步（M8-T1033）**：新增 atlas / dockyard / admin 三步；interact 按钮双语标签（展开世界地图 / 打开船厂 / 打开管理员面板）；interact 打开面板后 tour 自动 `next()` 不再卡住；`#tourOverlay` 提到 z-index 900 且 dim/spot click-through，修复 Atlas(860) 遮挡 tour Next(80) 的 bug；15 处 kicker `of 9`；欢迎语"六个地方"→"九个地方"（双语）。Playwright zh/en 全程实测通过。
