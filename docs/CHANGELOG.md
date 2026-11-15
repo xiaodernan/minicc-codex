@@ -474,3 +474,4 @@
 - **实测（en locale， GtkTerm wt + 真实 wkapi）**：刷新 → Arcade → sunflower ×2 pre-game → `#gameStart` single click → running=true, wave=1, zombies=1, plants=2 — zero pageerror。 
 
 - **门禁**：5 smokes green / CRLF pin gates green（index.html 695 / i18n.js 309）。
+- **CI 红补丁（M8-T1049）**：本届 CI 把两个 Python legs 打回——根源是 README 里 The Lawn 的正文写了一串「--island-tint」，在 capability_claims 检查器看来是未经登记的 CLI 旗标（实际是 CSS 自定义属性）；去横线写成 `island-tint` 后两个 legs 本地复跑都绿。 涉 CRLF/i18n pins 零改动；`test_readme_capability_claims.py` 8/8 通过本地。

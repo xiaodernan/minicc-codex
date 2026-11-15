@@ -53548,3 +53548,14 @@ M8-T1044/T1045 合并 CI 跑了 28 分钟，两条 Python legs 同形失败—�
 - **`web/styles.css`** — 新增 `@media (min-width: 1500px) and (min-height: 900px)` block，把 `.game-modal.show` 默认形态改成 grid 两栏（seeds + canvas 横排），seed-card 变 18px icon，`#gameStart` 黄色按钮 Sticky 落在底部；`object-fit: contain` 让画布不溢出。`game-wide-layout` 默认化并保留 wide-mode 变体（190px-420px 甚至 1366×768 都算，不到此阈值的 fallback 依旧是 scroll）。
 - **实测**：1440×900 / 1366×768 / 2560×1200 三 viewport，`#gameStart` top 均 ≥ viewport height - 36px；zh/en smokes 双通。
 - **门禁**：5 smoke 全绿 / CRLF pin 绿。
+## 批次 1034 - M8-T1049: CI 红修复：README 旗标写成 CSS 自定义属性形状
+
+### 目的
+
+`test_readme_capability_claims.py` 按规则扫描 README；任何 `--` 引导的 flag 状 token 都会反查 parser。`--island-tint` 是 CSS 自定义属性，但 README 把它当旗标提就触发两 leg Python 全红。本批只做一件干净的事：README 正文里的枝桠去掉横线、本体 `island-tint` 原形保留，与 CSS 实际名称精确一致。
+
+### 做了什么
+
+- README：`--island-tint` → `island-tint`。
+- 本地 `test_readme_capability_claims.py` 8/8 绿。
+- 其他 CRLF pin / Claims / Playwright 不动。
