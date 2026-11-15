@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T06:58:33.775Z",
+  "generated_at": "2026-11-15T07:33:01.273Z",
   "branch": "main",
-  "head": "b6ef066",
-  "total_commits": 1582,
+  "head": "5814008",
+  "total_commits": 1585,
   "recent_commits": [
+    {
+      "short": "5814008",
+      "at": "2026-11-15T15:32:25+08:00",
+      "subject": "M8-T1002: ubuntu/windows Python red fix - inline the break-opportunity into both path renderers (bundle-slicing gate saw a free variable), drop the orphan brace"
+    },
+    {
+      "short": "bbe1c04",
+      "at": "2026-11-15T15:32:24+08:00",
+      "subject": "M8-T1001: Doctor workspace self-check card - reuses the minicc --doctor engine via /api/doctor (7 pass / 2 warn / 0 fail rendered live), mono check names + seve"
+    },
+    {
+      "short": "e21fcd2",
+      "at": "2026-11-15T06:58:34Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b6ef066",
       "at": "2026-11-15T14:54:49+08:00",
@@ -14,28 +29,13 @@
       "short": "81bfdd2",
       "at": "2026-11-15T06:42:43Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "605f2e3",
-      "at": "2026-11-15T14:42:19+08:00",
-      "subject": "M8-T999: almanac chapter XVI 'The Fever' - the near-misses written into the yearbook (37s->4.2ms, 2490x0, two U+FFFD, three hidden red smokes, cold-cache herd);"
-    },
-    {
-      "short": "356801e",
-      "at": "2026-11-15T06:26:40Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c873f01",
-      "at": "2026-11-15T14:26:17+08:00",
-      "subject": "M8-T998: js-check triage - softPath U+200B replaced with <wbr> (text content stays clean), lifecycle/scale smoke assertions made locale-agnostic for the M8-T986"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 316,
+  "roadmap_batches": 318,
   "changelog_entries": 1,
-  "roadmap_lines": 52668,
-  "tracked_files": 1065,
+  "roadmap_lines": 52711,
+  "tracked_files": 1066,
   "test_files": 705,
   "almanac_chapters": 17,
   "module_count": 14,
