@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T12:36:37.535Z",
+  "generated_at": "2026-11-15T12:36:46.624Z",
   "branch": "main",
-  "head": "eda6af9",
-  "total_commits": 1624,
+  "head": "d84a51d",
+  "total_commits": 1625,
   "recent_commits": [
+    {
+      "short": "d84a51d",
+      "at": "2026-11-15T20:36:40+08:00",
+      "subject": "M8-T1019: every composer chip button now teaches itself, bilingually - read-only Plan/Review/Verify, Parallel, Attach, Demo flow get title+aria-label driven by "
+    },
     {
       "short": "eda6af9",
       "at": "2026-11-15T11:44:01Z",
@@ -24,18 +29,13 @@
       "short": "25b8625",
       "at": "2026-11-15T11:16:35Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a7db677",
-      "at": "2026-11-15T19:15:49+08:00",
-      "subject": "M8-T1016: almanac chapter 18 The Gatekeeper - the shared-123 door told in-epically with live numbers; scroll-reset fix for chapter switching (long chapters used"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 333,
   "changelog_entries": 1,
   "roadmap_lines": 53057,
-  "tracked_files": 1074,
+  "tracked_files": 1072,
   "test_files": 709,
   "almanac_chapters": 19,
   "module_count": 14,
