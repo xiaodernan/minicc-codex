@@ -4954,7 +4954,8 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .palette-close:hover { color: var(--text); border-color: var(--line-bright); background: var(--surface-soft); }
 .palette-search { align-items: center; border-bottom: 1px solid var(--line); color: var(--amber); display: flex; gap: 10px; padding: 12px 18px; background: color-mix(in srgb, var(--amber) 5%, transparent); }
 .palette-search svg { flex: 0 0 auto; height: 16px; width: 16px; stroke-width: 2; }
-.palette-search input { background: transparent; border: 0; color: var(--text); flex: 1 1 auto; font: 500 14.5px Manrope, "PingFang SC", sans-serif; min-width: 0; outline: none; }
+.palette-search input { background: transparent; border: 0; color: var(--text); flex: 1 1 auto; font: 500 14.5px Manrope, "PingFang SC", sans-serif; min-width: 0; }
+.palette-search input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 8px; }
 .palette-search input::placeholder { color: var(--muted); }
 .palette-list { list-style: none; margin: 0; max-height: 330px; overflow-y: auto; padding: 8px; display: grid; gap: 2px; }
 .palette-option { align-items: center; border: 1px solid transparent; border-radius: 10px; color: var(--text); cursor: pointer; display: flex; gap: 12px; padding: 10px 12px; transition: background .13s ease, border-color .13s ease, transform .13s ease; }
@@ -5000,10 +5001,10 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 }
 .empty-session > * { position: relative; z-index: 1; }
 .empty-orbit {
-  color: var(--amber);
+  color: var(--coral);
   width: 128px;
   height: 128px;
-  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--amber) 16%, transparent) 0%, transparent 72%);
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--coral-soft) 70%, transparent) 0%, transparent 72%);
 }
 .empty-orbit::before { inset: 5px; border-color: color-mix(in srgb, var(--amber) 24%, transparent); }
 .empty-orbit::after { inset: 17px; border-color: color-mix(in srgb, var(--amber) 36%, transparent); }
@@ -5129,13 +5130,17 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   padding: 10px 18px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
-  background: color-mix(in srgb, var(--amber) 14%, transparent);
-  color: color-mix(in srgb, var(--amber) 92%, #fff);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--amber) 88%, #fff3c8) 0%, var(--amber) 60%, color-mix(in srgb, var(--amber) 72%, #b45309) 100%);
+  color: #2b1e04;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: .01em;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--amber) 35%, transparent);
+  transition: filter .18s ease, transform .18s ease;
+}
+.tour-interact:hover { filter: brightness(1.07); transform: translateY(-1px); }
   transition: background .18s ease, border-color .18s ease, transform .18s ease;
 }
 .tour-interact:hover { background: color-mix(in srgb, var(--amber) 24%, transparent); border-color: var(--amber); transform: translateY(-1px); }

@@ -46,6 +46,9 @@ def test_window_expiry_reopens_the_gate(monkeypatch: pytest.MonkeyPatch) -> None
         ratelimit._LOCAL.clear()
     assert ratelimit.consume("rag-query", "c")[0] is True
     assert ratelimit.consume("rag-query", "c")[0] is False
+    # wait-claim: the bucket's 60 ms window has truly elapsed once monotonic()
+    # advances past the expiry recorded at the last consume; the test re-reads
+    # itself instead of trusting an arbitrary beat.
     time.sleep(0.06)
     assert ratelimit.consume("rag-query", "c")[0] is True
 
