@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:56:07.197Z",
+  "generated_at": "2026-11-15T08:56:59.467Z",
   "branch": "main",
-  "head": "bb558b4",
-  "total_commits": 1595,
+  "head": "c604eba",
+  "total_commits": 1597,
   "recent_commits": [
+    {
+      "short": "c604eba",
+      "at": "2026-11-15T16:56:34+08:00",
+      "subject": "showcase fact pack: feature_surface gains dockyard-panel alongside doctor-panel/keeper/vitals/echo/load-lab"
+    },
+    {
+      "short": "deebbed",
+      "at": "2026-11-15T08:55:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "bb558b4",
       "at": "2026-11-15T16:55:33+08:00",
@@ -19,16 +29,6 @@
       "short": "eb4806f",
       "at": "2026-11-15T16:51:07+08:00",
       "subject": "M8-T1005: Dockyard - the evidence harbour: Captain's log of 6 real counters + ten lighthouse stakes unlocked entirely by live git/metrics/worldpulse numbers; di"
-    },
-    {
-      "short": "fb55aa6",
-      "at": "2026-11-15T08:44:04Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ecae705",
-      "at": "2026-11-15T08:35:30Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
