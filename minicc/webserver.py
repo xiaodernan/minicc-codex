@@ -326,6 +326,18 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._json({"ok": True, "service": "minicc"})
             return
+        if path == "/api/worldpulse":
+            # M8-T993: live public-world glance — the repo's real GitHub
+            # facts, cached through the shared Redis/LRU cache with a
+            # 5-minute TTL. Fail-open: live data when reachable, a careful
+            # honest payload when not.
+            try:
+                from .worldpulse import fetch_worldpulse
+
+                self._json(fetch_worldpulse())
+            except Exception as exc:  # noqa: BLE001
+                self._json({"live": False, "github": None, "error": f"{type(exc).__name__}: {exc}"})
+            return
         if path.startswith("/api/"):
             # Health stays open; every other API route requires the token when
             # auth is enabled. EventSource passes its token via query.

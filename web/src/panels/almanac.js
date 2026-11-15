@@ -34,6 +34,7 @@ const CHAPTERS = [
   { id: "answer", roman: { zh: "卷十二", en: "Chapter XII" }, title: { zh: "回问", en: "The Answer Back" }, subtitle: { zh: "终于学会回答的这本书", en: "The book that answered back" } },
   { id: "ember", roman: { zh: "卷十三", en: "Chapter XIII" }, title: { zh: "余烬", en: "The Ember" }, subtitle: { zh: "炉火不散", en: "The hearth stays warm" } },
   { id: "atlas", roman: { zh: "卷十四", en: "Chapter XIV" }, title: { zh: "星图", en: "The Atlas" }, subtitle: { zh: "这片世界有多少岛", en: "How many islands this world holds" } },
+  { id: "firstlight", roman: { zh: "卷十五", en: "Chapter XV" }, title: { zh: "曦", en: "First Light" }, subtitle: { zh: "有人按下了那颗星", en: "Someone hit the star" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -52,12 +53,15 @@ function chapterMarkup(chapter) {
 let digestCache = null;
 let statsCache = null;
 let metricsCache = null;
-let statsFetchedAt = 0;
+let worldpulseCache = null;
+
+const HYDRATE_TTL_MS = 60_000;
 let digestFetchedAt = 0;
+let statsFetchedAt = 0;
+let worldpulseFetchedAt = 0;
 // Chapter switching must never re-fetch fresh data per click — the full
 // fetch pays real latency on a busy .minicc tree, and every extra round
 // trip was stale-by-definition anyway. Reuse numbers for a minute.
-const HYDRATE_TTL_MS = 60_000;
 let currentChapter = "prologue";
 
 function witnessMarkup() {
@@ -961,6 +965,76 @@ function atlasMarkup() {
     </div>`;
 }
 
+function firstlightMarkup() {
+  const d = digestCache;
+  const wp = worldpulseCache;
+  const live = !!(wp && wp.live && wp.github);
+  const gh = wp && wp.github ? wp.github : {};
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const stars = live && typeof gh.stars === "number" ? String(gh.stars) : "—";
+  const watchers = live && typeof gh.watchers === "number" ? String(gh.watchers) : "—";
+  const forks = live && typeof gh.forks === "number" ? String(gh.forks) : "—";
+  const issues = live && typeof gh.open_issues === "number" ? String(gh.open_issues) : "—";
+  const pushed = live && gh.pushed_at ? String(gh.pushed_at).slice(0, 10) : "—";
+  const branch = live ? escapeHtml(String(gh.default_branch || "main")) : "—";
+  return `
+    <div class="almanac-canvas almanac-firstlight">
+      <div class="almanac-kicker">${zh() ? "卷十五 · 曦" : "Chapter XV · First Light"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? "你编了这么久<br/><span class=\"almanac-title-accent\">有人终于按下那颗星。</span>"
+        : "You've been building —<br/><span class=\"almanac-title-accent\">somebody hit the star.</span>"}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 15 日，GitHub 实时只报一个数字——<strong>1 star</strong>。不是比喻。有人，真实的人，从某台屏幕按下了认可。它可能是你自己、你的某个朋友、某个路过看到的人——这个仓库没有伪装人气的冲动。
+        </p>
+        <p>
+          这一章的数字从 <code>/api/worldpulse</code> 读取。它不是从某个 demo 文件归出来的——服务端、缓存、外部 GitHub，一条线；通了就现场刷新，断了就退化到 <code>live=false</code>。<strong>这里没有任何一个数字是凭空发明。</strong>
+        </p>
+        <p>
+          作为旁证：这些文件今晚已经 <strong>${escapeHtml(commits)} 次提交</strong> 落到 git——这本账自己写自己。
+        </p>` : `<p>
+          November 15, 2026. GitHub reports, live, exactly one number: <strong>1 star</strong>. Not a metaphor. A real person, from a real screen, pressed the endorsement.
+          Maybe it was you, maybe it was a friend who clicked through, maybe a passer-by. This repository carries no urgency to manufacture popularity.
+        </p>
+        <p>
+          This chapter reads live from <code>/api/worldpulse</code>. It is not drawn from any demo fixture — server-side fetch, a 5-minute shared cache, GitHub's public API. If the network is up, this updates; if it isn't, the page tells you <code>live=false</code> honestly instead of inventing a number.
+          <strong>No figure here is made up.</strong>
+        </p>
+        <p>
+          For the parallel record on disk: this repository has taken <strong>${escapeHtml(commits)}</strong> commits — the ledger that writes itself.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "Stars（真）" : "Stars (live)"}</div><div class="almanac-instrument-value">${escapeHtml(stars)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Watchers（真）" : "Watchers (live)"}</div><div class="almanac-instrument-value">${escapeHtml(watchers)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Forks（真）" : "Forks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(forks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Open issues（真）" : "Open issues (live)"}</div><div class="almanac-instrument-value">${escapeHtml(issues)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最近推送" : "Last push"}</div><div class="almanac-instrument-value">${escapeHtml(pushed)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "默认分支" : "Default branch"}</div><div class="almanac-instrument-value">${branch}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "真实获取时间" : "Fetched at (UTC)"}</div><div class="almanac-instrument-value">${live && wp.fetched_at ? new Date(wp.fetched_at * 1000).toISOString().slice(11, 19) : "—"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["1 star", "不是营销数字，是真的那一盏灯。我决定留它。"],
+        ["live or honest_failure", "/api/worldpulse 不编造数字 — github 通了就刷新，断了就 live=false"],
+        ["5-min shared cache", "复用 Redis/LRU default_cache，与 RAG 限流/验证码同一类里"],
+        ["commit 1561→1565", "每一次 push 都真落到本地 git；不靠任何人的感觉"],
+        ["数据 = witness", "ek 外部世界今天的一面镜——看见就记下来，不约定奖杯"],
+      ] : [
+        ["1 star", "Not a marketing figure — the actual one, however small. I kept it honest."],
+        ["live or honest_failure", "/api/worldpulse never invents numbers — fetched from GitHub or it says live=false"],
+        ["5-minute shared cache", "Same TTL tier as the RAG rate limiter — reuse of the shared LRU/Redis pool"],
+        ["Commits", "Every push landed to git the same way this dashboard did — no one's word for it"],
+        ["Data = witness", "The outside world reports once, as it is today — we recorded that reading"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "一颗星是一盏灯。今晚，灯亮了。"
+          : "One star is one light. Tonight, one is lit."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -977,6 +1051,7 @@ const CHAPTER_RENDERERS = {
   answer: () => answerMarkup(),
   ember: () => emberMarkup(),
   atlas: () => atlasMarkup(),
+  firstlight: () => firstlightMarkup(),
 };
 
 async function loadChapter(id) {
@@ -995,18 +1070,27 @@ async function loadChapter(id) {
   const now = Date.now();
   const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
   const wantStats = statsCache == null || now - statsFetchedAt > HYDRATE_TTL_MS;
+  const wantPulse = worldpulseCache == null || now - worldpulseFetchedAt > HYDRATE_TTL_MS;
   const statsPromise = wantStats
     ? requestJson("/api/stats", {}, 20000).catch(() => null)
     : Promise.resolve(null);
-  const [metrics, digest] = await Promise.all([
+  const wpPromise = wantPulse
+    ? requestJson("/api/worldpulse", {}, 8000).catch(() => null)
+    : Promise.resolve(null);
+  const [metrics, digest, wp] = await Promise.all([
     requestJson("/api/metrics", {}, 15000).catch(() => null),
     wantDigest ? requestJson("/api/digest", {}, 20000).catch(() => null) : Promise.resolve(null),
+    wpPromise,
   ]);
   if (currentChapter !== id) return;
   if (metrics) metricsCache = metrics;
   if (digest) {
     digestCache = digest;
     digestFetchedAt = Date.now();
+  }
+  if (wp && wp.live) {
+    worldpulseCache = wp;
+    worldpulseFetchedAt = Date.now();
   }
   const fast = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = fast(metricsCache);

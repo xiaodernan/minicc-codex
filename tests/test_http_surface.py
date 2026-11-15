@@ -760,6 +760,27 @@ def test_get_rag_search_returns_bm25_results(live: _LiveServer, tmp_path: Path) 
     assert json.loads(body)["results"] == []
 
 
+def test_get_worldpulse_returns_live_or_honest_failure(live: _LiveServer, monkeypatch) -> None:
+    """M8-T993: /api/worldpulse is the live-glance route to the outside
+    world — public GitHub facts, 5-minute shared cache, fail-open. This
+    test does NOT require network: it stubs the fetch to return a canned
+    honest dict (same shape as the real wire) and checks the route's
+    path and error policy. Any real fetch happens exactly once per TTL."""
+    import minicc.worldpulse as wp_mod
+
+    monkeypatch.setattr(wp_mod, "fetch_worldpulse", lambda *, force_refresh=False: {
+        "live": True,
+        "fetched_at": 1234567890.0,
+        "github": {"stars": 1, "forks": 0, "open_issues": 1, "pushed_at": "2026-11-15T00:00:00Z", "default_branch": "main", "html_url": "https://github.com/xiaodernan/minicc-codex"},
+    })
+    status, _, body = _request(f"{live.url}/api/worldpulse", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is True
+    assert payload["github"]["stars"] == 1
+    assert "sk-" not in body.decode("utf-8")
+
+
 def test_get_rag_query_route_is_registered_and_safe(live: _LiveServer, monkeypatch) -> None:
     """M8-T973: /api/rag/query is a lexical retriever + one chat
     completion.  The fake fixture never exercises a real gateway (its

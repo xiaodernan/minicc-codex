@@ -5193,3 +5193,9 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .atlas-violet text { fill: var(--purple); font: 700 11px "Manrope", sans-serif; letter-spacing: .04em; opacity: .92; }
 .atlas-stage-caption { color: var(--quiet); font-size: 11px; margin-top: 0; margin-bottom: 6px; letter-spacing: .02em; }
 .almanac-ember .almanac-instrument-label { color: var(--mint); opacity: .85; }
+/* M8-T993: chapter XV — First light, luminous amber dawn */
+.almanac-firstlight .almanac-body { border-color: color-mix(in srgb, var(--amber) 28%, transparent); }
+.almanac-firstlight .almanac-kicker { color: var(--amber); }
+.almanac-firstlight .almanac-instrument-value { color: var(--amber); }
+.almanac-firstlight .almanac-instrument-label { color: var(--amber); opacity: .85; }
+.almanac-firstlight .almanac-gate-list li { border-left-color: var(--amber); }

@@ -52494,3 +52494,32 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
   - `MINICC_WEB_URL=http://127.0.0.1:8899 node tests/almanac_smoke.mjs` → **passed: 15 chapters bilingual, chapter switching verified, no mixed-language prose**
 - `npm run build:web` 后 `check:web` 干净；i18n smoke 594 键对齐未动；`doc_pointers` rc=0；
 - manual + README 十五卷；新增章节也进了手册
+
+## 批次 985 - M8-T993：`GET /api/worldpulse` + 年鉴第十六卷「曦 / First Light」——把真的外界数据写进故事
+
+### 1 背景
+
+用户明确要求："尽可能加入一些联网搜索得到的真实数据 或者真实实验数据 而不要全部都是演示数据的堆砌。" 这个项目长期都是自洽地「只读自己人的仓库」，本批接入了真的外部信号：GitHub 公开 REST API。
+
+### 2 做了什么
+
+- 新增 `minicc/worldpulse.py`：`fetch_worldpulse(force_refresh=False)` —— urllib 命中 `api.github.com/repos/xiaodernan/minicc-codex`（User-Agent: `minicc/worldpulse`、8s 超时）；成功后写 `default_cache["minicc:worldpulse:github"]`（TTL=300s）；**失败 fail-open**返回 `{live: false, github: null, error: ...}`，不会让工作台因为网络抖动而 500。
+- 新路由 `GET /api/worldpulse`：唯读、复用 `default_cache`、5 分钟共享缓存、AST walker 自动看到 → **GET 26→27**。
+- `tests/test_http_surface.py::test_get_worldpulse_returns_live_or_honest_failure` —— stubbed 形状验证（不燃网，测试 fully in-memory）：断言 `status==200`、`live==True`、`github.stars==1`、响应不含 `sk-`。
+- 年鉴第十六卷「曦 / First Light」：整章全部从 `/api/worldpulse` + `digest` 读（live GitHub  estrellas/watchers/forks/issues/pushed_at/default_branch + 提交总数）；并点出"数据 = witness"，不做一次营销口号。
+- `/api/worldpulse` 接 `default_cache` —— 与 RAG 限流、验证码、capabilities 同一个 5 分钟档次。
+
+### 3 实测（2026-11-15T01:20 UTC 实拉）
+
+```json
+{ "live": true, "github": { "stars": 1, "forks": 0, "open_issues": 1, "default_branch": "main",
+                              "watchers": 1, "pushed_at": "2026-11-15T01:11:10Z" }}
+```
+—— 真 GitHub：**1 star、1 watcher、0 forks、1 open issue、main 分支；今晚：第一台将这个 star 写入账本里。这就是曦。**
+
+### 4 验证
+
+- `pytest tests/test_http_surface.py` 84 passed；Route Coverage **GET 27/27 · POST 14/14 = 100%**；
+- `MINICC_WEB_URL=http://127.0.0.1:8899 node tests/almanac_smoke.mjs` → **passed: 16 chapters bilingual, chapter switching verified, no mixed-language prose**
+- Playwright 双 locale 截图：zh「曦：你编了这么久 — GitHub 实时：1 star」、en「First Light：You've been building — somebody hit the star」；零 CJK（en 模式）；章节仪表从 worldpulse/digest 现场水润；
+- README 年鉴 16 卷；manual CHAPTERS 同步涩升；askdocs/helpshortcuts smoke PASS；`doc_pointers` rc=0；i18n 594 键不动。

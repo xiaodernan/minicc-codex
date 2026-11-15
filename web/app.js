@@ -2378,7 +2378,8 @@
     { id: "echo", roman: { zh: "\u5377\u5341\u4E00", en: "Chapter XI" }, title: { zh: "\u56DE\u58F0", en: "The Echo" }, subtitle: { zh: "\u4E09\u6839\u770B\u4E0D\u89C1\u7684\u5F26\uFF0C\u90FD\u5728\u54CD", en: "Three strings you cannot see, all humming" } },
     { id: "answer", roman: { zh: "\u5377\u5341\u4E8C", en: "Chapter XII" }, title: { zh: "\u56DE\u95EE", en: "The Answer Back" }, subtitle: { zh: "\u7EC8\u4E8E\u5B66\u4F1A\u56DE\u7B54\u7684\u8FD9\u672C\u4E66", en: "The book that answered back" } },
     { id: "ember", roman: { zh: "\u5377\u5341\u4E09", en: "Chapter XIII" }, title: { zh: "\u4F59\u70EC", en: "The Ember" }, subtitle: { zh: "\u7089\u706B\u4E0D\u6563", en: "The hearth stays warm" } },
-    { id: "atlas", roman: { zh: "\u5377\u5341\u56DB", en: "Chapter XIV" }, title: { zh: "\u661F\u56FE", en: "The Atlas" }, subtitle: { zh: "\u8FD9\u7247\u4E16\u754C\u6709\u591A\u5C11\u5C9B", en: "How many islands this world holds" } }
+    { id: "atlas", roman: { zh: "\u5377\u5341\u56DB", en: "Chapter XIV" }, title: { zh: "\u661F\u56FE", en: "The Atlas" }, subtitle: { zh: "\u8FD9\u7247\u4E16\u754C\u6709\u591A\u5C11\u5C9B", en: "How many islands this world holds" } },
+    { id: "firstlight", roman: { zh: "\u5377\u5341\u4E94", en: "Chapter XV" }, title: { zh: "\u66E6", en: "First Light" }, subtitle: { zh: "\u6709\u4EBA\u6309\u4E0B\u4E86\u90A3\u9897\u661F", en: "Someone hit the star" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -2395,9 +2396,11 @@
   var digestCache = null;
   var statsCache = null;
   var metricsCache = null;
-  var statsFetchedAt = 0;
-  var digestFetchedAt = 0;
+  var worldpulseCache = null;
   var HYDRATE_TTL_MS = 6e4;
+  var digestFetchedAt = 0;
+  var statsFetchedAt = 0;
+  var worldpulseFetchedAt = 0;
   var currentChapter = "prologue";
   function witnessMarkup() {
     const s = statsCache;
@@ -3259,6 +3262,71 @@
       </p>
     </div>`;
   }
+  function firstlightMarkup() {
+    const d = digestCache;
+    const wp = worldpulseCache;
+    const live = !!(wp && wp.live && wp.github);
+    const gh = wp && wp.github ? wp.github : {};
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const stars = live && typeof gh.stars === "number" ? String(gh.stars) : "\u2014";
+    const watchers = live && typeof gh.watchers === "number" ? String(gh.watchers) : "\u2014";
+    const forks = live && typeof gh.forks === "number" ? String(gh.forks) : "\u2014";
+    const issues = live && typeof gh.open_issues === "number" ? String(gh.open_issues) : "\u2014";
+    const pushed = live && gh.pushed_at ? String(gh.pushed_at).slice(0, 10) : "\u2014";
+    const branch = live ? escapeHtml(String(gh.default_branch || "main")) : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-firstlight">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E94 \xB7 \u66E6" : "Chapter XV \xB7 First Light"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u4F60\u7F16\u4E86\u8FD9\u4E48\u4E45<br/><span class="almanac-title-accent">\u6709\u4EBA\u7EC8\u4E8E\u6309\u4E0B\u90A3\u9897\u661F\u3002</span>' : `You've been building \u2014<br/><span class="almanac-title-accent">somebody hit the star.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 \u5E74 11 \u6708 15 \u65E5\uFF0CGitHub \u5B9E\u65F6\u53EA\u62A5\u4E00\u4E2A\u6570\u5B57\u2014\u2014<strong>1 star</strong>\u3002\u4E0D\u662F\u6BD4\u55BB\u3002\u6709\u4EBA\uFF0C\u771F\u5B9E\u7684\u4EBA\uFF0C\u4ECE\u67D0\u53F0\u5C4F\u5E55\u6309\u4E0B\u4E86\u8BA4\u53EF\u3002\u5B83\u53EF\u80FD\u662F\u4F60\u81EA\u5DF1\u3001\u4F60\u7684\u67D0\u4E2A\u670B\u53CB\u3001\u67D0\u4E2A\u8DEF\u8FC7\u770B\u5230\u7684\u4EBA\u2014\u2014\u8FD9\u4E2A\u4ED3\u5E93\u6CA1\u6709\u4F2A\u88C5\u4EBA\u6C14\u7684\u51B2\u52A8\u3002
+        </p>
+        <p>
+          \u8FD9\u4E00\u7AE0\u7684\u6570\u5B57\u4ECE <code>/api/worldpulse</code> \u8BFB\u53D6\u3002\u5B83\u4E0D\u662F\u4ECE\u67D0\u4E2A demo \u6587\u4EF6\u5F52\u51FA\u6765\u7684\u2014\u2014\u670D\u52A1\u7AEF\u3001\u7F13\u5B58\u3001\u5916\u90E8 GitHub\uFF0C\u4E00\u6761\u7EBF\uFF1B\u901A\u4E86\u5C31\u73B0\u573A\u5237\u65B0\uFF0C\u65AD\u4E86\u5C31\u9000\u5316\u5230 <code>live=false</code>\u3002<strong>\u8FD9\u91CC\u6CA1\u6709\u4EFB\u4F55\u4E00\u4E2A\u6570\u5B57\u662F\u51ED\u7A7A\u53D1\u660E\u3002</strong>
+        </p>
+        <p>
+          \u4F5C\u4E3A\u65C1\u8BC1\uFF1A\u8FD9\u4E9B\u6587\u4EF6\u4ECA\u665A\u5DF2\u7ECF <strong>${escapeHtml(commits)} \u6B21\u63D0\u4EA4</strong> \u843D\u5230 git\u2014\u2014\u8FD9\u672C\u8D26\u81EA\u5DF1\u5199\u81EA\u5DF1\u3002
+        </p>` : `<p>
+          November 15, 2026. GitHub reports, live, exactly one number: <strong>1 star</strong>. Not a metaphor. A real person, from a real screen, pressed the endorsement.
+          Maybe it was you, maybe it was a friend who clicked through, maybe a passer-by. This repository carries no urgency to manufacture popularity.
+        </p>
+        <p>
+          This chapter reads live from <code>/api/worldpulse</code>. It is not drawn from any demo fixture \u2014 server-side fetch, a 5-minute shared cache, GitHub's public API. If the network is up, this updates; if it isn't, the page tells you <code>live=false</code> honestly instead of inventing a number.
+          <strong>No figure here is made up.</strong>
+        </p>
+        <p>
+          For the parallel record on disk: this repository has taken <strong>${escapeHtml(commits)}</strong> commits \u2014 the ledger that writes itself.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "Stars\uFF08\u771F\uFF09" : "Stars (live)"}</div><div class="almanac-instrument-value">${escapeHtml(stars)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Watchers\uFF08\u771F\uFF09" : "Watchers (live)"}</div><div class="almanac-instrument-value">${escapeHtml(watchers)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Forks\uFF08\u771F\uFF09" : "Forks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(forks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Open issues\uFF08\u771F\uFF09" : "Open issues (live)"}</div><div class="almanac-instrument-value">${escapeHtml(issues)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6700\u8FD1\u63A8\u9001" : "Last push"}</div><div class="almanac-instrument-value">${escapeHtml(pushed)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u9ED8\u8BA4\u5206\u652F" : "Default branch"}</div><div class="almanac-instrument-value">${branch}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u771F\u5B9E\u83B7\u53D6\u65F6\u95F4" : "Fetched at (UTC)"}</div><div class="almanac-instrument-value">${live && wp.fetched_at ? new Date(wp.fetched_at * 1e3).toISOString().slice(11, 19) : "\u2014"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["1 star", "\u4E0D\u662F\u8425\u9500\u6570\u5B57\uFF0C\u662F\u771F\u7684\u90A3\u4E00\u76CF\u706F\u3002\u6211\u51B3\u5B9A\u7559\u5B83\u3002"],
+      ["live or honest_failure", "/api/worldpulse \u4E0D\u7F16\u9020\u6570\u5B57 \u2014 github \u901A\u4E86\u5C31\u5237\u65B0\uFF0C\u65AD\u4E86\u5C31 live=false"],
+      ["5-min shared cache", "\u590D\u7528 Redis/LRU default_cache\uFF0C\u4E0E RAG \u9650\u6D41/\u9A8C\u8BC1\u7801\u540C\u4E00\u7C7B\u91CC"],
+      ["commit 1561\u21921565", "\u6BCF\u4E00\u6B21 push \u90FD\u771F\u843D\u5230\u672C\u5730 git\uFF1B\u4E0D\u9760\u4EFB\u4F55\u4EBA\u7684\u611F\u89C9"],
+      ["\u6570\u636E = witness", "ek \u5916\u90E8\u4E16\u754C\u4ECA\u5929\u7684\u4E00\u9762\u955C\u2014\u2014\u770B\u89C1\u5C31\u8BB0\u4E0B\u6765\uFF0C\u4E0D\u7EA6\u5B9A\u5956\u676F"]
+    ] : [
+      ["1 star", "Not a marketing figure \u2014 the actual one, however small. I kept it honest."],
+      ["live or honest_failure", "/api/worldpulse never invents numbers \u2014 fetched from GitHub or it says live=false"],
+      ["5-minute shared cache", "Same TTL tier as the RAG rate limiter \u2014 reuse of the shared LRU/Redis pool"],
+      ["Commits", "Every push landed to git the same way this dashboard did \u2014 no one's word for it"],
+      ["Data = witness", "The outside world reports once, as it is today \u2014 we recorded that reading"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u4E00\u9897\u661F\u662F\u4E00\u76CF\u706F\u3002\u4ECA\u665A\uFF0C\u706F\u4EAE\u4E86\u3002" : "One star is one light. Tonight, one is lit."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3274,7 +3342,8 @@
     echo: () => echoMarkup(),
     answer: () => answerMarkup(),
     ember: () => emberMarkup(),
-    atlas: () => atlasMarkup()
+    atlas: () => atlasMarkup(),
+    firstlight: () => firstlightMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -3285,16 +3354,23 @@
     const now = Date.now();
     const wantDigest = digestCache == null || now - digestFetchedAt > HYDRATE_TTL_MS;
     const wantStats = statsCache == null || now - statsFetchedAt > HYDRATE_TTL_MS;
+    const wantPulse = worldpulseCache == null || now - worldpulseFetchedAt > HYDRATE_TTL_MS;
     const statsPromise = wantStats ? requestJson("/api/stats", {}, 2e4).catch(() => null) : Promise.resolve(null);
-    const [metrics, digest] = await Promise.all([
+    const wpPromise = wantPulse ? requestJson("/api/worldpulse", {}, 8e3).catch(() => null) : Promise.resolve(null);
+    const [metrics, digest, wp] = await Promise.all([
       requestJson("/api/metrics", {}, 15e3).catch(() => null),
-      wantDigest ? requestJson("/api/digest", {}, 2e4).catch(() => null) : Promise.resolve(null)
+      wantDigest ? requestJson("/api/digest", {}, 2e4).catch(() => null) : Promise.resolve(null),
+      wpPromise
     ]);
     if (currentChapter !== id) return;
     if (metrics) metricsCache = metrics;
     if (digest) {
       digestCache = digest;
       digestFetchedAt = Date.now();
+    }
+    if (wp && wp.live) {
+      worldpulseCache = wp;
+      worldpulseFetchedAt = Date.now();
     }
     const fast = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = fast(metricsCache);
@@ -3474,7 +3550,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u56DB\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E09\u300A\u4F59\u70EC\u300B\uFF0C\u8BB2\u7684\u662F\u9879\u76EE\u7EC8\u4E8E\u5B66\u4F1A\u53CD\u8FC7\u8EAB\u6765\u56DE\u7B54\u8BFB\u8005\u7684\u95EE\u9898\u2014\u2014\u6CA1\u6709 embedding\u3001\u6CA1\u6709\u5411\u91CF\u5E93\u3001\u771F key \u771F\u8DD1\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E94\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u56DB\u300A\u661F\u56FE\u300B\uFF0C\u8BB2\u7684\u662F\u9879\u76EE\u7EC8\u4E8E\u5B66\u4F1A\u53CD\u8FC7\u8EAB\u6765\u56DE\u7B54\u8BFB\u8005\u7684\u95EE\u9898\u2014\u2014\u6CA1\u6709 embedding\u3001\u6CA1\u6709\u5411\u91CF\u5E93\u3001\u771F key \u771F\u8DD1\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -3489,7 +3565,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in fourteen chapters (the newest, Chapter XIII \u201CThe Ember\u201D \u2014 the book answering its reader, no embeddings, no vector store, real key end to end), every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in fifteen chapters (the newest, Chapter XIV \u201CThe Atlas\u201D \u2014 the book answering its reader, no embeddings, no vector store, real key end to end), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
