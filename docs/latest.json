@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T08:51:25.518Z",
+  "generated_at": "2026-11-15T08:55:51.286Z",
   "branch": "main",
-  "head": "eb4806f",
-  "total_commits": 1593,
+  "head": "bb558b4",
+  "total_commits": 1595,
   "recent_commits": [
+    {
+      "short": "bb558b4",
+      "at": "2026-11-15T16:55:33+08:00",
+      "subject": "M8-T1006: wide panels scale up 2XL/4K - wide modal 920->1180px, immersive 1280->1440px, pulse 1280->1380px, dockyard 1120->1240px, doctor 1100->1180px; sub-1200"
+    },
+    {
+      "short": "39ed870",
+      "at": "2026-11-15T08:51:25Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "eb4806f",
       "at": "2026-11-15T16:51:07+08:00",
@@ -19,22 +29,12 @@
       "short": "ecae705",
       "at": "2026-11-15T08:35:30Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e83ad90",
-      "at": "2026-11-15T16:35:02+08:00",
-      "subject": "showcase fact pack: feature_surface gains doctor-panel/prefix-cache-keeper/workspace-vitals/upstream-echo/load-lab (M8-T1004 follow-through)"
-    },
-    {
-      "short": "6f152a8",
-      "at": "2026-11-15T16:26:33+08:00",
-      "subject": "M8-T1004-followup: drop the stray _keeper_shot.mjs probe from the tree"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 320,
+  "roadmap_batches": 321,
   "changelog_entries": 1,
-  "roadmap_lines": 52760,
+  "roadmap_lines": 52785,
   "tracked_files": 1068,
   "test_files": 706,
   "almanac_chapters": 17,
