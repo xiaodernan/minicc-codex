@@ -53491,3 +53491,13 @@ M8-T1042 写了一份教程，说"经济优先"要开局先翻向日葵。但机
 ### 实测验证
 
 - Playwright zh/en 完整闭环：offer → 欢迎（Step 1）→ 侧栏（Step 2）→ composer auto-fill（Step 3 → interact → auto-advance）→ demo（Step 4 → auto-fire → auto-advance）→ Atlas（Step 5 → click → auto-advance）→ Dockyard（Step 6 → click → auto-advance）→ Admin（Step 7 → click → auto-advance）→ **Arcade（Step 8 → click → auto-advance）** → Almanac（Step 9）→ done（Step 10）→ overlay closes，零 pageerror。
+## 批次 1030 - M8-T1045: palette 门禁补岛屿色变量默认值 — "默认为它声明了一次"
+
+### 目的
+
+M8-T1039 commit 里，`.atlas-island-dot { background: var(--island-tint, var(--amber)) }` 从来没问过「谁定义了 `--island-tint`」。JS 在每行 inline `style="--island-tint:..."` 注入它——但 **CSS 的静态检查看不到 JS 写的自定义属性**，于是 `test_the_palette_has_one_home.py::test_the_palette_covers_the_roles_components_ask_for` 如实报错说：「--island-tint read with var() but declared nowhere in css or js」。CI 双 leg 同时变红。
+
+### 做了什么
+
+- **`web/styles.css`** — `.atlas-island-dot { --island-tint: var(--amber); ... }` 自己为它声明 primal 默认值（inline style 仍然覆盖为每座岛的色值，amber 默认是温暖、低饱和、与 `@media (max-width:900px)` 的折叠面板行为一致）；`var(--island-tint, var(--amber))` 双参数兜底移除——现在就是一个单纯的 `var(--island-tint)`。
+- **门禁**：`test_the_palette_has_one_home.py` 5 passed（本地执行）；`test_the_toolstream_chip_answers_its_own_keys.py` 6 passed；CRLF gates 全绿；两 leg CI 红的唯一根因消除。

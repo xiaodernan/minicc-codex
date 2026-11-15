@@ -5631,7 +5631,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .atlas-island-row:hover { background: color-mix(in srgb, #fbbf24 10%, color-mix(in srgb, #171e28 60%, transparent)); }
 .atlas-island-complete { border-left: 1px solid color-mix(in srgb, #34d399 45%, transparent); }
 .atlas-island-dim { opacity: .72; }
-.atlas-island-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--island-tint, var(--amber)); box-shadow: 0 0 10px -2px var(--island-tint, var(--amber)); }
+.atlas-island-dot { --island-tint: var(--amber); width: 10px; height: 10px; border-radius: 50%; background: var(--island-tint); box-shadow: 0 0 10px -2px var(--island-tint); }
 .atlas-island-body { display: grid; gap: 3px; min-width: 0; }
 .atlas-island-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--text); font-size: 12px; font-weight: 600; line-height: 1.2; }
 .atlas-island-count { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-size: 10px; color: var(--quiet); font-variant-numeric: tabular-nums; }
