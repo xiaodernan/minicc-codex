@@ -752,6 +752,8 @@
       "admin.trend": "\u4E03\u65E5\u4E8B\u4EF6/\u5929",
       "admin.recommendations": "\u57FA\u4E8E\u771F\u5B9E\u6570\u636E\u7684\u4F18\u5316\u5EFA\u8BAE",
       "admin.recent": "\u6700\u8FD1\u4EFB\u52A1 \xB7 \u771F\u5B9E\u5217\u8868",
+      "admin.toolUsage": "\u5E38\u7528\u5DE5\u5177\u5206\u5E03 \xB7 \u771F\u5B9E\u4E8B\u4EF6",
+      "admin.toolUsageUnit": "\u6B21\u8C03\u7528",
       "admin.forecastLabel": "\u9884\u6D4B",
       "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
       "admin.forecastRising": "\u4E0A\u884C\u4E2D",
@@ -1474,6 +1476,8 @@
       "admin.trend": "Events per day \xB7 last 7",
       "admin.recommendations": "Recommendations from real data",
       "admin.recent": "Recent tasks",
+      "admin.toolUsage": "Top tool calls \xB7 real events",
+      "admin.toolUsageUnit": "calls",
       "admin.forecastLabel": "Forecast",
       "admin.forecastFading": "cooling off from the peak",
       "admin.forecastRising": "rising",
@@ -5317,6 +5321,17 @@
             <strong>${esc2(zh8() ? rec.title_zh : rec.title_en)}</strong>
             <span>${esc2(zh8() ? rec.why_zh : rec.why_en)}</span>
           </li>`).join("") : `<li class="admin-rec admin-rec-good">${esc2(zh8() ? "\u6682\u65E0\u5EFA\u8BAE \u2014\u2014 \u6570\u636E\u770B\u8D77\u6765\u4E0D\u9519\u3002" : "No outstanding calls to make on this data \u2014 it looks healthy.")}</li>`;
+      }
+      const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
+      const toolList = $("#adminToolUsage");
+      if (toolList) {
+        const maxCount = Math.max(1, ...toolUsage.map((t2) => Number(t2.count || 0)));
+        toolList.innerHTML = toolUsage.length ? toolUsage.map((t2) => `
+          <li class="admin-toolusage-item">
+            <span class="admin-toolusage-name">${esc2(t2.name ?? "")}</span>
+            <span class="admin-toolusage-bar"><span class="admin-toolusage-fill" style="width:${Math.min(100, Math.round(Number(t2.count || 0) / maxCount * 100))}%"></span></span>
+            <span class="admin-toolusage-count">${compactCount2(t2.count ?? 0)} \xB7 ${Number(t2.pct ?? 0).toFixed(0)}%</span>
+          </li>`).join("") : `<li class="admin-toolusage-name">${esc2(zh8() ? "\u6CA1\u6709\u5DE5\u5177\u4E8B\u4EF6\u8BB0\u5F55\u3002" : "No tool events recorded.")}</li>`;
       }
       const taskList = $("#adminRecentTasks");
       if (taskList) {

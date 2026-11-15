@@ -135,6 +135,21 @@ export async function openAdmin() {
         : `<li class="admin-rec admin-rec-good">${esc(zh() ? "暂无建议 —— 数据看起来不错。" : "No outstanding calls to make on this data — it looks healthy.")}</li>`;
     }
 
+    // tool usage — top 6 tools called by the local agent, counted from real events
+    const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
+    const toolList = $("#adminToolUsage");
+    if (toolList) {
+      const maxCount = Math.max(1, ...toolUsage.map((t) => Number(t.count || 0)));
+      toolList.innerHTML = toolUsage.length
+        ? toolUsage.map((t) => `
+          <li class="admin-toolusage-item">
+            <span class="admin-toolusage-name">${esc(t.name ?? "")}</span>
+            <span class="admin-toolusage-bar"><span class="admin-toolusage-fill" style="width:${Math.min(100, Math.round((Number(t.count || 0) / maxCount) * 100))}%"></span></span>
+            <span class="admin-toolusage-count">${compactCount(t.count ?? 0)} · ${Number(t.pct ?? 0).toFixed(0)}%</span>
+          </li>`).join("")
+        : `<li class="admin-toolusage-name">${esc(zh() ? "没有工具事件记录。" : "No tool events recorded.")}</li>`;
+    }
+
     const taskList = $("#adminRecentTasks");
     if (taskList) {
       taskList.innerHTML = tasks.length

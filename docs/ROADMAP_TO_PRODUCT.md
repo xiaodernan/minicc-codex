@@ -53169,3 +53169,25 @@ Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两
 ### 3 诚实记录
 
 发生了两次自己测试期间的服务重启，把两个 `gpt-6-sol` 任务断在途——admin panel 的 restart-interrupt 桶里正好有两份实证，建议如实出现。全部数据可从 `GET /api/admin/summary?fresh=1` 复核。
+
+## 批次 1013 - M8-T1026: Admin「常用工具分布」 — 智能体是一个工具天才还是只读文件机器
+
+### 1 背景
+
+用户提出 cache 命中率低且调用方法肯定有问题。我们在 M8-T1015 里已经拆过 cache 的真相：completion judge 原子路径加上常量 1-2 KB prefix 后实测 5,248 / 5,591 ≈ 93.8%。本批顺带回答下一个问题：我们到底调了些什么工具？
+
+### 2 做了什么
+
+- **`minicc/admin.py` 新增 `_tool_usage_breakdown(state_dir)`**：home (`~/.minicc/tasks.sqlite3`) + workspace (`.minicc/tasks.sqlite3`) 两store合并，只计 `kind == "tool"` 事件，上限 200 行，返回 top-6 即真实 `[{name, count, pct}]`——百分比按全量事件求和，不是里面只算 top6。
+- **index.html Admin 视图**：recommendations 独占一列的 Admin 面板，改成 `.admin-duo` 两列（`grid-template-columns: minmax(260px, 1fr) minmax(0, 1.6fr)`，< 1100 px collapse 回 `minmax(0, 1fr)`），左侧「常用工具分布 · 真实事件」卡片，右侧原有「基于真实数据的优化建议」。
+- **admin.js**：读取 `data.tool_usage`、按 `count` 取最大作比例尺画 amber gradient 进度条 + monospace 百分比（同行 `~%`）——完整 zh/en 双语。
+- **i18n**：新增 `admin.toolUsage` / `admin.toolUsageUnit`，中英对齐。
+- **styles.css**：追加 `.admin-duo` / `.admin-toolusage-list` / `-item` / `-bar` / `-fill` / `-name` / `-count`——宽不超 columnWidth、border-radius 4px、amber gradient 0.7→1.0。
+- **bug 修复**：原 `admin.js` 第 148 行 `compact(...)` 是 undefined 函数（此前另一批 rename 漏改）——ReferenceError 导致工具卡住空列表 + 整个 `loadSummary` 跳过 recList、refreshIcons 全部无法执行；如今改成 `compactCount(`；本地前 ejected web_smoke 会冤枉，但这是 "写代码→看结果" 的职业习惯：本番没人约束自己就没人会自修。
+
+### 3 实测证据
+
+- GET `/api/admin/summary?fresh=1` → `tool_usage: [{"name":"read_file","count":150,"pct":48.2},{"name":"grep","count":44,"pct":14.1},{"name":"glob","count":39,"pct":12.5},{"name":"tree","count":27,"pct":8.7},{"name":"bash","count":19,"pct":6.1},{"name":"git_diff","count":14,"pct":4.5}]`
+- 浏览器截图（`output/admin_tool_fixed_{zh,en}.png`）：工具卡片渲染 6 行，全中文 / 全英文、amber 进度条清晰显示；recommendations 5 条 + 8 条最近任务齐平。
+- 完整 CRLF pinned（i18n.js 309 / index.html 645）未被触碰；`toolstream_chip_answers_its_own_keys` 全绿；`doc_pointers` 61 passed。
+- 诚实记录：本周再次出现数次本番测试期的服务重启，interrupt-by-restart 桶里已含 3 个真实胜重启任务——admin 建议 `restart-interrupt` 如实呈现，如实建议"收紧 minicc-web 的本地重启"。

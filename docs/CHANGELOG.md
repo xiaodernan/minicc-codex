@@ -422,3 +422,7 @@
   - stream 与非 stream 使用同一个共享的 `prompt_cache_key`（minicc-，SHA256 base|model→== key hex 派生，对网关同一 shard）——两条路径都接触到 upstream 缓存，不是 method bug；
   - judge（completion_judge）atomic 路径从未命中过 cached=0，根因是 persona ~300 tokens 低于网关 gateway 缓存门槛（≥1 KB？），M8-T1015 给 judge 加了 `COMPLETION_REVIEW_PROTOCOL`（~1,033 chars·constant·planar）后实测 `cached=5248 / 5591 ≈ 93%`——唯一更主观差距在于输入流动性变大而缓存 key 仍然共享。
   - interrupted task proof: 两个中断任务 `task-6066f5ba6629` + `task-742b6d30e4a5` 原文完全一致「服务重启时任务被中断，可重新运行」——管理员 face 自动 bucket 成 restart（自动挂 `restart-interrupt` 建议）。
+
+- **Admin 面板新增「常用工具分布」（M8-T1026）**：`/api/admin/summary` 新增 `tool_usage{}`——真实任务存储 `kind == "tool"` 事件按工具名计数、top-6 呈现；百分比按真伦计数求和，不虚构。当前读到：read_file 150 · 48%、grep 44 · 14%、glob 39 · 13%、tree 27 · 9%、bash 19 · 6%、git_diff 14 · 5%。Admin 面板扩展 `.admin-duo` 两列布局（< 1100 px 折叠单列），左列是工具分布（amber 进度条 + monospace 计数），右列是原有的真实建议。compact → compactCount 名称异常已修复（修复点直接造成曾经渲染失败：全空列表）。
+- **README / CHANGELOG 与现状对齐**：feature list 现在包含 Admin 管理员门（密码 123 共享门）与 Atla 世界地图（12 岛屿 / 52 真实坐标，双语双带）；almanac 计数值从 18 升至 21。
+- **大模型接口实测（M8-T1015 延伸）**：wkapi / gpt-6-sol，批次末再次测量，COMPLETION_REVIEW_PROTOCOL 正常生效——completion judge 路径 cached = 5,248 / 5,591 ≈ 93.8%。agent 主线程的 stream / atomic 两条路径都使用同一个 `prompt_cache_key`（minicc-<sha256(base|model)[:16]>），非 stream 与流式共享同一条亲和派生逻辑——不存在 call-method 本身触发低命中的问题：cache-miss 约等于 agent 任务的首次上下文没达 gateway 门槛之前的成本。

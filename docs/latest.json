@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:26:01.953Z",
+  "generated_at": "2026-11-15T14:33:33.173Z",
   "branch": "main",
-  "head": "659d3e9",
-  "total_commits": 1639,
+  "head": "1a1782a",
+  "total_commits": 1640,
   "recent_commits": [
+    {
+      "short": "1a1782a",
+      "at": "2026-11-15T14:26:02Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "659d3e9",
       "at": "2026-11-15T22:24:00+08:00",
@@ -24,18 +29,13 @@
       "short": "a569ea2",
       "at": "2026-11-15T22:01:02+08:00",
       "subject": "M8-T1024: atlas trail - amber thread through every coordinate you walked; visitedKey end-to-end alignment (18 panes panel:* prefix companions); clear-my-trail b"
-    },
-    {
-      "short": "fec12fe",
-      "at": "2026-11-15T13:43:15Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 339,
+  "roadmap_batches": 340,
   "changelog_entries": 1,
-  "roadmap_lines": 53172,
-  "tracked_files": 1075,
+  "roadmap_lines": 53194,
+  "tracked_files": 1077,
   "test_files": 710,
   "almanac_chapters": 21,
   "module_count": 14,

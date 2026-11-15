@@ -124,6 +124,66 @@ _PERMISSION_MARKERS = ("权限", "permission", "refused")
 _CANCEL_MARKERS = ("取消", "cancel")
 
 
+_TOOL_LIMIT = 200
+
+
+def _tool_usage_breakdown(state_dir: Path) -> list[dict[str, Any]]:
+    """Count tool invocations across recent tasks — real data, honest bucket.
+
+    Source of truth is the task store's events array (kind == "tool"). Each
+    event names the tool the agent actually called. Counted across the two
+    most recent stores (home + workspace), capped at ``_TOOL_LIMIT`` rows for
+    an honest, bounded probe.
+    """
+    counts: dict[str, int] = {}
+    candidates: list[Path] = []
+    try:
+        candidates.append(home_dir() / "tasks.sqlite3")
+    except (OSError, ValueError):
+        pass
+    if state_dir.is_dir():
+        candidate = state_dir / "tasks.sqlite3"
+        if candidate not in candidates:
+            candidates.append(candidate)
+    try:
+        import sqlite3
+
+        from .task_store import TaskStore
+        for db in candidates:
+            if not db.is_file():
+                continue
+            rows = TaskStore(db).load(limit=_TOOL_LIMIT)
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                evs = row.get("events")
+                if isinstance(evs, str):
+                    try:
+                        evs = json.loads(evs)
+                    except (ValueError, TypeError):
+                        continue
+                if not isinstance(evs, list):
+                    continue
+                for e in evs:
+                    if not isinstance(e, dict):
+                        continue
+                    if e.get("kind") != "tool":
+                        continue
+                    name = e.get("name") or e.get("tool_name")
+                    if isinstance(name, str) and name:
+                        counts[name] = counts.get(name, 0) + 1
+    except (sqlite3.Error, OSError, ValueError):
+        return []
+    total = sum(counts.values())
+    if not total:
+        return []
+    top = sorted(counts.items(), key=lambda item: -item[1])[:6]
+    return [
+        {"name": name, "count": count, "pct": round(100 * count / total, 1)}
+        for name, count in top
+    ]
+
+
 def _interrupt_cause_breakdown(state_dir: Path) -> dict[str, Any] | None:
     """Bucket interrupted tasks by the cause their own error field recorded.
 
@@ -300,6 +360,7 @@ def build_summary(workspace: Path) -> dict[str, Any]:
     forecast = _forecast_from_trend(trend_7d)
 
     interrupt_causes = _interrupt_cause_breakdown(state_dir)
+    tool_usage = _tool_usage_breakdown(state_dir)
 
     recommendations: list[dict[str, Any]] = []
     if interrupt_causes and interrupt_causes.get("restart", 0) > 0:
@@ -376,6 +437,7 @@ def build_summary(workspace: Path) -> dict[str, Any]:
         "trend_7d": trend_7d,
         "forecast": forecast,
         "interrupt_causes": interrupt_causes,
+        "tool_usage": tool_usage,
         "recent_tasks": recent_tasks,
         "recommendations": recommendations,
         "redis": redis_s if isinstance(redis_s, dict) else {},
