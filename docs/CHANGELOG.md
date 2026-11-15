@@ -382,3 +382,5 @@
 - **手册第十三章「前后端全景架构 / Full Stack」上线（M8-T1011）**：把整站栈从 Python FastAPI 到 vanilla JS 直出、从本机 Agent 到可选的 Spring Cloud plane、到 SQLite WAL 到 RabbitMQ 广播、到 Redis 令牌桶限流、到 60 tokens/s 容量实测数据，全部一次讲清楚。zh/en 截图均呈现干净、无 CJK 泄漏。
 - **平行分支审计（M8-T1009）补卷**：`dev/minicc-reliability-4ba3` 是非谱系分叉，工作内容已在 main 以更现代形态落地（mention 门依旧绿；reverse-door + mutation 门皆已充分覆盖）；无未合并内容。
 - **手册第十二章「微服务平面 / Spring Cloud plane」（M8-T1010）**：8 步从零把全套七个 Java 服务拉起来（Eureka/Config/Gateway/Inspector/Tasks/Insights），限流实测 + 熔断回环。
+
+- **手册 smoke 补齐（M8-T1012）**：13 章全自检——zh 要求 CJK 出现、en 要求零 CJK、每章非空、无 pageerror 计入失败；`test:manual` 并入 `test:arcade`，CI 下次推送即上门。

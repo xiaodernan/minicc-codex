@@ -52903,3 +52903,25 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - `node --check web/src/panels/manual.js` ✓
 - `npm run build:web` ✓ `check:web` ✓
 - Playwright 双语截图 ✓（en 模式零 CJK）
+
+## 批次 1002 - M8-T1012：手册 smoke 补齐 —— 13 章中英键逐轴验收 + 纳入 web-smoke/CI
+
+### 1 背景
+
+之前只有 `almanac_smoke` 把"18 章双语完整性"钉进了 CI（`test:arcade` 成员），而 manual/说明书（13 章）长期靠"肉眼看 zh/en 几张截图"判断完整性。新增任一章节（刚出的 XII、XIII）都有真实可能在 en 模式泄漏中文——需要 gate 来守。
+
+### 2 做了什么
+
+- **新增 `tests/manual_smoke.mjs`**：随 `MINICC_WEB_URL` 指向任何运行中的 workbench，逐章节打开（13 章完整阵列），并：
+  - zh 模式要求每章包含 CJK（中文真跑落地）；
+  - en 模式要求 CJK 数量 = 0（中英不混）；
+  - 每章必须渲染出非空文本（> 40 字符）；
+  - 所有 pageerror 计入失败——演示任何 chapter render 必须无运行时异常；
+  - 双语跑完后再断言没有任何 pageerror（"UI 没有崩"）。
+- **`package.json` 新增 `test:manual`** + 并入 `test:arcade`——确保每次 `test:arcade` 跑手册 smoke，CI 同步继承（CI 已经跑 `npm run test:arcade`）。
+
+### 3 验证
+
+- `node tests/manual_smoke.mjs` → **manual smoke passed: 13 chapters render fully bilingual, no mixed-language prose**
+- zh/en 双模式均通过；
+- CI 下次推送的 web-smoke step 会自动带上这一道门。
