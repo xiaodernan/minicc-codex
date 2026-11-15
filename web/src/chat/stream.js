@@ -2344,8 +2344,51 @@ export function openDoctorStage() {
   if (pingButton) pingButton.onclick = () => void runDoctorPing(true);
   const labButton = $("#doctorLabButton");
   if (labButton) labButton.onclick = () => void runDoctorLoadLab();
+  const vitalsButton = $("#doctorVitalsButton");
+  if (vitalsButton) vitalsButton.onclick = () => void runDoctorVitals();
   refreshIcons();
   void runDoctorPing(false);
+  void runDoctorVitals();
+}
+
+let doctorVitalsBusy = false;
+
+async function runDoctorVitals() {
+  if (doctorVitalsBusy) return;
+  doctorVitalsBusy = true;
+  const button = $("#doctorVitalsButton");
+  if (button) button.disabled = true;
+  setDoctorPill("#doctorVitalsState", "doctor.vitalsRunning", "busy");
+  const escape = escapeHtml;
+  try {
+    const data = await requestJson("/api/doctor");
+    const checks = Array.isArray(data?.checks) ? data.checks : [];
+    const ok = Number(data?.ok ?? checks.filter((c) => c?.severity === "ok").length);
+    const warn = Number(data?.warn ?? checks.filter((c) => c?.severity === "warn").length);
+    const fatal = Number(data?.fatal ?? checks.filter((c) => c?.severity === "fatal").length);
+    const okEl = $("#doctorVitalsOk"); const warnEl = $("#doctorVitalsWarn"); const fatalEl = $("#doctorVitalsFatal");
+    if (okEl) okEl.textContent = String(ok);
+    if (warnEl) warnEl.textContent = String(warn);
+    if (fatalEl) fatalEl.textContent = String(fatal);
+    const list = $("#doctorVitalsList");
+    if (list) {
+      list.innerHTML = checks.map((check) => {
+        const severity = ["ok", "warn", "fatal"].includes(check?.severity) ? check.severity : "ok";
+        const name = escape(String(check?.name ?? "check"));
+        const detail = escape(String(check?.detail ?? ""));
+        const hint = check?.fix_hint ? `<small>${escape(String(check.fix_hint))}</small>` : "";
+        return `<li class="doctor-vitals-row" data-severity="${severity}"><span class="doctor-vitals-dot" aria-hidden="true"></span><span class="doctor-vitals-copy"><strong>${name}</strong><span>${detail}</span>${hint}</span></li>`;
+      }).join("");
+    }
+    setDoctorPill("#doctorVitalsState", "doctor.vitalsDone", fatal > 0 ? "bad" : warn > 0 ? "busy" : "ok");
+  } catch (error) {
+    setDoctorPill("#doctorVitalsState", "doctor.vitalsDone", "bad");
+    const list = $("#doctorVitalsList");
+    if (list) list.innerHTML = `<li class="doctor-vitals-row" data-severity="fatal"><span class="doctor-vitals-dot" aria-hidden="true"></span><span class="doctor-vitals-copy"><strong>doctor_runner</strong><span>${escapeHtml(String(error?.message || error || "request failed"))}</span></span></li>`;
+  } finally {
+    doctorVitalsBusy = false;
+    if (button) button.disabled = false;
+  }
 }
 
 function setDoctorPill(selector, key, tone) {

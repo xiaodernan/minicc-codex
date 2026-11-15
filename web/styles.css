@@ -5372,3 +5372,25 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .workspace-mini { padding: 0 4px; min-height: 30px; }
   .profile-row { padding: 3px 6px; }
 }
+
+/* Doctor — workspace self-check (M8-T1001): severity-colored dots carry hue;
+   all text stays in AA-safe muted/text tones. */
+.doctor-vitals-summary { display: flex; gap: 22px; flex-wrap: wrap; }
+.doctor-vitals-summary div { display: flex; align-items: baseline; gap: 7px; }
+.doctor-vitals-summary strong { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 22px; font-variant-numeric: tabular-nums; }
+.doctor-num-ok { color: var(--mint); }
+.doctor-num-warn { color: var(--amber); }
+.doctor-num-fatal { color: var(--coral); }
+.doctor-vitals-summary span { color: var(--muted); font-size: 11px; }
+.doctor-vitals-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 900px) { .doctor-vitals-list { grid-template-columns: minmax(0, 1fr); } }
+.doctor-vitals-row { display: flex; gap: 10px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; align-items: flex-start; min-width: 0; }
+.doctor-vitals-dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; margin-top: 4px; background: var(--quiet); }
+.doctor-vitals-row[data-severity="ok"] .doctor-vitals-dot { background: var(--mint); }
+.doctor-vitals-row[data-severity="warn"] .doctor-vitals-dot { background: var(--amber); }
+.doctor-vitals-row[data-severity="fatal"] .doctor-vitals-dot { background: var(--coral); }
+.doctor-vitals-row[data-severity="fatal"] { border-color: color-mix(in srgb, var(--coral) 45%, var(--line)); }
+.doctor-vitals-copy { display: grid; gap: 2px; min-width: 0; font-size: 11px; line-height: 1.5; }
+.doctor-vitals-copy strong { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 10px; color: var(--muted); letter-spacing: .04em; }
+.doctor-vitals-copy span { color: var(--text); overflow-wrap: anywhere; }
+.doctor-vitals-copy small { color: var(--quiet); overflow-wrap: anywhere; }

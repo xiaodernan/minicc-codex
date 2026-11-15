@@ -52665,3 +52665,25 @@ CI 里 web-smoke 跑到 `npm run test:arcade` 时，**game_upgrade_smoke.mjs** �
 - Playwright（zh-CN）三个视口 × 截图：1280×800 / 1440×900 / 1600×1080 全部完整渲染：侧栏全部行可见、hero 双 chips 行不遮挡 composer、inspector 路径按目录边界换行、航行灯单行。
 - `npm run build:web` / `check:web` 干净；`_sidebar_probe`：1280×800 `scrollH=767` vs `clientH=762`（超出 5px，可忽略）。
 - 本批纯前端样式；未触碰任何 Python。
+
+## 批次 992 - M8-T1001：诊断中心补上第三件真工具 —— 工作区自检（minicc --doctor 引擎直读 /api/doctor）
+
+### 1 背景
+
+诊断中心只有「上游回声 + 负载实验室」两件工具；而仓库里早有一台 `minicc --doctor` 引擎（Python 版本 / 安装自检 / .minicc 可写 / 审计日志最新行 / token 权限位 / permissions.json / git work tree / LLM 缓存亲和）。工具既然同域，就不该另起炉灶——本批把它直接嵌进 Doctor 面板，不新建路由（复用 `/api/doctor`），一点重复代码都不写。
+
+### 2 做了什么
+
+- **前端新卡片**「工作区自检 / Workspace self-check」：打开面板即自动跑（同一 `openDoctorStage`），`重新自检` 按钮强制重跑；`/api/doctor` 的 `{ok, warn, fatal, checks[]}` 原样渲染：
+  - 三枚大计数（通过/警告/失败），mint/amber/coral 同色系；
+  - 检查行两列网格：severity 圆点 + mono check 名 + detail + fix_hint（小灰字）；fatal 行 coral 边框；
+  - 徽章如实反映：`fatal>0 → 坏色` / `warn>0 → 琥珀` / 全绿 → mint。
+- **i18n**：`doctor.vitals*` 键 ×8 双语逐字对账（i18n parity 633 键全绿）。
+- **manual**：Doctor 条目双语更新为「三件真工具」+ 自检覆盖清单；README Doctor 条目同步。
+- **本机实测**：7 项通过（python_version 3.11 / minicc_import / module_compiles 98 / .minicc 可写 / 审计日志有效 JSON / git work tree / llm_cache_affinity 自动前缀缓存）、2 项警告（web_token_permissions：mode 666 本机 Windows 不强制、建议轮换；permissions_json 缺失 → 全部走默认模式、附带修复提示）、0 项失败。
+- **AA 对比度纪律**：severity 只落在圆点/边框上；正文全部用 text/muted/quiet。
+
+### 3 验证
+
+- Playwright 真浏览器 zh（`output/doctor_vitals.png`）：12 项检查（7 ok / 2 warn / 0 fatal）全部命名渲染，修复提示可见，面板完整滚动不遮挡。
+- `npm run build:web` / `check:web` 干净；`frontend_i18n_dict_one_home_smoke` → 633 keys parity ok；路由覆盖无变化（0 新增路由）。

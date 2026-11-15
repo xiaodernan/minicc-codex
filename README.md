@@ -300,8 +300,10 @@ Invoke-RestMethod http://127.0.0.1:8765/api/audit?limit=500
 minicc 不只是 CLI——工作台本身也是一个被认真打磨的产品：
 
 - **账本（Ctrl/⌘L）** — 总 token 金句、缓存命中率圆环（hit/miss/write 拆分）、估算成本（未定价任务如实标注 `cost_is_partial`）、缓存后端状态（Redis 实时 / 本地 LRU）、状态 segmented bar、模型分解表
+- **诊断中心 · Doctor** — 侧边栏「诊断」：「上游回声」以 `GET {MINICC_BASE_URL}/models` 真跑一次真实探针（零 token、密钥绝不回传、HTTP 401/403/404 仍算链路通畅、fail-open），10 秒共享缓存；「负载实验室」以 1/6/12/24 并发 × 24 请求锤本机回环端点（绝不碰模型网关），`performance.now()` 真实计时，canvas 直方图画出 MIN/P50/P95/MAX 与错误数——首波并发撞冷缓存的真实惊群就是它抓出来的；「工作区自检」直接复用 `minicc --doctor` 引擎逐项自检 Python/安装/.minicc/审计日志/token 权限/permissions.json/git work tree，结果逐条渲染在本机，不联网
+
 - **脉搏** — 命中率 / 上下文占比 / 完成率三枚环 + 最近 12 个任务档案 + **逐次调用缓存火花线**（运行中每个 usage 事件重绘）
-- **年鉴（16 卷）** — 这个项目是什么的叙事宫殿：Prologue / Spark / Depth / Sentry / Bloom / Open Road / Gate / Mesh / Witness / Craft / Unfinished / Echo / Answer Back / Ember / Atlas / First Light；所有数字现场读取自 `/api/metrics` `/api/digest` `/api/stats`；全文中英两套正文，逐章验证，换章两阶段渲染（缓存即渲染，数字 8 秒内补齐，切到别章不回填）
+- **年鉴（17 卷）** — 这个项目是什么的叙事宫殿：Prologue / Spark / Depth / Sentry / Bloom / Open Road / Gate / Mesh / Witness / Craft / Unfinished / Echo / Answer Back / Ember / Atlas / First Light / **The Fever（差点没撑住的晚上——37s p50 怎么被压到 4.2ms、两个 U+FFFD 怎么让账本对 grep 沉默、T986 后两个冒烟红了三周没人看见、诊断中心怎么抓住冷缓存惊群）**；所有数字现场读取自 `/api/metrics` `/api/digest` `/api/stats`；全文中英两套正文，逐章验证，换章两阶段渲染（缓存即渲染，数字 8 秒内补齐，切到别章不回填）
 - **说明书** — 侧边栏「说明书」进入，十一章小册子：五分钟上手 / 工作台导览 / 七个模块 / 命令与快捷键 / 游戏厅教程 / 排错 / 诚实边界 / 密钥与金库（`.env`、`--doctor`、`--stats`、成本账目、缓存迁移亲和指南）/ 安静的房间（本项目的信条）/ 问仓库（RAG 真跑：BM25 检索本仓库 docs 再让模型只读着作答）/ 压测与容量（50 并发、零错误实测；prefetch / single-flight / backlog 128）；中英内联双语，首屏「运行一次完整演示」现场跑完整 agent 工作流
 - **问仓库** — 侧边栏「问仓库」进入（Ctrl/⌘K 搜「问仓库」同入口）：BM25 检索本仓库 docs / README / CONTRIBUTING 的 top-k 段落，交给你配置好的模型只读着作答；sources 逐条可展开（文件、分数、原文摘录），用量条显示网关回传的 prompt/completion/total tokens；key 不进 prompt、不被回显；模型不可达时显示真实错误而非编造答案
 - **快捷键速查（?）** — 全局 `?` 弹出六组分栏的快捷键面板（撰写 / 逐行导航 / 全局 / 游戏），与说明书第四章同源（`web/src/cheat-sheet-data.js`）；Esc 收起

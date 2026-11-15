@@ -714,6 +714,14 @@
       "ledger.perCallTitle": "\u9010\u6B21\u8C03\u7528\u7F13\u5B58\u547D\u4E2D",
       "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97",
       "nav.doctor": "\u8BCA\u65AD",
+      "doctor.vitals": "\u5DE5\u4F5C\u533A\u81EA\u68C0",
+      "doctor.vitalsRunning": "\u81EA\u68C0\u4E2D",
+      "doctor.vitalsDone": "\u5DF2\u5B8C\u6210",
+      "doctor.vitalsPass": "\u9879\u901A\u8FC7",
+      "doctor.vitalsWarn": "\u9879\u8B66\u544A",
+      "doctor.vitalsFail": "\u9879\u5931\u8D25",
+      "doctor.vitalsButton": "\u91CD\u65B0\u81EA\u68C0",
+      "doctor.vitalsNote": "\u4E0E minicc --doctor \u540C\u4E00\u5F15\u64CE\u2014\u2014Python \u7248\u672C / \u5B89\u88C5\u81EA\u68C0 / .minicc \u53EF\u5199 / \u5BA1\u8BA1\u65E5\u5FD7\u6700\u65B0\u884C / token \u6743\u9650 / permissions.json / git work tree\uFF0C\u5168\u90E8\u672C\u673A\u5B9E\u6D4B\uFF0C\u4E0D\u8054\u7F51\u3002",
       "doctor.subtitle": "\u771F\u5B9E\u63A2\u9488 \xB7 \u6BCF\u4E2A\u6570\u5B57\u90FD\u5728\u4F60\u672C\u673A\u5B9E\u6D4B",
       "doctor.title": "\u8BCA\u65AD\u4E2D\u5FC3",
       "doctor.close": "\u5173\u95ED\u8BCA\u65AD\u4E2D\u5FC3",
@@ -1341,6 +1349,14 @@
       "ledger.perCallTitle": "Per-call cache hits",
       "ledger.costPartial": "Some models unpriced; estimate is a floor",
       "nav.doctor": "Doctor",
+      "doctor.vitals": "Workspace self-check",
+      "doctor.vitalsRunning": "checking",
+      "doctor.vitalsDone": "done",
+      "doctor.vitalsPass": "pass",
+      "doctor.vitalsWarn": "warnings",
+      "doctor.vitalsFail": "failures",
+      "doctor.vitalsButton": "Re-check",
+      "doctor.vitalsNote": "Same engine as minicc --doctor: Python version / install self-check / .minicc writable / audit tail parses / token permissions / permissions.json / git work tree \u2014 all measured locally, no network.",
       "doctor.subtitle": "Live probes \u2014 every number is measured on this machine",
       "doctor.title": "Doctor",
       "doctor.close": "Close doctor",
@@ -3692,7 +3708,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
-      <li><strong>\u8BCA\u65AD \xB7 Doctor</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BCA\u65AD\u300D\uFF1A\u4E24\u4EF6\u771F\u5DE5\u5177\u2014\u2014\u300C\u4E0A\u6E38\u56DE\u58F0\u300D\u5BF9\u914D\u7F6E\u7684 OpenAI \u7F51\u5173\u5B9E\u6D4B <code>GET /models</code> \u5EF6\u8FDF\uFF08\u4E0D\u6D88\u8017 token\uFF0C\u5BC6\u94A5\u7EDD\u4E0D\u56DE\u4F20\uFF09\uFF1B\u300C\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4\u300D\u6700\u9AD8 24 \u5E76\u53D1\u300124 \u8BF7\u6C42\u9524\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF0C\u76F4\u65B9\u56FE\u753B\u51FA MIN/P50/P95/MAX\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u5F53\u6B21\u771F\u5B9E\u6D4B\u91CF\u3002</li>
+      <li><strong>\u8BCA\u65AD \xB7 Doctor</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BCA\u65AD\u300D\uFF1A\u4E09\u4EF6\u771F\u5DE5\u5177\u2014\u2014\u300C\u4E0A\u6E38\u56DE\u58F0\u300D\u5BF9\u914D\u7F6E\u7684 OpenAI \u7F51\u5173\u5B9E\u6D4B <code>GET /models</code> \u5EF6\u8FDF\uFF08\u4E0D\u6D88\u8017 token\uFF0C\u5BC6\u94A5\u7EDD\u4E0D\u56DE\u4F20\uFF09\uFF1B\u300C\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4\u300D\u6700\u9AD8 24 \u5E76\u53D1\u300124 \u8BF7\u6C42\u9524\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF0C\u76F4\u65B9\u56FE\u753B\u51FA MIN/P50/P95/MAX\uFF1B\u300C\u5DE5\u4F5C\u533A\u81EA\u68C0\u300D\u76F4\u63A5\u590D\u7528 <code>minicc --doctor</code> \u5F15\u64CE\uFF08Python/\u5B89\u88C5\u81EA\u68C0/.minicc \u53EF\u5199/\u5BA1\u8BA1\u65E5\u5FD7\u6700\u65B0\u884C/token \u6743\u9650/permissions.json/git work tree\uFF09\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u5F53\u6B21\u771F\u5B9E\u6D4B\u91CF\u3002</li>
       <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E03\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u516D\u300A\u9AD8\u70E7\u300B\uFF0C\u8BB2\u7684\u662F\u8FD9\u4E2A\u4ED3\u5E93\u5DEE\u70B9\u6CA1\u6491\u8FC7\u53BB\u7684\u6BCF\u4E00\u4E2A\u665A\u4E0A\u2014\u201437s \u7684 p50 \u600E\u4E48\u88AB\u538B\u5230 4.2ms\u3001\u4E24\u4E2A U+FFFD \u600E\u4E48\u8BA9\u8D26\u672C\u5BF9 grep \u9690\u5F62\u3001push \u53D6\u6D88 CI \u600E\u4E48\u8BA9\u4E24\u4E2A\u5192\u70DF\u7EA2\u4E86\u4E09\u5468\u6CA1\u4EBA\u770B\u89C1\u3001\u8BCA\u65AD\u4E2D\u5FC3\u600E\u4E48\u6293\u4F4F\u51B7\u7F13\u5B58\u60CA\u7FA4\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
@@ -3708,7 +3724,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Doctor</strong> \u2014 sidebar \u201CDoctor\u201D: two honest instruments \u2014 \u201CUpstream echo\u201D probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); \u201CLoad lab\u201D fires 24 loopback requests at up to 24\xD7 concurrency and draws the measured MIN/P50/P95/MAX histogram.</li>
+      <li><strong>Doctor</strong> \u2014 sidebar \u201CDoctor\u201D: three honest instruments \u2014 \u201CUpstream echo\u201D probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); \u201CLoad lab\u201D fires 24 loopback requests at up to 24\xD7 concurrency and draws the measured MIN/P50/P95/MAX histogram; \u201CWorkspace self-check\u201D reuses the <code>minicc --doctor</code> engine (Python / install self-check / .minicc writable / audit tail parses / token permissions / permissions.json / git work tree) \u2014 everything measured on this machine, nothing from the network.</li>
       <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in seventeen chapters (the newest, Chapter XVI \u201CThe Fever\u201D \u2014 the nights this repository nearly didn't make it: the 37s p50 pressed down to 4.2ms, two U+FFFD codepoints silencing the ledger against grep, push-cancelled CI hiding two red smokes for three weeks, the Doctor panel catching a cold-cache thundering herd), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
@@ -5687,8 +5703,51 @@
     if (pingButton) pingButton.onclick = () => void runDoctorPing(true);
     const labButton = $("#doctorLabButton");
     if (labButton) labButton.onclick = () => void runDoctorLoadLab();
+    const vitalsButton = $("#doctorVitalsButton");
+    if (vitalsButton) vitalsButton.onclick = () => void runDoctorVitals();
     refreshIcons();
     void runDoctorPing(false);
+    void runDoctorVitals();
+  }
+  var doctorVitalsBusy = false;
+  async function runDoctorVitals() {
+    if (doctorVitalsBusy) return;
+    doctorVitalsBusy = true;
+    const button = $("#doctorVitalsButton");
+    if (button) button.disabled = true;
+    setDoctorPill("#doctorVitalsState", "doctor.vitalsRunning", "busy");
+    const escape = escapeHtml;
+    try {
+      const data = await requestJson("/api/doctor");
+      const checks = Array.isArray(data?.checks) ? data.checks : [];
+      const ok = Number(data?.ok ?? checks.filter((c) => c?.severity === "ok").length);
+      const warn = Number(data?.warn ?? checks.filter((c) => c?.severity === "warn").length);
+      const fatal = Number(data?.fatal ?? checks.filter((c) => c?.severity === "fatal").length);
+      const okEl = $("#doctorVitalsOk");
+      const warnEl = $("#doctorVitalsWarn");
+      const fatalEl = $("#doctorVitalsFatal");
+      if (okEl) okEl.textContent = String(ok);
+      if (warnEl) warnEl.textContent = String(warn);
+      if (fatalEl) fatalEl.textContent = String(fatal);
+      const list = $("#doctorVitalsList");
+      if (list) {
+        list.innerHTML = checks.map((check) => {
+          const severity = ["ok", "warn", "fatal"].includes(check?.severity) ? check.severity : "ok";
+          const name = escape(String(check?.name ?? "check"));
+          const detail = escape(String(check?.detail ?? ""));
+          const hint = check?.fix_hint ? `<small>${escape(String(check.fix_hint))}</small>` : "";
+          return `<li class="doctor-vitals-row" data-severity="${severity}"><span class="doctor-vitals-dot" aria-hidden="true"></span><span class="doctor-vitals-copy"><strong>${name}</strong><span>${detail}</span>${hint}</span></li>`;
+        }).join("");
+      }
+      setDoctorPill("#doctorVitalsState", "doctor.vitalsDone", fatal > 0 ? "bad" : warn > 0 ? "busy" : "ok");
+    } catch (error) {
+      setDoctorPill("#doctorVitalsState", "doctor.vitalsDone", "bad");
+      const list = $("#doctorVitalsList");
+      if (list) list.innerHTML = `<li class="doctor-vitals-row" data-severity="fatal"><span class="doctor-vitals-dot" aria-hidden="true"></span><span class="doctor-vitals-copy"><strong>doctor_runner</strong><span>${escapeHtml(String(error?.message || error || "request failed"))}</span></span></li>`;
+    } finally {
+      doctorVitalsBusy = false;
+      if (button) button.disabled = false;
+    }
   }
   function setDoctorPill(selector, key, tone) {
     const el = $(selector);
