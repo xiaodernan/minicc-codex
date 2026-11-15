@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T11:16:35.293Z",
+  "generated_at": "2026-11-15T11:44:00.988Z",
   "branch": "main",
-  "head": "a7db677",
-  "total_commits": 1620,
+  "head": "4757770",
+  "total_commits": 1623,
   "recent_commits": [
+    {
+      "short": "4757770",
+      "at": "2026-11-15T19:43:31+08:00",
+      "subject": "M8-T1018: admin trend gains a real 7-day forecast - least-squares slope + next-day extrapolation + drop-from-peak decline (177@11-13 -> last 2 days 27.0, -85%);"
+    },
+    {
+      "short": "eb33808",
+      "at": "2026-11-15T19:43:31+08:00",
+      "subject": "M8-T1017: mouse wheel goes native - deleted the custom wheel interceptor (it fought the OS convention and hijacked every wheel tick, dogfooding no ability for t"
+    },
+    {
+      "short": "25b8625",
+      "at": "2026-11-15T11:16:35Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a7db677",
       "at": "2026-11-15T19:15:49+08:00",
@@ -14,28 +29,13 @@
       "short": "a1be4f9",
       "at": "2026-11-15T19:14:54+08:00",
       "subject": "M8-T1015: completion judge prefix cache - two-system wire (persona + byte-constant protocol) crosses the gateway cache threshold; user packet dedup example JSON"
-    },
-    {
-      "short": "bec6b9b",
-      "at": "2026-11-15T10:40:49Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f091560",
-      "at": "2026-11-15T18:40:22+08:00",
-      "subject": "chore(latest): fact pack refresh at ba7e255 - M8-T1014 admin panel"
-    },
-    {
-      "short": "ba7e255",
-      "at": "2026-11-15T18:39:58+08:00",
-      "subject": "M8-T1014: admin panel - password-123 shared door, live read-only stats from real workspace data; /api/admin/summary; locked/unlocked zh/en verified; dockyard/ad"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 331,
+  "roadmap_batches": 332,
   "changelog_entries": 1,
-  "roadmap_lines": 53025,
-  "tracked_files": 1073,
+  "roadmap_lines": 53044,
+  "tracked_files": 1072,
   "test_files": 709,
   "almanac_chapters": 19,
   "module_count": 14,
