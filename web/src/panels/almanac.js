@@ -42,6 +42,7 @@ export const CHAPTERS = [
   { id: "meridian", roman: { zh: "卷十九", en: "Chapter XIX" }, title: { zh: "镜门", en: "The Meridian" }, subtitle: { zh: "有人问路的地方，就是答案", en: "Where directions are given for walks never taken" } },
   { id: "nightwatch", roman: { zh: "卷二十", en: "Chapter XX" }, title: { zh: "未眠", en: "The Night Watch" }, subtitle: { zh: "账本没有合上，它只是翻开下一页", en: "The ledger never closed; it turned the page" } },
   { id: "fence", roman: { zh: "卷二十一", en: "Chapter XXI" }, title: { zh: "篱笆", en: "The Fence" }, subtitle: { zh: "一个语言时代只有一种语言", en: "One era of language, one language" } },
+  { id: "compass", roman: { zh: "卷二十二", en: "Chapter XXII" }, title: { zh: "罗经仪", en: "The Compass" }, subtitle: { zh: "引导不是兜底，是建筑", en: "Guidance is not a parachute, it is architecture" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1492,6 +1493,79 @@ function fenceMarkup() {
     </div>`;
 }
 
+function compassMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-compass">
+      <div class="almanac-kicker">${zh() ? "卷二十二 · 罗经仪" : "Chapter XXII · The Compass"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `引导不是兜底，<br/><span class="almanac-title-accent">是建筑。</span>`
+        : `Guidance is not a parachute,<br/><span class="almanac-title-accent">it is architecture.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          世界越做越大，迷路的风险也越来越大。做了很多安全网：Esc 关闭、? 快捷键、⌘K 命令面板、每个按钮带双语教学说明的 aria label、
+          说明书嵌进了启动路径、?+Tour、Atlas 的 Esc 链，甚至 #tourOverlay 提到了 v900（Atlas 拿 z860 被盖到无药可救）。
+          所有这些，只解决了一个问题：你知道自己在哪、怎么出去。
+        </p>
+        <p>
+          本周世界里发生了一件事：上手演练（Wayfinder）从 6 步扩到了 9 步。原计划 6 步——欢迎 → 侧栏 → composer → 演示 → 年鉴 → 完成。
+          新加入了三个真实的个体：<strong>Atlas</strong>（第 5 步）、<strong>船厂</strong>（第 6 步）、<strong>管理员门</strong>（第 7 步）——
+          原来的 tour 在第 5 步指引用户到完成页，新的 tour 带他看见<strong>世界本身</strong>。
+          这是一个微妙的决定：引导应该展示世界最酷的东西，而不仅仅是教"怎么点一下这个按钮"。
+        </p>
+        <p>
+          引导被当成了一项技术，一种诚实：每一个按钮都带教学说明、每一步都明示你在哪、每一步都可以跳过。
+          <strong>这不是玩小聪明，是让这个世界不让任何人困在里面。</strong>
+        </p>` : `<p>
+          The bigger the world gets, the easier it is to get lost. So we built many safety nets: Esc to close, ? for shortcuts, ⌘K for the palette,
+          every button carrying bilingual teaching copy in its aria label, the manual wired into the startup path, ?+Tour and Atlas's Esc chain —
+          even #tourOverlay pinned above the Atlas overlay (z-index 900 over Atlas's 860, reclaiming the Next button the map had eaten).
+          All of these address one question: do you know where you are, and how out.
+        </p>
+        <p>
+          This week the world changed shape once more. The Wayfinder grew from six steps to nine — originally Welcome → Sidebar → Composer → Demo → Almanac → Done.
+          Three real subjects joined the tour: <strong>the Atlas</strong> (step 5), <strong>the Dockyard</strong> (step 6), <strong>Admin</strong> (step 7) —
+          the old tour delivered visitors to the finish line; the new one takes them to see <strong>the world itself</strong>.
+          This is a delicate decision: guidance should teach you how the world works, not merely which button gets pressed.
+        </p>
+        <p>
+          Guidance got treated as infrastructure, not as garnish: every button carries teaching copy, every step says where you are, every step is skippable.
+          <strong>This is not cleverness. This is how worlds avoid trapping their visitors.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "演练步数" : "tour steps"}</div><div class="almanac-instrument-value">9</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">54</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 岛屿数" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 面板" : "Atlas panes"}</div><div class="almanac-instrument-value">18</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">23 / 23</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["每个按钮带教学说明", "不再留用户对陌生界面的揣摩时间"],
+        ["Esc 随时退出", "每个层叠都被契约保证：下面那一层永远在旁边"],
+        ["tour 6→9", "引导让世界本身站出来说话"],
+        ["tutorial inside every panel", "每一扇门都有自己的说明牌"],
+        ["Esc → Atlas chains", "关闭这扇门，那扇门立马在身后"],
+      ] : [
+        ["Every button teaches", "no user is ever given silence to stare at"],
+        ["Esc always escapes", "each layer owes a path downward"],
+        ["tour 6→9", "guidance made the world speak, not merely point"],
+        ["tutorial inside every panel", "each door writes its own instructions"],
+        ["Esc → Atlas chains", "closing this door opens the next"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "一盏灯是一只海龟，一百盏是路。"
+          : "One lamp is a tortoise; a hundred lamps are a road."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1515,6 +1589,7 @@ const CHAPTER_RENDERERS = {
   meridian: () => meridianMarkup(),
   nightwatch: () => nightwatchMarkup(),
   fence: () => fenceMarkup(),
+  compass: () => compassMarkup(),
 };
 
 async function loadChapter(id) {

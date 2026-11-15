@@ -2729,7 +2729,8 @@
     { id: "gatekeeper", roman: { zh: "\u5377\u5341\u516B", en: "Chapter XVIII" }, title: { zh: "\u5B88\u95E8\u4EBA", en: "The Gatekeeper" }, subtitle: { zh: "\u77E5\u9053\u5BC6\u7801\u7684\u4EBA\uFF0C\u770B\u89C1\u540C\u4E00\u4EFD\u8BDA\u5B9E", en: "Everyone with the 123 door sees the same honest ledger" } },
     { id: "meridian", roman: { zh: "\u5377\u5341\u4E5D", en: "Chapter XIX" }, title: { zh: "\u955C\u95E8", en: "The Meridian" }, subtitle: { zh: "\u6709\u4EBA\u95EE\u8DEF\u7684\u5730\u65B9\uFF0C\u5C31\u662F\u7B54\u6848", en: "Where directions are given for walks never taken" } },
     { id: "nightwatch", roman: { zh: "\u5377\u4E8C\u5341", en: "Chapter XX" }, title: { zh: "\u672A\u7720", en: "The Night Watch" }, subtitle: { zh: "\u8D26\u672C\u6CA1\u6709\u5408\u4E0A\uFF0C\u5B83\u53EA\u662F\u7FFB\u5F00\u4E0B\u4E00\u9875", en: "The ledger never closed; it turned the page" } },
-    { id: "fence", roman: { zh: "\u5377\u4E8C\u5341\u4E00", en: "Chapter XXI" }, title: { zh: "\u7BF1\u7B06", en: "The Fence" }, subtitle: { zh: "\u4E00\u4E2A\u8BED\u8A00\u65F6\u4EE3\u53EA\u6709\u4E00\u79CD\u8BED\u8A00", en: "One era of language, one language" } }
+    { id: "fence", roman: { zh: "\u5377\u4E8C\u5341\u4E00", en: "Chapter XXI" }, title: { zh: "\u7BF1\u7B06", en: "The Fence" }, subtitle: { zh: "\u4E00\u4E2A\u8BED\u8A00\u65F6\u4EE3\u53EA\u6709\u4E00\u79CD\u8BED\u8A00", en: "One era of language, one language" } },
+    { id: "compass", roman: { zh: "\u5377\u4E8C\u5341\u4E8C", en: "Chapter XXII" }, title: { zh: "\u7F57\u7ECF\u4EEA", en: "The Compass" }, subtitle: { zh: "\u5F15\u5BFC\u4E0D\u662F\u515C\u5E95\uFF0C\u662F\u5EFA\u7B51", en: "Guidance is not a parachute, it is architecture" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -4093,6 +4094,74 @@
       </p>
     </div>`;
   }
+  function compassMarkup() {
+    const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "\u2014";
+    const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "\u2014";
+    const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+    return `
+    <div class="almanac-canvas almanac-compass">
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E8C\u5341\u4E8C \xB7 \u7F57\u7ECF\u4EEA" : "Chapter XXII \xB7 The Compass"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? `\u5F15\u5BFC\u4E0D\u662F\u515C\u5E95\uFF0C<br/><span class="almanac-title-accent">\u662F\u5EFA\u7B51\u3002</span>` : `Guidance is not a parachute,<br/><span class="almanac-title-accent">it is architecture.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          \u4E16\u754C\u8D8A\u505A\u8D8A\u5927\uFF0C\u8FF7\u8DEF\u7684\u98CE\u9669\u4E5F\u8D8A\u6765\u8D8A\u5927\u3002\u505A\u4E86\u5F88\u591A\u5B89\u5168\u7F51\uFF1AEsc \u5173\u95ED\u3001? \u5FEB\u6377\u952E\u3001\u2318K \u547D\u4EE4\u9762\u677F\u3001\u6BCF\u4E2A\u6309\u94AE\u5E26\u53CC\u8BED\u6559\u5B66\u8BF4\u660E\u7684 aria label\u3001
+          \u8BF4\u660E\u4E66\u5D4C\u8FDB\u4E86\u542F\u52A8\u8DEF\u5F84\u3001?+Tour\u3001Atlas \u7684 Esc \u94FE\uFF0C\u751A\u81F3 #tourOverlay \u63D0\u5230\u4E86 v900\uFF08Atlas \u62FF z860 \u88AB\u76D6\u5230\u65E0\u836F\u53EF\u6551\uFF09\u3002
+          \u6240\u6709\u8FD9\u4E9B\uFF0C\u53EA\u89E3\u51B3\u4E86\u4E00\u4E2A\u95EE\u9898\uFF1A\u4F60\u77E5\u9053\u81EA\u5DF1\u5728\u54EA\u3001\u600E\u4E48\u51FA\u53BB\u3002
+        </p>
+        <p>
+          \u672C\u5468\u4E16\u754C\u91CC\u53D1\u751F\u4E86\u4E00\u4EF6\u4E8B\uFF1A\u4E0A\u624B\u6F14\u7EC3\uFF08Wayfinder\uFF09\u4ECE 6 \u6B65\u6269\u5230\u4E86 9 \u6B65\u3002\u539F\u8BA1\u5212 6 \u6B65\u2014\u2014\u6B22\u8FCE \u2192 \u4FA7\u680F \u2192 composer \u2192 \u6F14\u793A \u2192 \u5E74\u9274 \u2192 \u5B8C\u6210\u3002
+          \u65B0\u52A0\u5165\u4E86\u4E09\u4E2A\u771F\u5B9E\u7684\u4E2A\u4F53\uFF1A<strong>Atlas</strong>\uFF08\u7B2C 5 \u6B65\uFF09\u3001<strong>\u8239\u5382</strong>\uFF08\u7B2C 6 \u6B65\uFF09\u3001<strong>\u7BA1\u7406\u5458\u95E8</strong>\uFF08\u7B2C 7 \u6B65\uFF09\u2014\u2014
+          \u539F\u6765\u7684 tour \u5728\u7B2C 5 \u6B65\u6307\u5F15\u7528\u6237\u5230\u5B8C\u6210\u9875\uFF0C\u65B0\u7684 tour \u5E26\u4ED6\u770B\u89C1<strong>\u4E16\u754C\u672C\u8EAB</strong>\u3002
+          \u8FD9\u662F\u4E00\u4E2A\u5FAE\u5999\u7684\u51B3\u5B9A\uFF1A\u5F15\u5BFC\u5E94\u8BE5\u5C55\u793A\u4E16\u754C\u6700\u9177\u7684\u4E1C\u897F\uFF0C\u800C\u4E0D\u4EC5\u4EC5\u662F\u6559"\u600E\u4E48\u70B9\u4E00\u4E0B\u8FD9\u4E2A\u6309\u94AE"\u3002
+        </p>
+        <p>
+          \u5F15\u5BFC\u88AB\u5F53\u6210\u4E86\u4E00\u9879\u6280\u672F\uFF0C\u4E00\u79CD\u8BDA\u5B9E\uFF1A\u6BCF\u4E00\u4E2A\u6309\u94AE\u90FD\u5E26\u6559\u5B66\u8BF4\u660E\u3001\u6BCF\u4E00\u6B65\u90FD\u660E\u793A\u4F60\u5728\u54EA\u3001\u6BCF\u4E00\u6B65\u90FD\u53EF\u4EE5\u8DF3\u8FC7\u3002
+          <strong>\u8FD9\u4E0D\u662F\u73A9\u5C0F\u806A\u660E\uFF0C\u662F\u8BA9\u8FD9\u4E2A\u4E16\u754C\u4E0D\u8BA9\u4EFB\u4F55\u4EBA\u56F0\u5728\u91CC\u9762\u3002</strong>
+        </p>` : `<p>
+          The bigger the world gets, the easier it is to get lost. So we built many safety nets: Esc to close, ? for shortcuts, \u2318K for the palette,
+          every button carrying bilingual teaching copy in its aria label, the manual wired into the startup path, ?+Tour and Atlas's Esc chain \u2014
+          even #tourOverlay pinned above the Atlas overlay (z-index 900 over Atlas's 860, reclaiming the Next button the map had eaten).
+          All of these address one question: do you know where you are, and how out.
+        </p>
+        <p>
+          This week the world changed shape once more. The Wayfinder grew from six steps to nine \u2014 originally Welcome \u2192 Sidebar \u2192 Composer \u2192 Demo \u2192 Almanac \u2192 Done.
+          Three real subjects joined the tour: <strong>the Atlas</strong> (step 5), <strong>the Dockyard</strong> (step 6), <strong>Admin</strong> (step 7) \u2014
+          the old tour delivered visitors to the finish line; the new one takes them to see <strong>the world itself</strong>.
+          This is a delicate decision: guidance should teach you how the world works, not merely which button gets pressed.
+        </p>
+        <p>
+          Guidance got treated as infrastructure, not as garnish: every button carries teaching copy, every step says where you are, every step is skippable.
+          <strong>This is not cleverness. This is how worlds avoid trapping their visitors.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u6F14\u7EC3\u6B65\u6570" : "tour steps"}</div><div class="almanac-instrument-value">9</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570(\u771F)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u4EFB\u52A1\u603B\u6570(\u771F)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">54</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5C9B\u5C7F\u6570" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6700\u65B0\u63D0\u4EA4(\u771F)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u9762\u677F" : "Atlas panes"}</div><div class="almanac-instrument-value">18</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5377\u6570 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">23 / 23</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["\u6BCF\u4E2A\u6309\u94AE\u5E26\u6559\u5B66\u8BF4\u660E", "\u4E0D\u518D\u7559\u7528\u6237\u5BF9\u964C\u751F\u754C\u9762\u7684\u63E3\u6469\u65F6\u95F4"],
+      ["Esc \u968F\u65F6\u9000\u51FA", "\u6BCF\u4E2A\u5C42\u53E0\u90FD\u88AB\u5951\u7EA6\u4FDD\u8BC1\uFF1A\u4E0B\u9762\u90A3\u4E00\u5C42\u6C38\u8FDC\u5728\u65C1\u8FB9"],
+      ["tour 6\u21929", "\u5F15\u5BFC\u8BA9\u4E16\u754C\u672C\u8EAB\u7AD9\u51FA\u6765\u8BF4\u8BDD"],
+      ["tutorial inside every panel", "\u6BCF\u4E00\u6247\u95E8\u90FD\u6709\u81EA\u5DF1\u7684\u8BF4\u660E\u724C"],
+      ["Esc \u2192 Atlas chains", "\u5173\u95ED\u8FD9\u6247\u95E8\uFF0C\u90A3\u6247\u95E8\u7ACB\u9A6C\u5728\u8EAB\u540E"]
+    ] : [
+      ["Every button teaches", "no user is ever given silence to stare at"],
+      ["Esc always escapes", "each layer owes a path downward"],
+      ["tour 6\u21929", "guidance made the world speak, not merely point"],
+      ["tutorial inside every panel", "each door writes its own instructions"],
+      ["Esc \u2192 Atlas chains", "closing this door opens the next"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u4E00\u76CF\u706F\u662F\u4E00\u53EA\u6D77\u9F9F\uFF0C\u4E00\u767E\u76CF\u662F\u8DEF\u3002" : "One lamp is a tortoise; a hundred lamps are a road."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -4115,7 +4184,8 @@
     gatekeeper: () => gatekeeperMarkup(),
     meridian: () => meridianMarkup(),
     nightwatch: () => nightwatchMarkup(),
-    fence: () => fenceMarkup()
+    fence: () => fenceMarkup(),
+    compass: () => compassMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -4340,9 +4410,9 @@
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
       <li><strong>\u8BCA\u65AD \xB7 Doctor</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BCA\u65AD\u300D\uFF1A\u4E09\u4EF6\u771F\u5DE5\u5177\u2014\u2014\u300C\u4E0A\u6E38\u56DE\u58F0\u300D\u5BF9\u914D\u7F6E\u7684 OpenAI \u7F51\u5173\u5B9E\u6D4B <code>GET /models</code> \u5EF6\u8FDF\uFF08\u4E0D\u6D88\u8017 token\uFF0C\u5BC6\u94A5\u7EDD\u4E0D\u56DE\u4F20\uFF09\uFF1B\u300C\u8D1F\u8F7D\u5B9E\u9A8C\u5BA4\u300D\u6700\u9AD8 24 \u5E76\u53D1\u300124 \u8BF7\u6C42\u9524\u672C\u673A\u56DE\u73AF\u7AEF\u70B9\uFF0C\u76F4\u65B9\u56FE\u753B\u51FA MIN/P50/P95/MAX\uFF1B\u300C\u5DE5\u4F5C\u533A\u81EA\u68C0\u300D\u76F4\u63A5\u590D\u7528 <code>minicc --doctor</code> \u5F15\u64CE\uFF08Python/\u5B89\u88C5\u81EA\u68C0/.minicc \u53EF\u5199/\u5BA1\u8BA1\u65E5\u5FD7\u6700\u65B0\u884C/token \u6743\u9650/permissions.json/git work tree\uFF09\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u5F53\u6B21\u771F\u5B9E\u6D4B\u91CF\u3002</li>
       <li><strong>\u8239\u5382 \xB7 Dockyard</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8239\u5382\u300D\uFF1A\u628A\u4F60\u81EA\u5DF1\u7684\u771F\u5B9E\u65C5\u7A0B\u505A\u6210\u5C55\u5385\u2014\u2014\u300C\u822A\u6D77\u65E5\u5FD7\u300D\u516D\u683C\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u4E0E git \u5143\u6570\u636E\uFF08\u9996\u6B21\u63D0\u4EA4 / \u63D0\u4EA4\u603B\u6570 / \u5B8C\u6210\u4EFB\u52A1 / \u5E74\u9274\u5377\u6570 / \u7D2F\u8BA1 token / \u7F13\u5B58\u4EB2\u548C\u7387\uFF0C\u6570\u636E\u76F4\u63A5\u8BFB /api/digest\u3001/api/metrics\u3001/api/worldpulse\uFF09\uFF1B\u300C\u706F\u5854 \xB7 \u5341\u5EA7\u91CC\u7A0B\u7891\u300D\u7167\u771F\u5B9E\u6307\u6807\u9010\u683C\u89E3\u9501\uFF08\u8D77\u822A / \u9886\u4E3B 1,000 \u63D0\u4EA4 / \u5377\u5178\u8005\u5341\u4E03\u5377 / \u4E07\u70B9\u7E41\u661F / \u5B88\u591C\u4EBA 80% \u4EB2\u548C\u7387\u7B49\uFF09\uFF0C\u672A\u8FBE\u6210\u7684\u53EA\u663E\u793A\u771F\u5B9E\u8FDB\u5EA6\uFF0C\u4E0D\u653E\u6F14\u793A\u5FBD\u7AE0\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u4E8C\u5341\u4E8C\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u4E8C\u5341\u4E00\u300A\u7BF1\u7B06\u300B\uFF0C\u8BB2\u7684\u662F en \u6A21\u5F0F\u4E0B\u6BCF\u4E2A\u4E2D\u6587\u5B57\u7B26\u90FD\u5F97\u8BF4\u660E\u81EA\u5DF1\u8EAB\u4EFD\u300123 \u9897\u661F\u5C18\u4ECD\u7136\u7F3A\u4E00\u9897\u770B\u4E0D\u89C1\u7684\u90A3\u4E00\u665A\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u4E8C\u5341\u4E09\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u4E8C\u5341\u4E8C\u300A\u7F57\u7ECF\u4EEA\u300B\uFF0C\u8BB2\u7684\u662F en \u6A21\u5F0F\u4E0B\u6BCF\u4E2A\u4E2D\u6587\u5B57\u7B26\u90FD\u5F97\u8BF4\u660E\u81EA\u5DF1\u8EAB\u4EFD\u300123 \u9897\u661F\u5C18\u4ECD\u7136\u7F3A\u4E00\u9897\u770B\u4E0D\u89C1\u7684\u90A3\u4E00\u665A\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u7BA1\u7406\u5458 \xB7 Admin</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u7BA1\u7406\u300D\uFF1A\u5BC6\u7801 123 \u7814\u4E00\u9053\u5171\u4EAB\u95E8\uFF08\u975E\u767B\u5F55\uFF0C\u53EA\u5BF9\u672C\u5730\u81EA\u5DF1\u4EBA\u53EF\u89C1\uFF09\uFF1Bstats\uFF08\u4EFB\u52A1\u6570 / \u5B8C\u6210 / \u4E2D\u65AD / \u7F13\u5B58\u4EB2\u548C\u7387 / \u5BA1\u8BA1\u884C / \u4F1A\u8BDD\u6570\uFF09+ \u4E03\u65E5\u4E8B\u4EF6 Canvas\uFF08requestAnimationFrame \u771F\u7ED8\u5236\uFF09+ \u6700\u5C0F\u4E8C\u4E58\u7EBF\u6027\u9884\u6D4B\uFF08\u660E\u6587\u6807\u6CE8\uFF1A\u8FD9\u662F\u4F30\u8BA1\uFF0C\u4E0D\u662F\u627F\u8BFA\uFF09+ \u4E2D\u65AD\u539F\u56E0\u81EA\u52A8\u5206\u6876\uFF08\u8FD9\u4E2A\u4ED3\u5E93\u5168\u90E8 3 \u6B21\u4E2D\u65AD\u5168\u90E8\u662F\u670D\u52A1\u91CD\u542F\uFF09+ \u9876\u90E8\u5DE5\u5177\u771F\u5B9E\u4F7F\u7528\u76F4\u65B9\u56FE\uFF08read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5%\uFF0C\u5168\u90E8\u4ECE /api/admin/summary \u771F\u5B9E\u8BFB\u6570\uFF0C\u96F6\u865A\u6784\uFF09\uFF1B\u70B9 4 \u4E0B\u4E4B\u540E\u5C31\u80FD\u770B\u89C1\u6240\u6709\u6570\u5B57\u3002</li>
-      <li><strong>\u4E16\u754C\u5730\u56FE \xB7 Atlas</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5730\u56FE\u300D\uFF1A\u4E00\u5F20 canvas \u5730\u56FE\uFF0812 \u5EA7\u5C9B\u5C7F\u300153 \u4E2A\u771F\u5B9E\u5750\u6807\u2014\u201418 \u9762\u677F + 22 \u5E74\u9274\u536B\u661F + 13 \u8BF4\u660E\u4E66\u536B\u661F\uFF09\uFF1B\u62D6\u62FD\u5E73\u79FB\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u51FB\u5750\u6807\u76F4\u8FBE\u5BF9\u5E94\u9762\u677F\u6216\u7AE0\u8282\uFF1B\u53F3\u4FA7\u4E66\u67B6\u300C\u5C9B\u5C7F\u5FD7 \xB7 \u5341\u4E8C\u5C9B\u300D\u5B9E\u65F6\u663E\u793A\u6BCF\u5EA7\u5C9B\u7684\u52D8\u5EA6\uFF08\u51E0\u4F55\u6BCF\u5C9B\u51E0\u4E2A\u5750\u6807\u3001\u52D8\u4E86\u51E0\u4E2A\uFF09+ \u6BCF\u5EA7\u5C9B\u4E00\u53E5\u5C5E\u4E8E\u81EA\u5DF1\u7684\u8BDD\uFF1B\u5DF2\u70B9\u4EAE\u7425\u73C0\u8272\u300C\u5DF2\u63A2\u8BBF\u300D\uFF0C\u672A\u89E6\u53CA\u7070\u8272\u70EC\uFF1BvisitedKey \u7AEF\u5230\u7AEF\u4E3A\u8BC1\u660E\uFF0C\u9632\u6B62\u4F60\u70B9\u4EAE\u4E4B\u540E\u8DF3\u8D70\u53C8\u8BA4\u4E0D\u51FA\u6765\uFF1B\u300C\u6E05\u9664\u6211\u7684\u8DB3\u8FF9\u300D\u4E00\u952E\u6E05\u7A7A localStorage \u91CC\u7684\u8BBF\u95EE\u8BB0\u5F55\uFF1B<strong>\u661F\u5C18\u91CC\u7A0B\u7891</strong>\uFF08\u52D8\u5B8C 25%\u300150%\u300175%\u3001100% \u65F6\u661F\u5C18\u81EA\u5DF1\u4F1A\u8BF4\u4E00\u53E5\u8BDD\uFF0C\u6BCF\u6863\u53EA\u8BF4\u4E00\u6B21\u2014\u2014\u6E05\u9664\u8DB3\u8FF9\u4E5F\u6E05\u6389\u5B83\u4EEC\uFF09\uFF1BEsc \u968F\u65F6\u5173\u95ED\u3002</li>
+      <li><strong>\u4E16\u754C\u5730\u56FE \xB7 Atlas</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5730\u56FE\u300D\uFF1A\u4E00\u5F20 canvas \u5730\u56FE\uFF0812 \u5EA7\u5C9B\u5C7F\u300154 \u4E2A\u771F\u5B9E\u5750\u6807\u2014\u201418 \u9762\u677F + 23 \u5E74\u9274\u536B\u661F + 13 \u8BF4\u660E\u4E66\u536B\u661F\uFF09\uFF1B\u62D6\u62FD\u5E73\u79FB\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u51FB\u5750\u6807\u76F4\u8FBE\u5BF9\u5E94\u9762\u677F\u6216\u7AE0\u8282\uFF1B\u53F3\u4FA7\u4E66\u67B6\u300C\u5C9B\u5C7F\u5FD7 \xB7 \u5341\u4E8C\u5C9B\u300D\u5B9E\u65F6\u663E\u793A\u6BCF\u5EA7\u5C9B\u7684\u52D8\u5EA6\uFF08\u51E0\u4F55\u6BCF\u5C9B\u51E0\u4E2A\u5750\u6807\u3001\u52D8\u4E86\u51E0\u4E2A\uFF09+ \u6BCF\u5EA7\u5C9B\u4E00\u53E5\u5C5E\u4E8E\u81EA\u5DF1\u7684\u8BDD\uFF1B\u5DF2\u70B9\u4EAE\u7425\u73C0\u8272\u300C\u5DF2\u63A2\u8BBF\u300D\uFF0C\u672A\u89E6\u53CA\u7070\u8272\u70EC\uFF1BvisitedKey \u7AEF\u5230\u7AEF\u4E3A\u8BC1\u660E\uFF0C\u9632\u6B62\u4F60\u70B9\u4EAE\u4E4B\u540E\u8DF3\u8D70\u53C8\u8BA4\u4E0D\u51FA\u6765\uFF1B\u300C\u6E05\u9664\u6211\u7684\u8DB3\u8FF9\u300D\u4E00\u952E\u6E05\u7A7A localStorage \u91CC\u7684\u8BBF\u95EE\u8BB0\u5F55\uFF1B<strong>\u661F\u5C18\u91CC\u7A0B\u7891</strong>\uFF08\u52D8\u5B8C 25%\u300150%\u300175%\u3001100% \u65F6\u661F\u5C18\u81EA\u5DF1\u4F1A\u8BF4\u4E00\u53E5\u8BDD\uFF0C\u6BCF\u6863\u53EA\u8BF4\u4E00\u6B21\u2014\u2014\u6E05\u9664\u8DB3\u8FF9\u4E5F\u6E05\u6389\u5B83\u4EEC\uFF09\uFF1BEsc \u968F\u65F6\u5173\u95ED\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -4359,9 +4429,9 @@
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
       <li><strong>Doctor</strong> \u2014 sidebar \u201CDoctor\u201D: three honest instruments \u2014 \u201CUpstream echo\u201D probes your configured OpenAI gateway with a real <code>GET /models</code> (zero tokens, key never echoed); \u201CLoad lab\u201D fires 24 loopback requests at up to 24\xD7 concurrency and draws the measured MIN/P50/P95/MAX histogram; \u201CWorkspace self-check\u201D reuses the <code>minicc --doctor</code> engine (Python / install self-check / .minicc writable / audit tail parses / token permissions / permissions.json / git work tree) \u2014 everything measured on this machine, nothing from the network.</li>
       <li><strong>Dockyard</strong> \u2014 sidebar \u201CDockyard\u201D: your own real journey as a harbour of stakes. \u201CCaptain's log\u201D shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity \u2014 read in place from /api/digest, /api/metrics, /api/worldpulse); \u201CLighthouse stakes\u201D \u2014 ten medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity\u2026). Locked stakes show true progress, never fake badges.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in twenty-two chapters (the newest, Chapter XXI \u201CThe Fence\u201D \u2014 the day every untranslated byte was cornered, four of them found and retired; our one-language-at-a-time law got written down), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in twenty-three chapters (the newest, Chapter XXIII \u201CThe Compass\u201D \u2014 the week guidance became infrastructure: three seats added to the Wayfinder, arms stretched to Atlas / Dockyard / Admin, and every button wrote its own teaching copy), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> \u2014 sidebar entry \u201CAdmin\u201D: password <code>123</code> unlocks a shared door (not a login \u2014 a door for anyone who knows it); stats \u2014 tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast \u2014 labelled\u201Cthis is an estimate, not a promise\u201D; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store \u2014 read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5% \u2014 not one demo number.</li>
-      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 twelve islands, fifty-three real coordinates \u2014 18 panes + 22 almanac satellites + 13 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 twelve islands, fifty-four real coordinates \u2014 18 panes + 23 almanac satellites + 13 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
@@ -9917,8 +9987,8 @@
       id: "atlas",
       anchor: "#atlasButton",
       interact: "atlas",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 9 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C12 \u5EA7\u5C9B\u5C7F\u300153 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 22 \u5377\u5E74\u9274\u536B\u661F + 13 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
-      en: { kicker: "Start here \xB7 Step 5 of 9", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: twelve islands, fifty-three real coordinates \u2014 18 panes, 22 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 9 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C12 \u5EA7\u5C9B\u5C7F\u300154 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 23 \u5377\u5E74\u9274\u536B\u661F + 13 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
+      en: { kicker: "Start here \xB7 Step 5 of 9", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: twelve islands, fifty-four real coordinates \u2014 18 panes, 23 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
     },
     {
       id: "dockyard",
@@ -9937,8 +10007,8 @@
     {
       id: "almanac",
       anchor: '.nav-item[data-view="almanac"]',
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 8 \u6B65 / \u5171 9 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u4E8C\u5341\u4E8C\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6BCF\u7B14\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
-      en: { kicker: "Start here \xB7 Step 8 of 9", title: "The Almanac \u2014 a museum in twenty-two halls", body: "Twenty-two chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 8 \u6B65 / \u5171 9 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u4E8C\u5341\u4E09\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6BCF\u7B14\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
+      en: { kicker: "Start here \xB7 Step 8 of 9", title: "The Almanac \u2014 a museum in twenty-three halls", body: "Twenty-three chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." }
     },
     {
       id: "done",

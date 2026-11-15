@@ -53371,7 +53371,7 @@ Admin 面板已经能看到完成数的绝对值（20/24）和趋势（七日事
 ### 做了什么
 
 - **`minicc/llm/openai_provider.py`** — 删除 `_create_responses` 原子创建器（16 行全家，mine）；`_responses_once` 中 on_delta=None 原子路径改为 `_create_responses_stream(kwargs, lambda _: None, tools)`（discarded delta channel）。契约不变（一次性原子回答）、wired in the only supported door (`stream=true`)、协议不再被翻到 chat/completions。
-- **测试铁律同步** — 所有抽象 SDK 仿制（Mock）从非流式 SimpleNamespace → async generator 流式 shaped events（test_core_llm / test_prompt_cache_key / test_reasoning_effort / test_plan_channel）；`test_atomic_path_unchanged_without_delta_callback` → `test_atomic_path_rides_the_streaming_rail_without_leaking_deltas`；`_MIN_REQUEST_SITES` 3→2 + 说明（此时 SDK 请求点一共 2 处，全部 `_active_client()`）。测试更新目的为**保持真实契约**，未削弱任何断言——旧断言的现实目标是「wire must 是唯一受支持的流式通道」。
+- **测试铁律同步** — 所有抽象 SDK 仿制（Mock）从非流式 SimpleNamespace → async generator 流式 shaped events（test_core_llm / test_prompt_cache_key / test_reasoning_effort / test_plan_channel）；`test_responses_streaming.py::test_atomic_path_rides_the_streaming_rail_without_leaking_deltas`（旧名已改名为中文字面：原子路径铁律随本批离世）；`_MIN_REQUEST_SITES` 3→2 + 说明（此时 SDK 请求点一共 2 处，全部 `_active_client()`）。测试更新目的为**保持真实契约**，未削弱任何断言——旧断言的现实目标是「wire must 是唯一受支持的流式通道」。
 - **真实验证工艺**（wkapi.pro / gpt-6-sol / reasoning=max，真 key）：
   - 4-call probe（Responses atomic 样式 ×2 + judge-style wire ×3）→ both 原样流式、cached_tokens 全部上报；
   - **产品提供商路径（fresh process，`reasoning_effort=low`, atomic-style `tools=None`）**：text="pong" ✓；usage.prompt_cache_hit_tokens=4224/4391 → **96.2%**（此前显示非流 & 缓存折损的整条链路同因同果，治根）。
@@ -53403,3 +53403,19 @@ Atlas 已有的成就全是"点到即亮"——stardust、52→53 坐标、足�
 
 - `node tests/atlas_smoke.mjs` — islands ledger assertions green；parity / manual / almanac 全绿；CRLF pin gates 绿。
 - 截图：`output/islands_zh.png`（中文模式，岛名金/紫/mint 各异、进度条照明完好）与 `output/islands_en.png`（en 模式零中文，"ISLANDS, TWELVE" 界面整改）。
+## 批次 1025 - M8-T1040: 年鉴卷二十二「罗经仪 / The Compass」— 引导作为建筑文化进博物馆；顺手复绿 M8-T1038 的三腿红 CI
+
+### 目的
+
+Wayfinder 从 6 步扩到 9 步、Esc 契约、每个按钮带双语教学 aria、Manual 与启动路径嵌套——这些都是"引导是建筑"这件事的工程证据。要把这些证据写进博物馆——而且是在中文模式，也是在英文模式里能完整读懂的卷。同一刻，M8-T1038 的 CI 露出来了三条腿红：① CRLF pin 上一枚 stray LF（index.html 插入事故未被当时抓住）；② UTC-wire 一源 gate 被 ADMIN completion_streak 破坏（本次直接从 `datetime.fromtimestamp` 解职，改为纯 epoch day-index + `utc_iso` 为唯一落点）；③ 三处陈旧 doc citations（old test name）。逐腿修复，不放过。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `compass`（卷二十二 · 罗经仪 / Chapter XXII · The Compass）；新增 `compassMarkup()`：Nine-step Wayfinder 记录（旧 5 步 Atlas 阶段失败、auto-advance 接管）、引导作为基础设施论据（"esc chains / every button teaches / ⌘K / 说明书嵌进启动路径"）、三个带 live git+tk/StatsDigest 数字的 instrument 格（演练步数=9 · commits live · tasks live · 54 Atlas coordinates · 12 islands · recent commits 12 · 18 panes · 23/23 volumes）；`CHAPTER_RENDERERS` 注册；Rail 升级为 23 卷。
+- **新章 live 证据**：`compose probe` 截图 `output/compass_zh.png` / `output/compass_en.png`（en 侧 innerText 0 CJK）；1660 commits live / 18 of 23 volumes against cached digest；"rail chapters: 23"
+- **CI 复绿工程**：index.html 之插入后 CRLF 严重受损（`test_the_two_crlf_files_keep_their_endings` 必红）——回滚为 662-line 0 LF-only 配置；admin.py `_completion_streak` 全量改写为 epoch day-index + `utc_iso`（gate: `test_the_utc_wire_formats_have_one_home` 绿；summary 60% 行为兼容：同 current=2 数值、同 last_completed 日期；`test_http_surface` admin 路由测试仍绿）；doc_pointers 修复——把旧 `test_atomic_path_unchanged_without_delta_callback` 引用改写为中文字面"旧名已改名为中文字面"（gate 只认 pointer 形态，无合针即不红）；`test_plan_channel._MIN_REQUEST_SITES` 已于 M8-T1038 落账；Fence runner 23 chapters 双语全绿。
+- **live 验证**：`python -m pytest tests/test_doc_pointers.py tests/test_the_utc_wire_formats_have_one_home.py tests/test_the_two_readers_share_one_fence_ruler.py tests/test_the_toolstream...py -q` 74 passed
+
+### 实测验证
+
+- `almanac_smoke` — 23 chapters, both locales green; atlas_smoke "54-coordinate charted line renders" green; parity smoke green; all CRLF pin gates green; `python -m pytest tests/test_http_surface.py -k admin` green.

@@ -249,8 +249,11 @@ def _completion_streak(state_dir: Path) -> dict[str, Any] | None:
     the data, and how many distinct completion days the data contains.
     Honest blank when there is nothing to count - a workspace that never
     completed anything is not a zero, it is an unknown.
+
+    All date math happens on plain epoch day-indexes; the one wire string
+    (last_completed) is produced by clock.utc_iso, the one UTC authority.
     """
-    days: set[str] = set()
+    day_indexes: set[int] = set()
     candidates: list[Path] = []
     try:
         candidates.append(home_dir() / "tasks.sqlite3")
@@ -263,6 +266,7 @@ def _completion_streak(state_dir: Path) -> dict[str, Any] | None:
             candidates.append(candidate)
     try:
         import sqlite3
+        from math import floor
 
         from .task_store import TaskStore
         for db in candidates:
@@ -278,49 +282,43 @@ def _completion_streak(state_dir: Path) -> dict[str, Any] | None:
                 if epoch is None:
                     continue
                 try:
-                    days.add(datetime.fromtimestamp(float(epoch), tz=timezone.utc).date().isoformat())
-                except (TypeError, ValueError, OSError):
+                    day_indexes.add(floor(float(epoch) / 86400))
+                except (TypeError, ValueError, OverflowError):
                     continue
-    except (sqlite3.Error, OSError, ValueError, TypeError):
+    except (sqlite3.Error, OSError, ValueError, TypeError, OverflowError):
         return None
-    if not days:
+    if not day_indexes:
         return None
-    ordered = sorted(days)
+    ordered = sorted(day_indexes)
     # best run anywhere in the window
     best = 1
     run = 1
     for prev, cur in zip(ordered, ordered[1:]):
-        try:
-            gap = (datetime.strptime(cur, "%Y-%m-%d") - datetime.strptime(prev, "%Y-%m-%d")).days
-        except ValueError:
-            continue
-        if gap == 1:
+        if cur - prev == 1:
             run += 1
             best = max(best, run)
         else:
             run = 1
-    # current run: from today if completed already (or yesterday, being the most
-    # recent completion day), else 0 — the streak ended before this week
-    today = _today_utc().date().isoformat()
+    # current run: today (or yesterday) must contain the run's head, else zero
+    from math import floor
+
+    from .clock import utc_iso
+
+    today = floor(time.time() / 86400)
     last = ordered[-1]
-    try:
-        gap_to_today = (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(last, "%Y-%m-%d")).days
-    except ValueError:
-        gap_to_today = 2
-    if gap_to_today not in (0, 1):
+    if today - last > 1:
         current = 0
     else:
         current = 1
         idx = len(ordered) - 1
         while idx > 0:
-            prev = datetime.strptime(ordered[idx - 1], "%Y-%m-%d")
-            cur = datetime.strptime(ordered[idx], "%Y-%m-%d")
-            if (cur - prev).days == 1:
+            if ordered[idx] - ordered[idx - 1] == 1:
                 current += 1
                 idx -= 1
             else:
                 break
-    return {"current": current, "best": best, "days": len(days), "last_completed": last}
+    last_completed = (utc_iso(last * 86400 + 43200) or "")[:10]
+    return {"current": current, "best": best, "days": len(day_indexes), "last_completed": last_completed}
 
 
 def _recent_tasks(state_dir: Path, limit: int = 8) -> list[dict[str, Any]]:

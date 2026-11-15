@@ -39,8 +39,8 @@ const STEPS = [
   },
   {
     id: "atlas", anchor: "#atlasButton", interact: "atlas",
-    zh: { kicker: "上手演练 · 第 5 步 / 共 9 步", title: "把这片世界摊开看一眼", body: "点「地图」，12 座岛屿、53 个坐标——18 个面板 + 22 卷年鉴卫星 + 13 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
-    en: { kicker: "Start here · Step 5 of 9", title: "Unfold the world", body: "Press the “Atlas” button: twelve islands, fifty-three real coordinates — 18 panes, 22 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
+    zh: { kicker: "上手演练 · 第 5 步 / 共 9 步", title: "把这片世界摊开看一眼", body: "点「地图」，12 座岛屿、54 个坐标——18 个面板 + 23 卷年鉴卫星 + 13 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
+    en: { kicker: "Start here · Step 5 of 9", title: "Unfold the world", body: "Press the “Atlas” button: twelve islands, fifty-four real coordinates — 18 panes, 23 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
   },
   {
     id: "dockyard", anchor: "#dockyardButton", interact: "dockyard",
@@ -54,8 +54,8 @@ const STEPS = [
   },
   {
     id: "almanac", anchor: '.nav-item[data-view="almanac"]',
-    zh: { kicker: "上手演练 · 第 8 步 / 共 9 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷二十二的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
-    en: { kicker: "Start here · Step 8 of 9", title: "The Almanac — a museum in twenty-two halls", body: "Twenty-two chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
+    zh: { kicker: "上手演练 · 第 8 步 / 共 9 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷二十三的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
+    en: { kicker: "Start here · Step 8 of 9", title: "The Almanac — a museum in twenty-three halls", body: "Twenty-three chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
   },
   {
     id: "done", anchor: null,
