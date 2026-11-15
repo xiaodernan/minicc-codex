@@ -95,7 +95,7 @@
           <button class="nav-item" data-view="almanac"><i data-lucide="book-open"></i><span data-i18n="nav.almanac">年鉴</span></button>
           <button class="nav-item" data-view="axioms"><i data-lucide="scroll-text"></i><span data-i18n="nav.axioms">铁律</span></button>
           <button class="nav-item" data-view="journal"><i data-lucide="notebook-pen"></i><span data-i18n="nav.journal">日志</span></button>
-          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button>
+          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button><button class="nav-item dockyard-nav" id="dockyardButton" data-view="dockyard"><i data-lucide="anchor"></i><span data-i18n="nav.dockyard">船厂</span></button>
           <button class="nav-item menu-juicer" data-view="recent"><i data-lucide="newspaper"></i><span data-i18n="nav.recent">近况</span><b>UPD</b></button>
         </nav>
 
@@ -434,6 +434,38 @@
             </ul>
           </section>
         </div>
+      </div>
+    </div>
+
+    <div class="dockyard-stage" id="dockyardStage" aria-hidden="true" aria-labelledby="dockyardStageTitle">
+      <div class="dockyard-stage-card" role="dialog" aria-modal="true">
+        <button class="dockyard-stage-close icon-button" id="dockyardStageClose" type="button" aria-label="Close dockyard" data-i18n-aria="yard.close"><i data-lucide="x"></i></button>
+        <div class="dockyard-stage-header">
+          <div>
+            <div class="dockyard-kicker"><i data-lucide="anchor"></i><span data-i18n="yard.kicker">证据殿堂 · 每艘船都留一册</span></div>
+            <h2 class="dockyard-stage-title" id="dockyardStageTitle" data-i18n="yard.title">船厂</h2>
+            <p class="dockyard-tagline" data-i18n="yard.tagline">每一件事都来自真实任务——没有演示数据，只有真 git、真网关、真进度。</p>
+          </div>
+        </div>
+        <div class="dockyard-grid">
+          <section class="dockyard-card" aria-label="captain's log">
+            <div class="dockyard-card-kicker"><i data-lucide="map-scroll"></i><span data-i18n="yard.log">航海日志</span></div>
+            <div class="dockyard-voyage" id="dockyardVoyage">
+              <div class="dockyard-fact"><span data-i18n="yard.firstCommit">首次提交</span><strong id="yardFirstCommit">—</strong></div>
+              <div class="dockyard-fact"><span data-i18n="yard.totalCommits">提交次数</span><strong id="yardTotalCommits">—</strong></div>
+              <div class="dockyard-fact"><span data-i18n="yard.tasksDone">完成的任务</span><strong id="yardTasksDone">—</strong></div>
+              <div class="dockyard-fact"><span data-i18n="yard.chapters">年鉴卷数</span><strong id="yardChapters">—</strong></div>
+              <div class="dockyard-fact"><span data-i18n="yard.totalTokens">累计 token</span><strong id="yardTotalTokens">—</strong></div>
+              <div class="dockyard-fact"><span data-i18n="yard.cacheRate">缓存亲和率</span><strong id="yardCacheRate">—</strong></div>
+            </div>
+          </section>
+          <section class="dockyard-card" aria-label="lighthouse stakes">
+            <div class="dockyard-card-kicker"><i data-lucide="lighthouse"></i><span data-i18n="yard.stakes">灯塔 · 十座里程碑</span></div>
+            <div class="dockyard-stakes-note" data-i18n="yard.stakesNote">未解锁的灯塔只显示真实进度——不放演示徽章。</div>
+            <ol class="dockyard-stakes" id="dockyardStakes"></ol>
+          </section>
+        </div>
+        <p class="dockyard-quote" data-i18n="yard.quote">每一艘能回港的船，起步时都带着一个真实的问题。</p>
       </div>
     </div>
 

@@ -2590,3 +2590,6 @@ function drawDoctorHistogram(samples) {
   const right = `${Math.round(max)} ms`;
   ctx.fillText(right, width - ctx.measureText(right).width - 2, height - 20);
 }
+
+import { openDockyard } from "../panels/dockyard.js";
+export { openDockyard };

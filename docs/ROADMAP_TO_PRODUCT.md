@@ -52733,3 +52733,27 @@ wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
 - `tests/test_cache_keeper.py`：5 个单元测试全绿（key 派生稳定性/模型敏感、开关、成功记账、失败记账不抛、无凭据拒绝启动）；
 - `tests/test_http_surface.py` 全套 91 通过；路由无新增；route_coverage 无变化；
 - 守护单次决策 ≈ 20 output tokens + 命中前缀读，成本 ≈ 0，无任何写入、无副作用、不改任何任务、不追加工具调用。
+
+## 批次 995 - M8-T1005：船厂 Dockyard —— 你的真实旅程，十座灯塔，全部按真实指标逐格解锁
+
+### 1 背景
+
+用户厌倦了"只有 demo 才有功勋"这件事。这个仓库现在 1,590 次提交、17 卷年鉴、706 个测试文件、876k tokens、23/24 完成、2 次中断、GitHub 1 star——把这些真实数字摆出来，就是给每位用户一面真实的镜子。「船厂」不做任何虚构：每一格都来自 git、`/api/metrics`、`/api/worldpulse` 与 almanac 源码的计数。
+
+### 2 做了什么
+
+**新增「船厂」模块（`web/src/panels/dockyard.js` + `#dockyardStage`，新导航项「船厂 / Dockyard」，anchor 图标）：**
+
+- **航海日志** — 6 格真实计数器：首次提交 2026-08-24 / 提交总数 1590 / 完成任务 22/24 / 年鉴 17 卷 / 累计 token 876.1k / 缓存亲和率 62%——全部直接读 `/api/digest`（新增 `almanac_chapters` 字段，由 `digest.py` 扫描 `web/src/panels/almanac.js` 的 `roman: { zh:` 真实计数）、`/api/metrics`、`/api/worldpulse`；
+- **灯塔 · 十座里程碑** — I–X 十枚勋章，全部按真实指标逐格解锁：起航 / 领主 1,000 提交 / 卷典者 17 卷 / 万点繁星 1,000+ tracked files / 受理星 stars ≥ 1 / 千灯俱亮 700+ 测试 / 守夜人 ≥ 80% 亲和率 / 千兆航程 100 万 token / 重启之光（至少一次中断已完成，证据在册）/ 无限海。未达成的只显示真实进度（例如 62%→80%、876k→1M），不放一个假徽章；
+- 中英双语严格对账（i18n parity 676 键全绿）；视觉与 Doctor 同语言系（amber / mint / coral）。
+
+**配套：**
+- `minicc/digest.py`：新增 `almanac_chapters` 字段——与 fact-pack bot 同一算法（扫描 almanac.js `roman: { zh:` 出现次数），杜绝硬编码；
+- 手册「七个模块」章节双语新增船厂条目；README 模块列表同步入列。
+
+### 3 验证
+
+- Playwright 真浏览器（zh + en）：10 枚勋章 8 解锁 / 2 诚实锁定（VII 守夜人 62%→80%、VIII 千兆航程 876k→1M）；6 格航海日志全部填入真实数字；中英两套逐字渲染，en 模式零 CJK 泄漏；
+- `npm run build:web` / `check:web` 干净；i18n parity 676 键；`doc_pointers` rc=0；
+- 未新增 HTTP 路由；route coverage 无变化。

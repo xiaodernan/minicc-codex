@@ -5399,3 +5399,60 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .doctor-keeper-dot[data-tone="ok"] { background: var(--mint); }
 .doctor-keeper-dot[data-tone="warn"] { background: var(--amber); }
 .doctor-keeper-dot[data-tone="bad"] { background: var(--coral); }
+
+/* ===== Dockyard — evidence harbour for the workbench (M8-T1005) =====
+   Nautical amber/mint/coral on the shared panel palette. All numerals stay
+   mono + tabular-nums; small caps labels use AA-safe muted/quiet inks. */
+.dockyard-stage { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 26px 30px; background: radial-gradient(1100px 620px at 10% -8%, color-mix(in srgb, var(--amber) 10%, transparent) 0%, transparent 55%), radial-gradient(900px 540px at 108% 112%, color-mix(in srgb, var(--mint) 8%, transparent) 0%, transparent 55%), color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity .28s ease; }
+.dockyard-stage[aria-hidden="false"] { opacity: 1; pointer-events: auto; }
+.dockyard-stage-card { position: relative; width: min(1120px, 100%); max-height: 100%; overflow-y: auto; display: grid; gap: 14px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, .38); }
+.dockyard-stage-close { position: absolute; top: 14px; right: 14px; }
+.dockyard-kicker { font-size: 10.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--quiet); display: flex; align-items: center; gap: 8px; }
+.dockyard-kicker svg { width: 13px; height: 13px; color: var(--amber); }
+.dockyard-stage-title { font-size: clamp(28px, 3vw, 36px); font-weight: 680; letter-spacing: -0.02em; color: var(--text); margin: 6px 0 0; }
+.dockyard-tagline { color: var(--muted); font-size: 12.5px; line-height: 1.6; margin: 6px 0 0; max-width: 640px; }
+.dockyard-stage-header { padding-right: 48px; display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+
+.dockyard-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 14px; }
+@media (max-width: 940px) { .dockyard-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.dockyard-card { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.dockyard-card-kicker { display: flex; align-items: center; gap: 9px; font-size: 10.5px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+.dockyard-card-kicker svg { width: 14px; height: 14px; color: var(--amber); }
+
+.dockyard-voyage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dockyard-fact { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 11px; padding: 11px 12px; display: grid; gap: 4px; min-width: 0; }
+.dockyard-fact span { font-size: 9px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: var(--quiet); }
+.dockyard-fact strong { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-variant-numeric: tabular-nums; font-size: clamp(16px, 1.6vw, 21px); color: var(--text); overflow-wrap: anywhere; }
+
+.dockyard-stakes-note { color: var(--quiet); font-size: 10.5px; margin-top: -4px; }
+.dockyard-stakes { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dockyard-stake { display: grid; grid-template-columns: 28px 22px minmax(0, 1fr) auto; align-items: center; gap: 9px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.dockyard-stake.unlocked { border-color: color-mix(in srgb, var(--mint) 30%, var(--line)); }
+.dockyard-stake.locked { opacity: 0.78; }
+.dockyard-stake-roman { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 9px; font-weight: 700; color: var(--quiet); letter-spacing: .04em; }
+.dockyard-stake.unlocked .dockyard-stake-roman { color: var(--mint); }
+.dockyard-stake-icon { display: flex; align-items: center; justify-content: center; }
+.dockyard-stake-icon svg { width: 16px; height: 16px; color: var(--amber); }
+.dockyard-stake.unlocked .dockyard-stake-icon svg { color: var(--mint); }
+.dockyard-stake-body { display: grid; gap: 2px; min-width: 0; }
+.dockyard-stake-name { color: var(--text); font-size: 12px; font-weight: 650; line-height: 1.3; }
+.dockyard-stake-hint { color: var(--quiet); font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.dockyard-stake-bar { height: 3px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 2px 0 0; max-width: 260px; }
+.dockyard-stake-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--amber), color-mix(in srgb, var(--amber) 55%, #fff6d0)); border-radius: 999px; transition: width .5s ease; }
+.dockyard-stake.unlocked .dockyard-stake-bar i { background: linear-gradient(90deg, var(--mint), color-mix(in srgb, var(--mint) 60%, #d1fae5)); }
+.dockyard-stake-side { display: grid; justify-items: end; gap: 1px; }
+.dockyard-stake-side strong { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--text); white-space: nowrap; }
+.dockyard-stake-side small { font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+.dockyard-stake.unlocked .dockyard-stake-side small { color: var(--mint); }
+
+.dockyard-quote { text-align: center; color: var(--muted); font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 13.5px; line-height: 1.7; margin: 2px 0 0; }
+.dockyard-nav { color: var(--muted); }
+.dockyard-nav:hover { color: var(--text); }
+
+/* Dockyard: let the captain's log fill its column so the card reads as one */
+.dockyard-voyage { height: 100%; grid-auto-rows: 1fr; align-content: stretch; }
+.dockyard-voyage .dockyard-fact { display: flex; flex-direction: column; justify-content: center; }
+
+/* Dockyard: give the captain's log a real 1fr stretch row */
+.dockyard-card { grid-template-rows: auto 1fr; align-content: stretch; }

@@ -189,6 +189,15 @@ def build_digest(workspace: Path | str) -> dict[str, Any]:
     payload["roadmap_lines"] = _line_count(roadmap)
     payload["changelog_lines"] = _line_count(root / "docs" / "CHANGELOG.md")
 
+    # Count the almanac chapters straight out of the rail the same way the
+    # fact-pack bot does, so the dockyard reward unlocks on the real number.
+    almanac_path = root / "web" / "src" / "panels" / "almanac.js"
+    try:
+        almanac_source = almanac_path.read_text(encoding="utf-8")
+    except OSError:
+        almanac_source = ""
+    payload["almanac_chapters"] = almanac_source.count("roman: { zh:")
+
     # Twelve most recent commits: bounded, verbatim-ish (subject truncated to
     # 140 chars), read with fixed arguments. This is the newest member of the
     # fact pack and the raw material the Journal screen renders.
