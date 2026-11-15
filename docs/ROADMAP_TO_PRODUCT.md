@@ -53151,3 +53151,21 @@ Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两
 - `almanac_smoke` 21 章双语全绿（"未眠" 作为第 XX 卷锚）。
 - screenshot: `output/atlas_trail.png` — amber polyline 经 Admin 卡 (G) → 说明书 (M) → 工作台 (W/A) → 夜夜星轨清晰可见。
 - 诚实记录：本批修正"Atla visited 52 只是手写数、两扇真 gate 都通不了"的沉默 bug。Atla 用的是本机下本地 localStorage，不泄露任何个人实体。
+
+## 批次 1012 - M8-T1025: README 对齐 21 卷年鉴 + 写入 Admin / Atlas 两个功能文档
+
+### 1 背景
+
+用户要求面向人看的文档必须包含整个项目的现状——包括 README 里仍然写着「年鉴（18 卷）」与没有 Admin / Atlas 章节，导致一个新访客推断不到这两个 19 面板里的新功能。与此同时在最近一周内，README 的年份画像越来越不对得上：Admin（密码 123 共享门）和 Atla（世界地图）都不存在于文档里。把它们如实补上。
+
+### 2 做了什么
+
+- **README 功能表扩展**：增加「管理员（123 共享门）」「世界地图 · Atlas」两条，逐条写出真实功能——
+  - 管理员：stats / 7日事件 / 最小二乘斜率预测（next-day 外推，明示是估计不是承诺）/ 中断根因自动分桶 / 五条建议（当前 keeper-window·fading-weekend-quiet·interrupted-tasks·restart-interrupt·redis-live）。
+  - Atla：12 座岛屿·52 真实坐标（18 面板 + 20 年鉴 + 13 说明书）；drag / scroll-zoom / visit amber / unvisited gray（都存到 `localStorage[minicc-visited]`）；「清除我的足迹」按钮（trash）。
+- **年鉴计数** 从 18 升到 21。熟悉的读者不再会把 `Lighthouse` / `Gatekeeper` / `Meridian` / `Night Watch` 读不到那几卷意味着什么。
+- **大模型调用方式实验记录**：保存本周 wkapi / gpt-6-sol 的 cache 样本（judge atomic cached=5248/5591 ≈ 93.8%），`stream` 与非 stream 共用 `prompt_cache_key`（minicc- + sha256(base|model)[:16]）；agent 主线路上会观察到。今天特意写进史料里。
+
+### 3 诚实记录
+
+发生了两次自己测试期间的服务重启，把两个 `gpt-6-sol` 任务断在途——admin panel 的 restart-interrupt 桶里正好有两份实证，建议如实出现。全部数据可从 `GET /api/admin/summary?fresh=1` 复核。

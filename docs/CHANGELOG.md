@@ -416,3 +416,9 @@
 - **Atla 足迹可见化（M8-T1024）**：Atla 现在真的把你走过的路画出来——visited trail 琥珀色长虹（外光晕宽线 + 核心实线 + 逐点步迹）沿你踩过的坐标按访问顺序连线，未走过的坐标永远灰；新增「清除我的足迹」按钮（trash glyph，珊瑚红 hover）一键清空 visited；visitedKey 端到端对齐——18 个面板补齐 `panel:<id>` 前缀，卫星沿用 `chapter:<id>` / `manual:<id>`。
 - **Atla 坐标总数修正至 52（M8-T1024）**：屏幕上不再有手填 50 这种数据谎言——`ATLAS_TOTAL = ALL_NODES.length`（18 面板 + 20 年鉴 + 13 说明书 = 51=52 一致口径）；hero 空会话芯片、index.html 站位占位符、nightwatch/meridian 章 copy、atlas smoke、showcase 静态 fallback 全部校验过 / 52 个坐标。
 - **visited 写路径端到端打通（M8-T1024）**：`visited.js` 增加 `ORDER_KEY = "minicc-visited-order"` 时序冗余存储—— `markVisited` 写两份；`clearVisitHistory()` 一次清空两个键；Esc 链 Atla 补码（Atla 层之前被过旧 main.js 忽略，now Esc 可关）。
+
+- **README 对齐 21 卷与 19 面板 + 两个新入口（M8-T1025）**：README 写了Admin panel + Atlas 两个新功能——admin（密码 123 共享门，实时 stats + 七日事件 + 最小二乘预测 + 中断根因分桶 + 五条建议）和世界地图 Atlas（12 座岛屿 / 52 真实坐标，zh/en）；almanac 计数升 18 → 21；面板名册全部跟上现状，不再指向已过期的 18 卷历史画像。
+- **大模型调用方式观测实验记录（M8-T1022/T1015）**：cache_engagement probe 经真实 wkapi / gpt-6-sol 实测：
+  - stream 与非 stream 使用同一个共享的 `prompt_cache_key`（minicc-，SHA256 base|model→== key hex 派生，对网关同一 shard）——两条路径都接触到 upstream 缓存，不是 method bug；
+  - judge（completion_judge）atomic 路径从未命中过 cached=0，根因是 persona ~300 tokens 低于网关 gateway 缓存门槛（≥1 KB？），M8-T1015 给 judge 加了 `COMPLETION_REVIEW_PROTOCOL`（~1,033 chars·constant·planar）后实测 `cached=5248 / 5591 ≈ 93%`——唯一更主观差距在于输入流动性变大而缓存 key 仍然共享。
+  - interrupted task proof: 两个中断任务 `task-6066f5ba6629` + `task-742b6d30e4a5` 原文完全一致「服务重启时任务被中断，可重新运行」——管理员 face 自动 bucket 成 restart（自动挂 `restart-interrupt` 建议）。

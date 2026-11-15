@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:02:24.742Z",
+  "generated_at": "2026-11-15T14:23:41.325Z",
   "branch": "main",
-  "head": "a569ea2",
-  "total_commits": 1636,
+  "head": "a9e4cbd",
+  "total_commits": 1638,
   "recent_commits": [
+    {
+      "short": "a9e4cbd",
+      "at": "2026-11-15T22:05:07+08:00",
+      "subject": "fix(index.html): restore pinned CRLF - _fix_index.py had silently re-written index.html with LF (0x0A)-only endings, tripping toolstream_chip_answers_its_own_ke"
+    },
+    {
+      "short": "abc61e8",
+      "at": "2026-11-15T14:02:25Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a569ea2",
       "at": "2026-11-15T22:01:02+08:00",
@@ -19,22 +29,12 @@
       "short": "1dbe0c6",
       "at": "2026-11-15T21:41:58+08:00",
       "subject": "M8-T1022: almanac chapter XX The Night Watch - this week's pages turned: 24 tasks / 22 done / 2 restart-interrupts / 1515 audit / 1632 commits / 62% cache (keep"
-    },
-    {
-      "short": "c9b4404",
-      "at": "2026-11-15T13:37:07Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0e8de31",
-      "at": "2026-11-15T21:36:35+08:00",
-      "subject": "M8-T1022: interrupt-cause breakdown - real task-store errors bucket by strict substring; all 2 interrupted tasks were service-restart deaths (raw 'interrupted d"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 338,
+  "roadmap_batches": 339,
   "changelog_entries": 1,
-  "roadmap_lines": 53154,
+  "roadmap_lines": 53172,
   "tracked_files": 1075,
   "test_files": 710,
   "almanac_chapters": 21,
