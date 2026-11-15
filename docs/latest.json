@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T12:36:46.624Z",
+  "generated_at": "2026-11-15T12:37:09.413Z",
   "branch": "main",
-  "head": "d84a51d",
-  "total_commits": 1625,
+  "head": "5fdc35d",
+  "total_commits": 1626,
   "recent_commits": [
+    {
+      "short": "5fdc35d",
+      "at": "2026-11-15T20:36:47+08:00",
+      "subject": "chore(latest): fact pack refresh at d84a51d - M8-T1019 composer hints + CI red repairs"
+    },
     {
       "short": "d84a51d",
       "at": "2026-11-15T20:36:40+08:00",
@@ -24,11 +29,6 @@
       "short": "eb33808",
       "at": "2026-11-15T19:43:31+08:00",
       "subject": "M8-T1017: mouse wheel goes native - deleted the custom wheel interceptor (it fought the OS convention and hijacked every wheel tick, dogfooding no ability for t"
-    },
-    {
-      "short": "25b8625",
-      "at": "2026-11-15T11:16:35Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
