@@ -5567,5 +5567,22 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .atlas-nav { color: var(--muted); }
 .atlas-nav:hover { color: var(--text); }
 
-.empty-chip-atlas { border-color: color-mix(in srgb, #8fd6a1 45%, transparent); color: #bff3cf; }
-.empty-chip-atlas:hover { background: color-mix(in srgb, #8fd6a1 12%, transparent); border-color: #8fd6a1; }
+.empty-chip-atlas {
+  border-color: color-mix(in srgb, var(--mint) 42%, var(--line-bright));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mint) 12%, transparent) 0%, transparent 60%),
+    var(--surface-soft);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--mint) 26%, transparent) inset;
+}
+.empty-chip-atlas i, .empty-chip-atlas svg { color: var(--mint); }
+.empty-chip-atlas:hover {
+  border-color: var(--mint);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mint) 22%, transparent) 0%, transparent 60%),
+    color-mix(in srgb, var(--mint) 13%, var(--surface-soft));
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--mint) 28%, transparent), 0 1px 0 color-mix(in srgb, var(--mint) 44%, transparent) inset;
+  color: var(--text);
+}
+.empty-chip-atlas:hover i, .empty-chip-atlas:hover svg { color: var(--mint); }
+
+.atlas-clear-trail:hover { color: var(--coral) !important; border-color: color-mix(in srgb, var(--coral) 55%, transparent) !important; }

@@ -14,7 +14,7 @@ import { $, state } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { CHAPTERS as ALMANAC_CHAPTERS } from "./almanac.js";
 import { CHAPTERS as MANUAL_CHAPTERS } from "./manual.js";
-import { readVisited, ATLAS_COORDINATES } from "../core/visited.js";
+import { readVisited, readVisitTrail, clearVisitHistory } from "../core/visited.js";
 
 const zh = () => state.locale === "zh";
 const WORLD = Object.freeze({ w: 2600, h: 1600 });
@@ -87,6 +87,7 @@ const PANE_NODES = PANES.map((p) => {
     y: region.y + p.dy,
     kind: "panel",
     idLabel: p.id,
+    visitedKey: `panel:${p.id}`,
   };
 });
 
@@ -107,6 +108,7 @@ const ALMANAC_SATELLITES = ALMANAC_CHAPTERS.map((ch, i) => {
     regionName: zh() ? "年鉴博物馆" : "Museum of Volumes",
     kind: "almanac",
     letter: String((i % 9) + 1),
+    visitedKey: `chapter:${ch.id}`,
     r: 17,
   };
 });
@@ -127,11 +129,14 @@ const MANUAL_SATELLITES = MANUAL_CHAPTERS.map((ch, i) => {
     regionName: zh() ? "说明书阅览室" : "The Reading Room",
     kind: "manual",
     letter: String(i + 1),
+    visitedKey: `manual:${ch.id}`,
     r: 16,
   };
 });
 
 const ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
+const ATLAS_TOTAL = ALL_NODES.length;
+const NODE_INDEX = new Map(ALL_NODES.map((n) => [n.visitedKey ?? n.id, n]));
 
 /* ---------- camera ---------- */
 const camera = { x: WORLD.w / 2, y: WORLD.h / 2, zoom: 0.52 };
@@ -158,7 +163,7 @@ const worldToScreen = (canvas, wx, wy) => {
 function drawNode(ctx, node, visited, hovered, dpr) {
   const r = (node.r ?? 30);
   const { x, y } = node;
-  const lit = visited.has(node.id);
+  const lit = visited.has(node.visitedKey ?? node.id);
   const color = lit ? "#fbbf24" : "#7d8694";
   // outer ring
   ctx.lineWidth = 2.2;
@@ -319,6 +324,41 @@ function render(time = 0) {
   ctx.stroke();
   ctx.setLineDash([]);
 
+  // the trail the visitor walked — amber thread through visited coordinates, oldest first
+  const trail = readVisitTrail()
+    .map((id) => NODE_INDEX.get(id))
+    .filter(Boolean);
+  if (trail.length >= 2) {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(251,191,36,0.22)";
+    ctx.lineWidth = 6;
+    ctx.shadowColor = "rgba(251,191,36,0.55)";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    for (const node of trail.slice(1)) ctx.lineTo(node.x, node.y);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(251,191,36,0.85)";
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([7, 7]);
+    ctx.lineDashOffset = -time * 0.012;
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    for (const node of trail.slice(1)) ctx.lineTo(node.x, node.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(251,191,36,0.85)";
+    for (let i = 0; i < trail.length; i++) {
+      ctx.beginPath();
+      ctx.arc(trail[i].x, trail[i].y, 3.6 + (i === trail.length - 1 ? 1.8 : 0), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // nodes
   for (const node of ALL_NODES) drawNode(ctx, node, stateRef.visited, stateRef.hovered === node, 1);
 
@@ -367,6 +407,8 @@ export async function openAtlas() {
   if (closeBtn) { closeBtn.onclick = () => closeAtlas(); }
   const resetBtn = $("#atlasReset");
   if (resetBtn) { resetBtn.onclick = () => { const c = stateRef.canvas; if (c) fitCamera(c); }; }
+  const clearBtn = $("#atlasClearTrail");
+  if (clearBtn) { clearBtn.onclick = () => { clearVisitHistory(); stateRef.visited = new Set(); updateHUD(); }; }
   resizeAtlas();
   updateHUD();
   refreshIcons();
@@ -384,9 +426,9 @@ export function closeAtlas() {
 function updateHUD() {
   const visited = readVisited();
   let charted = 0;
-  for (const node of ALL_NODES) if (visited.has(node.id)) charted += 1;
+  for (const node of ALL_NODES) if (visited.has(node.visitedKey ?? node.id)) charted += 1;
   const el = $("#atlasCharted");
-  if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_COORDINATES));
+  if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_TOTAL));
 }
 
 function wireAtlas(canvas) {
@@ -396,7 +438,7 @@ function wireAtlas(canvas) {
     const visited = readVisited();
     const name = zh() ? node.zh : node.en;
     const region = node.regionName;
-    const tag = visited.has(node.id) ? (zh() ? "已探索" : "charted") : (zh() ? "未探索" : "uncharted");
+    const tag = visited.has(node.visitedKey ?? node.id) ? (zh() ? "已探索" : "charted") : (zh() ? "未探索" : "uncharted");
     tooltip.innerHTML = `<strong>${escapeTip(name)}</strong><span>${escapeTip(region)} · ${escapeTip(tag)}</span>`;
     tooltip.style.left = `${clientX + 14}px`;
     tooltip.style.top = `${clientY + 14}px`;

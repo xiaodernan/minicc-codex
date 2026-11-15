@@ -70,6 +70,10 @@ export function bindUI() {
         $("#atlasStage").setAttribute("aria-hidden", "true");
         return;
       }
+      if ($("#adminStage")?.getAttribute("aria-hidden") === "false") {
+        $("#adminStage").setAttribute("aria-hidden", "true");
+        return;
+      }
       if ($("#pulseStage")?.getAttribute("aria-hidden") === "false") {
         $("#pulseStage").setAttribute("aria-hidden", "true");
         return;

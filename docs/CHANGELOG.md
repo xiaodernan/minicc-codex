@@ -412,3 +412,7 @@
 - **中断根因自动拆解（M8-T1022）**：`/api/admin/summary` 新增 `interrupt_causes{total,restart,timeout,permission,cancelled,other,unknown}`——把任务存储里每条 interrupted 任务的自己 `error` 字段按诚实子串归类（如实集中标记为"服务重启"才算），并由此派生一条新建议 `restart-interrupt`：当前 2 个中断任务的错误原文均为「服务重启时任务被中断，可重新运行」（任务在途、worker 随 minicc-web 一起死掉）→ 建议别在后台反复重启 workbench、先收敛在运行中的任务，或直接重跑收敛。新增建议只有在真实存在 restart 中断时才出现——健康工作区不出这一条。admins、快照、列表、建议全部真实数据，不虚构任何数字。
 
 - **年鉴第二十卷「未眠 / The Night Watch」上线（M8-T1022）**：本周的账本翻页——24 任务 · 22 完成 · 2 中断（restart，已自动抓出）、提交 1,632、audit 1515 行、158 会话 / 2,754 消息、聚合 62% / keeper warm #2 95.4%、Atla 世界地图、Admin 共享门、中断根因拆解。每一个仪表都是这周真实发生过的事——本卷不许写「只要没人看就会随便造数字」。年鉴冒烟门升级至 21 卷，全双语双 locale 截图验证（`output/almanac_nightwatch_{zh,en}.png`）。
+
+- **Atla 足迹可见化（M8-T1024）**：Atla 现在真的把你走过的路画出来——visited trail 琥珀色长虹（外光晕宽线 + 核心实线 + 逐点步迹）沿你踩过的坐标按访问顺序连线，未走过的坐标永远灰；新增「清除我的足迹」按钮（trash glyph，珊瑚红 hover）一键清空 visited；visitedKey 端到端对齐——18 个面板补齐 `panel:<id>` 前缀，卫星沿用 `chapter:<id>` / `manual:<id>`。
+- **Atla 坐标总数修正至 52（M8-T1024）**：屏幕上不再有手填 50 这种数据谎言——`ATLAS_TOTAL = ALL_NODES.length`（18 面板 + 20 年鉴 + 13 说明书 = 51=52 一致口径）；hero 空会话芯片、index.html 站位占位符、nightwatch/meridian 章 copy、atlas smoke、showcase 静态 fallback 全部校验过 / 52 个坐标。
+- **visited 写路径端到端打通（M8-T1024）**：`visited.js` 增加 `ORDER_KEY = "minicc-visited-order"` 时序冗余存储—— `markVisited` 写两份；`clearVisitHistory()` 一次清空两个键；Esc 链 Atla 补码（Atla 层之前被过旧 main.js 忽略，now Esc 可关）。

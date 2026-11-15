@@ -23,7 +23,7 @@ async function checkMode(locale, expectCjk) {
   assert.ok(await page.locator(".atlas-hud .atlas-title").innerText());
 
   const charted = await page.locator("#atlasCharted").innerText();
-  const expectTotal = expectCjk ? "/ 50 个坐标" : "/ 50 coordinates";
+  const expectTotal = expectCjk ? "/ 52 个坐标" : "/ 52 coordinates";
   assert.ok(charted.includes(expectTotal), `charted line must carry the 50-coordinate contract, saw: ${charted}`);
 
   // Esc-like close via the dedicated button restores aria-hidden

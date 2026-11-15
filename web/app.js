@@ -730,6 +730,7 @@
       "atlas.legendExperiment": "\u7D2B\u7F57\u5170 \xB7 \u5B9E\u9A8C\u9762",
       "atlas.close": "\u5173\u95ED\u5730\u56FE",
       "atlas.reset": "\u56DE\u5230\u4E2D\u5FC3",
+      "atlas.clearTrail": "\u6E05\u9664\u8DB3\u8FF9",
       "admin.kicker": "\u5B9E\u65F6 \xB7 read-only \xB7 \u6570\u5B57\u6765\u81EA\u771F\u5B9E\uFF0C\u4ECE\u4E0D\u4F2A\u9020",
       "admin.title": "\u7BA1\u7406\u5458",
       "admin.tagline": "\u5BC6\u7801 123 \u2014\u2014 \u672C\u5730\u5171\u4EAB\u95E8\u3002\u4EFB\u4F55\u77E5\u9053\u5B83\u7684\u4EBA\u90FD\u53EF\u4EE5\u6253\u5F00\u8FD9\u4E2A\u9762\u677F\uFF1B\u5B83\u4E0D\u662F\u767B\u5F55\u7CFB\u7EDF\uFF0C\u53EA\u662F\u4E00\u9053\u5171\u4EAB\u95E8\u3002",
@@ -979,7 +980,7 @@
       "session.emptyChip2": "\u8DD1\u6D4B\u8BD5\u5E76\u62A5\u544A\uFF1A\u54EA\u6302\u4E86\u3001\u4E3A\u4EC0\u4E48",
       "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669",
       "session.emptyChip4": "\u6253\u5F00\u8BF4\u660E\u4E66\uFF0C\u5341\u4E00\u7AE0\u5168\u7FFB\u5230",
-      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201450 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9"
+      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201452 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1451,6 +1452,7 @@
       "atlas.legendExperiment": "Violet \xB7 experimental surfaces",
       "atlas.close": "Close map",
       "atlas.reset": "Re-center",
+      "atlas.clearTrail": "Clear my trail",
       "admin.kicker": "live \xB7 read-only \xB7 numbers from real runs, nothing fabricated",
       "admin.title": "Admin",
       "admin.tagline": "Password 123 \u2014 a shared door. Anyone who knows it can open this panel; it is not a login, it is a shared door.",
@@ -1700,7 +1702,7 @@
       "session.emptyChip2": "Run the test suite and report failures",
       "session.emptyChip3": "Review the diff and flag regressions",
       "session.emptyChip4": "Open the manual \u2014 all eleven chapters",
-      "session.emptyChip5": "Open the world map \u2014 50 real coordinates to tap"
+      "session.emptyChip5": "Open the world map \u2014 52 real coordinates to tap"
     }
   };
   function t(key) {
@@ -2595,12 +2597,24 @@
 
   // web/src/core/visited.js
   var KEY = "minicc-visited";
+  var ORDER_KEY = "minicc-visited-order";
   function markVisited(id) {
     if (!id) return;
     try {
+      const seq = JSON.parse(localStorage.getItem(ORDER_KEY) || "[]");
       const set = new Set(JSON.parse(localStorage.getItem(KEY) || "[]"));
-      set.add(String(id));
-      localStorage.setItem(KEY, JSON.stringify([...set]));
+      const value = String(id);
+      if (!set.has(value)) {
+        if (Array.isArray(seq)) {
+          seq.push(value);
+          localStorage.setItem(ORDER_KEY, JSON.stringify(seq));
+        }
+        set.add(value);
+        localStorage.setItem(KEY, JSON.stringify([...set]));
+      } else if (Array.isArray(seq) && !seq.includes(value)) {
+        seq.push(value);
+        localStorage.setItem(ORDER_KEY, JSON.stringify(seq));
+      }
     } catch {
     }
   }
@@ -2612,7 +2626,23 @@
       return /* @__PURE__ */ new Set();
     }
   }
-  var ATLAS_COORDINATES = 50;
+  function readVisitTrail() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(ORDER_KEY) || "[]");
+      return Array.isArray(raw) ? raw.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  function clearVisitHistory() {
+    try {
+      localStorage.removeItem(KEY);
+      localStorage.removeItem(ORDER_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   // web/src/panels/almanac.js
   var zh = () => state.locale === "zh";
@@ -3799,7 +3829,7 @@
       <h1 class="almanac-title almanac-title-sm">${zh() ? `\u6709\u4EBA\u95EE\u8DEF\u7684\u5730\u65B9\u2014\u2014<br/><span class="almanac-title-accent">\u8FD9\u91CC\u5C31\u662F\u7B54\u6848\u3002</span>` : `Where directions are given \u2014<br/><span class="almanac-title-accent">this is the answer.</span>`}</h1>
       <div class="almanac-body">
         ${zh() ? `<p>
-          \u4E16\u754C\u505A\u5927\u4E86\uFF0C\u8FF7\u8DEF\u7684\u98CE\u9669\u4E5F\u5927\u4E86\u2014\u2014\u4E0D\u8FF7\u8DEF\uFF0C\u662F\u8BBE\u8BA1\u51FA\u6765\u7684\u3002M8-T1020\uFF1A\u672C\u754C 18 \u4E2A\u9762\u677F + 19 \u5377\u5E74\u9274 + 13 \u7AE0\u8BF4\u660E\u4E66\u9489\u6210 <strong>50 \u4E2A\u771F\u5B9E\u5750\u6807</strong>\uFF0C
+          \u4E16\u754C\u505A\u5927\u4E86\uFF0C\u8FF7\u8DEF\u7684\u98CE\u9669\u4E5F\u5927\u4E86\u2014\u2014\u4E0D\u8FF7\u8DEF\uFF0C\u662F\u8BBE\u8BA1\u51FA\u6765\u7684\u3002M8-T1020\uFF1A\u672C\u754C 18 \u4E2A\u9762\u677F + 19 \u5377\u5E74\u9274 + 13 \u7AE0\u8BF4\u660E\u4E66\u9489\u6210 <strong>52 \u4E2A\u771F\u5B9E\u5750\u6807</strong>\uFF0C
           \u5206\u6563\u5728 12 \u5EA7\u5C9B\u5C7F\u4E0A\uFF1A\u8239\u957F\u65E5\u5FD7\uFF08\u8D26\u672C/\u8109\u640F/\u8FD1\u51B5/\u65E5\u5FD7\uFF09\u3001\u5DE5\u4F5C\u53F0\u5927\u5385\uFF08\u4EFB\u52A1/\u5DE5\u4F5C\u533A/\u6D3B\u52A8/\u6A21\u677F\uFF09\u3001\u5E74\u9274\u535A\u7269\u9986\uFF0819 \u9897\u536B\u661F\u7ED5\u5E74\u9274\u5FC3\u810F\u65CB\u8F6C\uFF09\u3001
           \u8BF4\u660E\u4E66\u9605\u89C8\u5BA4\uFF0813 \u9897\u536B\u661F\u7ED5\u8BF4\u660E\u4E66\u5FC3\u810F\u65CB\u8F6C\uFF09\u3001\u94C1\u5F8B\u5E93\u3001\u773A\u671B\u5854\u3001\u95EE\u4ED3\u5E93\u89C2\u6D4B\u53F0\u3001\u8239\u5382\u3001\u6863\u6848\u9986\u3001\u5C0F\u6E38\u620F\u4E50\u56ED\u3001\u8BCA\u65AD\u4E2D\u5FC3\uFF0C\u4EE5\u53CA\u5B88\u95E8\u4EBA\u7684\u90A3\u6247\u95E8\u3002
         </p>
@@ -3811,7 +3841,7 @@
           \u672C\u5377\u4E0D\u8BB8\u5199\u300C\u6E38\u5BA2\u6A21\u5F0F\u300D\u3002\u54EA\u6015\u4F60\u5168\u7A0B\u778E\u70B9\uFF0C\u8FD9\u4EFD\u5730\u56FE\u4E5F\u53EA\u4F1A\u8BDA\u5B9E\u5730\u8BB0\u5F55\u4F60\u70B9\u8FC7\u7684\u90A3\u4E9B\u3002<strong>\u5C55\u5F00\u5B83\u4E0D\u662F\u6F14\u793A\u53EC\u96C6\uFF0C\u800C\u662F\u751F\u6001\u4F4D\uFF1A\u4F60\u8D70\u5F97\u8D8A\u8FDC\uFF0C\u5B83\u8D8A\u4EAE\u3002</strong>
         </p>` : `<p>
           A bigger world risks a bigger limbo \u2014 never getting lost was designed, never inherited. M8-T1020: 18 panes + 19 almanac chapters + 13 manual chapters
-          pinned onto <strong>50 real coordinates</strong>, spread across 12 islands: the Captain's Log (ledger/pulse/recent/journal), the Workbench Hall (tasks/workspaces/activity/templates),
+          pinned onto <strong>52 real coordinates</strong>, spread across 12 islands: the Captain's Log (ledger/pulse/recent/journal), the Workbench Hall (tasks/workspaces/activity/templates),
           the Museum of Volumes (nineteen satellites orbiting the almanac heart), the Reading Room (thirteen satellites orbiting the manual heart), the Axiom Vault, the Overlook,
           the Repo Observatory, the Dockyard, the Archive Shelves, the Arcade, the Infirmary \u2014 and the door the gatekeeper keeps.
         </p>
@@ -3826,7 +3856,7 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u5C9B\u5C7F" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5750\u6807\u603B\u6570" : "Coordinates"}</div><div class="almanac-instrument-value">50</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5750\u6807\u603B\u6570" : "Coordinates"}</div><div class="almanac-instrument-value">52</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u9762\u677F\u5750\u6807" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274\u536B\u661F" : "Almanac satellites"}</div><div class="almanac-instrument-value">19</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u8BF4\u660E\u4E66\u536B\u661F" : "Manual satellites"}</div><div class="almanac-instrument-value">13</div></div>
@@ -3844,7 +3874,7 @@
       ["Drag to pan", "not a scroll, a drive \u2014 the world is pushed forward by the palm"],
       ["Scroll to zoom", "everyone reads the world at their own tempo"],
       ["Click to teleport", "the canvas dispatches minicc:nav \u2192 main.js dispatchView catches it \u2192 Esc walks you back"],
-      ["50 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters \u2014 the map is real, the exploring is real"],
+      ["52 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters \u2014 the map is real, the exploring is real"],
       ["Amber = walked there \xB7 grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"]
     ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
       <p class="almanac-quote almanac-quote-end">
@@ -3873,7 +3903,7 @@
         </p>
         <p>
           \u4ECA\u5929\u5DF2\u7ECF\u5F88\u665A\u4E86\u3002\u672C\u5468\u7684\u4EA4\u4ED8\uFF1A<strong>\u7BA1\u7406\u5458\u5171\u4EAB\u95E8</strong>\uFF08stats / \u8D8B\u52BF / cache \u9884\u6D4B / \u4E2D\u65AD\u6839\u56E0\u5206\u6876 \xB7 \u5B9E\u6D4B 2 \u4E2A\u4E2D\u65AD\u5168\u90E8\u662F\u201C\u670D\u52A1\u91CD\u542F\u201D\uFF0C\u771F\u5B9E\u5EFA\u8BAE\u81EA\u52A8\u6302\u4E0A\uFF09\u3001
-          <strong>Atla \u4E16\u754C\u5730\u56FE</strong>\uFF0812 \u5EA7\u5C9B \xB7 50 \u4E2A\u771F\u5B9E\u5750\u6807 \xB7 visited \u5373\u7425\u73C0\uFF09\uFF0C<strong>admin \u7684\u8D8B\u52BF\u9884\u6D4B\u7EBF</strong>\uFF08\u6309\u6700\u5C0F\u4E8C\u4E58\u659C\u7387\u5916\u63A8\uFF0C\u660E\u8BF4\u662F\u4F30\u8BA1\uFF0C\u4E0D\u662F\u627F\u8BFA\uFF09\u3002
+          <strong>Atla \u4E16\u754C\u5730\u56FE</strong>\uFF0812 \u5EA7\u5C9B \xB7 52 \u4E2A\u771F\u5B9E\u5750\u6807 \xB7 visited \u5373\u7425\u73C0\uFF09\uFF0C<strong>admin \u7684\u8D8B\u52BF\u9884\u6D4B\u7EBF</strong>\uFF08\u6309\u6700\u5C0F\u4E8C\u4E58\u659C\u7387\u5916\u63A8\uFF0C\u660E\u8BF4\u662F\u4F30\u8BA1\uFF0C\u4E0D\u662F\u627F\u8BFA\uFF09\u3002
         </p>
         <p>
           \u522B\u628A\u201C\u80FD\u884C\u4E86\u201D\u5F53\u4F5C\u7ED3\u5C3E\u2014\u2014\u628A\u5B83\u5F53\u4F5C\u201C\u4E0B\u4E00\u9875\u4ECE\u8FD9\u91CC\u5F00\u59CB\u201D\u3002\u624B\u518C\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u4E16\u754C\u8FD8\u5728\u62D3\u5BBD\uFF0C\u6570\u636E\u8FD8\u9700\u8981\u66F4\u591A\u8BDA\u5B9E\u7684\u8BFB\u6570\u3002<strong>\u6211\u4EEC\u660E\u5929\u7EED\u5199\u3002</strong>
@@ -5365,7 +5395,8 @@
       x: region.x + p.dx,
       y: region.y + p.dy,
       kind: "panel",
-      idLabel: p.id
+      idLabel: p.id,
+      visitedKey: `panel:${p.id}`
     };
   });
   var ALMANAC_SATELLITES = CHAPTERS.map((ch, i) => {
@@ -5384,6 +5415,7 @@
       regionName: zh9() ? "\u5E74\u9274\u535A\u7269\u9986" : "Museum of Volumes",
       kind: "almanac",
       letter: String(i % 9 + 1),
+      visitedKey: `chapter:${ch.id}`,
       r: 17
     };
   });
@@ -5403,10 +5435,13 @@
       regionName: zh9() ? "\u8BF4\u660E\u4E66\u9605\u89C8\u5BA4" : "The Reading Room",
       kind: "manual",
       letter: String(i + 1),
+      visitedKey: `manual:${ch.id}`,
       r: 16
     };
   });
   var ALL_NODES = [...PANE_NODES, ...ALMANAC_SATELLITES, ...MANUAL_SATELLITES];
+  var ATLAS_TOTAL = ALL_NODES.length;
+  var NODE_INDEX = new Map(ALL_NODES.map((n) => [n.visitedKey ?? n.id, n]));
   var camera = { x: WORLD.w / 2, y: WORLD.h / 2, zoom: 0.52 };
   var MIN_ZOOM = 0.42;
   var MAX_ZOOM = 1.9;
@@ -5422,7 +5457,7 @@
   function drawNode(ctx, node, visited, hovered, dpr) {
     const r = node.r ?? 30;
     const { x, y } = node;
-    const lit = visited.has(node.id);
+    const lit = visited.has(node.visitedKey ?? node.id);
     const color = lit ? "#fbbf24" : "#7d8694";
     ctx.lineWidth = 2.2;
     ctx.strokeStyle = lit ? "rgba(251,191,36,0.95)" : "rgba(148,163,184,0.55)";
@@ -5567,6 +5602,37 @@
     ctx.arc(REGION_INDEX.get("reading").x, REGION_INDEX.get("reading").y, 262, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+    const trail = readVisitTrail().map((id) => NODE_INDEX.get(id)).filter(Boolean);
+    if (trail.length >= 2) {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(251,191,36,0.22)";
+      ctx.lineWidth = 6;
+      ctx.shadowColor = "rgba(251,191,36,0.55)";
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(trail[0].x, trail[0].y);
+      for (const node of trail.slice(1)) ctx.lineTo(node.x, node.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(251,191,36,0.85)";
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([7, 7]);
+      ctx.lineDashOffset = -time * 0.012;
+      ctx.beginPath();
+      ctx.moveTo(trail[0].x, trail[0].y);
+      for (const node of trail.slice(1)) ctx.lineTo(node.x, node.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(251,191,36,0.85)";
+      for (let i = 0; i < trail.length; i++) {
+        ctx.beginPath();
+        ctx.arc(trail[i].x, trail[i].y, 3.6 + (i === trail.length - 1 ? 1.8 : 0), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
     for (const node of ALL_NODES) drawNode(ctx, node, stateRef.visited, stateRef.hovered === node, 1);
     ctx.restore();
     const v = ctx.createRadialGradient(width / 2, height / 2, height * 0.45, width / 2, height / 2, height * 0.95);
@@ -5617,6 +5683,14 @@
         if (c) fitCamera(c);
       };
     }
+    const clearBtn = $("#atlasClearTrail");
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        clearVisitHistory();
+        stateRef.visited = /* @__PURE__ */ new Set();
+        updateHUD();
+      };
+    }
     resizeAtlas();
     updateHUD();
     refreshIcons();
@@ -5632,9 +5706,9 @@
   function updateHUD() {
     const visited = readVisited();
     let charted = 0;
-    for (const node of ALL_NODES) if (visited.has(node.id)) charted += 1;
+    for (const node of ALL_NODES) if (visited.has(node.visitedKey ?? node.id)) charted += 1;
     const el = $("#atlasCharted");
-    if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_COORDINATES));
+    if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_TOTAL));
   }
   function wireAtlas(canvas) {
     const tooltip = $("#atlasTooltip");
@@ -5643,7 +5717,7 @@
       const visited = readVisited();
       const name = zh9() ? node.zh : node.en;
       const region = node.regionName;
-      const tag = visited.has(node.id) ? zh9() ? "\u5DF2\u63A2\u7D22" : "charted" : zh9() ? "\u672A\u63A2\u7D22" : "uncharted";
+      const tag = visited.has(node.visitedKey ?? node.id) ? zh9() ? "\u5DF2\u63A2\u7D22" : "charted" : zh9() ? "\u672A\u63A2\u7D22" : "uncharted";
       tooltip.innerHTML = `<strong>${escapeTip(name)}</strong><span>${escapeTip(region)} \xB7 ${escapeTip(tag)}</span>`;
       tooltip.style.left = `${clientX + 14}px`;
       tooltip.style.top = `${clientY + 14}px`;
@@ -10491,6 +10565,10 @@
       if (event.key === "Escape") {
         if ($("#atlasStage")?.getAttribute("aria-hidden") === "false") {
           $("#atlasStage").setAttribute("aria-hidden", "true");
+          return;
+        }
+        if ($("#adminStage")?.getAttribute("aria-hidden") === "false") {
+          $("#adminStage").setAttribute("aria-hidden", "true");
           return;
         }
         if ($("#pulseStage")?.getAttribute("aria-hidden") === "false") {

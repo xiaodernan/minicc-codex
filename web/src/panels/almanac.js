@@ -1272,7 +1272,7 @@ function meridianMarkup() {
         : `Where directions are given —<br/><span class="almanac-title-accent">this is the answer.</span>`}</h1>
       <div class="almanac-body">
         ${zh() ? `<p>
-          世界做大了，迷路的风险也大了——不迷路，是设计出来的。M8-T1020：本界 18 个面板 + 19 卷年鉴 + 13 章说明书钉成 <strong>50 个真实坐标</strong>，
+          世界做大了，迷路的风险也大了——不迷路，是设计出来的。M8-T1020：本界 18 个面板 + 19 卷年鉴 + 13 章说明书钉成 <strong>52 个真实坐标</strong>，
           分散在 12 座岛屿上：船长日志（账本/脉搏/近况/日志）、工作台大厅（任务/工作区/活动/模板）、年鉴博物馆（19 颗卫星绕年鉴心脏旋转）、
           说明书阅览室（13 颗卫星绕说明书心脏旋转）、铁律库、眺望塔、问仓库观测台、船厂、档案馆、小游戏乐园、诊断中心，以及守门人的那扇门。
         </p>
@@ -1284,7 +1284,7 @@ function meridianMarkup() {
           本卷不许写「游客模式」。哪怕你全程瞎点，这份地图也只会诚实地记录你点过的那些。<strong>展开它不是演示召集，而是生态位：你走得越远，它越亮。</strong>
         </p>` : `<p>
           A bigger world risks a bigger limbo — never getting lost was designed, never inherited. M8-T1020: 18 panes + 19 almanac chapters + 13 manual chapters
-          pinned onto <strong>50 real coordinates</strong>, spread across 12 islands: the Captain's Log (ledger/pulse/recent/journal), the Workbench Hall (tasks/workspaces/activity/templates),
+          pinned onto <strong>52 real coordinates</strong>, spread across 12 islands: the Captain's Log (ledger/pulse/recent/journal), the Workbench Hall (tasks/workspaces/activity/templates),
           the Museum of Volumes (nineteen satellites orbiting the almanac heart), the Reading Room (thirteen satellites orbiting the manual heart), the Axiom Vault, the Overlook,
           the Repo Observatory, the Dockyard, the Archive Shelves, the Arcade, the Infirmary — and the door the gatekeeper keeps.
         </p>
@@ -1299,7 +1299,7 @@ function meridianMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "岛屿" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">50</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">52</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "面板坐标" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "年鉴卫星" : "Almanac satellites"}</div><div class="almanac-instrument-value">19</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "说明书卫星" : "Manual satellites"}</div><div class="almanac-instrument-value">13</div></div>
@@ -1317,7 +1317,7 @@ function meridianMarkup() {
         ["Drag to pan", "not a scroll, a drive — the world is pushed forward by the palm"],
         ["Scroll to zoom", "everyone reads the world at their own tempo"],
         ["Click to teleport", "the canvas dispatches minicc:nav → main.js dispatchView catches it → Esc walks you back"],
-        ["50 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters — the map is real, the exploring is real"],
+        ["52 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters — the map is real, the exploring is real"],
         ["Amber = walked there · grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"],
       ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
       <p class="almanac-quote almanac-quote-end">
@@ -1351,7 +1351,7 @@ function nightwatchMarkup() {
         </p>
         <p>
           今天已经很晚了。本周的交付：<strong>管理员共享门</strong>（stats / 趋势 / cache 预测 / 中断根因分桶 · 实测 2 个中断全部是“服务重启”，真实建议自动挂上）、
-          <strong>Atla 世界地图</strong>（12 座岛 · 50 个真实坐标 · visited 即琥珀），<strong>admin 的趋势预测线</strong>（按最小二乘斜率外推，明说是估计，不是承诺）。
+          <strong>Atla 世界地图</strong>（12 座岛 · 52 个真实坐标 · visited 即琥珀），<strong>admin 的趋势预测线</strong>（按最小二乘斜率外推，明说是估计，不是承诺）。
         </p>
         <p>
           别把“能行了”当作结尾——把它当作“下一页从这里开始”。手册还没写完，世界还在拓宽，数据还需要更多诚实的读数。<strong>我们明天续写。</strong>

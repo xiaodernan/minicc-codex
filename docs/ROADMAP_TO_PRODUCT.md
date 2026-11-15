@@ -53130,3 +53130,24 @@ Atlas 首次推送（fc94711）CI 仍在排队——24h 内屡推屡排队、两
 ### 诚实记录
 
 本章体的仪表数表含 digest 单次 HEAD（`fc94711/0e8de31` 与前一周峰值），CI 最新一次 Python 腿红仍在 43714755731 / 43719196011 长队 —— 已在前批修复，本批反复核准各项门（含 toolstream CRLF/`doc_pointers`/apps）仍绿。如 CI 续航到、也红，会照实记账。
+
+## 批次 1011 - M8-T1024: Atla 足迹长虹可见化 — 迷路的地方，也在这里
+
+### 背景
+
+用户要求「迷路无关，溶酣畅淋漓」，而 Atla 虽有 50 真实坐标，却是 silent marker——走过的人不会知道自己是在探索还是在转圈。这批给 Atla 一个会"讲故事"的形态：你的足迹自己就是成品里的一部分。
+
+### 做了什么
+
+- **`Atla 足迹长虹`**：`readVisitTrail()` 返回 `minicc-visited` 按首次落下顺序的扁平数组；Atla 沿数组按顺序描出 amber 线（外发光 6px 宽 + 内部 3px 实线 + 1.6px 虚线 + 逐点步迹）。未走过的坐标永远是灰色，没有人点亮任何免费的星。
+- **`visitedKey` 对齐**：PANE_NODES 从 `{id}` 升级为 `{id, visitedKey: 'panel:<id>'}`——之前可能永远 visited.has('panel:almanac') mismatch，一处对齐就打通。
+- **「清除我的足迹」按钮**：`atlasClearTrail`：trash glyph + 珊瑚红 hover；`clearVisitHistory()` 清空 `minicc-visited` + `minicc-visited-order` 两片。
+- **坐标总数对齐**：`ATLAS_TOTAL = ALL_NODES.length`，hero 芯片 / index.html 占位符 / chapter copy (meridian/nightwatch) / atlas_smoke / showcase fallback 全部 / 52 真实坐标。
+- **Esc 链 Atla 补齐**：`main.js` 的 Esc 链增加 atlasStage 关闭。之前 Atla 无法 Esc 退场。
+
+### 实测
+
+- `node tests/atlas_smoke.mjs` — **passed**（nav 按钮双语· 开 Atla · 52-coordinate contract · close 恢复· 0 pageerror）。
+- `almanac_smoke` 21 章双语全绿（"未眠" 作为第 XX 卷锚）。
+- screenshot: `output/atlas_trail.png` — amber polyline 经 Admin 卡 (G) → 说明书 (M) → 工作台 (W/A) → 夜夜星轨清晰可见。
+- 诚实记录：本批修正"Atla visited 52 只是手写数、两扇真 gate 都通不了"的沉默 bug。Atla 用的是本机下本地 localStorage，不泄露任何个人实体。
