@@ -330,3 +330,5 @@
 - **50-way 全通量实测（M8-T982）**：`c=50 × 20s`，6 条只读路径各 415 次 200，**零错误、零非 200**（2,490 响应）；p50 ≈ 160-207ms（GIL 调度，非处理逻辑）；workspace 陈旧 10s 受控；`docs/LOAD_TESTING.md` 刷新第六次。本批无代码变更。
 
 - **说明书第十一章「压测与容量 / Load & Capacity」上线（M8-T983）**：双语手册第十一章——local-first 模型、load-test 实操、六只读路径实测数字（c=50/2,490×200/0 错/p50≈160–200ms）、三道防线（prefetch / single-flight memo / backlog 128）、仍受 GIL 限制的诚实边界；Playwright 双 locale 截图验证；manual 计数更新至十一章。
+
+- **命令面板登峰造极（M8-T984）**：Ctrl/⌘K 从朴素面板升级博物馆级视觉——暗场柔焦 + 渐变琥珀发丝线 + 回弹入场动画 + 琥珀渐变激活行 + 实心 glyph 键 + mint 键帽 footer + ≤700px 移动适配；行为零变更；27 条命令 Playwright 截图验证。

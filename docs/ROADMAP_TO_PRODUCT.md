@@ -52298,3 +52298,25 @@ M8-T979–982 把只读 HTTP 面压到了 50-way 全通量零错；但用户守�
 
 - `tests/frontend_askdocs_one_home_smoke.mjs` 与 zh/en 独立渲染路径各自跑通（11 章 rail 全显）。
 - 未混语；样式与既有 manual 一致；未动锁定文件。
+
+## 批次 976 - M8-T984：命令面板 Ctrl/⌘K 美容 —— 玻璃卡 · 琥珀发丝线 · 渐变 glyph · mint 键帽
+
+### 1 背景
+
+用户重复强调「前端的魅力程度登峰造极」。命令面板是进入工作台的第一秒钟触点——它之前是朴素工具面板。本批把它提升到与年鉴/问仓库一致的「博物馆级」气质里，不碰行为、只碰光。
+
+### 2 做了什么
+
+- `.palette-modal`：暗场承接 + `backdrop-filter: blur(7px) saturate(1.12)`（背景整体柔焦，不是纯遮罩）。
+- `.palette-card`：渐变表面 + 顶部 1px 琥珀→mint 渐变发丝线（`::before`）+ 入场动画（`palette-arrive` 微缩放回弹 200ms）。
+- `.palette-title`：11px 大写宽字距小帽标题（博物馆板式）；全新关闭按钮式关闭钮 hover 才显现。
+- `.palette-search`：淡琥珀底 + 琥珀 glyph 图标 + 无边底色输入（14.5px Manrope）。
+- 行激活态：左侧琥珀渐变光带 + `translateX(2px)` 轻微前倾；glyph 变为**实心琥珀渐变键**（暗字 + amber 光晕）；组标签变 mint/uppercase 细 pill；active 行整体更亮。
+- `.palette-footer`：左边提示文字 + 右边 mint 尺寸键帽 kbd（Ctrl / K）；左右分布；courier mono 保留。
+- 移动端 ≤700px 适配（宽度 / top padding）。
+
+### 3 验证
+
+- Playwright 真浏览器截图：截图 `output/palette_after.png`（zh 模式、Ctrl+K 唤起、27 条命令、首行激活态渐变光带 + glyph 实心化）。
+- `npm run build:web` 干净；`check:web` 干净；js smoke（askdocs）PASS。
+- 行为零变更：键盘导航 / Esc / 鼠标指针选择 / zh/en 提示语不变。
