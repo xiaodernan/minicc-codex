@@ -51938,7 +51938,7 @@ T960 补齐了卷十《未竟》——这卷给的是这座博物馆最里层的
 
 ### 2 变更
 
-- 新模块 `web/src/core/wheel-invert.js`：`wheelInverted()` 读 `localStorage.getItem("minicc-invert-wheel") === "1"`；`setWheelInverted(on)` 置/清键；`findScrollable(start)`——自 `event.target` 起沿祖先链找第一个 `overflow-y: auto|scroll|overlay` 且 `scrollHeight > clientHeight + 1` 的节点；`onWheel(event)`：仅当反转开启且 `deltaY≠0` 时把 target.scrollTop 减 `deltaY` 并 `preventDefault()`（文档级 capture=false, `passive:false`）；`initWheelToggle()` 一次性注册。
+- 旧自定义 wheel 接管模块（M8-T1017 全删；键清理已迁移至 `main.js` 启动段，本节留作历史阶段记录）：`wheelInverted()` 读 `localStorage.getItem("minicc-invert-wheel") === "1"`；`setWheelInverted(on)` 置/清键；`findScrollable(start)`——自 `event.target` 起沿祖先链找第一个 `overflow-y: auto|scroll|overlay` 且 `scrollHeight > clientHeight + 1` 的节点；`onWheel(event)`：仅当反转开启且 `deltaY≠0` 时把 target.scrollTop 减 `deltaY` 并 `preventDefault()`（文档级 capture=false, `passive:false`）；`initWheelToggle()` 一次性注册。
 - `web/src/main.js`：boot 期 `initWheelToggle()`。
 - `web/src/chat/stream.js`：设置面板新增「鼠标滚轮 / Mouse wheel」块——两按钮「已反转 / Inverted」「默认方向 / Default」（`.wheel-invert[data-invert=on|off]`），点击即时生效并记账；`escapeHtml` 渲染提示文案双语 `t("scroll.invertHint")`。
 - `web/src/core/i18n.js`：6 个新 key（`scroll.title` / `scroll.invert` / `scroll.invertHint` / `scroll.invertOn` / `scroll.invertOff` 各 zh+en）——589 keys 对齐。
@@ -53041,3 +53041,16 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - Playwright 2560×1440 双 locale：预测条渲染、4 条建议（含 fading-weekend-quiet）、峰值标注 177@11-13 ✓（`output/admin_forecast_{zh,en}.png`）
 - 后端 `build_summary` 现场打印：slope=+11.86 / forecast 完整；_recent_tasks 依然 8 条真实数据；noqa/门语义不变
 - CI 43708117227 仍在跑（runner 排队），本批以本地全套为准，推送后交由下一个 run 盖章
+
+## 批次 1008 - M8-T1019: 主界面按钮全部带双语教学说明 + CI 红第二击复盘修复
+
+### 1 背景
+
+用户明确要求「主界面上做出各种按键和操作的附带教学说明」。核查发现情况参差：卸/键盘导航早已齐，但聊天甲板五颗高频按钮（计划/审查/验证/并行/图片/演示流程）中有三颗裸按钮（无 title/aria），三颗硬中文 title（en 模式下是纯中文说明）。
+
+### 2 做了什么
+
+- **六只按钮全部带双语 hint**：title + aria-label + data-i18n-title/data-i18n-aria——en 模式下说英文，zh 回中文；i18n 新增 6 对双语键（`quick.plan/review/verify/parallel.title`、`composer.attach.title`、`quick.demo.title`）；`data-i18n-title` 由 locale.js 统一驱动，切 locale 即时换装，无残留。
+- **桌面真机**：Playwright 2560×1440 逐个 hover 抽 title；zh 中文原件全在中文、en 英文全在；页面 smoke 全套（web_smoke / almanac_smoke 19 章 / manual_smoke 13 章）全绿。
+- **CI 红复盘（run 43710314141）**：4 红全部自家事故，逐条如实修复——M8-T1015 的 completion.py 行移漂移两处（371/423）+ CHANGELOG/ROADMAP 两处已删除路径的 EVIDENCE 引用（轮子删了不能再「指望」它存在）。重跑相关测试 + doc_pointers：86 passed + 0 dangling。
+- 诚实记录：4757770 这批 docs+features 推送后，CI 依旧红——门不是问题，问题从来都是「推送前没重跑所有钉行引用门」。今后每次改 minicc/*.py 行号，先跑 cites_read 那两个门再推。

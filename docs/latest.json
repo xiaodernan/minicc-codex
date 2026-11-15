@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T11:44:00.988Z",
+  "generated_at": "2026-11-15T12:36:37.535Z",
   "branch": "main",
-  "head": "4757770",
-  "total_commits": 1623,
+  "head": "eda6af9",
+  "total_commits": 1624,
   "recent_commits": [
+    {
+      "short": "eda6af9",
+      "at": "2026-11-15T11:44:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4757770",
       "at": "2026-11-15T19:43:31+08:00",
@@ -24,18 +29,13 @@
       "short": "a7db677",
       "at": "2026-11-15T19:15:49+08:00",
       "subject": "M8-T1016: almanac chapter 18 The Gatekeeper - the shared-123 door told in-epically with live numbers; scroll-reset fix for chapter switching (long chapters used"
-    },
-    {
-      "short": "a1be4f9",
-      "at": "2026-11-15T19:14:54+08:00",
-      "subject": "M8-T1015: completion judge prefix cache - two-system wire (persona + byte-constant protocol) crosses the gateway cache threshold; user packet dedup example JSON"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 332,
+  "roadmap_batches": 333,
   "changelog_entries": 1,
-  "roadmap_lines": 53044,
-  "tracked_files": 1072,
+  "roadmap_lines": 53057,
+  "tracked_files": 1074,
   "test_files": 709,
   "almanac_chapters": 19,
   "module_count": 14,
