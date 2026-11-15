@@ -7586,46 +7586,44 @@
     {
       id: "welcome",
       anchor: null,
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 1 / 6 \u6B65", title: "\u6B22\u8FCE\u6765\u5230 minicc", body: "\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u5DE5\u4F5C\u53F0\u3002\u63A5\u4E0B\u6765\u4E24\u5206\u949F\u6211\u4F1A\u5E26\u4F60\u770B\u516D\u4E2A\u5730\u65B9\u3002Esc \u53EF\u968F\u65F6\u9000\u51FA\uFF1B\u2318K \u91CC\u641C\u300Ctour\u300D\u53EF\u968F\u65F6\u518D\u6765\u3002" },
-      en: { kicker: "Start here \xB7 Step 1 of 6", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past six places worth knowing. Esc exits anytime; search \u201Ctour\u201D in the palette to come back." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 1 \u6B65 / \u5171 6 \u6B65", title: "\u6B22\u8FCE\u6765\u5230 minicc", body: "\u4E00\u4E2A\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u5DE5\u4F5C\u53F0\u3002\u63A5\u4E0B\u6765\u4E24\u5206\u949F\u5185\uFF0C\u6211\u4F1A\u5E26\u4F60\u8D70\u8FC7\u516D\u4E2A\u5730\u65B9\uFF0C\u6BCF\u4E00\u7AD9\u90FD\u53EF\u4EE5\u52A8\u624B\u3002Esc \u968F\u65F6\u9000\u51FA\uFF1B\u2318K \u641C\u300Ctour\u300D\u968F\u65F6\u518D\u6765\u3002" },
+      en: { kicker: "Start here \xB7 Step 1 of 6", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past six places \u2014 each one is hands-on. Esc exits anytime; search \u201Ctour\u201D in the palette to come back." }
     },
     {
       id: "sidebar",
       anchor: "#sidebar",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 2 / 6 \u6B65", title: "\u5DE6\u4FA7\u662F\u8FD9\u53F0\u673A\u5668\u7684\u63A7\u53F0", body: "\u4EFB\u52A1\u3001\u6D3B\u52A8\u3001\u8D26\u672C\u3001\u6A21\u677F\u3001\u8BF4\u660E\u4E66\u3001\u5E74\u9274\u3001\u94C1\u5F8B\u3001\u65E5\u5FD7\u3001\u6863\u6848\u9986\u2014\u2014\u4EA7\u54C1\u7684\u5168\u90E8\u9762\u677F\u90FD\u4ECE\u8FD9\u91CC\u6253\u5F00\uFF0C\u4E2D\u6587\u82F1\u6587\u4E24\u5957\u7248\u672C\u6C38\u8FDC\u540C\u65F6\u6709\u6548\u3002" },
-      en: { kicker: "Start here \xB7 Step 2 of 6", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive \u2014 every panel of the product opens from here, in Chinese or English, always in parity." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 2 \u6B65 / \u5171 6 \u6B65", title: "\u5DE6\u4FA7\u662F\u8FD9\u53F0\u673A\u5668\u7684\u63A7\u53F0", body: "\u4EFB\u52A1\u3001\u6D3B\u52A8\u3001\u8D26\u672C\u3001\u6A21\u677F\u3001\u8BF4\u660E\u4E66\u3001\u5E74\u9274\u3001\u94C1\u5F8B\u3001\u65E5\u5FD7\u3001\u6863\u6848\u9986\u2014\u2014\u4EA7\u54C1\u7684\u6240\u6709\u9762\u677F\u90FD\u4ECE\u8FD9\u91CC\u6253\u5F00\uFF0C\u800C\u4E14\u4E2D\u6587\u82F1\u6587\u4E24\u5957\u7248\u672C\u6C38\u8FDC\u540C\u65F6\u6709\u6548\u3002" },
+      en: { kicker: "Start here \xB7 Step 2 of 6", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive \u2014 every panel opens from here, in Chinese and English, at parity." }
     },
     {
       id: "composer",
       anchor: "#promptInput",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 3 / 6 \u6B65", title: "\u8BF4\u4EBA\u8BDD\u5C31\u884C", body: "\u8BD5\u8BD5\u5199\u4E00\u6B21\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u2014\u2014\u56DE\u8F66\u53D1\u9001\u3002\u5B83\u4F1A\u771F\u7684\u8BFB\u6587\u4EF6\u3001\u771F\u7684\u8DD1\u5DE5\u5177\u3001\u628A\u5E26\u8BC1\u636E\u7684\u7B54\u6848\u4EA4\u56DE\u7ED9\u4F60\u3002" },
-      en: { kicker: "Start here \xB7 Step 3 of 6", title: "Just say what you want", body: "Try typing \u201CRead README.md and tell me what this project does\u201D and press Enter. It will actually read the files, actually run the tools, and hand you an evidence-backed answer." }
+      interact: "composer",
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 3 \u6B65 / \u5171 6 \u6B65", title: "\u8BF4\u4EBA\u8BDD\u5C31\u884C", body: "\u8BD5\u8BD5\u5199\u4E00\u6B21\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u2014\u2014\u56DE\u8F66\u53D1\u9001\uFF0C\u5B83\u4F1A\u771F\u7684\u8BFB\u6587\u4EF6\u3001\u771F\u7684\u8DD1\u5DE5\u5177\u3001\u628A\u5E26\u8BC1\u636E\u7684\u7B54\u6848\u4EA4\u56DE\u7ED9\u4F60\u3002" },
+      en: { kicker: "Start here \xB7 Step 3 of 6", title: "Just say what you want", body: "Try \u201CRead README.md and tell me what this project does\u201D \u2014 press Enter. It will really read the files, really run tools, and hand you an evidence-backed answer." }
     },
     {
       id: "demo",
       anchor: "#demoFlowButton",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 4 / 6 \u6B65", title: "\u4E0D\u60F3\u6253\u5B57\uFF1F\u770B\u5B83\u73B0\u573A\u6F14\u4E00\u6B21", body: "\u70B9\u300C\u6F14\u793A\u6D41\u7A0B\u300D\uFF0C60 \u79D2\u770B\u5B83\u5B8C\u6574\u8DD1\u4E00\u904D\uFF1A\u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u3002\u4EB2\u773C\u770B\u5B8C\uFF0C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002" },
+      interact: "demo",
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 4 \u6B65 / \u5171 6 \u6B65", title: "\u4E0D\u60F3\u6253\u5B57\uFF1F\u770B\u5B83\u73B0\u573A\u6F14\u4E00\u904D", body: "\u70B9\u300C\u6F14\u793A\u6D41\u7A0B\u300D\uFF0C60 \u79D2\u770B\u5B83\u5B8C\u6574\u8DD1\u4E00\u904D\uFF1A\u8BA1\u5212 \u2192 \u5DE5\u5177\u8C03\u7528 \u2192 \u9A8C\u8BC1 \u2192 \u4EA4\u4ED8\u603B\u7ED3\u3002\u4EB2\u773C\u770B\u5B8C\uFF0C\u4F60\u5C31\u4F1A\u7528\u4E86\u3002" },
       en: { kicker: "Start here \xB7 Step 4 of 6", title: "Prefer to watch?", body: "Hit \u201CDemo flow\u201D and watch a full pass in sixty seconds: plan \u2192 tools \u2192 verification \u2192 delivery. See it once and you know the product." }
     },
     {
       id: "almanac",
       anchor: '.nav-item[data-view="almanac"]',
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 / 6 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u4E5D\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u5219\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
-      en: { kicker: "Start here \xB7 Step 5 of 6", title: "The Almanac \u2014 a museum in nine halls", body: "Nine chapters of museum-grade narrative, every figure read live from this repository. The Manual covers how to play, how to debug, and where the honest limits are." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 6 \u6B65", title: "\u5E74\u9274\uFF1A\u8FD9\u4E2A\u9879\u76EE\u7684\u535A\u7269\u9986", body: "\u5377\u4E00\u5230\u5377\u5341\u4E09\u7684\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u6BCF\u7B14\u6570\u5B57\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93\u8BFB\u6570\uFF1B\u300C\u8BF4\u660E\u4E66\u300D\u8D1F\u8D23\u600E\u4E48\u73A9\u3001\u600E\u4E48\u6392\u9519\u3001\u8FB9\u754C\u5728\u54EA\u2014\u2014\u4E24\u4E2A\u5730\u65B9\u90FD\u503C\u5F97\u8BFB\u4E00\u904D\u3002" },
+      en: { kicker: "Start here \xB7 Step 5 of 6", title: "The Almanac \u2014 a museum in thirteen halls", body: "Thirteen chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." }
     },
     {
       id: "done",
       anchor: null,
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 6 / 6 \u6B65", title: "\u597D\u4E86\uFF0C\u4F60\u53EF\u4EE5\u4E86", body: "\u81EA\u5DF1\u53D1\u4E00\u6761\u4EFB\u52A1\u8BD5\u8BD5\uFF1B\u9047\u4E8B\u6309\u300C\uFF1F\u300D\u770B\u5FEB\u6377\u952E\uFF1B\u9047\u4E8B\u4E0D\u4F1A\u6309\u2318K \u641C\u4E00\u5207\u3002\u6B22\u8FCE\u6765\u5230 minicc\u3002" },
-      en: { kicker: "Start here \xB7 Step 6 of 6", title: "That's it, you know it now", body: "Send your first real task next. Whenever you're stuck, press \u201C?\u201D for the shortcut reference \u2014 or \u201C\u2318/Ctrl K\u201D to search everything. Welcome to minicc." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 6 \u6B65 / \u5171 6 \u6B65", title: "\u597D\u4E86\uFF0C\u4F60\u53EF\u4EE5\u51FA\u53D1\u4E86", body: "\u81EA\u5DF1\u53D1\u4E00\u6761\u4EFB\u52A1\u8BD5\u8BD5\uFF1B\u9047\u4E8B\u6309\u300C\uFF1F\u300D\u770B\u5FEB\u6377\u952E\u6E05\u5355\uFF1B\u9047\u4E8B\u4E0D\u4F1A\u6309 \u2318K \u641C\u4E00\u5207\u3002\u6B22\u8FCE\u6765\u5230 minicc\u3002" },
+      en: { kicker: "Start here \xB7 Step 6 of 6", title: "That's it, you know it now", body: "Send your first real task next. Whenever you get stuck, press \u201C?\u201D for the shortcut reference \u2014 or \u2318/Ctrl K to search everything. Welcome to minicc." }
     }
   ];
   var $tour = {};
-  var $overlayParts = () => ({
-    overlay: $tour.overlay,
-    spot: $tour.spot,
-    card: $tour.card
-  });
+  var $overlayParts = () => ({ overlay: $tour.overlay, spot: $tour.spot, card: $tour.card });
   function rectFor(selector) {
     const node = selector ? document.querySelector(selector) : null;
     if (!node) return null;
@@ -7647,8 +7645,26 @@
     spot.style.width = `${rect.width + pad * 2}px`;
     spot.style.height = `${rect.height + pad * 2}px`;
   }
+  function performInteraction(id) {
+    if (id === "composer") {
+      const input = $("#promptInput");
+      if (input) {
+        input.value = zh7() ? "\u8BFB\u4E00\u4E0B README.md\uFF0C\u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684" : "Read README.md and tell me what this project does";
+        input.focus();
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        showToast(zh7() ? "\u5DF2\u5E2E\u4F60\u586B\u597D\u8FD9\u53E5\u8BDD\uFF0C\u56DE\u8F66\u53D1\u9001\u5373\u53EF" : "Filled it in for you \u2014 press Enter to send");
+      }
+      return;
+    }
+    if (id === "demo") {
+      showToast(zh7() ? "\u6B63\u5728\u4E3A\u4F60\u8DD1\u4E00\u904D\u6F14\u793A\u2026" : "Running the demo for you\u2026");
+      Promise.resolve().then(() => runDemoFlow()).catch(() => {
+      });
+    }
+  }
   function renderStep(index) {
     const { overlay, card } = $overlayParts();
+    if (!overlay || !card) return;
     const step = STEPS[index];
     const local = zh7() ? step.zh : step.en;
     const rect = rectFor(step.anchor);
@@ -7658,11 +7674,18 @@
     card.querySelector(".tour-body").textContent = local.body;
     const back2 = card.querySelector(".tour-back");
     const next2 = card.querySelector(".tour-next");
+    const interact = card.querySelector(".tour-interact");
     back2.hidden = index === 0;
     back2.textContent = zh7() ? "\u4E0A\u4E00\u6B65" : "Back";
-    next2.textContent = index === STEPS.length - 1 ? zh7() ? "\u5F00\u59CB\u5E72\u6D3B" : "Start building" : zh7() ? "\u4E0B\u4E00\u6B65" : "Next";
+    next2.textContent = index === STEPS.length - 1 ? zh7() ? "\u5F00\u59CB\u5DE5\u4F5C" : "Start building" : zh7() ? "\u4E0B\u4E00\u6B65" : "Next";
     const skip = card.querySelector(".tour-skip");
     skip.textContent = zh7() ? "\u8DF3\u8FC7" : "Skip tour";
+    if (step.interact) {
+      interact.hidden = false;
+      interact.textContent = step.interact === "composer" ? zh7() ? "\u5E2E\u6211\u586B\u597D\u8FD9\u53E5\u8BDD" : "Fill it in for me" : zh7() ? "\u7ACB\u5373\u8DD1\u6F14\u793A" : "Run the demo now";
+    } else {
+      interact.hidden = true;
+    }
     refreshIcons();
   }
   function teardown(outcome) {
@@ -7739,6 +7762,7 @@
       <div class="tour-actions">
         <button type="button" class="tour-skip"></button>
         <div class="tour-nav">
+          <button type="button" class="tour-interact"></button>
           <button type="button" class="tour-back"></button>
           <button type="button" class="tour-next"></button>
         </div>
@@ -7752,6 +7776,9 @@
     overlay.querySelector(".tour-skip").addEventListener("click", () => teardown("skipped"));
     overlay.querySelector(".tour-back").addEventListener("click", back);
     overlay.querySelector(".tour-next").addEventListener("click", next);
+    overlay.querySelector(".tour-interact").addEventListener("click", () => {
+      performInteraction(STEPS[$tour.currentStep]?.id);
+    });
     window.addEventListener("resize", reposition, true);
     window.addEventListener("keydown", onKeydown, true);
     renderStep(0);

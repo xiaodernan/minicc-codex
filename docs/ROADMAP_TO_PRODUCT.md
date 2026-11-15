@@ -52401,3 +52401,27 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
 
 - Playwright 真浏览器（zh/en 双模式）截图 `output/composer_{zh,en}.png`：zh 模式「默认」档激活滑块正确定位、淡入 dash-circle 0%；action chips = 6；mode = 默认/Default；EN 模式零 CJK（沿用既有 i18n gate）。
 - `npm run build:web` 后 `check:web` 干净；askdocs/helpshortcuts smoke PASS；`doc_pointers` rc=0；`git status` 只含本批改动。
+
+## 批次 981 - M8-T989：沉浸式「上手演练」 —— 嵌在产品里的交互式 6 步教学
+
+### 1 背景
+
+用户明确要求：说明书嵌入项目本体、用户用项目的时候就知道怎么玩——不要依赖项目文档。本批把已有的 static 6-step「上手演练」(`web/src/panels/onboarding.js`) 重写为**真正的交互式教程**，并在两处修复真实问题：
+
+- **Mojibake 大面积乱码**的中文 kicker（`上手演练 · �?1 / 6 �?`）——过去的版本根本无法正常显示；
+- **对比度事故**：卡舰强制 dark，但标题/正文用 `var(--text)`（亮色主题色）→ zh 与 en 模式都读不清。
+
+### 2 做了什么
+
+- 重写 `web/src/panels/onboarding.js`：6 步，每步真手。新增两处交互按钮：
+  1. 第 3 步（composer `#promptInput`）：按钮「帮我填好这句话 / Fill it in for me」→ 真的把「读一下 README.md，然后告诉我这个项目是干嘛的」填入输入框并聚焦；
+  2. 第 4 步（`#demoFlowButton`）：按钮「立即跑演示 / Run the demo now」→ 真调用 `runDemoFlow()`（面 demo 即运行）。
+- 文案与产品节奏对齐：年鉴 13 卷（「卷一到卷十三」），说明书已有第 11 章（压测与容量），快捷键 `⌘K` / `?` 文案一致；中文/英文两路均为完整语义、零 mojibake。
+- 新 CSS：琥珀渐变 CTA（下一步）+ `.tour-interact` 琥珀描边按钮 + 显式 dark-card 字符色板（kicker `--amber`、title `#f2f3f5`、body `#a7acb6`、skip/back 灰阶）—— zh/en 各模式全部可读。
+- 修复英文 Step 5 kicker："13 halls"（原写的是 nine halls）。
+
+### 3 验证
+
+- Playwright 真浏览器（fresh profile + `localStorage.clear()`）双 locale 全走完：offer 按钮出现 → 第 1~6 步均正确渲染 → zh 第 3 步「读一下 README.md…」被填入 → 第 4 步 demo 按钮可点（无 provider 错误时走演示通路）→ 第 6 步完成页。 **errors: none（两端 locale 均零 JS 错误）**。
+- 截图：`output/tour_step1_{zh,en}.png`、`output/tour_final_{zh,en}.png` 均存档；字级与对比度在 zh/en 双模式逐项验证可读（_probe_tour.mjs）。
+- `npm run build:web`、`npm run check:web` 干净；`doc_pointers` rc=0；askdocs smoke PASS；未动锁定文件。

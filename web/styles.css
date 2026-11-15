@@ -5118,3 +5118,40 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .perm-mode-option { padding: 8px 10px; font-size: 12px; }
   .ctx-ring { display: none; }
 }
+/* ============================================================
+   M8-T989: tour CTA amber-gradient (matches palette/composer),
+   new .tour-interact button for the interactive steps.
+   ============================================================ */
+.tour-next { background: linear-gradient(155deg, color-mix(in srgb, var(--amber) 88%, #fff3c8) 0%, var(--amber) 60%, color-mix(in srgb, var(--amber) 72%, #b45309) 100%); color: #2b1e04; border: none; box-shadow: 0 6px 22px color-mix(in srgb, var(--amber) 44%, transparent); border-radius: 999px; padding: 10px 20px; font-size: 13px; font-weight: 750; letter-spacing: .01em; transition: transform .16s ease, filter .16s ease; }
+.tour-next:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.tour-next:focus-visible, .tour-skip:focus-visible, .tour-back:focus-visible, .tour-interact:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.tour-interact {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: color-mix(in srgb, var(--amber) 92%, #fff);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.tour-interact:hover { background: color-mix(in srgb, var(--amber) 24%, transparent); border-color: var(--amber); transform: translateY(-1px); }
+.tour-interact[hidden] { display: none; }
+.tour-offer i, .tour-offer svg { color: var(--amber); }
+.tour-offer:hover { border-color: var(--amber); }
+/* ============================================================
+   M8-T989b: the tour card is always dark; its type was painted
+   with light-theme inks and went unreadable in zh/en. Explicit
+   dark-card palette: bone type, mint kicker, amber CTA.
+   ============================================================ */
+.tour-card { border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.tour-step { color: var(--amber); letter-spacing: .32em; }
+.tour-title { color: #f2f3f5; }
+.tour-body { color: #a7acb6; }
+.tour-skip { color: #8b909a; }
+.tour-skip:hover { color: #f2f3f5; }
+.tour-back { color: #c7ccd4; border-color: rgba(255, 255, 255, .14); }
+.tour-back:hover { color: #ffffff; border-color: rgba(255, 255, 255, .32); }

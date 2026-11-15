@@ -1,17 +1,17 @@
 /* ============================================================
    Minicc Tour — two minutes, six steps, zero reading required.
-
-   A first-run product tour for the workbench. Spotlight what each
-   area is for, explain it in one sentence, finish. Skippable at
-   any point with Esc; re-openable any time from the command
-   palette ("tour") — the seen-once choice is remembered per
-   browser. Fully bilingual.
+   M8-T989: rewrite of the onboarding for a learning-by-doing
+   product: mojibake fixed, actual interactive steps (the tour can
+   fill the composer and run the demo flow for the user), correct
+   chapter counts, fully bilingual. Esc exits; re-openable any time
+   from the palette ("tour"); seen-once choice is per browser.
    ============================================================ */
 
 import { t } from "../core/i18n.js";
 import { $, state } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { showToast } from "../panels/index.js";
+import { runDemoFlow } from "../chat/stream.js";
 
 const SEEN_KEY = "minicc-tour-v1";
 const zh = () => state.locale === "zh";
@@ -19,52 +19,38 @@ const zh = () => state.locale === "zh";
 const STEPS = [
   {
     id: "welcome", anchor: null,
-    zh: { kicker: "上手演练 · 第 1 / 6 步", title: "欢迎来到 minicc", body: "本地优先的编程智能体工作台。接下来两分钟我会带你看六个地方。Esc 可随时退出；⌘K 里搜「tour」可随时再来。" },
-    en: { kicker: "Start here · Step 1 of 6", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past six places worth knowing. Esc exits anytime; search “tour” in the palette to come back." },
+    zh: { kicker: "上手演练 · 第 1 步 / 共 6 步", title: "欢迎来到 minicc", body: "一个本地优先的编程智能体工作台。接下来两分钟内，我会带你走过六个地方，每一站都可以动手。Esc 随时退出；⌘K 搜「tour」随时再来。" },
+    en: { kicker: "Start here · Step 1 of 6", title: "Welcome to minicc", body: "The local-first coding workbench. The next two minutes take you past six places — each one is hands-on. Esc exits anytime; search “tour” in the palette to come back." },
   },
   {
     id: "sidebar", anchor: "#sidebar",
-    zh: { kicker: "上手演练 · 第 2 / 6 步", title: "左侧是这台机器的控台", body: "任务、活动、账本、模板、说明书、年鉴、铁律、日志、档案馆——产品的全部面板都从这里打开，中文英文两套版本永远同时有效。" },
-    en: { kicker: "Start here · Step 2 of 6", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive — every panel of the product opens from here, in Chinese or English, always in parity." },
+    zh: { kicker: "上手演练 · 第 2 步 / 共 6 步", title: "左侧是这台机器的控台", body: "任务、活动、账本、模板、说明书、年鉴、铁律、日志、档案馆——产品的所有面板都从这里打开，而且中文英文两套版本永远同时有效。" },
+    en: { kicker: "Start here · Step 2 of 6", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive — every panel opens from here, in Chinese and English, at parity." },
   },
   {
-    id: "composer", anchor: "#promptInput",
-    zh: { kicker: "上手演练 · 第 3 / 6 步", title: "说人话就行", body: "试试写一次「读一下 README.md 然后告诉我这个项目是干嘛的」——回车发送。它会真的读文件、真的跑工具、把带证据的答案交回给你。" },
-    en: { kicker: "Start here · Step 3 of 6", title: "Just say what you want", body: "Try typing “Read README.md and tell me what this project does” and press Enter. It will actually read the files, actually run the tools, and hand you an evidence-backed answer." },
+    id: "composer", anchor: "#promptInput", interact: "composer",
+    zh: { kicker: "上手演练 · 第 3 步 / 共 6 步", title: "说人话就行", body: "试试写一次「读一下 README.md 然后告诉我这个项目是干嘛的」——回车发送，它会真的读文件、真的跑工具、把带证据的答案交回给你。" },
+    en: { kicker: "Start here · Step 3 of 6", title: "Just say what you want", body: "Try “Read README.md and tell me what this project does” — press Enter. It will really read the files, really run tools, and hand you an evidence-backed answer." },
   },
   {
-    id: "demo", anchor: "#demoFlowButton",
-    zh: { kicker: "上手演练 · 第 4 / 6 步", title: "不想打字？看它现场演一次", body: "点「演示流程」，60 秒看它完整跑一遍：计划 → 工具调用 → 验证 → 交付总结。亲眼看完，你就会用了。" },
+    id: "demo", anchor: "#demoFlowButton", interact: "demo",
+    zh: { kicker: "上手演练 · 第 4 步 / 共 6 步", title: "不想打字？看它现场演一遍", body: "点「演示流程」，60 秒看它完整跑一遍：计划 → 工具调用 → 验证 → 交付总结。亲眼看完，你就会用了。" },
     en: { kicker: "Start here · Step 4 of 6", title: "Prefer to watch?", body: "Hit “Demo flow” and watch a full pass in sixty seconds: plan → tools → verification → delivery. See it once and you know the product." },
   },
   {
-    id: "almanac", anchor: ".nav-item[data-view=\"almanac\"]",
-    zh: { kicker: "上手演练 · 第 5 / 6 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷九的博物馆级叙事，数字全部来自真实仓库读数；「说明书」则负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
-    en: { kicker: "Start here · Step 5 of 6", title: "The Almanac — a museum in nine halls", body: "Nine chapters of museum-grade narrative, every figure read live from this repository. The Manual covers how to play, how to debug, and where the honest limits are." },
+    id: "almanac", anchor: '.nav-item[data-view="almanac"]',
+    zh: { kicker: "上手演练 · 第 5 步 / 共 6 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷十三的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
+    en: { kicker: "Start here · Step 5 of 6", title: "The Almanac — a museum in thirteen halls", body: "Thirteen chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
   },
   {
     id: "done", anchor: null,
-    zh: { kicker: "上手演练 · 第 6 / 6 步", title: "好了，你可以了", body: "自己发一条任务试试；遇事按「？」看快捷键；遇事不会按⌘K 搜一切。欢迎来到 minicc。" },
-    en: { kicker: "Start here · Step 6 of 6", title: "That's it, you know it now", body: "Send your first real task next. Whenever you're stuck, press “?” for the shortcut reference — or “⌘/Ctrl K” to search everything. Welcome to minicc." },
+    zh: { kicker: "上手演练 · 第 6 步 / 共 6 步", title: "好了，你可以出发了", body: "自己发一条任务试试；遇事按「？」看快捷键清单；遇事不会按 ⌘K 搜一切。欢迎来到 minicc。" },
+    en: { kicker: "Start here · Step 6 of 6", title: "That's it, you know it now", body: "Send your first real task next. Whenever you get stuck, press “?” for the shortcut reference — or ⌘/Ctrl K to search everything. Welcome to minicc." },
   },
 ];
 
-const L = (key) => (zh() ? STEPS_BY_ID(key).zh : STEPS_BY_ID(key).en);
-
-function STEPS_BY_ID(id) {
-  return STEPS.find((step) => step.id === id);
-}
-
-function stepIndex(step) {
-  return STEPS.findIndex((s) => s.id === step);
-}
-
 const $tour = {};
-const $overlayParts = () => ({
-  overlay: $tour.overlay,
-  spot: $tour.spot,
-  card: $tour.card,
-});
+const $overlayParts = () => ({ overlay: $tour.overlay, spot: $tour.spot, card: $tour.card });
 
 function rectFor(selector) {
   const node = selector ? document.querySelector(selector) : null;
@@ -89,8 +75,28 @@ function positionSpotlight(rect) {
   spot.style.height = `${rect.height + pad * 2}px`;
 }
 
+function performInteraction(id) {
+  if (id === "composer") {
+    const input = $("#promptInput");
+    if (input) {
+      input.value = zh() ? "读一下 README.md，然后告诉我这个项目是干嘛的" : "Read README.md and tell me what this project does";
+      input.focus();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      showToast(zh() ? "已帮你填好这句话，回车发送即可" : "Filled it in for you — press Enter to send");
+    }
+    return;
+  }
+  if (id === "demo") {
+    showToast(zh() ? "正在为你跑一遍演示…" : "Running the demo for you…");
+    Promise.resolve()
+      .then(() => runDemoFlow())
+      .catch(() => {});
+  }
+}
+
 function renderStep(index) {
   const { overlay, card } = $overlayParts();
+  if (!overlay || !card) return;
   const step = STEPS[index];
   const local = zh() ? step.zh : step.en;
   const rect = rectFor(step.anchor);
@@ -101,13 +107,23 @@ function renderStep(index) {
   card.querySelector(".tour-body").textContent = local.body;
   const back = card.querySelector(".tour-back");
   const next = card.querySelector(".tour-next");
+  const interact = card.querySelector(".tour-interact");
   back.hidden = index === 0;
   back.textContent = zh() ? "上一步" : "Back";
   next.textContent = index === STEPS.length - 1
-    ? (zh() ? "开始干活" : "Start building")
+    ? (zh() ? "开始工作" : "Start building")
     : (zh() ? "下一步" : "Next");
   const skip = card.querySelector(".tour-skip");
   skip.textContent = zh() ? "跳过" : "Skip tour";
+
+  if (step.interact) {
+    interact.hidden = false;
+    interact.textContent = step.interact === "composer"
+      ? (zh() ? "帮我填好这句话" : "Fill it in for me")
+      : (zh() ? "立即跑演示" : "Run the demo now");
+  } else {
+    interact.hidden = true;
+  }
   refreshIcons();
 }
 
@@ -185,6 +201,7 @@ export function startTour() {
       <div class="tour-actions">
         <button type="button" class="tour-skip"></button>
         <div class="tour-nav">
+          <button type="button" class="tour-interact"></button>
           <button type="button" class="tour-back"></button>
           <button type="button" class="tour-next"></button>
         </div>
@@ -199,6 +216,9 @@ export function startTour() {
   overlay.querySelector(".tour-skip").addEventListener("click", () => teardown("skipped"));
   overlay.querySelector(".tour-back").addEventListener("click", back);
   overlay.querySelector(".tour-next").addEventListener("click", next);
+  overlay.querySelector(".tour-interact").addEventListener("click", () => {
+    performInteraction(STEPS[$tour.currentStep]?.id);
+  });
   window.addEventListener("resize", reposition, true);
   window.addEventListener("keydown", onKeydown, true);
   renderStep(0);
@@ -224,3 +244,5 @@ export function maybeOfferTour() {
   });
   refreshIcons();
 }
+
+export { STEPS };

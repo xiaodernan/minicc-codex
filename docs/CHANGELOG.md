@@ -338,3 +338,5 @@
 - **RAG 通道限流上线（M8-T987）**：新增 `minicc/ratelimit.py` —— 行业形态滑动窗口令牌桶；Redis 可达走分布式 INCR+PEXPIRE（共享 redis_cache 连接池/重试窗口），否则本地 LRU 降级；**Redis 中途死掉 fail-open 继续放行并计入 `degraded_open`**，不允许网络抖动击垮产品；`/api/rag/query` 超限返回 `200 + rate_limited + retry_after_seconds`（绝不伪装模型失败，绝不烧额外 token）；`MINICC_RATE_LIMIT_PER_MINUTE` / `MINICC_RATE_LIMIT_WINDOW` 可配；7 条新测试全绿，Route Coverage 100% 保持，silent-handler 边界全覆盖。
 
 - **composer 登峰造极（M8-T988）**：命令甲板三件套——hairline 金顶 + 权限模式组分段滑块（`:has()` 零 JS）+ SVG 圆环上下文计量（tokens/cost/context/cache attestation 全部保留）+ 琥珀渐变发送 orb 呼吸动画；zh/en 双模式真截图验证；行为零变更。
+
+- **交互式「上手演练」上线（M8-T989）**：说明书不再只是被打开的面板——嵌在产品里的 6 步交互式教程，第 3 步真的帮你填好「读一下 README.md…」填入输入框、第 4 步真的帮你跑演示（`runDemoFlow()`）；修复 zh kicker 大面积 mojibake、修复强制 dark 卡面却用亮色主题色（zh/en 均不可读的对比度事故）；13 卷年鉴 / 11 章说明书文案对齐；Esc/箭头/按钮全可用，两 locale 真浏览器走完零错误。
