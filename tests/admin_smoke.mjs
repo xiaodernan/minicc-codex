@@ -38,6 +38,7 @@ async function checkMode(locale, expectCjk) {
     cacheRate: document.querySelector("#adminCacheRate")?.innerText,
     audit: document.querySelector("#adminAuditLines")?.innerText,
     sessions: document.querySelector("#adminSessions")?.innerText,
+    streak: document.querySelector("#adminStreak")?.innerText,
     tools: document.querySelectorAll("#adminToolUsage li").length,
     recs: document.querySelectorAll("#adminRecommendations li").length,
     recent: document.querySelectorAll("#adminRecentTasks li").length,
@@ -49,6 +50,7 @@ async function checkMode(locale, expectCjk) {
   assert.match(totals.cacheRate, /%|—/, "cache rate must carry % or em dash");
   assert.ok((totals.audit ?? "").length > 0, "audit lines must be rendered");
   assert.ok(totals.sessions.length > 0, "sessions must be rendered");
+  assert.ok((totals.streak ?? "").trim().length > 0, "completion streak must render");
   assert.ok(totals.tools >= 1, "tool usage list must render at least one bar");
   assert.ok(totals.recs >= 1, "recommendations must render at least one");
   assert.ok(totals.recent >= 1, "recent tasks must render at least one");

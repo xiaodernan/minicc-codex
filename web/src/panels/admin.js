@@ -75,6 +75,8 @@ export async function openAdmin() {
     set("adminCacheRate", pct(totals.cache_hit_rate));
     set("adminAuditLines", compactCount(totals.audit_lines ?? 0));
     set("adminSessions", totals.sessions != null ? compactCount(totals.sessions) : "—");
+    const streak = data?.completion_streak;
+    set("adminStreak", streak && typeof streak.current === "number" ? String(streak.current) : "—");
 
     const canvas = $("#adminTrendCanvas");
     if (canvas && trend.length) {

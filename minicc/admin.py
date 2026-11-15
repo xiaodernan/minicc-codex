@@ -238,6 +238,91 @@ def _interrupt_cause_breakdown(state_dir: Path) -> dict[str, Any] | None:
     return {"total": found, **counts}
 
 
+def _completion_streak(state_dir: Path) -> dict[str, Any] | None:
+    """Consecutive-day streak of *completed* tasks.
+
+    Read straight off the task store's own rows: a day counts when at least
+    one task reached status=completed that UTC day. The answer is three
+    honest numbers: the current run (today counts if it already has a
+    completion; otherwise the streak that already ended before today is
+    reported as the current streak), the best run observed anywhere in
+    the data, and how many distinct completion days the data contains.
+    Honest blank when there is nothing to count - a workspace that never
+    completed anything is not a zero, it is an unknown.
+    """
+    days: set[str] = set()
+    candidates: list[Path] = []
+    try:
+        candidates.append(home_dir() / "tasks.sqlite3")
+    except (OSError, ValueError):
+        # candidate set just stays smaller then; workspace store is still tried
+        pass
+    if state_dir.is_dir():
+        candidate = state_dir / "tasks.sqlite3"
+        if candidate not in candidates:
+            candidates.append(candidate)
+    try:
+        import sqlite3
+
+        from .task_store import TaskStore
+        for db in candidates:
+            if not db.is_file():
+                continue
+            rows = TaskStore(db).load(limit=50_000)
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("status")) != "completed":
+                    continue
+                epoch = row.get("finished_at_epoch") or row.get("updated_at_epoch") or row.get("created_at_epoch")
+                if epoch is None:
+                    continue
+                try:
+                    days.add(datetime.fromtimestamp(float(epoch), tz=timezone.utc).date().isoformat())
+                except (TypeError, ValueError, OSError):
+                    continue
+    except (sqlite3.Error, OSError, ValueError, TypeError):
+        return None
+    if not days:
+        return None
+    ordered = sorted(days)
+    # best run anywhere in the window
+    best = 1
+    run = 1
+    for prev, cur in zip(ordered, ordered[1:]):
+        try:
+            gap = (datetime.strptime(cur, "%Y-%m-%d") - datetime.strptime(prev, "%Y-%m-%d")).days
+        except ValueError:
+            continue
+        if gap == 1:
+            run += 1
+            best = max(best, run)
+        else:
+            run = 1
+    # current run: from today if completed already (or yesterday, being the most
+    # recent completion day), else 0 — the streak ended before this week
+    today = _today_utc().date().isoformat()
+    last = ordered[-1]
+    try:
+        gap_to_today = (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(last, "%Y-%m-%d")).days
+    except ValueError:
+        gap_to_today = 2
+    if gap_to_today not in (0, 1):
+        current = 0
+    else:
+        current = 1
+        idx = len(ordered) - 1
+        while idx > 0:
+            prev = datetime.strptime(ordered[idx - 1], "%Y-%m-%d")
+            cur = datetime.strptime(ordered[idx], "%Y-%m-%d")
+            if (cur - prev).days == 1:
+                current += 1
+                idx -= 1
+            else:
+                break
+    return {"current": current, "best": best, "days": len(days), "last_completed": last}
+
+
 def _recent_tasks(state_dir: Path, limit: int = 8) -> list[dict[str, Any]]:
     """Read the active tasks store (global home). Falls back to the workspace store."""
     rows: list[dict[str, Any]] = []
@@ -360,6 +445,7 @@ def build_summary(workspace: Path) -> dict[str, Any]:
     forecast = _forecast_from_trend(trend_7d)
 
     interrupt_causes = _interrupt_cause_breakdown(state_dir)
+    completion_streak = _completion_streak(state_dir)
     tool_usage = _tool_usage_breakdown(state_dir)
 
     recommendations: list[dict[str, Any]] = []
@@ -402,6 +488,18 @@ def build_summary(workspace: Path) -> dict[str, Any]:
                 "why_en": f"Aggregate cache hit rate is {cache_rate * 100:.1f}% — lower than it should be. Check .minicc/sessions for long tasks that span the upstream TTL (~5 min), and shorten MINICC_CACHE_KEEPER_INTERVAL.",
             }
         )
+    if completion_streak and completion_streak["best"] >= 3 and completion_streak["current"] == 0:
+        best = int(completion_streak["best"])
+        recommendations.append(
+            {
+                "id": "streak-deserted",
+                "priority": "low",
+                "title_zh": f"连签 {best} 天里最大的一段现在断了——开一个回归的 session 就好",
+                "title_en": f"The best run ({best} days) has broken — one honest session brings it back",
+                "why_zh": f"最近一次完成任务落在 {completion_streak['last_completed']}；之后没有一单收尾。这不是游戏化的绿勾，而是这台工作区真实的产出节奏——断了，就还能回来。",
+                "why_en": f"The newest completed task finished on {completion_streak['last_completed']}; nothing has shipped since. Not a gamified badge — the real cadence of this workspace. It broke, and it can come back.",
+            }
+        )
     if interrupted > 0:
         recommendations.append(
             {
@@ -438,6 +536,7 @@ def build_summary(workspace: Path) -> dict[str, Any]:
         "forecast": forecast,
         "interrupt_causes": interrupt_causes,
         "tool_usage": tool_usage,
+        "completion_streak": completion_streak,
         "recent_tasks": recent_tasks,
         "recommendations": recommendations,
         "redis": redis_s if isinstance(redis_s, dict) else {},

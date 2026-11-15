@@ -443,3 +443,7 @@
 - **年鉴第十六第二卷「篱笆 / The Fence」（M8-T1036）**：atlas 的世界扩大到 22 卷——新章叙事了"en 模式零泄露"那场战斗：一个机器把整个产品读了一遍，揪出 4 处不该存在的中文化石（游戏大厅全屏钮标题钉死"全屏"、主面板展开钮"展开全屏"、次级导航"更多功能"、Atlas HUD 在第一次打开之前一直心里用中文念自己的名），修完之后立了篱笆：**en 模式下可见中文都是断裂**（例外写明——你的提示 / 模型的回答 / 你的提交记录 / 真实文件路径 / '中' 字本体）；en 段内零残留 CJK；门禁 `tests/en_cjk_smoke.mjs` 从此永久把守。
 - **世界 53 坐标**：22 卷年鉴卫星加入 Atlas（ALL_NODES = 18 panes + 22 almanac + 13 manual = 53）；`ATLAS_TOTAL` 沿用 `ALL_NODES.length` 自动对齐。52-Coordinate contract 的所有活跃面宣布退役："rev maps / Atlas HUD / atlas_smoke / manual / onboarding / README" 全部升至 53；26/39/52 里程碑阈值在代码里按 ceil(53×0.25)=14，自动随世界重算。
 - **almanac_smoke 更新**：walked 22 chapters；log 行 "22 chapters"。en/backlog 不再泄露 CJK —— manual modules 说明书更新为二十二卷。
+- **管理员面板第七格：连续完成天数（M8-T1037）**：`minicc/admin.py` 新增 `_completion_streak()`——直接读真实 tasks.sqlite3（home + 工作区双源），统计 status=completed 的 UTC 自然日集合，返回 current / best / 完成天数 / 最近完成日；差距容忍 1 天（今天尚未完成也算"正在进行"），`best ≥ 3 且 current == 0` 时自动挂一条 `streak-deserted` 低优先建议（写明日期、写明不是游戏化绿勾，就是真实节奏）；`completion_streak` 现在作为 `/api/admin/summary` 的顶层键返回；面板在快照格里新增第七格「连续完成天数」，admin_smoke 断言该格渲染。en/zh 双语键 `admin.streak` / `admin.streakOf`。
+- **说明书 Atlas 与 Almanac 章同步（M8-T1037 补记）**：almanac 二十二卷、最新卷 = 卷二十一《篱笆》；Atlas 五十三坐标、星尘里程碑的双语说明（25/50/75/100 一次性 toast、清除足迹一并清零）。
+- **门禁纪录**：fresh admin_smoke / parity / manual / almanac / atlas / admin 全部绿；`build_summary` 现场直调确认 streak=2（today-ish）——真实数据。
+- **CI 状态记录**：本批提交时 CI `43742034247`（M8-T1036, a93d92a4）仍在排队/运行中；本批先在本地落账，远端落地后推送。

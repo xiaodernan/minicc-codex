@@ -53343,3 +53343,22 @@ en-mode CJK 门禁（M8-T1034）立下了「一个时代一种语言」的律法
 - `node tests/atlas_smoke.mjs` — 53-coordinate charted line renders。
 - `node tests/en_cjk_smoke.mjs` — en 通读 0 CJK；Fence 章不污染门禁。
 - 本地实测 en innerText fence 段 CJK 计数 = 0；zh 段 143 汉字（混排法定）。
+## 批次 1022 - M8-T1037: 管理员第七格「连续完成天数」——真实节奏的，不是游戏化绿勾
+
+### 目的
+
+Admin 面板已经能看到完成数的绝对值（20/24）和趋势（七日事件柱状+预测），唯独看不到"连续出货的节奏"——一个 .minicc 里有真实完成记录的工作区，值得被追问最近两段产出之间断没断。这一格必须是**真实数据**（完成时间戳的 UTC 日期集合），不统计"可能""差不多"，不加中断率混合分数，不伪造游戏感——断了就是断了，回归就是回归。
+
+### 做了什么
+
+- **`minicc/admin.py`** — 新增 `_completion_streak(state_dir)`：双源扫候选 `home_dir()/tasks.sqlite3` + 工作区 `.minicc/tasks.sqlite3`；`TaskStore.load(limit=50_000)` 读行级字典；status=completed 且 `finished_at_epoch`（或 `updated_at_epoch`/`created_at_epoch`）合法的行，按 UTC 日期入集合；排序后滑窗得 `best`；current 以 today 间距 0/1 天为准计算连续尾（gap>1 → 0）；返回 `{current, best, days, last_completed}`；零完成天的工作区返回 `None`（诚实的未知，不是假 0）。`build_summary` 接入、`/api/admin/summary` 顶层键 `completion_streak`。
+- **推荐规则 `streak-deserted`**：仅当 `best ≥ 3 且 current == 0`——三日连击不是成就，是节奏。为什么写得克制：为了解释"接一下"不是说教，而是让账本本身地承接它自己的漂移。
+- **面板 `admin.streak`**（第七格）+ i18n 双语 `admin.streak`（连续完成天数 / Day streak）+ `admin.streakOf`（Best {n} days）；admin.js 从 summary 直读渲染，不走客户端重算——一切数以服务端为准。
+- **`tests/admin_smoke.mjs`** — 新增 `streak` 字段采集 + 断言 `#adminStreak` 有非空文本（数值或 "—" 均可走通，绝不编造）。
+- **说明书 modules 章同步补记**：Almanac 二十二卷（最新卷《篱笆》）；Atlas 53 坐标 + 星尘里程碑 25/50/75/100% + 足迹一清解锁 milestone 清零。
+- **CI 状态记录**：提交时 CI `43742034247`（M8-T1036）仍在队/跑。推向远端待其落地（cancel-in-progress 纪律）。
+
+### 实测验证
+
+- `build_summary('.')` 现场直调：tasks 24 / completed 20 / interrupted 3 / cache 71.1% / audit 1616 / sessions 162；`completion_streak` = { current: 2, best: 2, days: 2, last_completed: 2026-11-15 }——今天有收尾的明显口径。
+- admin_smoke（含新格）全绿；parity / manual / almanac / atlas 全绿；CRLF 655/309 零漂移；`output/admin_streak_zh.png` 留档第七格实渲。
