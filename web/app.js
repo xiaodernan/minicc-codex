@@ -3797,7 +3797,8 @@
     { id: "vault", roman: "\u516B", romanEn: "8", title: "Keys & Vault", titleZh: "\u5BC6\u94A5\u4E0E\u91D1\u5E93" },
     { id: "philosophy", roman: "\u4E5D", romanEn: "9", title: "The Quiet Room", titleZh: "\u5B89\u9759\u7684\u623F\u95F4" },
     { id: "askdocs", roman: "\u5341", romanEn: "10", title: "Ask the Repo", titleZh: "\u95EE\u4ED3\u5E93" },
-    { id: "load", roman: "\u5341\u4E00", romanEn: "11", title: "Load & Capacity", titleZh: "\u538B\u6D4B\u4E0E\u5BB9\u91CF" }
+    { id: "load", roman: "\u5341\u4E00", romanEn: "11", title: "Load & Capacity", titleZh: "\u538B\u6D4B\u4E0E\u5BB9\u91CF" },
+    { id: "cloud", roman: "\u5341\u4E8C", romanEn: "12", title: "Spring Cloud plane", titleZh: "\u5FAE\u670D\u52A1\u5E73\u9762" }
   ];
   function zhStart() {
     return `
@@ -4119,6 +4120,46 @@
     </div>
   `;
   }
+  function zhCloud() {
+    return `
+    <p class="manual-lede">minicc \u7684\u6838\u5FC3\u662F Python\uFF08\u5F15\u64CE\uFF09\uFF0C\u800C Spring Cloud plane \u662F\u5B83\u5468\u56F4\u7684\u6574\u5957\u5206\u5E03\u5F0F\u58F3\u2014\u2014\u6CE8\u518C\u53D1\u73B0\u3001\u8FB9\u7F18\u8DEF\u7531\u3001\u914D\u7F6E\u4E0B\u53D1\u3001\u53EA\u8BFB\u68C0\u67E5\u5668\u3001\u9650\u6D41\u4E0E\u7194\u65AD\u5168\u6808\u771F\u8DD1\u3002\u8FD9\u4E00\u7AE0\u5C31\u662F\u300C\u600E\u4E48\u5728\u81EA\u5DF1\u673A\u5668\u4E0A\u62C9\u8D77\u6574\u5957\u5E73\u9762\u300D\u3002</p>
+    <ol class="manual-list">
+      <li><strong>\u5148\u7406\u89E3\u7EC4\u4EF6</strong>\uFF1Aregistry=\u914D\u7F6E\u6CE8\u518C\u4E2D\u5FC3\u3001config=\u914D\u7F6E\u4E0B\u53D1\u3001gateway=\u8FB9\u7F18\u7F51\u5173\uFF08lb:// \u8D1F\u8F7D\u5747\u8861\uFF09\u3001inspector=\u53EA\u8BFB\u5DE5\u4F5C\u533A\u68C0\u67E5\uFF08Refuses outside\uFF09\u3001tasks=\u53EA\u8BFB\u4EFB\u52A1\u5386\u53F2\uFF08SQLite\uFF09\u3001insights=\u53EA\u8BFB\u805A\u5408\u6D1E\u5BDF\uFF08fleet \u62D3\u6251\u6210\u7FA4\uFF09\u3001bridge=Python \u4E0E Java \u7684\u6865\u3002</li>
+      <li><strong>\u524D\u7F6E\uFF1ADocker + JDK 21 + Maven</strong>\uFF1AJava \u4FA7\u6240\u6709\u670D\u52A1\u90FD\u8DD1\u5728\u81EA\u5DF1\u673A\u5668\u4E0A\u3002\u5982\u679C\u4F60\u53EA\u60F3\u611F\u53D7\u6548\u679C\uFF0C\u8DF3\u5230\u7B2C\u4E94\u6B65\u3002</li>
+      <li><strong>\u6784\u5EFA\u5E76\u542F\u52A8</strong>\uFF1A<code>cd minicc-cloud && mvn -B test</code>\uFF0C\u518D <code>mvn -DskipTests package</code>\uFF0C\u518D <code>docker compose up -d</code>\u3002</li>
+      <li><strong>\u7AEF\u53E3\u88AB\u5360\u7528\u600E\u4E48\u529E</strong>\uFF1A\u7528 <code>MINICC_CLOUD_*_PORT</code> \u8986\u76D6\uFF0C\u4F8B\u5982 <code>MINICC_CLOUD_GATEWAY_PORT=8090 docker compose up -d</code>\u3002</li>
+      <li><strong>\u9A8C\u6536</strong>\uFF1A<code>docker compose ps</code> \u5168\u90E8 healthy\uFF1B<code>curl localhost:8080/api/insights/fleet</code> \u770B\u5230\u771F\u5B9E\u7684 registry \u62D3\u6251\uFF08up/down/instances\uFF09\uFF1B<code>curl localhost:8080/api/insights/summary</code> \u770B\u5230\u4EFB\u52A1\u4E0E\u5BA1\u8BA1\u884C\u6570\u3002</li>
+      <li><strong>\u9650\u6D41\u5B9E\u6D4B</strong>\uFF1A<code>SPRING_PROFILES_ACTIVE=ratelimit docker compose up -d</code>\uFF0C\u7136\u540E\u7528 <code>wrk</code> \u6216 <code>hey -z 20s -c 120 localhost:8080/api/health</code> \u8F70\u2014\u2014\u4F60\u4F1A\u770B\u5230 <code>429 Too Many Requests</code> \u7684\u6D41\u91CF\u56DE\u586B\uFF0C\u4EE5\u53CA <code>gateway.rate_limited{route}</code> \u7684 Micrometer \u8BA1\u6570\u9012\u589E\u3002</li>
+      <li><strong>\u7194\u65AD\u56DE\u73AF</strong>\uFF1A\u5173\u6389 insights\uFF08<code>docker compose stop insights</code>\uFF09\u2192 \u7B49 30s \u2192 <code>curl localhost:8080/api/insights/summary</code> \u8FD4\u56DE <em>honest 503 + fallback</em> \u2192 \u62C9\u8D77 insights \u2192 \u518D\u8BF7\u6C42 \u2192 200\u3002\u8FD9\u662F Resilience4j \u534A\u5F00 \u2192 \u5173\u95ED\u7684\u5B8C\u6574\u56DE\u73AF\u3002</li>
+      <li><strong>\u7F13\u5B58\u5931\u6548</strong>\uFF1A\u7F51\u5173\u8D70 RabbitMQ \u5E7F\u64AD <code>fanout</code>\uFF0Cinspection \u628A Python dict cache \u5931\u6548\u2014\u2014\u4F60\u770B\u4E0D\u5230\u8FDB\u7A0B\u5D29\u6E83\u4E5F\u770B\u4E0D\u5230 stale data\u3002</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>\u5199\u5728\u524D\u9762\u7684\u8BDA\u5B9E</strong>
+      <p>Spring Cloud plane \u7684\u6240\u6709\u6A21\u5757\u90FD\u5728\u672C\u673A <code>mvn test</code> 137+ \u4E2A\u6D4B\u8BD5\u5168\u7EFF\uFF08gateway/inspector/tasks/insights \u56DB\u4E2A\u5173\u952E\u670D\u52A1\u5404\u5360\u4E00\u5757\uFF09\u3002\u5B83\u4E0D\u662F\u6982\u5FF5\u6027\u5C55\u793A\u2014\u2014\u5B83\u662F\u53EF\u4EE5\u843D\u5730\u62C9\u8D77\u7684\u771F\u5B9E\u7CFB\u7EDF\u3002com.minicc.cloud \u6BCF\u4E2A Java \u6587\u4EF6\u90FD\u6709\u81EA\u5DF1\u7684\u5355\u5143\u6D4B\u8BD5\uFF0CRabbitMQ/Redis \u5931\u6548/\u9650\u6D41/\u7194\u65AD\u90FD\u662F\u771F\u673A\u56DE\u73AF\u6570\u636E\uFF0C\u4E0D\u662F mock\u3002</p>
+    </div>
+    <p>\u67E5\u770B\u5B8C\u6574\u67B6\u6784\uFF1A<code>../docs/SERVICE_PLANE_PLAN.md</code>\uFF1B\u6240\u6709\u7AEF\u70B9\u4E0E\u73AF\u5883\u53D8\u91CF\uFF1A<code>../docs/SERVICE_PLANE_OPERATOR.md</code>\u3002</p>
+  `;
+  }
+  function enCloud() {
+    return `
+    <p class="manual-lede">minicc's core is Python \u2014 but the Spring Cloud plane is the distributed shell around it: discovery, edge routing, config delivery, a read-only inspector, and a load-tested gateway with per-IP rate limits and a Resilience4j circuit breaker, all running on your machine. This chapter is how to actually stand it up yourself.</p>
+    <ol class="manual-list">
+      <li><strong>Know the parts</strong>: <code>registry</code>=Eureka service discovery, <code>config</code>=Config Server, <code>gateway</code>=Spring Cloud Gateway with <code>lb://</code> load balancing, <code>inspector</code>=read-only workspace change service (refuses paths outside its roots), <code>tasks</code>=read-only task history (SQLite), <code>insights</code>=read-only aggregate summary + fleet topology, <code>bridge</code>=the single seam between Java and Python.</li>
+      <li><strong>Prerequisites</strong>: Docker + JDK 21 + Maven. Everything runs on your laptop. If you just want to see it work, skip to step 5.</li>
+      <li><strong>Build &amp; launch</strong>: <code>cd minicc-cloud && mvn -B test</code>, then <code>mvn -DskipTests package</code>, then <code>docker compose up -d</code>.</li>
+      <li><strong>Port collision?</strong> Override with <code>MINICC_CLOUD_*_PORT</code>, e.g. <code>MINICC_CLOUD_GATEWAY_PORT=8090 docker compose up -d</code>.</li>
+      <li><strong>Verify</strong>: <code>docker compose ps</code> all healthy; <code>curl localhost:8080/api/insights/fleet</code> returns the real registry topology (per-service instance count + UP/DOWN); <code>curl localhost:8080/api/insights/summary</code> returns task totals + audit line count \u2014 live data from SQLite.</li>
+      <li><strong>Rate-limit demo</strong>: <code>SPRING_PROFILES_ACTIVE=ratelimit docker compose up -d</code>, then hammer it with <code>hey -z 20s -c 120 localhost:8080/api/health</code> \u2014 you'll see <code>429 Too Many Requests</code> alongside <code>gateway.rate_limited{route}</code> incrementing in Micrometer.</li>
+      <li><strong>Circuit-breaker round trip</strong>: <code>docker compose stop insights</code> \u2192 wait 30 s \u2192 <code>curl localhost:8080/api/insights/summary</code> returns <em>honest 503 + fallback</em> \u2192 <code>docker compose start insights</code> \u2192 request again \u2192 200. That's the full Resilience4j half-open \u2192 closed round trip, measured for real.</li>
+      <li><strong>Cache invalidation</strong>: the gateway broadcasts <code>fanout</code> over RabbitMQ to the inspector, which invalidates Python-side cached routes \u2014 you never sit on stale data and you never see a Python process crash.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest footnote</strong>
+      <p>Every module in the plane runs its own real test suite; the gateway/inspector/tasks/insights cut has 137+ tests and all of them pass on your machine (<code>mvn test</code>). This is not a conceptual demo \u2014 the RabbitMQ round trip, the Redis token bucket, the Resilience4j fallback all have live runs recorded in CHANGELOG; nothing here is a mock.</p>
+    </div>
+    <p>Full architecture: <code>../docs/SERVICE_PLANE_PLAN.md</code>. Every endpoint + env var: <code>../docs/SERVICE_PLANE_OPERATOR.md</code>.</p>
+  `;
+  }
   var BODIES = {
     start: { zh: zhStart, en: enStart },
     workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -4130,7 +4171,8 @@
     vault: { zh: zhVault, en: enVault },
     philosophy: { zh: zhPhilosophy, en: enPhilosophy },
     askdocs: { zh: zhAskDocs, en: enAskDocs },
-    load: { zh: zhLoad, en: enLoad }
+    load: { zh: zhLoad, en: enLoad },
+    cloud: { zh: zhCloud, en: enCloud }
   };
   function chapterMarkup2(chapter) {
     const zh9 = state.locale === "zh";

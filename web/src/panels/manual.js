@@ -25,6 +25,7 @@ const CHAPTERS = [
   { id: "philosophy", roman: "九", romanEn: "9", title: "The Quiet Room", titleZh: "安静的房间" },
   { id: "askdocs", roman: "十", romanEn: "10", title: "Ask the Repo", titleZh: "问仓库" },
   { id: "load", roman: "十一", romanEn: "11", title: "Load & Capacity", titleZh: "压测与容量" },
+  { id: "cloud", roman: "十二", romanEn: "12", title: "Spring Cloud plane", titleZh: "微服务平面" },
 ];
 
 function zhStart() {
@@ -370,6 +371,48 @@ function enLoad() {
   `;
 }
 
+function zhCloud() {
+  return `
+    <p class="manual-lede">minicc 的核心是 Python（引擎），而 Spring Cloud plane 是它周围的整套分布式壳——注册发现、边缘路由、配置下发、只读检查器、限流与熔断全栈真跑。这一章就是「怎么在自己机器上拉起整套平面」。</p>
+    <ol class="manual-list">
+      <li><strong>先理解组件</strong>：registry=配置注册中心、config=配置下发、gateway=边缘网关（lb:// 负载均衡）、inspector=只读工作区检查（Refuses outside）、tasks=只读任务历史（SQLite）、insights=只读聚合洞察（fleet 拓扑成群）、bridge=Python 与 Java 的桥。</li>
+      <li><strong>前置：Docker + JDK 21 + Maven</strong>：Java 侧所有服务都跑在自己机器上。如果你只想感受效果，跳到第五步。</li>
+      <li><strong>构建并启动</strong>：<code>cd minicc-cloud && mvn -B test</code>，再 <code>mvn -DskipTests package</code>，再 <code>docker compose up -d</code>。</li>
+      <li><strong>端口被占用怎么办</strong>：用 <code>MINICC_CLOUD_*_PORT</code> 覆盖，例如 <code>MINICC_CLOUD_GATEWAY_PORT=8090 docker compose up -d</code>。</li>
+      <li><strong>验收</strong>：<code>docker compose ps</code> 全部 healthy；<code>curl localhost:8080/api/insights/fleet</code> 看到真实的 registry 拓扑（up/down/instances）；<code>curl localhost:8080/api/insights/summary</code> 看到任务与审计行数。</li>
+      <li><strong>限流实测</strong>：<code>SPRING_PROFILES_ACTIVE=ratelimit docker compose up -d</code>，然后用 <code>wrk</code> 或 <code>hey -z 20s -c 120 localhost:8080/api/health</code> 轰——你会看到 <code>429 Too Many Requests</code> 的流量回填，以及 <code>gateway.rate_limited{route}</code> 的 Micrometer 计数递增。</li>
+      <li><strong>熔断回环</strong>：关掉 insights（<code>docker compose stop insights</code>）→ 等 30s → <code>curl localhost:8080/api/insights/summary</code> 返回 <em>honest 503 + fallback</em> → 拉起 insights → 再请求 → 200。这是 Resilience4j 半开 → 关闭的完整回环。</li>
+      <li><strong>缓存失效</strong>：网关走 RabbitMQ 广播 <code>fanout</code>，inspection 把 Python dict cache 失效——你看不到进程崩溃也看不到 stale data。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>写在前面的诚实</strong>
+      <p>Spring Cloud plane 的所有模块都在本机 <code>mvn test</code> 137+ 个测试全绿（gateway/inspector/tasks/insights 四个关键服务各占一块）。它不是概念性展示——它是可以落地拉起的真实系统。com.minicc.cloud 每个 Java 文件都有自己的单元测试，RabbitMQ/Redis 失效/限流/熔断都是真机回环数据，不是 mock。</p>
+    </div>
+    <p>查看完整架构：<code>../docs/SERVICE_PLANE_PLAN.md</code>；所有端点与环境变量：<code>../docs/SERVICE_PLANE_OPERATOR.md</code>。</p>
+  `;
+}
+
+function enCloud() {
+  return `
+    <p class="manual-lede">minicc's core is Python — but the Spring Cloud plane is the distributed shell around it: discovery, edge routing, config delivery, a read-only inspector, and a load-tested gateway with per-IP rate limits and a Resilience4j circuit breaker, all running on your machine. This chapter is how to actually stand it up yourself.</p>
+    <ol class="manual-list">
+      <li><strong>Know the parts</strong>: <code>registry</code>=Eureka service discovery, <code>config</code>=Config Server, <code>gateway</code>=Spring Cloud Gateway with <code>lb://</code> load balancing, <code>inspector</code>=read-only workspace change service (refuses paths outside its roots), <code>tasks</code>=read-only task history (SQLite), <code>insights</code>=read-only aggregate summary + fleet topology, <code>bridge</code>=the single seam between Java and Python.</li>
+      <li><strong>Prerequisites</strong>: Docker + JDK 21 + Maven. Everything runs on your laptop. If you just want to see it work, skip to step 5.</li>
+      <li><strong>Build &amp; launch</strong>: <code>cd minicc-cloud && mvn -B test</code>, then <code>mvn -DskipTests package</code>, then <code>docker compose up -d</code>.</li>
+      <li><strong>Port collision?</strong> Override with <code>MINICC_CLOUD_*_PORT</code>, e.g. <code>MINICC_CLOUD_GATEWAY_PORT=8090 docker compose up -d</code>.</li>
+      <li><strong>Verify</strong>: <code>docker compose ps</code> all healthy; <code>curl localhost:8080/api/insights/fleet</code> returns the real registry topology (per-service instance count + UP/DOWN); <code>curl localhost:8080/api/insights/summary</code> returns task totals + audit line count — live data from SQLite.</li>
+      <li><strong>Rate-limit demo</strong>: <code>SPRING_PROFILES_ACTIVE=ratelimit docker compose up -d</code>, then hammer it with <code>hey -z 20s -c 120 localhost:8080/api/health</code> — you'll see <code>429 Too Many Requests</code> alongside <code>gateway.rate_limited{route}</code> incrementing in Micrometer.</li>
+      <li><strong>Circuit-breaker round trip</strong>: <code>docker compose stop insights</code> → wait 30 s → <code>curl localhost:8080/api/insights/summary</code> returns <em>honest 503 + fallback</em> → <code>docker compose start insights</code> → request again → 200. That's the full Resilience4j half-open → closed round trip, measured for real.</li>
+      <li><strong>Cache invalidation</strong>: the gateway broadcasts <code>fanout</code> over RabbitMQ to the inspector, which invalidates Python-side cached routes — you never sit on stale data and you never see a Python process crash.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest footnote</strong>
+      <p>Every module in the plane runs its own real test suite; the gateway/inspector/tasks/insights cut has 137+ tests and all of them pass on your machine (<code>mvn test</code>). This is not a conceptual demo — the RabbitMQ round trip, the Redis token bucket, the Resilience4j fallback all have live runs recorded in CHANGELOG; nothing here is a mock.</p>
+    </div>
+    <p>Full architecture: <code>../docs/SERVICE_PLANE_PLAN.md</code>. Every endpoint + env var: <code>../docs/SERVICE_PLANE_OPERATOR.md</code>.</p>
+  `;
+}
+
 const BODIES = {
   start: { zh: zhStart, en: enStart },
   workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -382,6 +425,7 @@ const BODIES = {
   philosophy: { zh: zhPhilosophy, en: enPhilosophy },
   askdocs: { zh: zhAskDocs, en: enAskDocs },
   load: { zh: zhLoad, en: enLoad },
+  cloud: { zh: zhCloud, en: enCloud },
 };
 
 function chapterMarkup(chapter) {

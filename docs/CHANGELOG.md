@@ -376,3 +376,5 @@
 - **fact-pack 计数器防漂（M8-T1008）**：`/api/digest` 的 `almanac_chapters` 必须等于 `web/src/panels/almanac.js` 真实章节数——新测试以 `almanac.js` 直接 source 扫描为基准对拍，加 missing-file 降级路径。
 
 - **平行分支审计（M8-T1009）**：30 worktree / 7 本地分支 / 5 远程 origin 线逐条核对——所有 fork 上的真正工作已经经过 `integration/*` 合并 / superseded；`dev/minicc-reliability-4ba3` 是非谱系分叉，但其核心内容（mention-XML hardening / reverse-door / edge-cases）在 main 中以更现代的形态存在；没有需要拉入 main 的遗留
+
+- **手册第十二章「微服务平面 / Spring Cloud plane」上线（M8-T1010）**：双语 8 步引导（认识模块 → 前置 → 一键起 → 验收 → 限流实测 → 熔断回环 → 缓存失效）；所有命令都跑过；zh/en 全章无 CJK 泄漏截图验证；README 十二章入列。

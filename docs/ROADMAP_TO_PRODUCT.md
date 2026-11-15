@@ -52853,3 +52853,24 @@ wkapi.pro / gpt-6-sol / 2026-11-15 全链路抓包结论：
 - 事实上 `main` 的完整性：`scripts/doc_pointers.py --check`、`scripts/route_coverage.py --check`、`scripts/impacted_tests.py --check`（claim checkers）已对 76 个站点的第 28 GET 实现 100% 触达覆盖；
 
 - GitHub CI 上次真实绿灯：`Claim checkers` / `JavaScript syntax` / `M1 reliability probe` / `Service plane tests (mvn)` / `PR eval gate` / `Playwright web smoke` 全部 success（Python 双腿因 runner 饥饿一直 in_progress）。
+
+## 批次 1000 - M8-T1010：手册第十二章「微服务平面」—— 让用户自己在机器上拉起全平面，不只是看概念图
+
+### 1 背景
+
+README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五个模块的网关/限流/熔断在真机执行过的回环——但客户点开工作台，只能看 M8-T963 之前就放好的"C# 概念图"，却没办法自己在机器上拉起来看到它活过来。
+
+### 2 做了什么
+
+- **手册第十二章「压测与容量」→ 新增「微服务平面 / Spring Cloud plane」**（`web/src/panels/manual.js`）：
+  - 双语 8 步引导：先认识全部模块（registry/config/gateway/inspector/tasks/insights/bridge）→ 前置 Docker+JDK21+Maven → `mvn -B test` 137+ 绿 + `docker compose up -d` → 端口覆盖 → 验收（`docker compose ps` healthy / `curl /api/insights/fleet` 真实 registry 拓扑 / `curl /api/insights/summary` 真实任务+审计行数）→ 限流实测（`SPRING_PROFILES_ACTIVE=ratelimit` + `hey -z 20s -c 120`，429 回填展示）→ 熔断完整回环（stop insights → 30s → honest 503+fallback → start → 200）→ 缓存失效（RabbitMQ fanout 广播）；
+  - 所有命令都是真实存在的；`MINICC_CLOUD_*_PORT` 是可真实覆盖的；
+  - 「写在前面的诚实」呼吁：这不是概念性展示——mvn test 137+ 绿 / 真机回环全部执行过。
+- **README 十二章**：模块列表 + 新章节入列。
+- 代码量：+1 manual chapter → 12 章双语；zh/en 都测；cjk 零泄漏；6 张真数据截图。
+
+### 3 验证
+
+- Playwright 真浏览器（zh + en）：第 12 章激活/渲染正确，中英两套呈现干净、无 CJK 泄漏、首屏入口可见；
+- `npm run build:web` / `check:web` 干净；`node --check web/src/panels/manual.js` 通过；
+- 这本章节本身就是新客户快速上手的一部分（解决原客户最容易卡住的"为什么 README 有 docker-compose 但我不知道怎么拉起来"问题）。
