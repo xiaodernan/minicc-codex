@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T06:26:40.610Z",
+  "generated_at": "2026-11-15T06:42:43.234Z",
   "branch": "main",
-  "head": "c873f01",
-  "total_commits": 1578,
+  "head": "605f2e3",
+  "total_commits": 1580,
   "recent_commits": [
+    {
+      "short": "605f2e3",
+      "at": "2026-11-15T14:42:19+08:00",
+      "subject": "M8-T999: almanac chapter XVI 'The Fever' - the near-misses written into the yearbook (37s->4.2ms, 2490x0, two U+FFFD, three hidden red smokes, cold-cache herd);"
+    },
+    {
+      "short": "356801e",
+      "at": "2026-11-15T06:26:40Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c873f01",
       "at": "2026-11-15T14:26:17+08:00",
@@ -19,25 +29,15 @@
       "short": "fdecbc9",
       "at": "2026-11-15T14:07:57+08:00",
       "subject": "M8-T997: Doctor - live upstream echo (GET /models, zero tokens, key never echoed, fail-open) + loopback load lab (24x24 canvas histogram); API route /api/provid"
-    },
-    {
-      "short": "a2419d3",
-      "at": "2026-11-15T05:51:07Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "00d7b2d",
-      "at": "2026-11-15T13:50:41+08:00",
-      "subject": "M8-T996: visual-debt sweep 2 - Pulse kicker badges, single-line running light, sidebar/empty-hero compaction at <=1180px height, uncapped seed bank, no-wrap gam"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 314,
+  "roadmap_batches": 315,
   "changelog_entries": 1,
-  "roadmap_lines": 52622,
+  "roadmap_lines": 52650,
   "tracked_files": 1065,
   "test_files": 705,
-  "almanac_chapters": 16,
+  "almanac_chapters": 17,
   "module_count": 14,
   "feature_surface": [
     "workbench",
