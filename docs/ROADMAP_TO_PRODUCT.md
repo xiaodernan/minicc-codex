@@ -52470,3 +52470,27 @@ M8-T985 探针发现的真实 bug：EN 模式下打开空会话，`.empty-sessio
   - `output/almanac_ch13_zh.png` — 卷十三 + 1,000 字红线提及全部实值
   - `output/almanac_ch13_hydrated.png` — staging 等待节段后全部实值落到仪表：2026-08-24 / 1561 / 1063 / 705 / 307 / 1468 / 148 / 2588 / 23/24 / 1
 - `npm run build:web` 干净；`check:web` 干净；askdocs/helpshortcuts smoke PASS；`doc_pointers` rc=0。
+
+## 批次 984 - M8-T992：年鉴第十五卷「星图 / The Atlas」——世界的地图，不只是界面
+
+### 1 背景
+
+用户要求「全景式开放世界」但「每一块要足够细」。本卷以星图为视觉隐喻，把整个工作台摊成一张星图：不是比喻，是界面本身的地图。节点按色相分组：amber = 工作面（工作台 / 年鉴 / 说明书 / 阅读回执 / 余烬），mint = 事实面（脉搏 / 账本 / 档案馆 / 铁律），violet = 实验面（演练 / 模板 / 日志 / 小游戏 / 近况）。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` 新增 `atlasMarkup()`：
+  - SVG 星图（880×420）：三枚径向渐变（amber/mint/violet） + 19 颗闪烁的星子（twinkle 动画）+ 16 个同色细胞节点（amber 工作台/年鉴/说明书/Ask/Ember；mint Pulse/Ledger/Archive/Axioms；violet Tour/Templates/Journal/Arcade/Recent）+ 两条漂移的虚线等值线（dash-flow 28s）；
+  - 星座式连线路径（虚线 dash 1.5/6 流动；twinkling stars）。
+- 6 枚实时读数（`/api/digest` + `/api/stats` 现场水润）：Commits 1563 / Tracked files 1,063 / Test files 705 / Batch chapters 308 / Audit lines 1,468 / Cache backend Local LRU。
+- 5 行门清单（amber 工作面 / mint 事实面 / violet 实验面 / 单一数据层 / 15 卷演进）。
+
+### 3 验证
+
+- Playwright 双 locale 验证
+  - 星图 SVG 正常渲染（数 19 颗星，3 组色相各 4-5 节点）
+  - 仪表盘全部从 `digest`/`stats` 现场水润（**无演示数字**）
+  - zh 全中文、en 全英文、零 CJK（en 模式）；
+  - `MINICC_WEB_URL=http://127.0.0.1:8899 node tests/almanac_smoke.mjs` → **passed: 15 chapters bilingual, chapter switching verified, no mixed-language prose**
+- `npm run build:web` 后 `check:web` 干净；i18n smoke 594 键对齐未动；`doc_pointers` rc=0；
+- manual + README 十五卷；新增章节也进了手册

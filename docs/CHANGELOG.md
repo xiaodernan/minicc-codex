@@ -344,3 +344,5 @@
 - **空状态直通说明书（M8-T990）**：启动即见教学 —— 第 4 枚 chip（mint 色，区别于琥珀行动召唤）「打开说明书，十一章全翻到 / Open the manual — all eleven chapters」，点击直接打开 11 章教学手册；i18n 双语对齐（594 键），双 locale 真浏览器验证 chip 数与一键打开；bundle 全部绿。
 
 - **年鉴第十四卷「余烬 / The Ember」上线（M8-T991）**：博物馆级章法继续压宽——本卷专读明早醒来打开本子时炉火没灭的那些读数（digest/stats 实值：首次提交 2026-08-24 · 提交 1561 · 跟踪 1,063 · 测试 705 · 批次 307 · 审计 1,468 · 会话 148 / 消息 2,588 · 23/24 完成 1 中断）；Playwright 双 locale + 14 章 smoke 全绿；manual/README 升至十四卷。
+
+- **年鉴第十五卷「星图 / The Atlas」上线（M8-T992）**：博物馆新馆——整个工作台摊成一张星图，节点按色相环分组（amber 工作面、mint 事实面、violet 实验面），19 颗闪烁星子 + 虚线漂移等值线；6 枚仪表从 digest/stats 现场水润（Commits 1,563 / Tracked 1,063 / Tests 705 / Batches 308 / Audit 1,468 / LRU 兜底）；15 章双语全绿，manual/README 升级，forked almanac_smoke 强制 15 章双语

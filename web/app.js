@@ -2377,7 +2377,8 @@
     { id: "backlog", roman: { zh: "\u5377\u5341", en: "Chapter X" }, title: { zh: "\u672A\u7ADF", en: "The Unfinished" }, subtitle: { zh: "\u8FD9\u518C\u5B50\u8FD8\u6CA1\u5199\u5B8C\uFF0C\u5B83\u6B63\u5728\u5199", en: "This wing is still being written" } },
     { id: "echo", roman: { zh: "\u5377\u5341\u4E00", en: "Chapter XI" }, title: { zh: "\u56DE\u58F0", en: "The Echo" }, subtitle: { zh: "\u4E09\u6839\u770B\u4E0D\u89C1\u7684\u5F26\uFF0C\u90FD\u5728\u54CD", en: "Three strings you cannot see, all humming" } },
     { id: "answer", roman: { zh: "\u5377\u5341\u4E8C", en: "Chapter XII" }, title: { zh: "\u56DE\u95EE", en: "The Answer Back" }, subtitle: { zh: "\u7EC8\u4E8E\u5B66\u4F1A\u56DE\u7B54\u7684\u8FD9\u672C\u4E66", en: "The book that answered back" } },
-    { id: "ember", roman: { zh: "\u5377\u5341\u4E09", en: "Chapter XIII" }, title: { zh: "\u4F59\u70EC", en: "The Ember" }, subtitle: { zh: "\u7089\u706B\u4E0D\u6563", en: "The hearth stays warm" } }
+    { id: "ember", roman: { zh: "\u5377\u5341\u4E09", en: "Chapter XIII" }, title: { zh: "\u4F59\u70EC", en: "The Ember" }, subtitle: { zh: "\u7089\u706B\u4E0D\u6563", en: "The hearth stays warm" } },
+    { id: "atlas", roman: { zh: "\u5377\u5341\u56DB", en: "Chapter XIV" }, title: { zh: "\u661F\u56FE", en: "The Atlas" }, subtitle: { zh: "\u8FD9\u7247\u4E16\u754C\u6709\u591A\u5C11\u5C9B", en: "How many islands this world holds" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -3111,6 +3112,153 @@
       </p>
     </div>`;
   }
+  function atlasMarkup() {
+    const d = digestCache;
+    const s = statsCache;
+    const commits = d?.total_commits != null ? String(d.total_commits) : "\u2014";
+    const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "\u2014";
+    const files = d?.tracked_files != null ? String(d.tracked_files) : "\u2014";
+    const tests = d?.test_files != null ? String(d.test_files) : "\u2014";
+    const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "\u2014";
+    const redisLive = s?.cache?.live_backend != null && s?.cache?.live_backend !== false;
+    const redisLabel = redisLive ? zh() ? "Redis \u5728\u7EBF" : "Redis live" : zh() ? "\u672C\u5730 LRU \u515C\u5E95" : "Local LRU";
+    return `
+    <div class="almanac-canvas almanac-atlas">
+      <div class="almanac-kicker">${zh() ? "\u5377\u5341\u56DB \xB7 \u661F\u56FE" : "Chapter XIV \xB7 The Atlas"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? '\u8FD9\u7247\u4E16\u754C\u91CC<br/><span class="almanac-title-accent">\u6BCF\u4E2A\u5C9B\u90FD\u6709\u540D\u5B57\u3002</span>' : 'This world \u2014<br/><span class="almanac-title-accent">every island has a name.</span>'}</h1>
+      <div class="almanac-body almanac-atlas-sky">
+        ${zh() ? `
+<p>\u628A\u6574\u4E2A\u5DE5\u4F5C\u53F0\u644A\u5F00\u6210\u4E00\u5F20\u661F\u56FE\u2014\u2014\u4E0D\u662F\u6BD4\u55BB\uFF0C\u662F\u754C\u9762\u3002</p>
+<svg class="atlas-sky" viewBox="0 0 880 420" role="img" aria-label="\u5DE5\u4F5C\u53F0\u661F\u56FE">
+  <defs>
+    <radialGradient id="atlasGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,214,124,.35)"/>
+      <stop offset="100%" stop-color="rgba(255,214,124,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowMint" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(152,226,177,.35)"/>
+      <stop offset="100%" stop-color="rgba(152,226,177,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowViolet" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(197,146,255,.35)"/>
+      <stop offset="100%" stop-color="rgba(197,146,255,0)"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="880" height="420" fill="url(#atlasGlow)" opacity=".5"/>
+  <rect x="140" y="40" width="480" height="300" fill="url(#atlasGlowMint)" opacity=".35"/>
+  <rect x="380" y="120" width="420" height="260" fill="url(#atlasGlowViolet)" opacity=".4"/>
+  <g class="atlas-stars" stroke="rgba(255,255,255,.42)" stroke-width="1.3">
+    <circle cx="60" cy="70" r=".8"/><circle cx="130" cy="32" r="1.1"/><circle cx="210" cy="88" r=".7"/><circle cx="320" cy="40" r=".9"/>
+    <circle cx="420" cy="92" r=".8"/><circle cx="530" cy="36" r="1.2"/><circle cx="640" cy="78" r=".7"/><circle cx="750" cy="34" r="1"/>
+    <circle cx="830" cy="108" r=".8"/><circle cx="90" cy="162" r="1"/><circle cx="180" cy="210" r=".7"/><circle cx="770" cy="200" r=".9"/>
+    <circle cx="280" cy="148" r="1.1"/><circle cx="600" cy="148" r=".8"/><circle cx="260" cy="268" r=".9"/><circle cx="720" cy="310" r="1.1"/>
+    <circle cx="110" cy="292" r=".8"/><circle cx="810" cy="356" r=".9"/>
+  </g>
+  <g class="atlas-lines" stroke="rgba(255,214,124,.38)" stroke-width="1.1" stroke-dasharray="1.5 6" fill="none">
+    <path d="M90 290 L210 210 L150 118 L260 122 L390 80 L530 190 L640 128 L770 90"/>
+    <path d="M230 374 L430 330 L640 380 L760 290 L840 170"/>
+  </g>
+  <g class="atlas-nodes atlas-amber">
+    <circle cx="150" cy="118" r="6"/><text x="150" y="106">\u5DE5\u4F5C\u53F0</text>
+    <circle cx="260" cy="122" r="5.5"/><text x="260" y="110">\u5E74\u9274</text>
+    <circle cx="390" cy="80" r="5.5"/><text x="390" y="66">\u8BF4\u660E\u4E66</text>
+    <circle cx="210" cy="210" r="5.5"/><text x="210" y="232">\u56DE\u95EE</text>
+    <circle cx="530" cy="190" r="6"/><text x="530" y="172">\u4F59\u70EC</text>
+  </g>
+  <g class="atlas-nodes atlas-mint">
+    <circle cx="90" cy="290" r="5.5"/><text x="90" y="312">\u8109\u640F</text>
+    <circle cx="430" cy="330" r="5.5"/><text x="430" y="352">\u8D26\u672C</text>
+    <circle cx="640" cy="380" r="5.5"/><text x="640" y="404">\u6863\u6848\u9986</text>
+    <circle cx="640" cy="128" r="5.5"/><text x="640" y="110">\u94C1\u5F8B</text>
+  </g>
+  <g class="atlas-nodes atlas-violet">
+    <circle cx="770" cy="90" r="5.5"/><text x="770" y="72">\u6F14\u7EC3</text>
+    <circle cx="840" cy="170" r="5.5"/><text x="840" y="156">\u6A21\u677F</text>
+    <circle cx="520" cy="258" r="5.5"/><text x="520" y="278">\u65E5\u5FD7</text>
+    <circle cx="380" cy="295" r="5.5"/><text x="380" y="316">\u5C0F\u6E38\u620F</text>
+    <circle cx="760" cy="290" r="5.5"/><text x="760" y="312">\u8FD1\u51B5</text>
+  </g>
+</svg>
+<p class="atlas-stage-caption">\u8282\u70B9\u4EE5\u8272\u76F8\u73AF\u5206\u7EC4\uFF1A\u7425\u73C0 = \u5DE5\u4F5C\u9762\uFF0Cmint = \u4E8B\u5B9E\u9762\uFF0Cviolet = \u5B9E\u9A8C\u9762\u3002\u6BCF\u4E00\u9897\u661F\u90FD\u662F\u5B9E\u4F53\u7684\u5BFC\u822A\u5165\u53E3\uFF0C\u4E0D\u662F\u88C5\u9970\u3002</p>` : `
+<p>Unfold the whole workbench onto one star chart \u2014 not a metaphor, a map of the interface itself.</p>
+<svg class="atlas-sky" viewBox="0 0 880 420" role="img" aria-label="Workbench star chart">
+  <defs>
+    <radialGradient id="atlasGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,214,124,.35)"/>
+      <stop offset="100%" stop-color="rgba(255,214,124,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowMint" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(152,226,177,.35)"/>
+      <stop offset="100%" stop-color="rgba(152,226,177,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowViolet" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(197,146,255,.35)"/>
+      <stop offset="100%" stop-color="rgba(197,146,255,0)"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="880" height="420" fill="url(#atlasGlow)" opacity=".5"/>
+  <rect x="140" y="40" width="480" height="300" fill="url(#atlasGlowMint)" opacity=".35"/>
+  <rect x="380" y="120" width="420" height="260" fill="url(#atlasGlowViolet)" opacity=".4"/>
+  <g class="atlas-stars" stroke="rgba(255,255,255,.42)" stroke-width="1.3">
+    <circle cx="60" cy="70" r=".8"/><circle cx="130" cy="32" r="1.1"/><circle cx="210" cy="88" r=".7"/><circle cx="320" cy="40" r=".9"/>
+    <circle cx="420" cy="92" r=".8"/><circle cx="530" cy="36" r="1.2"/><circle cx="640" cy="78" r=".7"/><circle cx="750" cy="34" r="1"/>
+    <circle cx="830" cy="108" r=".8"/><circle cx="90" cy="162" r="1"/><circle cx="180" cy="210" r=".7"/><circle cx="770" cy="200" r=".9"/>
+    <circle cx="280" cy="148" r="1.1"/><circle cx="600" cy="148" r=".8"/><circle cx="260" cy="268" r=".9"/><circle cx="720" cy="310" r="1.1"/>
+    <circle cx="110" cy="292" r=".8"/><circle cx="810" cy="356" r=".9"/>
+  </g>
+  <g class="atlas-lines" stroke="rgba(255,214,124,.38)" stroke-width="1.1" stroke-dasharray="1.5 6" fill="none">
+    <path d="M90 290 L210 210 L150 118 L260 122 L390 80 L530 190 L640 128 L770 90"/>
+    <path d="M230 374 L430 330 L640 380 L760 290 L840 170"/>
+  </g>
+  <g class="atlas-nodes atlas-amber">
+    <circle cx="150" cy="118" r="6"/><text x="150" y="106">Workbench</text>
+    <circle cx="260" cy="122" r="5.5"/><text x="260" y="110">Almanac</text>
+    <circle cx="390" cy="80" r="5.5"/><text x="390" y="66">Manual</text>
+    <circle cx="210" cy="210" r="5.5"/><text x="210" y="232">Ask the Repo</text>
+    <circle cx="530" cy="190" r="6"/><text x="530" y="172">Ember</text>
+  </g>
+  <g class="atlas-nodes atlas-mint">
+    <circle cx="90" cy="290" r="5.5"/><text x="90" y="312">Pulse</text>
+    <circle cx="430" cy="330" r="5.5"/><text x="430" y="352">Ledger</text>
+    <circle cx="640" cy="380" r="5.5"/><text x="640" y="404">Archive</text>
+    <circle cx="640" cy="128" r="5.5"/><text x="640" y="110">Axioms</text>
+  </g>
+  <g class="atlas-nodes atlas-violet">
+    <circle cx="770" cy="90" r="5.5"/><text x="770" y="72">Tour</text>
+    <circle cx="840" cy="170" r="5.5"/><text x="840" y="156">Templates</text>
+    <circle cx="520" cy="258" r="5.5"/><text x="520" y="278">Journal</text>
+    <circle cx="380" cy="295" r="5.5"/><text x="380" y="316">Arcade</text>
+    <circle cx="760" cy="290" r="5.5"/><text x="760" y="312">Recent</text>
+  </g>
+</svg>
+<p class="atlas-stage-caption">Nodes grouped by hue: amber = working surfaces, mint = fact surfaces, violet = experimental surfaces. Every star is an entry point, not a decoration.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u8DDF\u8E2A\u6587\u4EF6" : "Tracked files"}</div><div class="almanac-instrument-value">${escapeHtml(files)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6D4B\u8BD5\u6587\u4EF6" : "Test files"}</div><div class="almanac-instrument-value">${escapeHtml(tests)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u6279\u6B21\u7AE0\u8282" : "Batch chapters"}</div><div class="almanac-instrument-value">${escapeHtml(batches)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5BA1\u8BA1\u884C\u6570" : "Audit lines"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u7F13\u5B58\u540E\u7AEF" : "Cache backend"}</div><div class="almanac-instrument-value">${escapeHtml(redisLabel)}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["\u5DE5\u4F5C\u53F0 \xB7 \u5E74\u9274 \xB7 \u8BF4\u660E\u4E66", "\u7425\u73C0\u73AF\uFF1A\u8FDB\u5165\u4EA7\u54C1\u5C31\u770B\u5F97\u89C1\u7684\u52A8\u4F5C\u9762\u2014\u2014\u8BFB\u3001\u5199\u3001\u8DD1\u3001\u6D4B"],
+      ["\u8109\u640F \xB7 \u8D26\u672C \xB7 \u6863\u6848\u9986 \xB7 \u94C1\u5F8B", "mint \u73AF\uFF1A\u6309\u987A\u5E8F\u770B\u9879\u76EE\u81EA\u5DF1\u7684\u8BC1\u636E\u2014\u2014\u6BCF\u4E2A\u6570\u5B57\u90FD\u6765\u81EA\u771F\u5B9E\u4ED3\u5E93"],
+      ["\u6F14\u7EC3 \xB7 \u6A21\u677F \xB7 \u65E5\u5FD7 \xB7 \u5C0F\u6E38\u620F \xB7 \u8FD1\u51B5", "violet \u73AF\uFF1A\u73A9\u4E00\u73A9\uFF0C\u5B66\u4E00\u5B66\uFF0C\u8BB0\u4E0B\u6765\u2014\u2014\u9879\u76EE\u7684\u53E6\u4E00\u534A\u4E50\u8DA3"],
+      ["\u6240\u6709\u9762\u677F\u90FD\u8D70\u540C\u4E00\u4EFD\u6570\u636E", "digest \u8BA1\u6570\u548C stats \u73B0\u573A\u8BFB\u2014\u2014\u6CA1\u6709\u4E00\u4E2A\u6570\u5B57\u662F\u88C5\u9970"],
+      ["14 \u5377\u53D9\u4E8B", "\u4ECE\u5E8F\u7AE0\u5230\u661F\u56FE\uFF0C\u6BCF\u4E00\u5377\u90FD\u662F git \u5199\u51FA\u6765\u7684\u4E00\u9875"]
+    ] : [
+      ["Workbench \xB7 Almanac \xB7 Manual", "Amber ring: the working surfaces \u2014 read, write, run, verify"],
+      ["Pulse \xB7 Ledger \xB7 Archive \xB7 Axioms", "Mint ring: the fact surfaces \u2014 every number read live from this repository"],
+      ["Tour \xB7 Templates \xB7 Journal \xB7 Arcade \xB7 Recent", "Violet ring: the fun surfaces \u2014 play with the product, learn the product"],
+      ["One data layer for every panel", "count_files + stats read live \u2014 none of these numbers is a decoration"],
+      ["Fourteen chapters", "From Prologue to Atlas \u2014 each one is a page written by git"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u8FD9\u5F20\u56FE\u53EA\u662F\u5165\u53E3\uFF0C\u4E0D\u662F\u7EC8\u70B9\u3002\u6BCF\u5F80\u524D\u8D70\u4E00\u6B65\uFF0C\u80CC\u540E\u90FD\u4F1A\u591A\u51FA\u4E00\u5708\u3002" : "This chart is the entry, not the horizon. Every step forward widens the circle."}
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
@@ -3125,7 +3273,8 @@
     backlog: () => backlogMarkup(),
     echo: () => echoMarkup(),
     answer: () => answerMarkup(),
-    ember: () => emberMarkup()
+    ember: () => emberMarkup(),
+    atlas: () => atlasMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -3325,7 +3474,7 @@
     <ul class="manual-chapter-list">
       <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
       <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
-      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u4E09\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E8C\u300A\u56DE\u95EE\u300B\uFF0C\u8BB2\u7684\u662F\u9879\u76EE\u7EC8\u4E8E\u5B66\u4F1A\u53CD\u8FC7\u8EAB\u6765\u56DE\u7B54\u8BFB\u8005\u7684\u95EE\u9898\u2014\u2014\u6CA1\u6709 embedding\u3001\u6CA1\u6709\u5411\u91CF\u5E93\u3001\u771F key \u771F\u8DD1\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u5341\u56DB\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u5341\u4E09\u300A\u4F59\u70EC\u300B\uFF0C\u8BB2\u7684\u662F\u9879\u76EE\u7EC8\u4E8E\u5B66\u4F1A\u53CD\u8FC7\u8EAB\u6765\u56DE\u7B54\u8BFB\u8005\u7684\u95EE\u9898\u2014\u2014\u6CA1\u6709 embedding\u3001\u6CA1\u6709\u5411\u91CF\u5E93\u3001\u771F key \u771F\u8DD1\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -3340,7 +3489,7 @@
     <ul class="manual-chapter-list">
       <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
       <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
-      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in thirteen chapters (the newest, Chapter XII \u201CThe Answer Back\u201D \u2014 the book answering its reader, no embeddings, no vector store, real key end to end), every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in fourteen chapters (the newest, Chapter XIII \u201CThe Ember\u201D \u2014 the book answering its reader, no embeddings, no vector store, real key end to end), every figure sourced from /api/digest, /api/stats and git itself.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>

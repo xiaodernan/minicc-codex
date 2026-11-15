@@ -33,6 +33,7 @@ const CHAPTERS = [
   { id: "echo", roman: { zh: "卷十一", en: "Chapter XI" }, title: { zh: "回声", en: "The Echo" }, subtitle: { zh: "三根看不见的弦，都在响", en: "Three strings you cannot see, all humming" } },
   { id: "answer", roman: { zh: "卷十二", en: "Chapter XII" }, title: { zh: "回问", en: "The Answer Back" }, subtitle: { zh: "终于学会回答的这本书", en: "The book that answered back" } },
   { id: "ember", roman: { zh: "卷十三", en: "Chapter XIII" }, title: { zh: "余烬", en: "The Ember" }, subtitle: { zh: "炉火不散", en: "The hearth stays warm" } },
+  { id: "atlas", roman: { zh: "卷十四", en: "Chapter XIV" }, title: { zh: "星图", en: "The Atlas" }, subtitle: { zh: "这片世界有多少岛", en: "How many islands this world holds" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -808,6 +809,158 @@ function emberMarkup() {
     </div>`;
 }
 
+function atlasMarkup() {
+  const d = digestCache;
+  const s = statsCache;
+  const commits = d?.total_commits != null ? String(d.total_commits) : "—";
+  const batches = d?.roadmap_batches != null ? String(d.roadmap_batches) : "—";
+  const files = d?.tracked_files != null ? String(d.tracked_files) : "—";
+  const tests = d?.test_files != null ? String(d.test_files) : "—";
+  const audit = s?.audit?.present === true && typeof s?.audit?.lines === "number" ? String(s.audit.lines) : "—";
+  const redisLive = s?.cache?.live_backend != null && s?.cache?.live_backend !== false;
+  const redisLabel = redisLive ? (zh() ? "Redis 在线" : "Redis live") : (zh() ? "本地 LRU 兜底" : "Local LRU");
+  return `
+    <div class="almanac-canvas almanac-atlas">
+      <div class="almanac-kicker">${zh() ? "卷十四 · 星图" : "Chapter XIV · The Atlas"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? "这片世界里<br/><span class=\"almanac-title-accent\">每个岛都有名字。</span>"
+        : "This world —<br/><span class=\"almanac-title-accent\">every island has a name.</span>"}</h1>
+      <div class="almanac-body almanac-atlas-sky">
+        ${zh() ? `
+<p>把整个工作台摊开成一张星图——不是比喻，是界面。</p>
+<svg class="atlas-sky" viewBox="0 0 880 420" role="img" aria-label="工作台星图">
+  <defs>
+    <radialGradient id="atlasGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,214,124,.35)"/>
+      <stop offset="100%" stop-color="rgba(255,214,124,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowMint" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(152,226,177,.35)"/>
+      <stop offset="100%" stop-color="rgba(152,226,177,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowViolet" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(197,146,255,.35)"/>
+      <stop offset="100%" stop-color="rgba(197,146,255,0)"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="880" height="420" fill="url(#atlasGlow)" opacity=".5"/>
+  <rect x="140" y="40" width="480" height="300" fill="url(#atlasGlowMint)" opacity=".35"/>
+  <rect x="380" y="120" width="420" height="260" fill="url(#atlasGlowViolet)" opacity=".4"/>
+  <g class="atlas-stars" stroke="rgba(255,255,255,.42)" stroke-width="1.3">
+    <circle cx="60" cy="70" r=".8"/><circle cx="130" cy="32" r="1.1"/><circle cx="210" cy="88" r=".7"/><circle cx="320" cy="40" r=".9"/>
+    <circle cx="420" cy="92" r=".8"/><circle cx="530" cy="36" r="1.2"/><circle cx="640" cy="78" r=".7"/><circle cx="750" cy="34" r="1"/>
+    <circle cx="830" cy="108" r=".8"/><circle cx="90" cy="162" r="1"/><circle cx="180" cy="210" r=".7"/><circle cx="770" cy="200" r=".9"/>
+    <circle cx="280" cy="148" r="1.1"/><circle cx="600" cy="148" r=".8"/><circle cx="260" cy="268" r=".9"/><circle cx="720" cy="310" r="1.1"/>
+    <circle cx="110" cy="292" r=".8"/><circle cx="810" cy="356" r=".9"/>
+  </g>
+  <g class="atlas-lines" stroke="rgba(255,214,124,.38)" stroke-width="1.1" stroke-dasharray="1.5 6" fill="none">
+    <path d="M90 290 L210 210 L150 118 L260 122 L390 80 L530 190 L640 128 L770 90"/>
+    <path d="M230 374 L430 330 L640 380 L760 290 L840 170"/>
+  </g>
+  <g class="atlas-nodes atlas-amber">
+    <circle cx="150" cy="118" r="6"/><text x="150" y="106">工作台</text>
+    <circle cx="260" cy="122" r="5.5"/><text x="260" y="110">年鉴</text>
+    <circle cx="390" cy="80" r="5.5"/><text x="390" y="66">说明书</text>
+    <circle cx="210" cy="210" r="5.5"/><text x="210" y="232">回问</text>
+    <circle cx="530" cy="190" r="6"/><text x="530" y="172">余烬</text>
+  </g>
+  <g class="atlas-nodes atlas-mint">
+    <circle cx="90" cy="290" r="5.5"/><text x="90" y="312">脉搏</text>
+    <circle cx="430" cy="330" r="5.5"/><text x="430" y="352">账本</text>
+    <circle cx="640" cy="380" r="5.5"/><text x="640" y="404">档案馆</text>
+    <circle cx="640" cy="128" r="5.5"/><text x="640" y="110">铁律</text>
+  </g>
+  <g class="atlas-nodes atlas-violet">
+    <circle cx="770" cy="90" r="5.5"/><text x="770" y="72">演练</text>
+    <circle cx="840" cy="170" r="5.5"/><text x="840" y="156">模板</text>
+    <circle cx="520" cy="258" r="5.5"/><text x="520" y="278">日志</text>
+    <circle cx="380" cy="295" r="5.5"/><text x="380" y="316">小游戏</text>
+    <circle cx="760" cy="290" r="5.5"/><text x="760" y="312">近况</text>
+  </g>
+</svg>
+<p class="atlas-stage-caption">节点以色相环分组：琥珀 = 工作面，mint = 事实面，violet = 实验面。每一颗星都是实体的导航入口，不是装饰。</p>` : `
+<p>Unfold the whole workbench onto one star chart — not a metaphor, a map of the interface itself.</p>
+<svg class="atlas-sky" viewBox="0 0 880 420" role="img" aria-label="Workbench star chart">
+  <defs>
+    <radialGradient id="atlasGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,214,124,.35)"/>
+      <stop offset="100%" stop-color="rgba(255,214,124,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowMint" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(152,226,177,.35)"/>
+      <stop offset="100%" stop-color="rgba(152,226,177,0)"/>
+    </radialGradient>
+    <radialGradient id="atlasGlowViolet" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="rgba(197,146,255,.35)"/>
+      <stop offset="100%" stop-color="rgba(197,146,255,0)"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="880" height="420" fill="url(#atlasGlow)" opacity=".5"/>
+  <rect x="140" y="40" width="480" height="300" fill="url(#atlasGlowMint)" opacity=".35"/>
+  <rect x="380" y="120" width="420" height="260" fill="url(#atlasGlowViolet)" opacity=".4"/>
+  <g class="atlas-stars" stroke="rgba(255,255,255,.42)" stroke-width="1.3">
+    <circle cx="60" cy="70" r=".8"/><circle cx="130" cy="32" r="1.1"/><circle cx="210" cy="88" r=".7"/><circle cx="320" cy="40" r=".9"/>
+    <circle cx="420" cy="92" r=".8"/><circle cx="530" cy="36" r="1.2"/><circle cx="640" cy="78" r=".7"/><circle cx="750" cy="34" r="1"/>
+    <circle cx="830" cy="108" r=".8"/><circle cx="90" cy="162" r="1"/><circle cx="180" cy="210" r=".7"/><circle cx="770" cy="200" r=".9"/>
+    <circle cx="280" cy="148" r="1.1"/><circle cx="600" cy="148" r=".8"/><circle cx="260" cy="268" r=".9"/><circle cx="720" cy="310" r="1.1"/>
+    <circle cx="110" cy="292" r=".8"/><circle cx="810" cy="356" r=".9"/>
+  </g>
+  <g class="atlas-lines" stroke="rgba(255,214,124,.38)" stroke-width="1.1" stroke-dasharray="1.5 6" fill="none">
+    <path d="M90 290 L210 210 L150 118 L260 122 L390 80 L530 190 L640 128 L770 90"/>
+    <path d="M230 374 L430 330 L640 380 L760 290 L840 170"/>
+  </g>
+  <g class="atlas-nodes atlas-amber">
+    <circle cx="150" cy="118" r="6"/><text x="150" y="106">Workbench</text>
+    <circle cx="260" cy="122" r="5.5"/><text x="260" y="110">Almanac</text>
+    <circle cx="390" cy="80" r="5.5"/><text x="390" y="66">Manual</text>
+    <circle cx="210" cy="210" r="5.5"/><text x="210" y="232">Ask the Repo</text>
+    <circle cx="530" cy="190" r="6"/><text x="530" y="172">Ember</text>
+  </g>
+  <g class="atlas-nodes atlas-mint">
+    <circle cx="90" cy="290" r="5.5"/><text x="90" y="312">Pulse</text>
+    <circle cx="430" cy="330" r="5.5"/><text x="430" y="352">Ledger</text>
+    <circle cx="640" cy="380" r="5.5"/><text x="640" y="404">Archive</text>
+    <circle cx="640" cy="128" r="5.5"/><text x="640" y="110">Axioms</text>
+  </g>
+  <g class="atlas-nodes atlas-violet">
+    <circle cx="770" cy="90" r="5.5"/><text x="770" y="72">Tour</text>
+    <circle cx="840" cy="170" r="5.5"/><text x="840" y="156">Templates</text>
+    <circle cx="520" cy="258" r="5.5"/><text x="520" y="278">Journal</text>
+    <circle cx="380" cy="295" r="5.5"/><text x="380" y="316">Arcade</text>
+    <circle cx="760" cy="290" r="5.5"/><text x="760" y="312">Recent</text>
+  </g>
+</svg>
+<p class="atlas-stage-caption">Nodes grouped by hue: amber = working surfaces, mint = fact surfaces, violet = experimental surfaces. Every star is an entry point, not a decoration.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "跟踪文件" : "Tracked files"}</div><div class="almanac-instrument-value">${escapeHtml(files)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "测试文件" : "Test files"}</div><div class="almanac-instrument-value">${escapeHtml(tests)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "批次章节" : "Batch chapters"}</div><div class="almanac-instrument-value">${escapeHtml(batches)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "审计行数" : "Audit lines"}</div><div class="almanac-instrument-value">${escapeHtml(audit)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "缓存后端" : "Cache backend"}</div><div class="almanac-instrument-value">${escapeHtml(redisLabel)}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["工作台 · 年鉴 · 说明书", "琥珀环：进入产品就看得见的动作面——读、写、跑、测"],
+        ["脉搏 · 账本 · 档案馆 · 铁律", "mint 环：按顺序看项目自己的证据——每个数字都来自真实仓库"],
+        ["演练 · 模板 · 日志 · 小游戏 · 近况", "violet 环：玩一玩，学一学，记下来——项目的另一半乐趣"],
+        ["所有面板都走同一份数据", "digest 计数和 stats 现场读——没有一个数字是装饰"],
+        ["14 卷叙事", "从序章到星图，每一卷都是 git 写出来的一页"],
+      ] : [
+        ["Workbench · Almanac · Manual", "Amber ring: the working surfaces — read, write, run, verify"],
+        ["Pulse · Ledger · Archive · Axioms", "Mint ring: the fact surfaces — every number read live from this repository"],
+        ["Tour · Templates · Journal · Arcade · Recent", "Violet ring: the fun surfaces — play with the product, learn the product"],
+        ["One data layer for every panel", "count_files + stats read live — none of these numbers is a decoration"],
+        ["Fourteen chapters", "From Prologue to Atlas — each one is a page written by git"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "这张图只是入口，不是终点。每往前走一步，背后都会多出一圈。"
+          : "This chart is the entry, not the horizon. Every step forward widens the circle."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -823,6 +976,7 @@ const CHAPTER_RENDERERS = {
   echo: () => echoMarkup(),
   answer: () => answerMarkup(),
   ember: () => emberMarkup(),
+  atlas: () => atlasMarkup(),
 };
 
 async function loadChapter(id) {

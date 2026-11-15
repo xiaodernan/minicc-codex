@@ -5176,3 +5176,20 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-ember .almanac-gate-list li { border-left-color: var(--coral); }
 .almanac-ember .almanac-instrument-value { color: var(--coral); }
 .almanac-ember .almanac-instrument-label { color: var(--coral); opacity: .85; }
+/* M8-T992: almanac chapter XIV — The Atlas, star-chart styling */
+.atlas-sky { width: 100%; height: auto; display: block; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--amber) 18%, transparent); background: radial-gradient(ellipse at 50% 45%, #0b1020 0%, #05070f 80%); margin-bottom: 14px; }
+.atlas-stars circle { animation: atlas-twinkle 3.6s ease-in-out infinite; }
+.atlas-stars circle:nth-child(odd) { animation-delay: 1.2s; animation-duration: 4.8s; }
+.atlas-stars circle:nth-child(3n) { animation-delay: 2.1s; animation-duration: 5.6s; }
+@keyframes atlas-twinkle { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.atlas-lines path { stroke-dashoffset: 0; animation: atlas-flow 28s linear infinite; }
+@keyframes atlas-flow { to { stroke-dashoffset: -720; } }
+.atlas-nodes circle { stroke: none; }
+.atlas-amber circle { fill: var(--amber); }
+.atlas-amber text { fill: var(--amber); font: 700 11px "Manrope", sans-serif; letter-spacing: .04em; opacity: .92; }
+.atlas-mint circle { fill: var(--mint); }
+.atlas-mint text { fill: var(--mint); font: 700 11px "Manrope", sans-serif; letter-spacing: .04em; opacity: .92; }
+.atlas-violet circle { fill: var(--purple); }
+.atlas-violet text { fill: var(--purple); font: 700 11px "Manrope", sans-serif; letter-spacing: .04em; opacity: .92; }
+.atlas-stage-caption { color: var(--quiet); font-size: 11px; margin-top: 0; margin-bottom: 6px; letter-spacing: .02em; }
+.almanac-ember .almanac-instrument-label { color: var(--mint); opacity: .85; }
