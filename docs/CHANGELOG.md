@@ -386,3 +386,6 @@
 - **手册 smoke 补齐（M8-T1012）**：13 章全自检——zh 要求 CJK 出现、en 要求零 CJK、每章非空、无 pageerror 计入失败；`test:manual` 并入 `test:arcade`，CI 下次推送即上门。
 
 - **CI 全绿（M8-T1013）**：run `43699944605`（`8ca28e8d`）一次跑完、每一项都是绿——Claim checkers / Python tests (windows + ubuntu) / Service plane (mvn) / M1 reliability probe / JavaScript syntax / PR eval gate / Playwright web smoke / mutation web smoke 全绿；Nightly 仅按设计跳过。是近期第一次一次跑完、一格不红。
+
+- **管理员面板上线（M8-T1014）**：前端 `web/src/panels/admin.js` + 后端 `/api/admin/summary`。密码 123 的共享门（本地优先、诚实标注、不是登录系统）：24 任务 / 22 完成 / 2 中断、缓存命中率 62.0%（真实 ledger 聚合）、审计 1515 行、会话 155、七日事件趋势真实曲线（audit.jsonl 时间戳按 UTC 天分桶并补零）、基于真实数据的 3 条优化建议（保持缓存热度 / 回看 2 个中断任务 / Redis 实时后端）、最近 8 个任务真实列表。锁/解锁两态 zh/en 均经过真浏览器（Playwright 2560x1440）验证；dockyard/admin 顶层 `compact` 改名 `compactCount`（esbuild 重命名 countLabel 形参事故）；事件流里 key 形态 token 已脱敏；admin 面板仅新增 `/api/admin/summary` 一条路由。
+- **CI 红（run 43700750043, a117bdd）复盘（M8-T1014 顺手修）**：Python 双腿因本批编辑产生三红——(1) i18n.js 被重写剥掉 CRLF（该文件工作树本应保持 CRLF），已原样恢复并复核门禁；(2) 源/bundle `countLabel` 不一致——新 `admin.js` 与既有 `dockyard.js` 都在模块顶层声明 `const compact`，esbuild 把 countLabel 形参重命名为 compact2/compact3，两处都改名 `compactCount` 后门禁重新通过；(3) `record_text(8000)` 的第三方引用随本批 webserver 路由插入下移 20 行（web.py:1818→1838、:2324→:2344），所有引用/注释/引用清单同步更新。结论：docs-only 推送不该红——红的都是可追溯的编辑事故，已在本批修复并本地验证。

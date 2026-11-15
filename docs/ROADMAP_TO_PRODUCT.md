@@ -52954,3 +52954,25 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - 数周来上次 Python 腿完整结果只能看失败，本次 Windows + Ubuntu 两条腿**都是 success**；
 - Claim checkers 绿 + web-smoke 绿 + mutation smoke 绿 + PR-eval 绿 + mvn 绿 + M1 绿 —— 一口气跑完，不必再重跑；
 - 新增 `tests/manual_smoke.mjs` 没有造成任何回归，`test:arcade` 现在包含它。
+
+## 批次 1004 - M8-T1014: 管理员面板 — 密码 123 的共享门，全部真实数据
+
+### 1 背景
+
+用户要求一扇所有访客都知道密码的管理员门：进来能看到所有用户行为的统计、趋势预测、按数据给出的深度优化措施。关键约束：全部数字必须来自真实工作区（audit.jsonl、tasks store、ledger 聚合缓存命中），绝不允许演示数据冒充。
+
+### 2 做了什么
+
+- **后端 `minicc/admin.py`**：`build_summary(Path)` 只读聚合——totals（任务 24 / 完成 22 / 中断 2 / 缓存命中 62.0% / 审计 1515 行 / 会话 155）、七日事件趋势（audit.jsonl 按 UTC 日期分桶，缺日补零，11-13 177 / 11-15 47）、最近 8 个真实任务（从 `~/.minicc/tasks.sqlite3` 合并 workspace 读数，age_hours 实时计算）、3 条基于真实数据的优化建议（缓存 62% 低于 80% 建议 keeper 节奏；2 个中断任务建议回看事件流找共同根因；Redis fallback 提醒）、redis + ratelimit 真实指标。全程 never-raise：损坏的工作区退化为空段，不伪造数字。
+- **路由 `/api/admin/summary`**（唯一新增）：never-500，任何异常退化为 `{error: ...}` + 200。
+- **前端**：`web/src/panels/admin.js` 锁定态默认渲染（shared-password 说明语气）、密码 123 解锁（错误口令 shake + coral 边框）、canvas 七日事件柱状图（dpr 感知、mint/quiet 双色）、建议卡按 priority 描边（high=coral，medium=amber，good=mint）、最近任务清单；21+1 个双语 i18n 键；图标全部用本地注册表已存在的 glyph（`unlock/gauge/lightbulb/list/lock-keyhole` 不存在→`shield-check/layout-dashboard/sparkles/list-checks/lock`）。
+- **门禁事故修复（同批）**：CRLF 复原、countLabel 源/bundle 一致、`web.py` 引用 1818→1838/2324→2344。
+- **真实浏览器验证**：Playwright 2560×1440，zh/en × locked/unlocked 共 4 张截图，数字逐一核对（24/22/2/62%/1.5k/155）。
+
+### 3 验证
+
+- `node --check web/src/panels/admin.js|main.js|core/i18n.js|panels/dockyard.js` OK
+- `npm run build:web && npm run check:web` OK（app.js 692,424 chars，assets clean）
+- `.venv/Scripts/python.exe -m pytest tests/test_http_surface.py -k admin` 1 passed；`test_the_panel_does_not_print_a_missing_count_as_zero.py` 13 passed；`test_a_line_a_test_docstring_cites_can_be_read.py` 6 passed；CRLF 门禁 passed
+- 锁定/解锁截图：`output/admin_locked_{zh,en}.png`、`output/admin_unlocked_{zh,en}.png`
+- **诚实记录**：CI run `43700750043`（docs-only `a117bdd`）双 Python 腿红，三因全部在本批可追溯修复。本批提交后 CI 结果将以 `gh run view` 实测为准。

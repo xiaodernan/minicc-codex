@@ -2593,3 +2593,6 @@ function drawDoctorHistogram(samples) {
 
 import { openDockyard } from "../panels/dockyard.js";
 export { openDockyard };
+
+import { openAdmin } from "../panels/admin.js";
+export { openAdmin };

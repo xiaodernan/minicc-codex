@@ -95,7 +95,7 @@
           <button class="nav-item" data-view="almanac"><i data-lucide="book-open"></i><span data-i18n="nav.almanac">年鉴</span></button>
           <button class="nav-item" data-view="axioms"><i data-lucide="scroll-text"></i><span data-i18n="nav.axioms">铁律</span></button>
           <button class="nav-item" data-view="journal"><i data-lucide="notebook-pen"></i><span data-i18n="nav.journal">日志</span></button>
-          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button><button class="nav-item dockyard-nav" id="dockyardButton" data-view="dockyard"><i data-lucide="anchor"></i><span data-i18n="nav.dockyard">船厂</span></button>
+          <button class="nav-item" data-view="archive"><i data-lucide="archive"></i><span data-i18n="nav.archive">档案馆</span></button><button class="nav-item" data-view="askdocs"><i data-lucide="file-search-2"></i><span data-i18n="nav.askdocs"></span></button><button class="nav-item doctor-nav" id="doctorButton" data-view="doctor"><i data-lucide="stethoscope"></i><span data-i18n="nav.doctor">诊断</span></button><button class="nav-item dockyard-nav" id="dockyardButton" data-view="dockyard"><i data-lucide="anchor"></i><span data-i18n="nav.dockyard">船厂</span></button><button class="nav-item admin-nav" id="adminButton" data-view="admin"><i data-lucide="lock"></i><span data-i18n="nav.admin">管理</span></button>
           <button class="nav-item menu-juicer" data-view="recent"><i data-lucide="newspaper"></i><span data-i18n="nav.recent">近况</span><b>UPD</b></button>
         </nav>
 
@@ -466,6 +466,66 @@
           </section>
         </div>
         <p class="dockyard-quote" data-i18n="yard.quote">每一艘能回港的船，起步时都带着一个真实的问题。</p>
+      </div>
+    </div>
+
+
+    <div class="admin-stage" id="adminStage" aria-hidden="true" aria-labelledby="adminStageTitle">
+      <div class="admin-stage-card" role="dialog" aria-modal="true">
+        <button class="admin-stage-close icon-button" id="adminStageClose" type="button" aria-label="Close admin" data-i18n-aria="admin.close"><i data-lucide="x"></i></button>
+        <div class="admin-stage-header">
+          <div>
+            <div class="admin-kicker"><i data-lucide="lock"></i><span data-i18n="admin.kicker">实时 · read-only · 数字来自真实，从不伪造</span></div>
+            <h2 class="admin-stage-title" id="adminStageTitle" data-i18n="admin.title">管理员</h2>
+            <p class="admin-tagline" data-i18n="admin.tagline">密码 123 解锁；任何已知访问者都可以打开这个面板——它是无密码保护的，换个值你自己改。</p>
+          </div>
+        </div>
+
+        <!-- locked state -->
+        <section class="admin-locked" id="adminLocked" aria-label="unlock panel">
+          <div class="admin-locked-inner">
+            <i data-lucide="lock" class="admin-locked-icon"></i>
+            <h3 class="admin-locked-title" data-i18n="admin.lockedTitle">输入密码</h3>
+            <p class="admin-locked-note" data-i18n="admin.lockedNote">密码为 123，随便写一个像 admin 的词也不是别的歧视。</p>
+            <label class="admin-password-field" for="adminPassword"><span class="sr-only" data-i18n="admin.passwordLabel">密码</span><input class="admin-password-input" id="adminPassword" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="123" data-i18n-placeholder="admin.passwordPlaceholder" aria-describedby="adminUnlockHint" /></label>
+            <button class="admin-unlock-btn" id="adminUnlockBtn" type="button"><i data-lucide="shield-check"></i><span data-i18n="admin.unlock">解锁</span></button>
+            <small id="adminUnlockHint" class="admin-locked-hint" data-i18n="admin.unlockHint">回车或点击解锁</small>
+          </div>
+        </section>
+
+        <!-- unlocked state -->
+        <section class="admin-unlocked" id="adminUnlocked" hidden aria-label="admin dashboard">
+          <div class="admin-grid">
+            <section class="admin-card" aria-label="snapshot">
+              <div class="admin-card-kicker"><i data-lucide="layout-dashboard"></i><span data-i18n="admin.snapshot">即时快照 · 真实工作区</span></div>
+              <div class="admin-snapshot-grid">
+                <div class="admin-fact"><span data-i18n="admin.tasks">任务总数</span><strong id="adminTotalTasks">—</strong></div>
+                <div class="admin-fact"><span data-i18n="admin.completed">已完成</span><strong id="adminCompleted">—</strong></div>
+                <div class="admin-fact"><span data-i18n="admin.interrupted">中断</span><strong id="adminInterrupted">—</strong></div>
+                <div class="admin-fact"><span data-i18n="admin.cacheRate">缓存命中率</span><strong id="adminCacheRate">—</strong></div>
+                <div class="admin-fact"><span data-i18n="admin.auditLines">审计行数</span><strong id="adminAuditLines">—</strong></div>
+                <div class="admin-fact"><span data-i18n="admin.sessions">会话数</span><strong id="adminSessions">—</strong></div>
+              </div>
+            </section>
+
+            <section class="admin-card" aria-label="trend">
+              <div class="admin-card-kicker"><i data-lucide="activity"></i><span data-i18n="admin.trend">七日事件/天</span></div>
+              <div class="admin-trend-wrap">
+                <canvas id="adminTrendCanvas" class="admin-trend-canvas" role="img" aria-label="7-day event counts"></canvas>
+              </div>
+            </section>
+          </div>
+
+          <section class="admin-card" aria-label="recommendations">
+            <div class="admin-card-kicker"><i data-lucide="sparkles"></i><span data-i18n="admin.recommendations">基于真实数据的优化建议</span></div>
+            <ul class="admin-rec-list" id="adminRecommendations"></ul>
+          </section>
+
+          <section class="admin-card" aria-label="recent tasks">
+            <div class="admin-card-kicker"><i data-lucide="list-checks"></i><span data-i18n="admin.recent">最近任务 · 真实列表</span></div>
+            <ul class="admin-task-list" id="adminRecentTasks"></ul>
+          </section>
+        </section>
       </div>
     </div>
 

@@ -580,6 +580,16 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except ChangeError as exc:
                 self._fail(400, str(exc), exc=exc)
             return
+        if path == "/api/admin/summary":
+            # M8-T1014: the admin panel's single read — built from real
+            # workspace data, never raises; returns honest empty dict on breakage.
+            try:
+                from .admin import build_summary
+
+                self._json(build_summary(self.server.service.workspace))
+            except Exception as exc:  # noqa: BLE001 - the admin route must never 500
+                self._json({"error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/worktrees":
             try:
                 self._json({"worktrees": self.server.service.worktrees.list()})

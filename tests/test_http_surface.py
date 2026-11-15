@@ -1159,3 +1159,15 @@ def test_every_api_route_is_named_by_a_python_test() -> None:
     untested = sorted(route for route in literals if route not in corpus)
     assert untested == [], f"routes no Python test even names: {untested}"
 
+
+def test_get_admin_summary_returns_honest_empty_dict_on_missing_workspace(live: _LiveServer) -> None:
+    """M8-T1014: /api/admin/summary is the admin panel's single read source.
+    The test asserts the route exists, answers 200, no-crash, no 'sk-'."""
+    res = _request(f"{live.url}/api/admin/summary", method="GET")
+    assert res[0] == 200
+    payload = json.loads(res[2])
+    assert set(payload.keys()) >= {"totals", "trend_7d", "recent_tasks", "recommendations"}
+    assert isinstance(payload["totals"], dict)
+    import re
+
+    assert not re.search(rb"sk-[A-Za-z0-9]{40,}", res[2]), "admin summary leaked key-shaped material"

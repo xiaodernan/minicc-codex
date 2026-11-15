@@ -12,7 +12,7 @@ const esc = (value) =>
     .replace(/'/g, "&#39;");
 
 const zh = () => state.locale === "zh";
-const compact = (value) => {
+const compactCount = (value) => {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return "—";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -66,7 +66,7 @@ function buildStakes(digest, metrics, pulse) {
     stake(5, "yard.stake5", "yard.stake5Hint", "lighthouse", stars ?? 0, 1, (v) => (stars === null ? "—" : String(Math.floor(v)))),
     stake(6, "yard.stake6", "yard.stake6Hint", "shield-check", tests, 700, (v) => String(Math.floor(v))),
     stake(7, "yard.stake7", "yard.stake7Hint", "zap", cacheRate, 0.8, (v) => pct(v)),
-    stake(8, "yard.stake8", "yard.stake8Hint", "timer", tokens, 1_000_000, (v) => compact(v)),
+    stake(8, "yard.stake8", "yard.stake8Hint", "timer", tokens, 1_000_000, (v) => compactCount(v)),
     stake(9, "yard.stake9", "yard.stake9Hint", "flame", interrupted, 1, (v) => String(Math.floor(v))),
     stake(10, "yard.stake10", "yard.stake10Hint", "anchor", 1, 1, () => "✓"),
   ];
@@ -122,7 +122,7 @@ export async function openDockyard() {
   const totalTasks = Number(metrics?.task_count ?? 0);
   if (tasksDone) tasksDone.textContent = totalTasks > 0 ? `${done} / ${totalTasks}` : String(done || "—");
   if (chapters) chapters.textContent = digest?.almanac_chapters != null ? String(digest.almanac_chapters) : "—";
-  if (totalTokens) totalTokens.textContent = metrics?.usage?.total_tokens != null ? compact(metrics.usage.total_tokens) : "—";
+  if (totalTokens) totalTokens.textContent = metrics?.usage?.total_tokens != null ? compactCount(metrics.usage.total_tokens) : "—";
   if (cacheRate) cacheRate.textContent = pct(metrics?.llm_cache?.cache_hit_rate);
 
   const stakes = buildStakes(digest, metrics, pulse);

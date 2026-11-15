@@ -2,7 +2,7 @@ import { requestJson } from "./core/transport.js";
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
-import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openAlmanacPanel, openArchivePanel, openAskDocsPanel, openAxiomsPanel, openJournalPanel, openRecentPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openDoctorStage, openDockyard, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openAlmanacPanel, openArchivePanel, openAskDocsPanel, openAxiomsPanel, openJournalPanel, openRecentPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openDoctorStage, openDockyard, openAdmin, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
 import { startTour, maybeOfferTour } from "./panels/onboarding.js";
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
@@ -233,6 +233,7 @@ export function bindUI() {
     else if (view === "pulse") openPulseStage();
     else if (view === "doctor") openDoctorStage();
     else if (view === "dockyard") openDockyard();
+    else if (view === "admin") openAdmin();
     else if (view === "templates") openTemplatesPanel();
     else if (view === "almanac") openAlmanacPanel();
     else if (view === "axioms") openAxiomsPanel();
