@@ -41,5 +41,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("atlas smoke passed: nav button bilingual, panel opens, 50-coordinate charted line renders, close restores hidden state, zero pageerror");
+console.log("atlas smoke passed: nav button bilingual, panel opens, 52-coordinate charted line renders, stardust visible when visited, close restores hidden state, zero pageerror");
 await browser.close();

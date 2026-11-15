@@ -428,3 +428,6 @@
 - **大模型接口实测（M8-T1015 延伸）**：wkapi / gpt-6-sol，批次末再次测量，COMPLETION_REVIEW_PROTOCOL 正常生效——completion judge 路径 cached = 5,248 / 5,591 ≈ 93.8%。agent 主线程的 stream / atomic 两条路径都使用同一个 `prompt_cache_key`（minicc-<sha256(base|model)[:16]>），非 stream 与流式共享同一条亲和派生逻辑——不存在 call-method 本身触发低命中的问题：cache-miss 约等于 agent 任务的首次上下文没达 gateway 门槛之前的成本。
 
 - **Admin smoke 入测试框架（M8-T1027）**：`tests/admin_smoke.mjs`（Playwright）：解锁（123 共享门）→ totals 活数字、tool_usage≥1、recs ≥1、canvas > 0、close 恢复 `aria-hidden=true`，zh/en 双语；`npm run test:admin` 已并入 `test:arcade`（CI 复用这条链时自动执行）。
+
+- **Atla 星尘计数器（M8-T1030）**：Atla 渲染真值：每个 visited 坐标会多一粒星尘。HUD 新 chip（左下角 violet 胶囊）：sparkles glyph + 计数 `N / 52` + 说明条。所有计数遍历脑海 `ALL_NODES.length`，没有 hard-coded 47 这样的驴尿数字；private mode 直接 hide。empty-state 好像已经有 Atla 芯片，说明书里有 Atla 章节，地图里有 Atla 自己——可见即能主动试。
+- 诚实记录：本批如期把 atlas_smoke's 渐进式 HUD 校验 line 升到 52 个坐标（此前是 50），已经被 `tests/atlas_smoke.mjs` 固化为 52-coordinate contract；还把 Esc 链路补到 `adminStage`（Esc 关闭 admin 面板，此前只知道认 `pulseStage` / `atlasStage` / `gameModal`——之前 admin 出不去 Esc）。实测 zh/en 双语截图正常。

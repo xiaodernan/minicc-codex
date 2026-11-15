@@ -5595,3 +5595,10 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-toolusage-bar { display: block; height: 9px; background: var(--surface-raised); border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
 .admin-toolusage-fill { display: block; height: 100%; background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 65%, transparent) 0%, var(--amber) 100%); }
 .admin-toolusage-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.atlas-shards { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(11, 16, 22, .82); border: 1px solid color-mix(in srgb, var(--purple) 45%, transparent); border-radius: 999px; backdrop-filter: blur(4px); pointer-events: none; }
+.atlas-shards[hidden] { display: none; }
+.atlas-shards svg { width: 16px; height: 16px; color: var(--purple); }
+.atlas-shards span { font-size: 10px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; color: #c4b5fd; }
+.atlas-shards strong { font-family: var(--font-mono, ui-monospace, Consolas, monospace); font-size: 13px; font-weight: 700; color: #ddd6fe; font-variant-numeric: tabular-nums; }
+.atlas-shards small { font-size: 9px; color: #a7acb6; max-width: 260px; }

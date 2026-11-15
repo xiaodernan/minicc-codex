@@ -359,6 +359,9 @@ function render(time = 0) {
     ctx.restore();
   }
 
+  // Stardust inventory — one shard per charted coordinate (visited set length)
+  updateShardsHUD();
+
   // nodes
   for (const node of ALL_NODES) drawNode(ctx, node, stateRef.visited, stateRef.hovered === node, 1);
 
@@ -421,6 +424,20 @@ export function closeAtlas() {
   if (!modal) return;
   modal.setAttribute("aria-hidden", "true");
   cancelAnimationFrame(stateRef.raf);
+}
+
+function updateShardsHUD() {
+  const visited = readVisited();
+  const wrapped = $("#atlasShards");
+  const label = $("#atlasShardsCount");
+  if (!wrapped || !label) return;
+  const count = ALL_NODES.filter((n) => visited.has(n.visitedKey ?? n.id)).length;
+  if (count <= 0) {
+    wrapped.setAttribute("hidden", "");
+    return;
+  }
+  wrapped.removeAttribute("hidden");
+  label.textContent = `${count} / ${ALL_NODES.length}`;
 }
 
 function updateHUD() {

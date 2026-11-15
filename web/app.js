@@ -731,6 +731,8 @@
       "atlas.close": "\u5173\u95ED\u5730\u56FE",
       "atlas.reset": "\u56DE\u5230\u4E2D\u5FC3",
       "atlas.clearTrail": "\u6E05\u9664\u8DB3\u8FF9",
+      "atlas.shardsLabel": "\u661F\u5C18",
+      "atlas.shardsHint": "\u6BCF\u767B\u9646\u4E00\u4E2A\u5750\u6807 = \u4E00\u7C92\u661F\u5C18",
       "admin.kicker": "\u5B9E\u65F6 \xB7 read-only \xB7 \u6570\u5B57\u6765\u81EA\u771F\u5B9E\uFF0C\u4ECE\u4E0D\u4F2A\u9020",
       "admin.title": "\u7BA1\u7406\u5458",
       "admin.tagline": "\u5BC6\u7801 123 \u2014\u2014 \u672C\u5730\u5171\u4EAB\u95E8\u3002\u4EFB\u4F55\u77E5\u9053\u5B83\u7684\u4EBA\u90FD\u53EF\u4EE5\u6253\u5F00\u8FD9\u4E2A\u9762\u677F\uFF1B\u5B83\u4E0D\u662F\u767B\u5F55\u7CFB\u7EDF\uFF0C\u53EA\u662F\u4E00\u9053\u5171\u4EAB\u95E8\u3002",
@@ -1455,6 +1457,8 @@
       "atlas.close": "Close map",
       "atlas.reset": "Re-center",
       "atlas.clearTrail": "Clear my trail",
+      "atlas.shardsLabel": "Stardust",
+      "atlas.shardsHint": "One shard per coordinate charted",
       "admin.kicker": "live \xB7 read-only \xB7 numbers from real runs, nothing fabricated",
       "admin.title": "Admin",
       "admin.tagline": "Password 123 \u2014 a shared door. Anyone who knows it can open this panel; it is not a login, it is a shared door.",
@@ -5648,6 +5652,7 @@
       }
       ctx.restore();
     }
+    updateShardsHUD();
     for (const node of ALL_NODES) drawNode(ctx, node, stateRef.visited, stateRef.hovered === node, 1);
     ctx.restore();
     const v = ctx.createRadialGradient(width / 2, height / 2, height * 0.45, width / 2, height / 2, height * 0.95);
@@ -5717,6 +5722,19 @@
     if (!modal) return;
     modal.setAttribute("aria-hidden", "true");
     cancelAnimationFrame(stateRef.raf);
+  }
+  function updateShardsHUD() {
+    const visited = readVisited();
+    const wrapped = $("#atlasShards");
+    const label2 = $("#atlasShardsCount");
+    if (!wrapped || !label2) return;
+    const count = ALL_NODES.filter((n) => visited.has(n.visitedKey ?? n.id)).length;
+    if (count <= 0) {
+      wrapped.setAttribute("hidden", "");
+      return;
+    }
+    wrapped.removeAttribute("hidden");
+    label2.textContent = `${count} / ${ALL_NODES.length}`;
   }
   function updateHUD() {
     const visited = readVisited();

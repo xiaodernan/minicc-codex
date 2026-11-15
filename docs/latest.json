@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T14:39:58.332Z",
+  "generated_at": "2026-11-15T14:54:20.357Z",
   "branch": "main",
-  "head": "82d276c",
-  "total_commits": 1643,
+  "head": "53197ac",
+  "total_commits": 1645,
   "recent_commits": [
+    {
+      "short": "53197ac",
+      "at": "2026-11-15T22:44:30+08:00",
+      "subject": "fix(index.html): restore pinned CRLF - admin_tool_ui script rewrote index.html with LF endings (652 stray LF), tripping toolstream_chip_answers_its_own_keys pin"
+    },
+    {
+      "short": "4e470a4",
+      "at": "2026-11-15T14:39:58Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "82d276c",
       "at": "2026-11-15T22:39:18+08:00",
@@ -19,22 +29,12 @@
       "short": "9a941fe",
       "at": "2026-11-15T22:33:35+08:00",
       "subject": "M8-T1026: admin panel gains tool-usage distribution - /api/admin/summary exposes top-6 real tool calls from the task store (read_file 150 - 48% | grep 44 - 14% "
-    },
-    {
-      "short": "1a1782a",
-      "at": "2026-11-15T14:26:02Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "659d3e9",
-      "at": "2026-11-15T22:24:00+08:00",
-      "subject": "M8-T1025: README tracks the current shape - almanac 21 volumes; feature list gains Admin (123 shared door, real stats + trend + forecast + interrupt-cause bucke"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 341,
+  "roadmap_batches": 342,
   "changelog_entries": 1,
-  "roadmap_lines": 53209,
+  "roadmap_lines": 53231,
   "tracked_files": 1076,
   "test_files": 711,
   "almanac_chapters": 21,

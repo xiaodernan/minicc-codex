@@ -53206,3 +53206,25 @@ Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手�
 ### 诚实记录
 
 首次运行 `tests/admin_smoke.mjs` 在 `8899` 端口上返回 `#adminPassword` 被 "intercepts pointer events" 拦截——根本原因是 8899 上有两个僵死的 `minicc-web` 进程（同一端口上重复的 stale listener），同时 8899 进程用的是上一个 build 的 DOM；修复：杀掉 8899 上 stale 进程、用干净进程 27394 重启、清空 `localStorage` 之后再解锁 —— 了即通。本地实测 zh/en 两套全绿。
+
+## 批次 1015 - M8-T1030: Atla 星尘计数器 — 每登陆一个坐标，都有一粒回来
+
+### 背景
+
+用户要求「世界越走越大」。Atla 已经有 visited 标记点（amber 亮灯）和 amber 轨迹线，但没有「我闯了多少地」的具体可见反馈。本批在 Atla 上加了一粒小小的星辰：每 visited 一个坐标，左下角就有一粒星尘；52 个全 visited 时会得 52 颗。
+
+### 做了什么
+
+- **`web/src/core/i18n.js`** 增 key `atlas.shardsLabel`（zh「星尘」/ en「Stardust」）+ `atlas.shardsHint`（zh「每登陆一个坐标 = 一粒星尘」/ en「One shard per coordinate charted」）—CRLF 不近身。
+- **`web/index.html`**：`.atlas-hud-bottom` 开头加 `#atlasShards` chip（hidden by default；`<i data-lucide="sparkles">` + label + `strong#atlasShardsCount` + small hint）—LF 不近身（index.html 是 CRLF pinned 文件）。
+- **`web/src/panels/atlas.js`**：`updateShardsHUD()` 新函数 — 遍历 `ALL_NODES`（52 个），计算 visited 真·总数；`0` → chip hide；hint 在 footer 宽度足够且用户看得懂。改写 `render()` 在 `#atlasShards` 显现时画出。
+- **`web/styles.css`**：`.atlas-shards` 胶囊 violet（`var(--purple)`），sparkles 紫罗兰，count 紫白，hint 土灰——只在 atlas utility overlay 层。
+- **若并发 Atla smoke 都拿 52 点数里的 50 个 claim**— `tests/atlas_smoke.mjs` log line 升到 52-coordinate contract，`52-coordinate charted line renders`，全绿（新版本 `minmax` 内无问题）。
+- **Esc 链路补**：`main.js` 的全局 Escape 处理器接受 `#adminStage` 也算， Esc 可以正常关闭 Atla-ext-admin；之前只认到 `pulseStage`/`gameModal`/`atlasStage`，admin 出来的 Esc 直接 no-op。
+
+### 实测证据
+
+- playshots：`output/atlas_shards_2.png` — 实测 zh 地图下底 footer 左下角显现 `✦ 星尘 5 / 52 每登陆一个坐标 = 一粒星尘`，amber 轨迹连线（跨 5 个 island）一如既往；admin 打开后 Esc 正常关闭（`#adminStage aria-hidden="true"`）。
+- `node tests/atlas_smoke.mjs` → **atlas smoke passed**（nav button bilingual, panel opens, 52-coordinate charted line renders, stardust visible when visited, close restores hidden state, zero pageerror）。
+- `admin_smoke` 链路不变。CRLF gates：`i18n.js` = 309 CRLF，`index.html` = 655 CRLF。
+- 诚实记录：本次曾差点漏掉一处 silently：`Esc` 在 admin 面板内不 work——之前的释缘里 Atla/pulse/game 各有链，adminStage 未被追加；本次实测修复后 Esc 能关闭 Admin。
