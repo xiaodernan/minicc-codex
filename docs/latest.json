@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T15:09:00.423Z",
+  "generated_at": "2026-11-15T15:09:51.406Z",
   "branch": "main",
-  "head": "76833e3",
-  "total_commits": 1647,
+  "head": "bfb751d",
+  "total_commits": 1648,
   "recent_commits": [
+    {
+      "short": "bfb751d",
+      "at": "2026-11-15T23:09:02+08:00",
+      "subject": "M8-T1031: manual modules - Atlas + Admin chapters written both sides; almanac 18->21; zh/en CJK leakage clean; manual_smoke 13 chapters passed"
+    },
     {
       "short": "76833e3",
       "at": "2026-11-15T14:56:43Z",
@@ -24,18 +29,13 @@
       "short": "4e470a4",
       "at": "2026-11-15T14:39:58Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "82d276c",
-      "at": "2026-11-15T22:39:18+08:00",
-      "subject": "M8-T1027: admin_smoke wired into test:arcade - Playwright end to end: locked by default -> 123 unlocks -> totals live (>0) -> >=1 tool bar, >=1 recent task, >=1"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 343,
   "changelog_entries": 1,
   "roadmap_lines": 53246,
-  "tracked_files": 1078,
+  "tracked_files": 1076,
   "test_files": 711,
   "almanac_chapters": 21,
   "module_count": 14,
