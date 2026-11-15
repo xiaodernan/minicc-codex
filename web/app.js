@@ -614,6 +614,34 @@
       "game.compactMode": "\u7D27\u51D1\u6A21\u5F0F",
       "game.fullscreen": "\u5168\u5C4F",
       "game.waveFinal": "\u7EC8\u5C40\u5DE8\u4EBA\u6765\u88AD\uFF1A\u7528\u7206\u53D1\u548C\u51CF\u901F\u5B88\u4F4F\u6700\u540E\u9632\u7EBF",
+      "game.how": "\u6559\u7A0B",
+      "game.howClose": "\u5173\u95ED\u6559\u7A0B",
+      "game.howKicker": "\u4F5C\u6218\u624B\u518C \xB7 \u53EA\u8981\u4E00\u5206\u949F",
+      "game.howTitle": "\u516D\u6B65\u5B66\u4F1A\u8349\u576A\u4FDD\u536B\u6218",
+      "game.howSubtitle": "\u6BCF\u4E00\u6761\u90FD\u6309\u6E38\u620F\u7684\u771F\u5B9E\u89C4\u5219\u5199\uFF0C\u5199\u4E4B\u524D\u5148\u901A\u5173\u4E00\u904D\u3002",
+      "game.howStep1Title": "\u7ECF\u6D4E\u4F18\u5148",
+      "game.howStep1Body": "\u5F00\u5C40\u5148\u7FFB\u4E24\u682A\u5411\u65E5\u8475\uFF0C\u62C9\u591F\u9633\u5149\u518D\u6269\u5730\u3002\u6CA1\u6709\u9633\u5149\uFF0C\u6240\u6709\u690D\u7269\u90FD\u662F\u6602\u8D35\u7684\u5730\u677F\u88C5\u9970\u3002",
+      "game.howStep2Title": "\u524D\u540E\u914D\u9F50",
+      "game.howStep2Body": "\u575A\u679C\u5899\u6700\u524D\uFF0C\u8F93\u51FA\u690D\u7269\u9000\u540E\u4E00\u4E24\u683C\uFF1A\u8C4C\u8C46\u5C04\u624B\u3001\u53CC\u53D1\u3001\u5BD2\u51B0\u3001\u706B\u7130\u2014\u2014\u7EB5\u6DF1\u6BD4\u86EE\u5E72\u5F3A\u3002",
+      "game.howStep3Title": "\u7206\u70B8\u662F\u6E05\u573A",
+      "game.howStep3Body": "\u7206\u88C2\u679C / \u706B\u7206\u8FA3\u6912\u7559\u7ED9\u6210\u7FA4\u7684\u50F5\u5C38\u2014\u2014\u4E00\u6B21\u70B9\u71C3\u4E00\u6574\u884C\uFF0C\u80DC\u5229\u5C31\u662F\u4F60\u57CB\u7684\u90A3\u9897\u70B8\u5F39\u3002",
+      "game.howStep4Title": "\u8BFB\u796D\u8349\u576A",
+      "game.howStep4Body": "\u8FDB\u653B\u8DEF\u7EBF\u53EA\u6709\u90A3\u51E0\u6761\uFF0C\u770B\u54EA\u6761\u7EBF\u4E0A\u6700\u5148\u51FA\u602A\u2014\u2014\u90A3\u6761\u7EBF\u4E0A\u7684\u575A\u679C\u5899\u5C31\u8BE5\u6700\u5148\u653E\u3002",
+      "game.howStep5Title": "\u8282\u7701\u6280\u80FD\u80FD\u91CF",
+      "game.howStep5Body": "\u80FD\u91CF\u662F\u8D5A\u56DE\u6765\u7684\u3002\u5BD2\u51B0 / \u65F6\u505C\u662F\u6551\u547D\u7A3B\u8349\uFF0C\u5DE8\u4EBA\u6765\u88AD\u524D\u6253\u5F00\u6218\u7EBF\u8D85\u8F7D\u3002",
+      "game.howStep6Title": "\u6491\u8FC7\u7B2C 10 \u6CE2",
+      "game.howStep6Body": "\u5DE8\u4EBA\u628A\u4F60\u7684\u5BB6\u5543\u7A7F\u5C31\u662F\u7EC8\u7ED3\u3002\u7206\u7834 \u2192 \u65F6\u505C \u2192 \u8D85\u8F7D\u4F9D\u6B21\u63A5\uFF0C\u796D\u51FA\u4F60\u5168\u90E8\u7684\u4E1C\u897F\u3002",
+      "game.howRailTitle": "\u6280\u80FD\u901F\u67E5",
+      "game.howSkillPulse": "\u5BD2\u51B0\u8109\u51B2",
+      "game.howSkillPulseHint": "\u5168\u573A\u51BB\u7ED3\u6570\u79D2\u2014\u2014\u8349\u576A\u4E0A\u6240\u6709\u50F5\u5C38\u6162\u4E0B\u6765",
+      "game.howSkillSun": "\u9633\u5149\u7206\u53D1",
+      "game.howSkillSunHint": "\u7ACB\u5373 +100 \u9633\u5149\u2014\u2014\u706B\u529B\u4E0D\u7EE7\u65F6\u4E00\u5242\u5FEB\u836F",
+      "game.howSkillRally": "\u6218\u7EBF\u8D85\u8F7D",
+      "game.howSkillRallyHint": "\u690D\u7269\u653B\u901F\u5927\u5E45\u63D0\u5347\u2014\u2014\u7528\u5C11\u91CF\u9633\u5149\u6362\u8282\u594F",
+      "game.howSkillTimeStop": "\u65F6\u505C\u9886\u57DF",
+      "game.howSkillTimeStopHint": "\u5168\u573A\u51BB\u7ED3\u2014\u2014\u5DE8\u4EBA\u7834\u9635\u524D\u6700\u4F18\u96C5\u7684\u793C\u7269",
+      "game.howNote": "\u56FE\u9274\u91CC\u6709\u6BCF\u68F5\u690D\u7269\u548C\u6BCF\u53EA\u50F5\u5C38\u7684\u771F\u5B9E\u6570\u503C\u3002Esc \u5148\u9000\u51FA\u6559\u7A0B\uFF0C\u518D\u4EB2\u81EA\u6253\u4E00\u904D\u624D\u662F\u6700\u597D\u7684\u6559\u7A0B\u3002",
+      "game.howReady": "\u6211\u51C6\u5907\u597D\u4E86",
       "game.instructions": "\u70B9\u51FB\u5361\u7247\u9009\u62E9 \xB7 \u70B9\u51FB\u8349\u576A\u79CD\u690D \xB7 \u6BCF\u884C\u9632\u7EBF\u5C0F\u8F66\u4EC5\u53EF\u89E6\u53D1\u4E00\u6B21",
       "game.start": "\u5F00\u59CB\u6E38\u620F",
       "game.restart": "\u91CD\u5F00",
@@ -1354,6 +1382,34 @@
       "game.compactMode": "Compact mode",
       "game.fullscreen": "Fullscreen",
       "game.waveFinal": "Final wave: use bursts and slows to hold the last line",
+      "game.how": "Guide",
+      "game.howClose": "Close guide",
+      "game.howKicker": "FIELD MANUAL \xB7 60 SECONDS",
+      "game.howTitle": "Six steps to hold the lawn",
+      "game.howSubtitle": "Every rule here came from the actual mechanics.",
+      "game.howStep1Title": "Economy first",
+      "game.howStep1Body": "Seed two sunflowers first, bank the sun, then expand. No sun means every plant is expensive lawn furniture.",
+      "game.howStep2Title": "Front and back",
+      "game.howStep2Body": "Wall-nuts up front; attackers 1\u20132 tiles behind: peashooters, repeaters, fire and ice. Depth beats panic.",
+      "game.howStep3Title": "Explosions clear waves",
+      "game.howStep3Body": "Cherry bomb / jalape\xF1o erase a whole row on cast. Spend them whenever the horde clusters.",
+      "game.howStep4Title": "Read the lawn",
+      "game.howStep4Body": "Routes are few and visible; the lane that spawns first gets its wall first.",
+      "game.howStep5Title": "Spend skill energy",
+      "game.howStep5Body": "Energy is earned, not dropped. Freeze / time stop are oxygen tanks. Save them; rally the giant tide.",
+      "game.howStep6Title": "Survive wave 10",
+      "game.howStep6Body": "The giant crushes your roof if you stall. Burst, time stop, rally \u2014 in that order.",
+      "game.howRailTitle": "Skill cheats",
+      "game.howSkillPulse": "Cold pulse",
+      "game.howSkillPulseHint": "Freezes every zombie \u2014 the whole lawn slows to a crawl",
+      "game.howSkillSun": "Sun burst",
+      "game.howSkillSunHint": "Instant +100 sun \u2014 the perfect emergency ammo clip",
+      "game.howSkillRally": "Overcharge",
+      "game.howSkillRallyHint": "Plants attack far faster \u2014 cheap sun buys tempo",
+      "game.howSkillTimeStop": "Time-stop field",
+      "game.howSkillTimeStopHint": "Everything stops dead \u2014 the most elegant gift for the giant",
+      "game.howNote": "The codex lists every plant and every zombie with real numbers. Esc closes this card; a round in the lawn is the real tutorial.",
+      "game.howReady": "I am ready",
       "game.instructions": "Choose a card \xB7 click the lawn to plant \xB7 each lane has one safety mower",
       "game.start": "Start game",
       "game.restart": "Restart",
@@ -10996,6 +11052,12 @@
     $("#gameWideMode")?.addEventListener("click", () => window.toggleGameWideMode?.());
     $("#gameCodex")?.addEventListener("click", () => window.openGameCodex?.("plants"));
     $("#gameCodexClose")?.addEventListener("click", () => window.closeGameCodex?.());
+    $("#gameHow")?.addEventListener("click", () => window.openGameHow?.());
+    $("#gameHowClose")?.addEventListener("click", () => window.closeGameHow?.());
+    $("#gameHowReady")?.addEventListener("click", () => window.closeGameHow?.());
+    $("#gameHowPanel")?.addEventListener("click", (event) => {
+      if (event.target.id === "gameHowPanel") window.closeGameHow?.();
+    });
     document.querySelectorAll(".codex-tab").forEach((tab) => tab.addEventListener("click", () => window.openGameCodex?.(tab.dataset.codexTab)));
     $("#gameCodexPanel")?.addEventListener("click", (event) => {
       if (event.target.id === "gameCodexPanel") window.closeGameCodex?.();
@@ -11032,6 +11094,14 @@
       if (event.key === "Escape") {
         if ($("#atlasStage")?.getAttribute("aria-hidden") === "false") {
           $("#atlasStage").setAttribute("aria-hidden", "true");
+          return;
+        }
+        if ($("#gameHowPanel")?.classList.contains("show")) {
+          window.closeGameHow?.();
+          return;
+        }
+        if ($("#gameCodexPanel")?.classList.contains("show")) {
+          window.closeGameCodex?.();
           return;
         }
         if ($("#adminStage")?.getAttribute("aria-hidden") === "false") {

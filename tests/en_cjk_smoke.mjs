@@ -141,6 +141,16 @@ async function checkMode(locale) {
     await clickRetry(page, "#arcadeButton", { timeout: 7000 });
     await page.waitForTimeout(1200);
     await expectClean(page, "arcade", errors);
+    // the arcade tutorial overlay must also stay English-clean in en mode
+    try {
+      await clickRetry(page, "#gameHow", { timeout: 5000 });
+      await page.waitForTimeout(500);
+      await expectClean(page, "arcade-guide", errors);
+      await page.click("#gameHowClose", { timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(300);
+    } catch (e) {
+      errors.push(`[arcade-guide] interaction failed: ${String(e.message).split("\n")[0].slice(0, 180)}`);
+    }
     await page.click("#gameClose", { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(400);
   } catch (e) {

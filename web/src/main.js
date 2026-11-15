@@ -36,6 +36,10 @@ export function bindUI() {
   $("#gameWideMode")?.addEventListener("click", () => window.toggleGameWideMode?.());
   $("#gameCodex")?.addEventListener("click", () => window.openGameCodex?.("plants"));
   $("#gameCodexClose")?.addEventListener("click", () => window.closeGameCodex?.());
+  $("#gameHow")?.addEventListener("click", () => window.openGameHow?.());
+  $("#gameHowClose")?.addEventListener("click", () => window.closeGameHow?.());
+  $("#gameHowReady")?.addEventListener("click", () => window.closeGameHow?.());
+  $("#gameHowPanel")?.addEventListener("click", (event) => { if (event.target.id === "gameHowPanel") window.closeGameHow?.(); });
   document.querySelectorAll(".codex-tab").forEach((tab) => tab.addEventListener("click", () => window.openGameCodex?.(tab.dataset.codexTab)));
   $("#gameCodexPanel")?.addEventListener("click", (event) => { if (event.target.id === "gameCodexPanel") window.closeGameCodex?.(); });
   $("#gameFullscreen")?.addEventListener("click", () => window.toggleGameFullscreen?.());
@@ -68,6 +72,14 @@ export function bindUI() {
     if (event.key === "Escape") {
       if ($("#atlasStage")?.getAttribute("aria-hidden") === "false") {
         $("#atlasStage").setAttribute("aria-hidden", "true");
+        return;
+      }
+      if ($("#gameHowPanel")?.classList.contains("show")) {
+        window.closeGameHow?.();
+        return;
+      }
+      if ($("#gameCodexPanel")?.classList.contains("show")) {
+        window.closeGameCodex?.();
         return;
       }
       if ($("#adminStage")?.getAttribute("aria-hidden") === "false") {

@@ -1678,9 +1678,24 @@ function renderCodex() {
 function openGameCodex(tab = "plants") { codexState.tab = tab; $("#gameCodexPanel").classList.add("show"); $("#gameCodexPanel").setAttribute("aria-hidden", "false"); renderCodex(); refreshIcons(); }
 function closeGameCodex() { const panel = $("#gameCodexPanel"); if (!panel) return; panel.classList.remove("show"); panel.setAttribute("aria-hidden", "true"); }
 
+function openGameHow() {
+  const panel = $("#gameHowPanel");
+  if (!panel) return;
+  panel.classList.add("show");
+  panel.setAttribute("aria-hidden", "false");
+  refreshIcons();
+}
+function closeGameHow() {
+  const panel = $("#gameHowPanel");
+  if (!panel) return;
+  panel.classList.remove("show");
+  panel.setAttribute("aria-hidden", "true");
+}
+
+
 Object.assign(window, {
   openGame, closeGame, openGameWindow, toggleGameWideMode, toggleGameFullscreen,
-  openGameCodex, closeGameCodex, startGame, initGame, gameLoop, game,
+  openGameCodex, closeGameCodex, openGameHow, closeGameHow, startGame, initGame, gameLoop, game,
   plantAt, collectSun, produceSun, firePlantShots, explodeCherryBomb, damagePlant,
   cellPosition, toggleShovel, activateGameSkill, toggleGamePause, setGameDifficulty,
   toggleGameSound, setGameVolume, setGamePaused, updateGameHover, clearGameHover,

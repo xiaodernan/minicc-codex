@@ -575,7 +575,7 @@
 
     <div class="game-modal" id="gameModal" aria-hidden="true">
       <div class="game-card" role="dialog" aria-modal="true" aria-labelledby="gameTitle">
-        <div class="game-actions"><button class="game-tool icon-text" id="gameNewWindow" type="button" title="Open in new tab" data-i18n-title="game.newWindow"><i data-lucide="external-link"></i><span data-i18n="game.newWindow">新窗口</span></button><button class="game-tool icon-text" id="gameWideMode" type="button" title="Wide mode" data-i18n-title="game.wideMode" aria-pressed="false"><i data-lucide="layout-dashboard"></i><span data-i18n="game.wideMode">大屏模式</span></button><button class="game-tool icon-text" id="gameCodex" type="button" title="Open the codex" data-i18n-title="game.codexOpen"><i data-lucide="book-open"></i><span data-i18n="game.codex">图鉴</span></button><button class="game-tool icon-text" id="gameFullscreen" type="button" title="Fullscreen" data-i18n-title="game.fullscreen"><i data-lucide="maximize"></i><span data-i18n="game.fullscreen">全屏</span></button><button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button></div>
+        <div class="game-actions"><button class="game-tool icon-text" id="gameNewWindow" type="button" title="Open in new tab" data-i18n-title="game.newWindow"><i data-lucide="external-link"></i><span data-i18n="game.newWindow">新窗口</span></button><button class="game-tool icon-text" id="gameWideMode" type="button" title="Wide mode" data-i18n-title="game.wideMode" aria-pressed="false"><i data-lucide="layout-dashboard"></i><span data-i18n="game.wideMode">大屏模式</span></button><button class="game-tool icon-text" id="gameCodex" type="button" title="Open the codex" data-i18n-title="game.codexOpen"><i data-lucide="book-open"></i><span data-i18n="game.codex">图鉴</span></button><button class="game-tool icon-text" id="gameHow" type="button" title="How to play" data-i18n-title="game.how"><i data-lucide="book-open"></i><span data-i18n="game.how">教程</span></button><button class="game-tool icon-text" id="gameFullscreen" type="button" title="Fullscreen" data-i18n-title="game.fullscreen"><i data-lucide="maximize"></i><span data-i18n="game.fullscreen">全屏</span></button><button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button></div>
         <div class="game-kicker" data-i18n="game.kicker">MINICC ARCADE · MINI LAWN</div>
         <h2 id="gameTitle" data-i18n="game.title">植物大战僵尸 · 草坪保卫战</h2>
         <p class="game-subtitle" data-i18n="game.subtitle">10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。</p>
@@ -614,6 +614,39 @@
         <canvas id="gameCanvas" width="720" height="420" aria-label="植物大战僵尸迷你游戏画布" data-i18n-aria="game.canvas"></canvas>
         <div class="game-controls"><span data-i18n="game.instructions">点卡片种植 · 铲子移除 · 阳光可自动拾取</span><button class="send-button" id="gameStart" data-i18n="game.start">开始游戏</button></div>
         </section></div>
+        <div class="game-how" id="gameHowPanel" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="gameHowTitle">
+          <section class="game-how-card">
+            <header class="game-how-header">
+              <div>
+                <span class="game-kicker" data-i18n="game.howKicker">作战手册 · 只要一分钟</span>
+                <h3 id="gameHowTitle" data-i18n="game.howTitle">六步学会草坪保卫战</h3>
+                <p data-i18n="game.howSubtitle">每一条都按游戏的真实规则写，写之前先通关一遍。</p>
+              </div>
+              <button class="icon-button" id="gameHowClose" type="button" aria-label="Close" data-i18n-aria="game.howClose"><i data-lucide="x"></i></button>
+            </header>
+            <div class="game-how-body">
+              <ol class="game-how-steps">
+                <li class="game-how-step"><span class="game-how-num">01</span><span class="game-how-copy"><strong data-i18n="game.howStep1Title">经济优先</strong><small data-i18n="game.howStep1Body">开局先翻两株向日葵，拉够阳光再扩地。没有阳光，所有植物都是昂贵的地板装饰。</small></span></li>
+                <li class="game-how-step"><span class="game-how-num">02</span><span class="game-how-copy"><strong data-i18n="game.howStep2Title">前后配齐</strong><small data-i18n="game.howStep2Body">坚果墙最前，输出植物退后一两格：豌豆射手、双发、寒冰、火焰——纵深比蛮干强。</small></span></li>
+                <li class="game-how-step"><span class="game-how-num">03</span><span class="game-how-copy"><strong data-i18n="game.howStep3Title">爆炸是清场</strong><small data-i18n="game.howStep3Body">爆裂果 / 火爆辣椒留给成群的僵尸——一次点燃一整行，胜利就是你埋的那颗炸弹。</small></span></li>
+                <li class="game-how-step"><span class="game-how-num">04</span><span class="game-how-copy"><strong data-i18n="game.howStep4Title">读祭草坪</strong><small data-i18n="game.howStep4Body">进攻路线只有那几条，看哪条线上最先出怪——那条线上的坚果墙就该最先放。</small></span></li>
+                <li class="game-how-step"><span class="game-how-num">05</span><span class="game-how-copy"><strong data-i18n="game.howStep5Title">节省技能能量</strong><small data-i18n="game.howStep5Body">能量是赚回来的。寒冰 / 时停是救命稻草，巨人来袭前打开战线超载。</small></span></li>
+                <li class="game-how-step"><span class="game-how-num">06</span><span class="game-how-copy"><strong data-i18n="game.howStep6Title">撑过第 10 波</strong><small data-i18n="game.howStep6Body">巨人把你的家啃穿就是终结。爆破 → 时停 → 超载依次接，祭出你全部的东西。</small></span></li>
+              </ol>
+              <aside class="game-how-rail">
+                <span class="game-how-rail-title" data-i18n="game.howRailTitle">技能速查</span>
+                <ul class="game-how-skills">
+                  <li><span class="game-how-skill-glyph">❄</span><span><strong data-i18n="game.howSkillPulse">寒冰脉冲</strong><small data-i18n="game.howSkillPulseHint">全场冻结数秒——所有僵尸慢下来</small></span></li>
+                  <li><span class="game-how-skill-glyph">☀</span><span><strong data-i18n="game.howSkillSun">阳光爆发</strong><small data-i18n="game.howSkillSunHint">立即 +100 阳光——火力不继时一剂快药</small></span></li>
+                  <li><span class="game-how-skill-glyph">⚡</span><span><strong data-i18n="game.howSkillRally">战线超载</strong><small data-i18n="game.howSkillRallyHint">植物攻速大幅提升——用少量阳光换节奏</small></span></li>
+                  <li><span class="game-how-skill-glyph">⏱</span><span><strong data-i18n="game.howSkillTimeStop">时停领域</strong><small data-i18n="game.howSkillTimeStopHint">全场冻结——巨人破阵前最优雅的礼物</small></span></li>
+                </ul>
+                <div class="game-how-note"><p data-i18n="game.howNote">图鉴里有每棵植物和每只僵尸的真实数值。Esc 退出教程，草坪上再亲自打一遍就是最好的教程。</p></div>
+                <button class="game-how-ready" id="gameHowReady" type="button"><span data-i18n="game.howReady">明白了</span></button>
+              </aside>
+            </div>
+          </section>
+        </div>
         <div class="game-codex" id="gameCodexPanel" aria-hidden="true">
           <section class="game-codex-card" role="dialog" aria-modal="true" aria-labelledby="gameCodexTitle">
             <header class="game-codex-header"><div><span class="game-kicker">MINICC ARCADE · FIELD GUIDE</span><h3 id="gameCodexTitle" data-i18n="game.codexTitle">植物与僵尸图鉴</h3><p data-i18n="game.codexSubtitle">当前小游戏实际使用的数值、技能与战斗行为。</p></div><button class="icon-button" id="gameCodexClose" type="button" aria-label="Close the codex" data-i18n-aria="game.codexClose"><i data-lucide="x"></i></button></header>

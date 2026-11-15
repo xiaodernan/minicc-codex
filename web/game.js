@@ -2406,6 +2406,19 @@
     panel.classList.remove("show");
     panel.setAttribute("aria-hidden", "true");
   }
+  function openGameHow() {
+    const panel = $("#gameHowPanel");
+    if (!panel) return;
+    panel.classList.add("show");
+    panel.setAttribute("aria-hidden", "false");
+    refreshIcons();
+  }
+  function closeGameHow() {
+    const panel = $("#gameHowPanel");
+    if (!panel) return;
+    panel.classList.remove("show");
+    panel.setAttribute("aria-hidden", "true");
+  }
   Object.assign(window, {
     openGame,
     closeGame,
@@ -2414,6 +2427,8 @@
     toggleGameFullscreen,
     openGameCodex,
     closeGameCodex,
+    openGameHow,
+    closeGameHow,
     startGame,
     initGame,
     gameLoop,

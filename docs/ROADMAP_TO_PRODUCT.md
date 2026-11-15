@@ -53439,3 +53439,24 @@ Wayfinder 从 6 步扩到 9 步、Esc 契约、每个按钮带双语教学 aria�
 - `node tests/admin_smoke.mjs` — hydration wait 替换固定 sleep；全绿。
 - `node tests/en_cjk_smoke.mjs` — en 全走一遍 0 CJK 保持。
 - `node tests/manual_smoke.mjs` — 13 chapters green。
+## 批次 1027 - M8-T1042: 游戏厅「作战手册」— 一份真的是游戏指南的教程，不是摆设
+
+### 目的
+
+用户指令里写着"游戏也要有充分游玩教程，告诉用户怎么玩"。此前的演练（Wayfinder）教的是工作台宏观流程；游戏厅本体是 10 波僵尸对战，没有任何页面告诉用户怎么在草坪上用技怎么放冰豌豆。从游戏自身机制出发，写一份**真的教你怎么赢**的教程，嵌进产品里，和其它浮层遵从同一 Esc 契约。
+
+### 做了什么
+
+- **`web/index.html`** — `.game-actions` 加 `#gameHow` 按钮（`? 教程`）；新增 `.game-how` 全屏级浮层，结构照搬 `.game-codex` 的模式（绝对定位居中遮罩 + 关闭按钮 + Esc 契约）。index.html 仍维持 CRLF 全量 695 行，`test_the_two_crlf_files_keep_their_endings` 现场过。
+- **`web/styles.css`** — `.game-how-*` 全系列样式（深色木刻底 + 琥珀高亮 + `01..06` mono 编号、hover 滑移、移动 ≤900px 折叠为上下双列）；设计语言沿用 game-codex / admin 风格家教。
+- **`web/src/game.js`** — `openGameHow` / `closeGameHow`，和 codex 同一模态范式（`#gameHowPanel.classList.show` + `aria-hidden`）；挂到 `window.openGameHow` / `window.closeGameHow`。
+- **`web/src/main.js`** — `#gameHow` / `#gameHowClose` / `#gameHowReady` click + `#gameHowPanel` 背景点击关闭；Esc 优先级链顶端插入 `gameHowPanel → gameCodexPanel` 两条分支（先于 adminStage）。
+- **`web/src/core/i18n.js`** — 新键 `game.how*` 双语对（how / howClose / howKicker / howTitle / howSubtitle / howStep{1-6}Title/Body / howRailTitle / howSkillPulse{,Hint} / howSkillSun{,Hint} / howSkillRally{,Hint} / howSkillTimeStop{,Hint} / howNote / howReady）；CRLF 309 保持。
+- **`tests/en_cjk_smoke.mjs`** — 游戏厅段新增 `arcade-guide` walk：打开 `#gameHow`、验证 0 CJK、关闭；这一段翻译门禁覆盖六步教程 + 技能速查 + 关闭按钮全部双语路径。
+
+### 实测验证
+
+- Playwright zh/en 双语：`? 教程` → 打开 → 6 steps + 4 skills 全部渲染 → Esc 关闭 → Screenshots `output/tutorial_zh.png / tutorial_en.png`；zh 全部中文、en 零 CJK。
+- `node tests/en_cjk_smoke.mjs` — 含新 `arcade-guide` 子段 · 全绿。
+- `node tests/atlas_smoke.mjs / admin_smoke.mjs` — 零回归。
+- CRLF pin gates 绿（index.html 695/695、i18n.js 309/309）。
