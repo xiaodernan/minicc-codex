@@ -53597,3 +53597,16 @@ M8-T1038 把 atomic Responses 原路径并进事件栏之后，「缓存 96% 那
 - **`docs/CACHE_AFFINITY_MATRIX.md`** — 新增《2026-11-16 (M8-T1052，M8-T1038 修复复核)》节：冷 73.7% → 暖 96.0% / 96.0%（后缀微改），数字全部来自 wkapi.pro 网关回传 `input_tokens_details.cached_tokens`，`store=False` 同穿。
 - **复核结论**：atomic 路径并入事件栏后缓存亲和性没有被稀释；96% 复现两个当晚结果。
 - **门禁**：py_compile 通过；`--dry-run` 形态校验通过；真跑 key 不出仓（.env untracked）。
+## 批次 1038 - M8-T1053: 每颗按钮都会顺手教一句——全站教学 tooltip
+
+### 目的
+
+Mega-spec §五：“在主界面上给各种按键和操作加上附带的教学说明，方便用户理解。”以前只有被 Wayfinder / 说明书 / 游戏厅教程覆盖的按钮才有教学 copy；其余 68 颗按钮几乎静默悬停。这一批用一个零 i18n 键的全局层补齐：tooltip 从**已经本地化**的渲染文本派生——zh 用户悬停看中文，en 用户悬停看英文，任何新按钮默认免费具备教学 copy。
+
+### 做了什么
+
+- **`web/src/main.js`** — 新增 `decorateButtons / clearDecoratedButtons / scheduleDecorateButtons / installButtonTooltips`：DOMContentLoaded 安装；MutationObserver（childList+subtree，200 ms 防抖）照顾动态渲染；`data-auto-title` 标签。
+- **全部 142 个按钮渲染后 0 缺 title**（92 颗本工具派生、50 颗 APP 自带或本批新增）；纯 emoji 按钮保持沉默（不输出回声）；首部导航符号 •::› 被剥掉。
+- **`web/src/chat/stream.js`** — 最近工作区行内按钮显式 teaching title（`workspace.switchToWorkspace` / `workspace.currentWorkspaceTitle` 双语键）。
+- **`web/src/core/i18n.js`** — 加两个键且**重新 pin 回 CRLF**（误写 LF 之后强制 309 CRLF）；`web/index.html` 未动（695 CRLF）。
+- **门禁验证**：en_cjk_smoke 绿（此前它立刻抓到 button[title] 里的 CJK 路径）；manual/admin/almanac/atlas 4 个全部绿；`test_doc_pointers`（含 bare control bytes 全库扫描）绿；`test_the_palette_has_one_home.py` 绿。

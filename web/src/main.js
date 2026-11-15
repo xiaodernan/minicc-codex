@@ -528,6 +528,50 @@ if (typeof location !== "undefined" && new URLSearchParams(location.search).get(
   document.documentElement.dataset.arcade = "1";
 }
 
+// M8-T1053: every button teaches itself. Any <button> that ships without an
+// explicit title/aria-label inherits a tooltip derived from its rendered,
+// already-localized text — zh renders get zh hints, en renders get en hints, with
+// zero new i18n keys and full locale-switch hygiene (data-auto-title tags let the
+// locale listener strip and re-derive on every switch). Buttons whose rendered
+// text carries no letters/digits/CJK (pure emoji) stay untouched: honest silence
+// beats an echo. Buttons the app itself titles (game loop, almanac rails, …) are
+// never retouched.
+function decorateButtons() {
+  document.querySelectorAll("button").forEach((button) => {
+    if (button.hasAttribute("title") || button.hasAttribute("aria-label")) return;
+    const raw = (button.textContent || "").replace(/\s+/g, " ").trim();
+    // peel leading navigation bullets/decorations the sidebar renders ("•说明书" etc.)
+    const text = raw.replace(/^[\u2022\u00b7\u25b8\u25b6\u203a\u2039>\-\u2013\u2014]+\s*/, "").trim();
+    if (!text || !/[A-Za-z0-9\u4e00-\u9fff\u3400-\u4dbf]/.test(text)) return;
+    const tooltip = text.length > 80 ? `${text.slice(0, 77)}…` : text;
+    button.setAttribute("title", tooltip);
+    button.setAttribute("data-auto-title", "true");
+  });
+}
+
+function clearDecoratedButtons() {
+  document.querySelectorAll("button[data-auto-title='true']").forEach((button) => {
+    button.removeAttribute("title");
+    button.removeAttribute("data-auto-title");
+  });
+}
+
+let buttonTooltipTimer = null;
+function scheduleDecorateButtons() {
+  if (buttonTooltipTimer) window.clearTimeout(buttonTooltipTimer);
+  buttonTooltipTimer = window.setTimeout(() => { buttonTooltipTimer = null; decorateButtons(); }, 200);
+}
+
+function installButtonTooltips() {
+  scheduleDecorateButtons();
+  const observer = new MutationObserver(scheduleDecorateButtons);
+  observer.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener("minicc:locale-changed", () => {
+    clearDecoratedButtons();
+    scheduleDecorateButtons();
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   bindUI();
   updateMode();
@@ -546,6 +590,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setSession(state.sessionId);
   applyLocale();
   refreshIcons();
+  installButtonTooltips();
   prepareStartupSplash();
   loadWorkspace()
     .then((online) => {

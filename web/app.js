@@ -465,6 +465,8 @@
       "workspace.path": "\u6587\u4EF6\u5939\u8DEF\u5F84",
       "workspace.open": "\u6253\u5F00\u6587\u4EF6\u5939",
       "workspace.recent": "\u6700\u8FD1\u6253\u5F00",
+      "workspace.switchToWorkspace": "\u5207\u6362\u5230\u8FD9\u4E2A\u5DE5\u4F5C\u533A",
+      "workspace.currentWorkspaceTitle": "\u5F53\u524D\u5DE5\u4F5C\u533A",
       "workspace.switching": "\u6B63\u5728\u5207\u6362\u5DE5\u4F5C\u533A...",
       "workspace.selectHint": "\u8F93\u5165\u672C\u673A\u6587\u4EF6\u5939\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 D:\\Projects\\demo",
       "panel.workspaces": "\u5DE5\u4F5C\u533A\u4E0E Git worktree",
@@ -1233,6 +1235,8 @@
       "workspace.path": "Folder path",
       "workspace.open": "Open folder",
       "workspace.recent": "Recent folders",
+      "workspace.switchToWorkspace": "Switch to this workspace",
+      "workspace.currentWorkspaceTitle": "Current workspace",
       "workspace.switching": "Switching workspace...",
       "workspace.selectHint": "Enter an absolute local path, for example D:\\Projects\\demo",
       "panel.workspaces": "Workspaces & Git worktrees",
@@ -7268,7 +7272,7 @@
       const sandbox = info.sandbox || {};
       const mcp = info.mcp || {};
       const recent = Array.isArray(info.recent_workspaces) ? info.recent_workspaces : [];
-      const recentRows = recent.length ? recent.map((item) => `<button class="workspace-row ${item.path === info.path ? "active" : ""}" data-select-workspace="${escapeHtml(item.path)}"><span class="workspace-row-icon">${icon(item.path === info.path ? "radio" : "folder")}</span><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.path)}</small></span>${item.path === info.path ? `<em>ACTIVE</em>` : ""}</button>`).join("") : `<div class="empty-panel">${t("panel.noWorktrees")}</div>`;
+      const recentRows = recent.length ? recent.map((item) => `<button class="workspace-row ${item.path === info.path ? "active" : ""}" data-select-workspace="${escapeHtml(item.path)}" title="${escapeHtml(t(item.path === info.path ? "workspace.currentWorkspaceTitle" : "workspace.switchToWorkspace"))}"><span class="workspace-row-icon">${icon(item.path === info.path ? "radio" : "folder")}</span><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.path)}</small></span>${item.path === info.path ? `<em>ACTIVE</em>` : ""}</button>`).join("") : `<div class="empty-panel">${t("panel.noWorktrees")}</div>`;
       const rows = worktrees.map((item) => `<div class="worktree-row"><div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.branch || "detached")} \xB7 ${escapeHtml(item.path)}</small></div>${item.managed ? `<button class="panel-icon-action" data-remove-worktree="${escapeHtml(item.name)}" title="${t("panel.close")}">${icon("trash-2")}</button>` : ""}</div>`).join("");
       const sandboxLabel = sandbox.isolated ? t("panel.isolated") : sandbox.backend === "unavailable" ? t("connection.offline") : t("panel.hostProcess");
       openPanel(t("panel.workspaces"), `<div class="workspace-switcher"><div class="panel-section-title">${t("workspace.current")}</div><code class="workspace-current-path">${escapeHtml(info.path)}</code><form class="workspace-form" id="workspaceSelectForm"><label>${t("workspace.path")}<input id="workspacePathInput" name="path" required value="${escapeHtml(info.path)}" placeholder="${t("workspace.selectHint")}" /></label><button class="panel-primary" type="submit">${t("workspace.open")}</button></form><small class="workspace-hint">${t("workspace.selectHint")}</small><div class="panel-section-title">${t("workspace.recent")}</div><div class="workspace-list">${recentRows}</div></div><div class="status-grid"><div><span>${t("panel.sandbox")}</span><strong>${escapeHtml(String(sandbox.backend || "host"))}</strong><small>${sandboxLabel}</small></div><div><span>${t("panel.mcp")}</span><strong>${escapeHtml(String(mcp.configured || 0))}</strong><small>${t("panel.servers")}</small></div></div><div class="panel-section-title">${t("panel.createWorktree")}</div><form class="worktree-form" id="worktreeForm"><input id="worktreeName" name="name" required maxlength="64" placeholder="${t("panel.name")}" /><input id="worktreeBranch" name="branch" maxlength="128" placeholder="${t("panel.branch")}" /><button class="panel-primary" type="submit">${t("panel.create")}</button></form><div class="panel-section-title">${t("panel.gitWorktrees")}</div><div class="worktree-list">${rows || `<div class="empty-panel">${t("panel.noWorktrees")}</div>`}</div>`);
@@ -11827,6 +11831,40 @@
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("arcade") === "1") {
     document.documentElement.dataset.arcade = "1";
   }
+  function decorateButtons() {
+    document.querySelectorAll("button").forEach((button) => {
+      if (button.hasAttribute("title") || button.hasAttribute("aria-label")) return;
+      const raw = (button.textContent || "").replace(/\s+/g, " ").trim();
+      const text = raw.replace(/^[\u2022\u00b7\u25b8\u25b6\u203a\u2039>\-\u2013\u2014]+\s*/, "").trim();
+      if (!text || !/[A-Za-z0-9\u4e00-\u9fff\u3400-\u4dbf]/.test(text)) return;
+      const tooltip = text.length > 80 ? `${text.slice(0, 77)}\u2026` : text;
+      button.setAttribute("title", tooltip);
+      button.setAttribute("data-auto-title", "true");
+    });
+  }
+  function clearDecoratedButtons() {
+    document.querySelectorAll("button[data-auto-title='true']").forEach((button) => {
+      button.removeAttribute("title");
+      button.removeAttribute("data-auto-title");
+    });
+  }
+  var buttonTooltipTimer = null;
+  function scheduleDecorateButtons() {
+    if (buttonTooltipTimer) window.clearTimeout(buttonTooltipTimer);
+    buttonTooltipTimer = window.setTimeout(() => {
+      buttonTooltipTimer = null;
+      decorateButtons();
+    }, 200);
+  }
+  function installButtonTooltips() {
+    scheduleDecorateButtons();
+    const observer = new MutationObserver(scheduleDecorateButtons);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("minicc:locale-changed", () => {
+      clearDecoratedButtons();
+      scheduleDecorateButtons();
+    });
+  }
   document.addEventListener("DOMContentLoaded", () => {
     bindUI();
     updateMode();
@@ -11845,6 +11883,7 @@
     setSession(state.sessionId);
     applyLocale();
     refreshIcons();
+    installButtonTooltips();
     prepareStartupSplash();
     loadWorkspace().then((online) => {
       if (online) {
