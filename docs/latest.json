@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T11:15:38.644Z",
+  "generated_at": "2026-11-15T11:16:35.293Z",
   "branch": "main",
-  "head": "a1be4f9",
-  "total_commits": 1619,
+  "head": "a7db677",
+  "total_commits": 1620,
   "recent_commits": [
+    {
+      "short": "a7db677",
+      "at": "2026-11-15T19:15:49+08:00",
+      "subject": "M8-T1016: almanac chapter 18 The Gatekeeper - the shared-123 door told in-epically with live numbers; scroll-reset fix for chapter switching (long chapters used"
+    },
     {
       "short": "a1be4f9",
       "at": "2026-11-15T19:14:54+08:00",
@@ -24,18 +29,13 @@
       "short": "ba7e255",
       "at": "2026-11-15T18:39:58+08:00",
       "subject": "M8-T1014: admin panel - password-123 shared door, live read-only stats from real workspace data; /api/admin/summary; locked/unlocked zh/en verified; dockyard/ad"
-    },
-    {
-      "short": "b46a863",
-      "at": "2026-11-15T09:45:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 331,
   "changelog_entries": 1,
   "roadmap_lines": 53025,
-  "tracked_files": 1075,
+  "tracked_files": 1073,
   "test_files": 709,
   "almanac_chapters": 19,
   "module_count": 14,
