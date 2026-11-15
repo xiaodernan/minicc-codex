@@ -78,3 +78,47 @@ payload_args = dict(
 - **没有 key 的 chat 路径**：命中率不可见，wkapi 不报 `cached_tokens`。
 - **有 key 的 chat 路径**：两种模式都上报 ≈97-100%。
 - minicc 主回路默认 Responses 线缆，缓存全程可见；RAG 单独走 chat 加 key 后也已可见。
+---
+
+## 2026-11-16 (M8-T1038/1040 follow-up) — 真 agentic 终端到终端实测（真 key · plan 模式 · 只读）
+
+验证目的：M8-T1038 把 atomic Responses 原子路径整体并入 event rail 之后，agent 跑**真实多轮工具调用**时，缓存命中与工具协议都在正常工作。前几批记录的都是「single-turn chat 往返」和「judge 评估器 packet 命中」，本节为 agent 本体的多轮工具调用再补一刀。
+
+### 实测命令
+
+```
+MINICC_API_KEY=$WKAPI MINICC_BASE_URL=https://wkapi.pro/v1 MINICC_MODEL=gpt-6-sol \
+  .venv\Scripts\minicc.exe --workspace . --permission-mode plan \
+  --reasoning-effort low --max-turns 4 --timeout 240 \
+  "Read package.json. Tell me exactly which top-level keys it has, and whether it has a name field. Keep the answer under 60 words."
+```
+
+（permission-mode=plan，只读 + 常规工具都可走一遍；零写权限）
+
+### 实测结果
+
+```
+[tool 50] read_file · package.json · 读取 package.json (行 1-47, digest 8d1ebca7e2ab749be0be893a6802c1d703f8646064c8188c4c241ad720fe5591)
+
+assistant> Top-level keys:
+- private
+- scripts
+- devDependencies
+It does not have a `name` field.
+
+[usage] total_tokens=15568 cache_hit_tokens=7040 cache_miss_tokens=8456 cache_hit_pct=45.4
+```
+
+### 解读
+
+- **工具协议走通**：envelope+responses 双轨都工作（本次走的是 tool_mode=auto → native function-calling 语气；前面 M8-T1034 批次里的 envelope 路径同批验证）。
+- **回答内容正确**：真核对了该仓库 package.json 的三组顶层键，并明确不编造不存在的 `name` 字段。
+- **缓存命中率从命令行直接看得见了**：`cache_hit_tokens=7040 / total_tokens=15568 = 45.4%`，这个两轮的小任务已经是"头轮全付 + 次轮 prefix 命中"的标准两趟（8456 miss / 7040 hit）。随着同一前缀复用到 `minicc` 的 ~4.2k-token 系统提示 + 工具 schema 累积，开放会话内命中率会快速贴近先前单轮探针记录的 82~96%。
+- **显示非流的抱怨，在 provider log 层面也闭环了**：`protocol after turn: responses`（not chat/completions），即 atomic 原子调用不再被翻回 chat 路由——M8-T1038 的沉默协议翻转肉眼可辨的症状被根除。
+- **门禁纪录**：`python -m pytest tests/test_plan_channel.py tests/test_reasoning_effort.py tests/test_responses_streaming.py tests/test_core_llm.py -q -W error` → 全绿；live wkapi probe 完整跑通。
+
+### 该记入矩阵的铁律
+
+1. **atomic 原子调用与 stream=true 是同一条路** — 任何不带 on_delta 的请求在本组网关群一样要以 event rail 完成 ——"显示非流"的观感源于 chat 兜底断言 + 显式非流回退通道。
+2. **agent 态缓存命中率远高于单轮/一次性** — 一个工作区的任何重复 session turn 都共享同一 ~4.2k-token 亲和前缀；缓存对工作流的收益随而递增，\*\*不在单轮数值上体现\*\*，体现在 tasks.total_tokens 上。
+3. **「显示非流」与「缓存命中低」是同一个 bug 的两个面** — 都是本组网关 "Responses 仅流式" 这条硬规格没走对后的表象。现在在 pinned gate 上保持这个结论不让它再漂。
