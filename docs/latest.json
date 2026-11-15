@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T20:10:50.632Z",
+  "generated_at": "2026-11-15T20:41:55.664Z",
   "branch": "main",
-  "head": "3bf51ca",
-  "total_commits": 1675,
+  "head": "74ece51",
+  "total_commits": 1678,
   "recent_commits": [
+    {
+      "short": "74ece51",
+      "at": "2026-11-16T04:41:32+08:00",
+      "subject": "M8-T1049: CI-leg red fix - README had '--island-tint' which the capability-claims gate reads as an unregistered CLI flag (it's a CSS custom property); dropped t"
+    },
+    {
+      "short": "137c897",
+      "at": "2026-11-16T04:41:31+08:00",
+      "subject": "M8-T1048: pre-game idle tick silences the cooldown freeze + 2560x1200 viewport now shows full Start flow (seeds above canvas above sticky controls; @media 1500x"
+    },
+    {
+      "short": "21e5f88",
+      "at": "2026-11-15T20:10:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3bf51ca",
       "at": "2026-11-16T04:08:18+08:00",
@@ -14,28 +29,13 @@
       "short": "2874be3",
       "at": "2026-11-16T03:52:42+08:00",
       "subject": "docs: manual en modules almanac stale chapter citation fixed - Chapter XXIV 'The Lawn' (was XXIVI 'The Compass'); manual_smoke 13/13 green; recorded in ledger ("
-    },
-    {
-      "short": "c82b2ed",
-      "at": "2026-11-16T03:47:16+08:00",
-      "subject": "M8-T1046: almanac Ch.XXIV 'The Lawn' - the week the arcade learned to win first (60s Field Manual + pre-game planting + Wayfinder step 10 + island tint clause),"
-    },
-    {
-      "short": "fd3c414",
-      "at": "2026-11-15T19:42:04Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0fc6fff",
-      "at": "2026-11-16T03:35:41+08:00",
-      "subject": "M8-T1045: palette gate - declare --island-tint primal default on .atlas-island-dot (was JS-only custom property invisible to static css check); palette one-home"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 360,
+  "roadmap_batches": 362,
   "changelog_entries": 1,
-  "roadmap_lines": 53538,
-  "tracked_files": 1080,
+  "roadmap_lines": 53562,
+  "tracked_files": 1077,
   "test_files": 712,
   "almanac_chapters": 25,
   "module_count": 14,
