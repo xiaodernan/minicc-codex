@@ -23,8 +23,8 @@ async function checkMode(locale, expectCjk) {
   assert.ok(await page.locator(".atlas-hud .atlas-title").innerText());
 
   const charted = await page.locator("#atlasCharted").innerText();
-  const expectTotal = expectCjk ? "/ 52 个坐标" : "/ 52 coordinates";
-  assert.ok(charted.includes(expectTotal), `charted line must carry the 50-coordinate contract, saw: ${charted}`);
+  const expectTotal = expectCjk ? "/ 53 个坐标" : "/ 53 coordinates";
+  assert.ok(charted.includes(expectTotal), `charted line must carry the 53-coordinate contract, saw: ${charted}`);
 
   // Esc-like close via the dedicated button restores aria-hidden
   await page.click("#atlasClose");
@@ -41,5 +41,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("atlas smoke passed: nav button bilingual, panel opens, 52-coordinate charted line renders, stardust visible when visited, close restores hidden state, zero pageerror");
+console.log("atlas smoke passed: nav button bilingual, panel opens, 53-coordinate charted line renders, stardust visible when visited, close restores hidden state, zero pageerror");
 await browser.close();

@@ -5611,3 +5611,9 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 #tourOverlay .tour-next { pointer-events: auto; }
 #tourOverlay .tour-spot { pointer-events: none; }
 #tourOverlay .tour-dim { pointer-events: none; }
+
+/* M8-T1036: almanac chapter XXI — the fence (the en-mode CJK parity gate). */
+.almanac-exceptions { display: grid; gap: 6px; list-style: none; padding: 0; margin: 10px 0 18px; max-width: 640px; }
+.almanac-exceptions li { display: grid; grid-template-columns: auto 1fr; gap: 10px; border-left: 2px solid var(--mint); background: var(--surface-soft); padding: 8px 12px; border-radius: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.almanac-exceptions strong { color: var(--text); font-weight: 600; }
+@media (max-width: 760px) { .almanac-exceptions li { grid-template-columns: 1fr; gap: 2px; } }

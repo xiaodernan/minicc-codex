@@ -53321,3 +53321,25 @@ Admin 面板是上一批里程碑，但 admin 唯一的质量保证曾是一手�
 - atlas_smoke / manual_smoke / almanac_smoke / admin_smoke / en_cjk_smoke 全绿；parity 三重连续 pass；CRLF gates 655/309 零漂移。
 - 门禁不受影响：fresh en walk 计数到 13（pulse 站）时显示 milestone toast，不拦截任何点击（`.toast` 有 `pointer-events: none`）。
 - 记录：本批提交时 CI `43739027082`（M8-T1034, 909f9751）仍在 in_progress；push 等远端落地。
+## 批次 1021 - M8-T1036: 年鉴卷二十一「篱笆 / The Fence」— 一卷专门讲"零混语言"的战争纪录；世界长到 53 坐标
+
+### 目的
+
+en-mode CJK 门禁（M8-T1034）立下了「一个时代一种语言」的律法。这次是立法之后的故事：把那场战斗写进博物馆——包括语言规则边缘的诚实例外（你的提示词、模型回答、git 历史主题、真实文件系统路径、「中」字本身），让后来者明白为什么 en 模式里看见一个中文字符就是失败。同时让世界随卷的增长继续扩张：22 卷年鉴卫星钉上 Atlas，世界到达 53 坐标。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `fence`（卷二十一 · 篱笆 / Chapter XXI · The Fence，subtitle「一个语言时代只有一种语言 / One era of language, one language」）；新增 `fenceMarkup()`：84 行博物馆式正文（双语并排，en 段内**零 CJK 字节**，CJK 路径字面量全部改写为角括号描述），含《例外写明》`almanac-exceptions` 列表（mint 左边的诚实例外五条）；instrument 格显示 en 泄露 4→0、views 12/12、overlays 6/6、Wayfinder 9/9、live 提交/任务数；gate-list 五条进门标准；问章渲染器 `CHAPTER_RENDERERS` 注册。本章冻结了"四枚中文化石"的真实身份（gameFullscreen 全屏钮 / panelExpand 展开全屏 / secondary-nav 更多功能 / Atlas HUD 中文占位）。
+- **`web/styles.css`** — `.almanac-exceptions`（grid，mint 左框，`var(--surface-soft)` 底）。
+- **世界 53 坐标**：`ALL_NODES.length` 自动推到 53；活跃面全量对齐：`index.html` 中性占位 → `— / 53`；`onboarding.js`（52 个坐标 → 53；20 卫星 → 22；almanac 卷数 21 → 22；"museum in thirteen halls" → "twenty-two halls"）；`manual.js`（modules 章改写，最新卷 = 卷二十一《篱笆》）；`README.md`（"年鉴（21 卷）" → 22；Atlas 描述 52→53；并点名 Fence）；`tests/atlas_smoke.mjs` contract 迁移 53。`.minicc/` CTMA 内前一代 smoke 的 52 主张不动（历史实况）。i18n 零改动（`atlas.charted` 用 `{total}` 插值，里程碑阈值 `Math.ceil`，随世界自动重算）。
+- **`tests/almanac_smoke.mjs`** — chapterIds 加入 `fence`；chapter render marker 加入 （篱笆/The Fence）；log 升至 22 chapters。
+- **月壤纪录**：en 模式下新章 innerText 0 CJK（路径字面量已经角括号化），zh 模式同步验证。
+- **门禁验证**：almanac / atlas / manual / admin / en_cjk 五件全绿；CRLF 655/309 零漂移；digest 自动判出 22 卷（无硬编码）。
+- 与 M8-T1035 合推：出 HWUB 前 cherry-pick 保持原子性。
+
+### 实测验证
+
+- `node tests/almanac_smoke.mjs` — **22 chapters** bilingual pass。
+- `node tests/atlas_smoke.mjs` — 53-coordinate charted line renders。
+- `node tests/en_cjk_smoke.mjs` — en 通读 0 CJK；Fence 章不污染门禁。
+- 本地实测 en innerText fence 段 CJK 计数 = 0；zh 段 143 汉字（混排法定）。

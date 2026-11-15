@@ -41,6 +41,7 @@ export const CHAPTERS = [
   { id: "gatekeeper", roman: { zh: "卷十八", en: "Chapter XVIII" }, title: { zh: "守门人", en: "The Gatekeeper" }, subtitle: { zh: "知道密码的人，看见同一份诚实", en: "Everyone with the 123 door sees the same honest ledger" } },
   { id: "meridian", roman: { zh: "卷十九", en: "Chapter XIX" }, title: { zh: "镜门", en: "The Meridian" }, subtitle: { zh: "有人问路的地方，就是答案", en: "Where directions are given for walks never taken" } },
   { id: "nightwatch", roman: { zh: "卷二十", en: "Chapter XX" }, title: { zh: "未眠", en: "The Night Watch" }, subtitle: { zh: "账本没有合上，它只是翻开下一页", en: "The ledger never closed; it turned the page" } },
+  { id: "fence", roman: { zh: "卷二十一", en: "Chapter XXI" }, title: { zh: "篱笆", en: "The Fence" }, subtitle: { zh: "一个语言时代只有一种语言", en: "One era of language, one language" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1408,6 +1409,89 @@ function nightwatchMarkup() {
     </div>`;
 }
 
+function fenceMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const renderers = { zh: 22, en: 22 };
+  return `
+    <div class="almanac-canvas almanac-fence">
+      <div class="almanac-kicker">${zh() ? "卷二十一 · 篱笆" : "Chapter XXI · The Fence"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `这一行代码，<br/><span class="almanac-title-accent">只说一种语言。</span>`
+        : `This whole page,<br/><span class="almanac-title-accent">one language only.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          有一天，我们让机器读完整个应用——逐视图、逐浮层、逐属性。凡未翻译的字节，都不能藏身。
+          它抓到了 <strong>4 处</strong>不该存在的汉字：一颗游戏大厅的全屏钮钉死了"全屏"、一顆主面板展开钮一生只会说"展开全屏"、
+          次级导航上一块路标牌写着"更多功能"、还有一张地图，在你第一次打开它之前，一直在心里用中文念它的名字。
+        </p>
+        <p>
+          我们修好了它们。然后立起了这道篱笆：en 模式下任何<strong>可见</strong>的中文都是断裂——先有例外，后有规则：
+        </p>
+        <ul class="almanac-exceptions">
+          <li><strong>你的提示词</strong>——你自己写的，不翻译。</li>
+          <li><strong>模型的回答</strong>——它说的，也不翻译。</li>
+          <li><strong>你的提交记录</strong>——历史不改写，中文主题是主题，不是错。</li>
+          <li><strong>真实文件路径</strong>——D:/面试项目/… 住在你这台机器上，不是脚本能翻译的。</li>
+          <li><strong>"中"字本身</strong>——语言切换按键上那个字，必须住在自己的名字里。</li>
+        </ul>
+        <p>
+          围栏立起之后，en 模式下整个产品——12 个视图、6 个浮层（含 123 门解锁态）、Wayfinder 的九步演练——<strong>0 泄露</strong>。
+          星尘里程碑（13/26/39/52，13/26/39/53 会立刻按世界的新大小重算）终于有了它从不该缺席的那一部分。
+          世界没有就此变小——它只是第一次看得见自己的每一面墙。
+        </p>` : `<p>
+          One day we let a machine read the entire app — view by view, overlay by overlay, attribute by attribute.
+          Any byte that shipped untranslated could not hide. It caught <strong>four</strong> misplaced characters:
+          an arcade fullscreen button nailed shut on its Chinese label, a panel expand button that had only ever spoken Chinese,
+          a secondary-nav road sign still pointing at its Chinese name, and one map that kept murmuring its own name in Chinese until somebody finally opened it.
+        </p>
+        <p>
+          We fixed them, and then we raised this fence. In en mode, any <strong>visible</strong> Chinese is a fracture — and the fence has its exceptions, written down first:
+        </p>
+        <ul class="almanac-exceptions">
+          <li><strong>Your prompts</strong> — you wrote them; we don't translate them.</li>
+          <li><strong>The model's answers</strong> — it said what it said; we don't translate it.</li>
+          <li><strong>Your commit history</strong> — history is never rewritten; a Chinese subject is a subject, not a bug.</li>
+          <li><strong>Real filesystem paths</strong> — a folder that only exists on your machine, not a script's to translate.</li>
+          <li><strong>The CJK glyph of the language toggle</strong> — the toggle itself must live in its own name.</li>
+        </ul>
+        <p>
+          With the fence raised, en mode across the whole product — 12 views, 6 overlays (including the 123 unlock), the nine-step Wayfinder — reads <strong>0 leaks</strong>.
+          Stardust milestones (13 / 26 / 39 / 53, recalculated the moment they landed) are finally something the world itself counts with you.
+          The world did not shrink. It only got its walls numbered for the first time.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "en 泄露 · 修复前" : "en leaks · before"}</div><div class="almanac-instrument-value">4</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "en 泄露 · 修复后" : "en leaks · after"}</div><div class="almanac-instrument-value">0</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "视图 × en" : "views in en"}</div><div class="almanac-instrument-value">12 / 12</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "浮层 × en" : "overlays in en"}</div><div class="almanac-instrument-value">6 / 6</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Wayfinder 步数 × en" : "Wayfinder steps in en"}</div><div class="almanac-instrument-value">9 / 9</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 中/英" : "volumes · zh/en"}</div><div class="almanac-instrument-value">${renderers.zh} / ${renderers.en}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["#atlasCharted / panelExpand / gameFullscreen / secondary-nav", "四处中文钉没了——自定义串改成 boot 刷新、aria 标签接入 i18n"],
+        ["checkVisibility({ checkOpacity })", "门禁只数用户真正看得見的字——opacity 0 的地图不会背锅"],
+        ["D:/面试项目/…", "文件名是机器的私有词，历史是祖父的血，厨房的提示是你自己的锅"],
+        ["exceptions written down first", "先立例外，再立规则——门禁从不冤枉数据"],
+        ["minicc:locale-changed", "切换语言时，地图立即换口吻，不必等下一次开门"],
+      ] : [
+        ["#atlasCharted / panelExpand / gameFullscreen / secondary-nav", "four hardcoded Chinese strings, retired — custom string refreshes at boot; aria-labels wired into i18n"],
+        ["checkVisibility({ checkOpacity })", "the gate only counts what a user can actually read — the opacity-0 map never takes the fall"],
+        ["Real filesystem paths", "a folder the machine calls home — history is the grandfather's blood, the prompt is your own pot"],
+        ["exceptions written down first", "state the exceptions before the rules — a gate that convicts data is not a gate, it's a trap"],
+        ["minicc:locale-changed", "the map switches tongues the moment you do — no next-open required"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "世界每多一面墙，就有人要爬上去，看看另一边是什么。"
+          : "Every wall the world builds, somebody climbs — to see what's on the other side."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1430,6 +1514,7 @@ const CHAPTER_RENDERERS = {
   gatekeeper: () => gatekeeperMarkup(),
   meridian: () => meridianMarkup(),
   nightwatch: () => nightwatchMarkup(),
+  fence: () => fenceMarkup(),
 };
 
 async function loadChapter(id) {

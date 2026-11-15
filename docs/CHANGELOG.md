@@ -440,3 +440,6 @@
 - **CI 状态记录**：本批次提交时 `43736466300`（M8-T1033, 415cd8e8）仍在跑（cancel-in-progress 生效中）；本批次登记后待该 CI 落地再推送。
 - **星尘里程碑（M8-T1035）**：Atlas 真正的进度游戏——52 个坐标四档里程碑（13/26/39/52），每档触发一次性双语 toast（✦ 星尘 …），写入 localStorage 防止重复触发；`clearVisitHistory`（清除足迹）一并重置里程碑状态；boot-time sync 让老用户升级时获得一次补发庆典。L 门禁 record（known-good ICE screenshot：zh toast 文案验证 "✦ 星尘 13 / 52 —— 世界开始发亮，你已经勘过四分之一"）。
 - **en_cjk_smoke 加固**：Playwright actionability 窗口在重渲染后常出 transient 误报；加入 `clickRetry`（首败后 settle + Escape + 再试，analogous to a human's second tap）；admin/arcade/atlas 点击超时调至 7–8s；三连绿。
+- **年鉴第十六第二卷「篱笆 / The Fence」（M8-T1036）**：atlas 的世界扩大到 22 卷——新章叙事了"en 模式零泄露"那场战斗：一个机器把整个产品读了一遍，揪出 4 处不该存在的中文化石（游戏大厅全屏钮标题钉死"全屏"、主面板展开钮"展开全屏"、次级导航"更多功能"、Atlas HUD 在第一次打开之前一直心里用中文念自己的名），修完之后立了篱笆：**en 模式下可见中文都是断裂**（例外写明——你的提示 / 模型的回答 / 你的提交记录 / 真实文件路径 / '中' 字本体）；en 段内零残留 CJK；门禁 `tests/en_cjk_smoke.mjs` 从此永久把守。
+- **世界 53 坐标**：22 卷年鉴卫星加入 Atlas（ALL_NODES = 18 panes + 22 almanac + 13 manual = 53）；`ATLAS_TOTAL` 沿用 `ALL_NODES.length` 自动对齐。52-Coordinate contract 的所有活跃面宣布退役："rev maps / Atlas HUD / atlas_smoke / manual / onboarding / README" 全部升至 53；26/39/52 里程碑阈值在代码里按 ceil(53×0.25)=14，自动随世界重算。
+- **almanac_smoke 更新**：walked 22 chapters；log 行 "22 chapters"。en/backlog 不再泄露 CJK —— manual modules 说明书更新为二十二卷。
