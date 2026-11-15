@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T09:31:42.460Z",
+  "generated_at": "2026-11-15T09:35:11.487Z",
   "branch": "main",
-  "head": "ef5d2f8",
-  "total_commits": 1610,
+  "head": "8ca28e8",
+  "total_commits": 1612,
   "recent_commits": [
+    {
+      "short": "8ca28e8",
+      "at": "2026-11-15T17:34:55+08:00",
+      "subject": "M8-T1012: manual smoke test added - all 13 chapters render fully bilingual, no mixed-language prose, any uncaught pageerror counted as failure; test:manual wire"
+    },
+    {
+      "short": "92de8d4",
+      "at": "2026-11-15T09:31:42Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ef5d2f8",
       "at": "2026-11-15T17:31:24+08:00",
@@ -19,24 +29,14 @@
       "short": "60ed56f",
       "at": "2026-11-15T17:30:37+08:00",
       "subject": "M8-T1011: manual chapter XIII 'Full Stack' - walk the whole architecture front-to-back with measurements (FastAPI+vanilla JS, local Python agent, optional Sprin"
-    },
-    {
-      "short": "7423da0",
-      "at": "2026-11-15T09:27:11Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4677f67",
-      "at": "2026-11-15T17:26:52+08:00",
-      "subject": "M8-T1010: manual chapter XII 'Spring Cloud plane' - teach the user to stand up the whole distributed plane on their own machine with real commands verified end-"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 326,
+  "roadmap_batches": 327,
   "changelog_entries": 1,
-  "roadmap_lines": 52906,
-  "tracked_files": 1069,
-  "test_files": 707,
+  "roadmap_lines": 52928,
+  "tracked_files": 1070,
+  "test_files": 708,
   "almanac_chapters": 18,
   "module_count": 14,
   "feature_surface": [
