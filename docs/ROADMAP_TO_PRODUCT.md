@@ -52925,3 +52925,32 @@ README 列出了 Spring Cloud plane 七个 Java 模块，CHANGELOG 记录了五�
 - `node tests/manual_smoke.mjs` → **manual smoke passed: 13 chapters render fully bilingual, no mixed-language prose**
 - zh/en 双模式均通过；
 - CI 下次推送的 web-smoke step 会自动带上这一道门。
+
+## 批次 1003 - M8-T1013：全门禁全绿 — 这一分支首次一次跑完、一格不红
+
+### 1 背景
+
+从 T1005 到 T1012 每推都 cancel 上一次未完成 CI（workflow `concurrency.group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}, cancel-in-progress: true`），所以我们反复得到「又 cancel 了」。这一批凑巧——M8-T1012（`8ca28e8d`）推送后没有再被下一批打断，CI 从 queue 完整跑到终点。
+
+### 2 实测证据
+
+`gh run view 43699944605`（`8ca28e8d` = 手册 smoke 那一批）：
+
+- Claim checkers (doc pointers + route coverage + impact floor) → **success**
+- Python tests (windows-latest) → **success**
+- Service plane tests (mvn) → **success**
+- Python tests (ubuntu-latest) → **success**
+- M1 reliability probe → **success**
+- JavaScript syntax → **success**
+- PR eval gate (fake provider, <15m) → **success**
+- Nightly eval (real key, v2 + gate) → skipped（expected: not a schedule event）
+- Playwright web smoke (unreachable provider must fail) → **success**
+- Playwright web smoke → **success**
+
+`gh run view --log` → 没有 `##[error]` 行、没有 `FAILED` 行。
+
+### 3 重要意义
+
+- 数周来上次 Python 腿完整结果只能看失败，本次 Windows + Ubuntu 两条腿**都是 success**；
+- Claim checkers 绿 + web-smoke 绿 + mutation smoke 绿 + PR-eval 绿 + mvn 绿 + M1 绿 —— 一口气跑完，不必再重跑；
+- 新增 `tests/manual_smoke.mjs` 没有造成任何回归，`test:arcade` 现在包含它。
