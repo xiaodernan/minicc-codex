@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T00:42:27.597Z",
+  "generated_at": "2026-11-16T01:21:16.243Z",
   "branch": "main",
-  "head": "f6227d9",
-  "total_commits": 1700,
+  "head": "245c476",
+  "total_commits": 1702,
   "recent_commits": [
+    {
+      "short": "245c476",
+      "at": "2026-11-16T09:20:41+08:00",
+      "subject": "M8-T1064: almanac Ch.XXVIII 'The Steward' - the night the queue finally delivered (Windows leg greens after 5 rounds of starvation) + admin mainline health live"
+    },
+    {
+      "short": "373348f",
+      "at": "2026-11-16T00:42:27Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f6227d9",
       "at": "2026-11-16T08:41:57+08:00",
@@ -19,25 +29,15 @@
       "short": "402d1e5",
       "at": "2026-11-16T08:17:32+08:00",
       "subject": "M8-T1063: real-world CI-leg red - admin unlock's new /api/ci_status made 3 sequential GitHub round trips (<=24s on a starved runner); now 3-way fanout in one Th"
-    },
-    {
-      "short": "a3103cc",
-      "at": "2026-11-16T00:03:51Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4ea0058",
-      "at": "2026-11-16T08:02:59+08:00",
-      "subject": "M8-T1062: admin mainline health tile - new /api/ci_status (GitHub REST: actions/runs?branch=main + pulls + issues with PR-dedupe), 5-min LRU/Redis cache, live=T"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 375,
+  "roadmap_batches": 376,
   "changelog_entries": 1,
-  "roadmap_lines": 53720,
+  "roadmap_lines": 53731,
   "tracked_files": 1082,
   "test_files": 715,
-  "almanac_chapters": 28,
+  "almanac_chapters": 29,
   "module_count": 14,
   "feature_surface": [
     "workbench",
