@@ -54331,3 +54331,17 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Admin tile「诊断 · 值守诊断师」**：异步加载 + refresh + token 账公示（mint 边框与 brief 的 periwinkle 边框区分）。
 - **真 lane 实测**：prompt 5,071 · cached 4,224 · 模型把 restart 主因/因素未知/常见模式/一步动作四件事全说对。
 - **测试**：`test_oracle_diagnosis.py` 6/6；route_coverage 33/33 GET + 14/14 POST B；admin_smoke 新增断言；claim gates 69/69。
+## 批次 1098 · M8-T1121: 模型现役第三个产出——年鉴第五十二卷《通电 / The Live Current》
+
+### 目的
+
+把“模型值班”本身写成一卷——而且让模型自己供稿。
+
+### 做了什么
+
+- **`minicc/…` 无生产代码变更**；模型现役产出交付：
+  - **`docs/CHAPTER_DRAFT.md`**（新，INDEX 登记）：prompt 5,013 / completion 1,378 / `cached_tokens=4,224`（前缀第五现身）· reasoning 516。
+- **`web/src/panels/almanac.js`**：`livecurrentMarkup()` + CHAPTERS「卷五十一·通电」；instruments 89/52/19/10 · pushes today 46。
+- **Atlas 88 → 89 coordinates**：almanac satellites 51→52；`atlas_smoke` 89；`index.html` 717/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量 52 Halls、89 坐标、年鉴（52 卷）；README 加 The Live Current 领衔。
+- **验证**：`almanac_smoke` 52 chapters 双语 / `atlas_smoke` 89-coordinate / manual_smoke 19 / stategraph_smoke / parity / admin / dazzle。

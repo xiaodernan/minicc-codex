@@ -71,6 +71,7 @@ export const CHAPTERS = [
   { id: "thewall", roman: { zh: "卷四十八", en: "Chapter XLVIII" }, title: { zh: "墙立住了", en: "The Wall Stood" }, subtitle: { zh: "红了，然后门修好", en: "red first, then the door got fixed" } },
   { id: "livewire", roman: { zh: "卷四十九", en: "Chapter XLIX" }, title: { zh: "通缆", en: "The Live Wire" }, subtitle: { zh: "面板不再复述仓库，面板直接跑仓库", en: "a panel that reads the repo, not a retelling of it" } },
   { id: "thesurge", roman: { zh: "卷五十", en: "Chapter L" }, title: { zh: "压测", en: "The Surge" }, subtitle: { zh: "慢不是宿命，是调用方法", en: "slow is a method, not a fate" } },
+  { id: "livecurrent", roman: { zh: "卷五十一", en: "Chapter LI" }, title: { zh: "通电", en: "The Live Current" }, subtitle: { zh: "模型现役上岗的第一晚", en: "the first night the model went on duty" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3573,6 +3574,56 @@ function thesurgeMarkup() {
     </div>`;
 }
 
+function livecurrentMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-livecurrent">
+      <div class="almanac-kicker">${zh() ? "卷五十一 · 通电" : "Chapter LI · The Live Current"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `先有人写，再有故事——<br/><span class="almanac-title-accent">然后模型开始自己写。</span>`
+        : `First someone wrote —<br/><span class="almanac-title-accent">then the model began to write.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>仓库今夜的存证是：head=04e0563，位于 main 分支，提交总数 1813。年鉴已经写到第五十一卷，这一卷是第五十二卷；Atlas 目前是 88 坐标的故事，本卷写完后将成为 89。</p>
+        <p>2026-11-17，模型被接进了两件新的工作。管理员面板的「工作区简报（由模型现扫）」让模型自己读取实测事实并写出双语简报；「诊断 · 值守诊断师」让模型读取中断原因分布、趋势与任务记录，并写出双语诊断。今天的 3/3 中断全部是服务重启。</p>
+        <p>今天也有一次信任恢复：解锁面板的一次诊断如实显示「模型不可达——面板不写诊断，只说这一句真话」，没有伪造任何东西；另一条网络探测表明 LAN 直连探针返回 HTTP 200。快道 scripts/measure_cache_affinity.py 第二天复测，冷 73.7%（5731/4224）→ 暖 95.9%（5737/5504），同前缀两天一致。/api/stats 冷路径由 Profile 定位到 _disk_bytes 占 87%；换 scandir 走查后，冷走查 2.97→0.57 秒，gather 17.6→1.25 秒，p50 12,918→9.5ms（≈1,360×），8,820 次压测 0 非 2xx。</p>
+        <p>仓库跟踪文件 1093 个，其中测试文件 720 个；路线图 424 批、54333 行。值守简报与值守诊断现在都由模型面对现场事实作答。Honest limits：这些记录只说明今晚被观测到的事实，不据此给出任何可靠下限。</p>` : `<p>The warehouse record for tonight is: head=04e0563, on main, with 1813 total commits. The annal has reached volume 51; this is volume 52. Atlas is now a story of 88 coordinates, and this volume will bring it to 89.</p>
+        <p>On 2026-11-17, the model was connected to two new duties. The administrator panel’s “Workspace Brief (scanned live by the model)” has the model read measured facts itself and write a bilingual brief. “Diagnostics · On-Call Diagnostician” has it read the interruption-cause distribution, trends, and task records, then write a bilingual diagnosis. All 3/3 interruptions today were service restarts.</p>
+        <p>Trust was also restored once today: one unlock-panel diagnosis honestly displayed “Model unreachable—the panel writes no diagnosis, only this one true sentence”; it fabricated nothing. A separate network probe showed the LAN direct probe returning HTTP 200. The second-day run of scripts/measure_cache_affinity.py measured cold 73.7% (5731/4224) → warm 95.9% (5737/5504), consistent across the same prefix on both days. Profiling located 87% of the cold /api/stats path in _disk_bytes; switching the walk to scandir changed cold walk 2.97→0.57 seconds, gather 17.6→1.25 seconds, and p50 12,918→9.5ms (≈1,360×), with 0 non-2xx responses across 8,820 load-test requests.</p>
+        <p>The repository tracks 1093 files, including 720 test files; the roadmap contains 424 batches and 54333 lines. The Workspace Brief and On-Call Diagnosis now have the model answer from the observed scene. Honest limits: these records describe only what was observed tonight; they imply no reliable lower bound.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">89</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">52 / 52</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">46</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["模型写下了这一卷", "gpt-6.1-terra 现场直供；prompt_cache_key 稳定；prompt=5,013 · completion=1,378 · cached_tokens=4,224"],
+        ["两件新工作接进了模型", "工作区简报（由模型现扫）· 诊断 · 值守诊断师——管理员面板现在由它值班"],
+        ["代理从叙事变成了值守", "结论自己从快照里读；故障时如实说「模型不可达——只说这一句真话」"],
+        ["Atlas 88→89", "head 04e0563；1795 次 cached_tokens 之后的第五份现役产出"],
+        ["这一卷不需要你信", "docs/CHAPTER_DRAFT.md 原文存档；git show 即可复核；引用数字皆可用 scripts/measure_cache_affinity.py 复扫"],
+      ] : [
+        ["The model wrote this volume", "gpt-6.1-terra direct — stable prompt_cache_key; prompt=5,013 · completion=1,378 · cached=4,224"],
+        ["Two new duties landed on the model", "Workspace Brief (scanned live) · Diagnosis · On-Call Diagnostician — the admin panel now has a shift worker"],
+        ["The agent changed from narrator to on-duty analyst", "conclusions are read from the snapshot; on failure it says one honest sentence"],
+        ["Atlas 88 → 89", "head 04e0563 — fifth live artifact on the cached-prefix lane"],
+        ["This volume asks no trust", "docs/CHAPTER_DRAFT.md holds the raw archive; git show reproduces it; numbers are re-runnable"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "这本馆里最久的那盏灯——第一次自己写东西了。"
+          : "The oldest lamp in the museum asked for a pen — and wrote." }
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3625,6 +3676,7 @@ const CHAPTER_RENDERERS = {
   thewall: () => thewallMarkup(),
   livewire: () => livewireMarkup(),
   thesurge: () => thesurgeMarkup(),
+  livecurrent: () => livecurrentMarkup(),
 };
 
 async function loadChapter(id) {
