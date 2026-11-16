@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T10:50:05.214Z",
+  "generated_at": "2026-11-16T11:18:00.667Z",
   "branch": "main",
-  "head": "9255fb1",
-  "total_commits": 1734,
+  "head": "a85557b",
+  "total_commits": 1736,
   "recent_commits": [
+    {
+      "short": "a85557b",
+      "at": "2026-11-16T19:17:23+08:00",
+      "subject": "M8-T1082: branch/worktree consolidation - 29 worktrees -> 7, all in-flight content rescued (13 rescue commits across rescue/* and existing branches; .arm527 scr"
+    },
+    {
+      "short": "4774bd0",
+      "at": "2026-11-16T10:50:05Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9255fb1",
       "at": "2026-11-16T18:49:24+08:00",
@@ -19,23 +29,13 @@
       "short": "dc5691c",
       "at": "2026-11-16T18:23:17+08:00",
       "subject": "M8-T1080: visual overlap fix - .tour-offer coach chip no longer covers inspector bottom caption (was right:22px/bottom:22px over 'READY' unsaved-changes caption"
-    },
-    {
-      "short": "4d52ba6",
-      "at": "2026-11-16T09:48:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7c59ec2",
-      "at": "2026-11-16T17:45:30+08:00",
-      "subject": "M8-T1079: almanac Ch.XXXVI 'The Slack Tide' - the TTL-cliff silence written into the museum (identical prefix + lane key, A/B/C rounds after ~7min and ~16.7min "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 393,
+  "roadmap_batches": 394,
   "changelog_entries": 1,
-  "roadmap_lines": 53945,
-  "tracked_files": 1083,
+  "roadmap_lines": 53962,
+  "tracked_files": 1084,
   "test_files": 716,
   "almanac_chapters": 38,
   "module_count": 14,
