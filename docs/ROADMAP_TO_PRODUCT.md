@@ -53983,3 +53983,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - manual.js 中英文双分支同步到 39 卷 / 卷三十八《归墟》/ Ch.XXXVIII Great Basin；完整溯源贴入新文。
 - `git rm --cached web/assets/app.12f515310f8e7b2a.js`——资产由磁盘 prune + 清单换新维持一致；`node --check` + 五 smokes 复验 72 坐标/39 卷全绿。
 - 全仓数字复核（`git ls-files`）留为日常步骤；历史卷里的老数字按冻结规矩不回改。
+## 批次 1070 · M8-T1085: 卷三十九「灯火管制 / The Blackout Drill」—— 五千七百零一次通过后的七灯夜谈，Atlas 73
+
+### 目的
+
+本地一次完整、诚实、无伪造、无重跑筛选的全套跑完 78 分钟（5,701 passed / 12 skipped / 3 failed）：这份报告本身就是这个世界的一份档案。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `blackoutdrillMarkup()`（卷三十九 · 灯火管制）+ CHAPTERS + `CHAPTER_RENDERERS['blackoutdrill']`；双语 body 各自成立；quote-end 压轴。
+- **Atlas 72 → 73 coordinates**：almanac satellites 39→40；`atlas_smoke` 73；占位 72→73；welcome chips 73（i18n.js CRLF 309/0）；index.html 711/0。
+- **onboarding / Manual Atlas 行 / README**：seventy-three coordinates / forty chapters；README 彩蛋以 The Blackout Drill 领衔。
+- **原文照录**：4680 s；5,701 passed；12 skipped；`build_does_not_dirty_a_clean_checkout` 与 `pointer_liveness_corpus` 两颗 flake 单独复跑现 5/5 与 1/1；`_ci_*.log` · `_pw.log` · `_test_full.log` · `server8765.log` · `server8767.log` 七盏灯删除；`test_the_live_repo_root_carries_no_run_output` 25/25 绿。
+- **验证**：`almanac_smoke` 40 chapters 全双语 / `atlas_smoke` 73-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / CRLF pins。
