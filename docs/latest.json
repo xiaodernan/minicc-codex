@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T07:38:06.473Z",
+  "generated_at": "2026-11-16T07:50:35.386Z",
   "branch": "main",
-  "head": "f6cd7bf",
-  "total_commits": 1722,
+  "head": "0fe6b44",
+  "total_commits": 1724,
   "recent_commits": [
+    {
+      "short": "0fe6b44",
+      "at": "2026-11-16T15:50:05+08:00",
+      "subject": "M8-T1076: almanac Ch.XXXV 'The Unscathed' - the 2026-11-16 pressure night written into the museum (three waves c=24/64/128 read-only, cumulative 33,600 requests"
+    },
+    {
+      "short": "e8283d9",
+      "at": "2026-11-16T07:38:06Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f6cd7bf",
       "at": "2026-11-16T15:37:19+08:00",
@@ -19,25 +29,15 @@
       "short": "04bf0cd",
       "at": "2026-11-16T15:30:54+08:00",
       "subject": "M8-T1074: almanac Ch.XXXIV 'The New Coast' (api.aizzz.xyz/v1 gpt-6.1-terra measured live: 6x 403 geo direct -> Clash Verge Rev 127.0.0.1:7897 corridor -> /v1/mo"
-    },
-    {
-      "short": "b6d0751",
-      "at": "2026-11-16T14:43:48+08:00",
-      "subject": "docs: 2026-11-16 new lane migration measured - api.aizzz.xyz/v1 from this region returns HTTP 403 (geo); wkapi.pro retained as historical baseline; scripts/meas"
-    },
-    {
-      "short": "fd6ae80",
-      "at": "2026-11-16T06:39:41Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 387,
+  "roadmap_batches": 388,
   "changelog_entries": 1,
-  "roadmap_lines": 53865,
+  "roadmap_lines": 53879,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 35,
+  "almanac_chapters": 36,
   "module_count": 14,
   "feature_surface": [
     "workbench",
