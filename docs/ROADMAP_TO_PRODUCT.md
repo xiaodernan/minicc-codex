@@ -54292,3 +54292,15 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 
 - `minicc/stats.py::_disk_bytes`：`os.walk` + `Path.stat` 逐文件 → `os.scandir` 栈式走查 + `DirEntry` 目录缓存；语义一致（同 372.8 MB / 8738 files）；冷走查 2.97s → 0.57s；`gather()` 17.6s → 1.25s。
 - 实拍复验：c=50 × 12s → 8,820 次请求 0 非 2xx；`/api/stats` p50 9.5ms。
+## 批次 1095 · M8-T1117: 年鉴第五十章「压测 / The Surge」—— Atlas 88
+
+### 目的
+
+把一次教科书级的性能重写写进馆里——先有 profile，再有优化，最后才有那枚 9.5ms 的数字。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `thesurgeMarkup()` + CHAPTERS 第五十卷（zh 卷五十《压测》/ en Chapter L · The Surge）+ CHAPTER_RENDERERS 注册；instruments grid 实时读 digest/stats；“Pushes today 38”按 `git rev-list --since` 实拍。
+- **Atlas 87 → 88 coordinates**：almanac satellites 50→51；`atlas_smoke` 88；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 51 Halls、88 坐标、年鉴（51 卷）；README 加 The Surge 领衔。
+- **验证**：`almanac_smoke` 51 chapters 双语 / `atlas_smoke` 88-coordinate / manual_smoke 19 / stategraph_smoke / parity en zero CJK / dazzle en+zh / admin。

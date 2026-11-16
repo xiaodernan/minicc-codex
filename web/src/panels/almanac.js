@@ -70,6 +70,7 @@ export const CHAPTERS = [
   { id: "eviction", roman: { zh: "卷四十七", en: "Chapter XLVII" }, title: { zh: "清道夫", en: "The Eviction" }, subtitle: { zh: "tracked 不等于对", en: "tracked does not mean correct" } },
   { id: "thewall", roman: { zh: "卷四十八", en: "Chapter XLVIII" }, title: { zh: "墙立住了", en: "The Wall Stood" }, subtitle: { zh: "红了，然后门修好", en: "red first, then the door got fixed" } },
   { id: "livewire", roman: { zh: "卷四十九", en: "Chapter XLIX" }, title: { zh: "通缆", en: "The Live Wire" }, subtitle: { zh: "面板不再复述仓库，面板直接跑仓库", en: "a panel that reads the repo, not a retelling of it" } },
+  { id: "thesurge", roman: { zh: "卷五十", en: "Chapter L" }, title: { zh: "压测", en: "The Surge" }, subtitle: { zh: "慢不是宿命，是调用方法", en: "slow is a method, not a fate" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3512,6 +3513,66 @@ function livewireMarkup() {
     </div>`;
 }
 
+function thesurgeMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-thesurge">
+      <div class="almanac-kicker">${zh() ? "卷五十 · 压测" : "Chapter L · The Surge"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `慢了，不是宿命——<br/><span class="almanac-title-accent">是调用方法。</span>`
+        : `Slow was never fate —<br/><span class="almanac-title-accent">it was a method.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 17 日，一笔压测拍下了一张照片：c=50 × 12s，只赶了 300 次请求，<code>/api/stats</code> 的 p50 ≈ <strong>12.9 秒</strong>——单 worker 排队一整轮 322MB 的 <code>.minicc</code> 树走查，每一拍都留下了脚印。
+        </p>
+        <p>
+          cProfile 把剧本交出来了：<code>_disk_bytes</code> 占 <strong>15.3 / 17.6 秒（87%）</strong>——8,802 次 <code>Path.stat</code> 8.16 秒，2,553 次 <code>lstat</code> 2.15 秒。<code>os.walk</code> 对 Windows 的每一拍都照付不误——路径解析一条都不省。
+        </p>
+        <p>
+          换成 <code>os.scandir</code> 栈式走查（一次 readdir/目录、<code>DirEntry</code> 类型缓存）：同一份 <strong>372,806,669 字节</strong>的账对上了（8,738 个文件，372.8 MB）；冷走查 2.97 → <strong>0.57 秒（5.2×）</strong>；<code>gather()</code> 整体 17.6 → <strong>1.25 秒（14×）</strong>；新一波 c=50 × 12s：<strong>8,820 次请求、0 非 2xx</strong>；<code>/api/stats</code> 的 p50 从 12,918ms 落到 <strong>9.5ms（≈1,360×）</strong>。
+        </p>` : `<p>
+          On 2026-11-17 the load probe caught one path in the act: c=50 × 12s, a mere 300 requests, <code>/api/stats</code> at p50 ≈ <strong>12.9 seconds</strong> — every worker queued behind one cold walk of a 322 MB <code>.minicc</code> tree, each step touching disk.
+        </p>
+        <p>
+          cProfile handed over the script: <code>_disk_bytes</code> accounted for <strong>15.3 of 17.6 seconds (87%)</strong> — 8,802 <code>Path.stat</code> calls at 8.16 s, 2,553 <code>lstat</code> calls at 2.15 s. <code>os.walk</code> pays every Windows toll — not a single path parse saved.
+        </p>
+        <p>
+          Swapped for a <code>scandir</code> stack walker (one readdir per directory, <code>DirEntry</code> type cache): the <strong>same 372,806,669-byte ledger</strong> reconciled (8,738 files, 372.8 MB); the cold walk went 2.97 → <strong>0.57 s (5.2×)</strong>; <code>gather()</code> overall went 17.6 → <strong>1.25 s (14×)</strong>; a fresh wave at c=50 × 12s landed <strong>8,820 requests with zero non-2xx</strong>; <code>/api/stats</code>'s p50 dropped from 12,918 ms to <strong>9.5 ms (≈1,360×)</strong>.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">88</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">51 / 51</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">38</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["87% 的时间在一个函数里", "cProfile：_disk_bytes 15.3/17.6s——没有 profile 就没有 1,360×"],
+        ["同一份账对上了", "两种走查都是 372.8MB / 8738 files——优化不许改变账本"],
+        ["5.2× 冷 · 14× gather · 1,360× p50", "2.97→0.57s · 17.6→1.25s · 12,918→9.5ms"],
+        ["8,820 次请求，0 非 2xx", "c=50 × 12s × 6 路径——这本身也是一笔要记的账"],
+        ["Atlas 87→88", "git show 468a8f3；tests/test_stats.py 8/8 绿——当场可验"],
+      ] : [
+        ["87% of the time was one function", "cProfile: _disk_bytes at 15.3/17.6s — no profile, no 1,360×"],
+        ["The ledger reconciled", "both walkers agree on 372.8 MB / 8,738 files — optimization never rewrites the books"],
+        ["5.2× cold · 14× gather · 1,360× p50", "2.97→0.57s · 17.6→1.25s · 12,918→9.5ms"],
+        ["8,820 requests, zero non-2xx", "c=50 × 12s × 6 paths — a ledger entry of its own"],
+        ["Atlas 87 → 88", "git show 468a8f3; tests/test_stats.py 8/8 — auditable on the spot"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "账本先记住 12.9 秒，然后账本自己跑成了 9.5 毫秒。"
+          : "The ledger first remembers 12.9 seconds. Then the ledger itself runs at 9.5 milliseconds."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3563,6 +3624,7 @@ const CHAPTER_RENDERERS = {
   eviction: () => evictionMarkup(),
   thewall: () => thewallMarkup(),
   livewire: () => livewireMarkup(),
+  thesurge: () => thesurgeMarkup(),
 };
 
 async function loadChapter(id) {
