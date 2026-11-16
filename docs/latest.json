@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T17:24:44.444Z",
+  "generated_at": "2026-11-16T17:44:13.927Z",
   "branch": "main",
-  "head": "a69e4d8",
-  "total_commits": 1780,
+  "head": "324bf5c",
+  "total_commits": 1782,
   "recent_commits": [
+    {
+      "short": "324bf5c",
+      "at": "2026-11-17T01:43:04+08:00",
+      "subject": "M8-T1102: almanac Ch.XLVI 'The Re-Measurement' - second live flight of the 73.7->95.9 band (fresh lane key 2026-11-17, Clash proxy): 5731/4224 cold 73.7%, 5737/"
+    },
+    {
+      "short": "48970ab",
+      "at": "2026-11-16T17:24:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a69e4d8",
       "at": "2026-11-17T01:24:08+08:00",
@@ -19,25 +29,15 @@
       "short": "ba032a7",
       "at": "2026-11-17T01:16:38+08:00",
       "subject": "M8-T1100: manual Ch.19 count corrected to measured 5,701 passed / 12 skipped (README claims must be reproducible; my own 5,149 was stale from an earlier window)"
-    },
-    {
-      "short": "a3264e2",
-      "at": "2026-11-16T17:08:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "80e6a83",
-      "at": "2026-11-17T01:07:16+08:00",
-      "subject": "M8-T1099: almanac Ch.XLV 'The Threshold' - the CI failures that actually fired (ORACLE_DRAFT INDEX gap + hash-tagged bundle in ROADMAP) closed by one push, hone"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 412,
+  "roadmap_batches": 413,
   "changelog_entries": 1,
-  "roadmap_lines": 54192,
+  "roadmap_lines": 54204,
   "tracked_files": 1098,
   "test_files": 716,
-  "almanac_chapters": 46,
+  "almanac_chapters": 47,
   "module_count": 14,
   "feature_surface": [
     "workbench",
