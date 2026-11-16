@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T22:55:55.139Z",
+  "generated_at": "2026-11-16T23:18:10.887Z",
   "branch": "main",
-  "head": "b41f310",
-  "total_commits": 1810,
+  "head": "a8b03b1",
+  "total_commits": 1812,
   "recent_commits": [
+    {
+      "short": "a8b03b1",
+      "at": "2026-11-17T07:17:12+08:00",
+      "subject": "M8-T1120: the model goes on duty for triage - 'diagnosis' tile in admin (interrupt causes/streak/trend in, zh+en diagnosis out, honest JSON contract, shared ora"
+    },
+    {
+      "short": "17edbea",
+      "at": "2026-11-16T22:55:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b41f310",
       "at": "2026-11-17T06:55:00+08:00",
@@ -19,24 +29,14 @@
       "short": "94158a2",
       "at": "2026-11-17T06:18:41+08:00",
       "subject": "M8-T1118: Manual Ch.19 freshness - two measured full-run clocks (78 min / 5,701 on 2026-11-16; 106 min / 5,699 on 2026-11-17, mid-run reds from concurrent edits"
-    },
-    {
-      "short": "3b520c9",
-      "at": "2026-11-16T22:14:21Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0eb9208",
-      "at": "2026-11-17T06:13:23+08:00",
-      "subject": "M8-T1117: almanac Ch.L 'The Surge' - the textbook profile-then-rewrite of /api/stats (cProfile 87% in _disk_bytes; scandir stack; byte-identical ledger; /api/st"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 423,
+  "roadmap_batches": 424,
   "changelog_entries": 1,
-  "roadmap_lines": 54320,
-  "tracked_files": 1090,
-  "test_files": 719,
+  "roadmap_lines": 54334,
+  "tracked_files": 1093,
+  "test_files": 720,
   "almanac_chapters": 51,
   "module_count": 14,
   "feature_surface": [
