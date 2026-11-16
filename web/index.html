@@ -544,7 +544,13 @@
             <p class="admin-brief-usage" id="adminBriefUsage"></p>
         </section>
 
-          <div class="admin-duo">
+          <section class="admin-card admin-diagnosis" aria-label="workspace diagnosis">
+            <div class="admin-card-kicker"><i data-lucide="activity"></i><span data-i18n="admin.diagnosisKicker">诊断 · 值守诊断师</span><span class="admin-brief-by" id="adminDiagnosisModel"></span><button class="admin-brief-refresh" id="adminDiagnosisRefresh" type="button" aria-label="refresh diagnosis" data-i18n-aria="admin.diagnosisRefresh"><i data-lucide="refresh-cw"></i></button></div>
+            <div class="admin-brief-body" id="adminDiagnosisBody"><p class="admin-brief-pending" data-i18n="admin.diagnosisPending">正在读实测诊断快照…</p></div>
+            <p class="admin-brief-usage" id="adminDiagnosisUsage"></p>
+        </section>
+
+        <div class="admin-duo">
             <section class="admin-card" aria-label="tool usage">
               <div class="admin-card-kicker"><i data-lucide="wrench"></i><span data-i18n="admin.toolUsage">常用工具分布 · 真实事件</span></div>
               <ul class="admin-toolusage-list" id="adminToolUsage"></ul>

@@ -5722,6 +5722,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-ci-dot strong { color: var(--text); display: block; font: 700 10.5px Manrope, sans-serif; }
 @media (max-width: 700px) { .admin-ci-wrap { flex-direction: column; align-items: flex-start; } .admin-ci-chips { align-items: flex-start; flex-direction: row; } }
 .admin-brief { border-color: color-mix(in srgb, var(--periwinkle) 35%, var(--line)); margin-top: 12px; }
+.admin-diagnosis { border-color: color-mix(in srgb, var(--mint) 35%, var(--line)); margin-top: 12px; }
 .admin-brief-by { color: var(--quiet); font: 10px "DM Mono", monospace; margin-left: 8px; }
 .admin-brief-refresh { background: transparent; border: 1px solid var(--line); border-radius: 999px; color: var(--quiet); cursor: pointer; margin-left: auto; padding: 4px; transition: color .18s ease, border-color .18s ease; }
 .admin-brief-refresh:hover { color: var(--periwinkle); border-color: var(--periwinkle); }

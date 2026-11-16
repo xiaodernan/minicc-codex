@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 import minicc.oracle_brief as ob
+from minicc.oracle_common import default_cache
 from minicc.config import load_config
 
 
@@ -54,9 +55,9 @@ def _fake_openai_response(zh: str = "中文简报", en: str = "english brief",
 
 @pytest.fixture(autouse=True)
 def _clear_cache():
-    ob.default_cache.set(ob._CACHE_KEY, None, ttl=0)
+    default_cache.set(ob._CACHE_KEY, None, ttl=0)
     yield
-    ob.default_cache.set(ob._CACHE_KEY, None, ttl=0)
+    default_cache.set(ob._CACHE_KEY, None, ttl=0)
 
 
 def test_prompt_carries_the_measured_facts(monkeypatch, tmp_path) -> None:

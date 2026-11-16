@@ -218,6 +218,41 @@ export async function openAdmin() {
     const briefPromise = requestJson("/api/oracle-brief", {}, 30000).catch(() => null);
     briefPromise.then((brief) => renderBrief(brief, false));
 
+    // Live workspace diagnosis — same pattern, pointed at the triage snapshot.
+    function renderDiagnosis(diagnosis, refreshed) {
+      const bodyEl = $("#adminDiagnosisBody");
+      const usageEl = $("#adminDiagnosisUsage");
+      const byEl = $("#adminDiagnosisModel");
+      if (byEl && diagnosis && diagnosis.model) byEl.textContent = diagnosis.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现扫" : "read live by the model";
+      if (!diagnosis || !diagnosis.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.diagnosisOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = diagnosis?.error ? `error: ${String(diagnosis.error).slice(0, 140)}` : "";
+        return;
+      }
+      const text = zh() ? diagnosis.zh : diagnosis.en;
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(text || (zh() ? diagnosis.en : diagnosis.zh))}</p>`;
+      if (usageEl) {
+        const u = diagnosis.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · 已重新生成" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · regenerated" : ""}`;
+      }
+    }
+    const diagnosisRefresh = $("#adminDiagnosisRefresh");
+    if (diagnosisRefresh) {
+      diagnosisRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminDiagnosisBody");
+        const usageEl = $("#adminDiagnosisUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.diagnosisPending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-diagnosis?fresh=1", {}, 30000).catch(() => null).then((diagnosis) => renderDiagnosis(diagnosis, true));
+      });
+    }
+    const diagnosisPromise = requestJson("/api/oracle-diagnosis", {}, 30000).catch(() => null);
+    diagnosisPromise.then((diagnosis) => renderDiagnosis(diagnosis, false));
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");

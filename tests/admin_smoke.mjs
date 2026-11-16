@@ -80,6 +80,20 @@ async function checkMode(locale, expectCjk) {
     /缓存|主线|main|模型|分支|Outage|unreachable|model|记录|记录|审计|cache|task|提交/i.test(briefOutage) || briefOutage.length >= 12,
     "brief text should be substantive or the honest outage sentence",
   );
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminDiagnosisBody");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return text.length > 0 && !text.includes("正在读") && !text.includes("Reading the");
+  }, null, { timeout: 45000 });
+  const diagnosisText = await page.locator("#adminDiagnosisBody").innerText();
+  assert.ok(diagnosisText.trim().length > 0, "diagnosis tile must carry either a live diagnosis or the honest outage line");
+  const diagnosisUsage = await page.locator("#adminDiagnosisUsage").innerText();
+  assert.ok(
+    /prompt|error/i.test(diagnosisUsage) || diagnosisUsage.trim().length === 0,
+    "diagnosis usage footer must carry token accounting or an error, never a fabricated number",
+  );
+
   const briefUsage = await page.locator("#adminBriefUsage").innerText();
   // when the model answered, the usage footer must carry the token accounting;
   // when the wire is down the footer carries the error instead

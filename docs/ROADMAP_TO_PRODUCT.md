@@ -54317,3 +54317,17 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Admin 面板「工作区简报 · 由模型现扫」tile**：异步加载、refresh、token 账公示；byline 显示真实模型名；断网则如实一句。
 - **真 lane 实测**：prompt 4,789 · cached 4,224 · 模型准确复述 1,809 commits / 1088 tracked / 718 tests / 71.1% affinity；救出一个 HEAD 映射 bug（模型误报 HEAD 缺失 → 修为 `head_short`）。
 - **测试**：`tests/test_oracle_brief.py`（6）· `test_http_surface.py`（route B 覆盖）· `route_coverage` 100% · admin_smoke 新增 brief 断言。
+## 批次 1097 · M8-T1120: 值守诊断师 · 第二条 model 线——“诊断 · Diagnosis” tile
+
+### 目的
+
+窗口九之后，模型已经在管理员面板里“值守”了（工作区简报）；这一步给它第二件事：**诊断工作流里的异常**。
+
+### 做了什么
+
+- **`minicc/oracle_common.py`**（新）：`prompt_cache_key` 稳定派生、`measured_usage`、`cached_zh_en`、`call_model`、`memo_read/write`、`error_payload`——两条 model 线共享。
+- **`minicc/oracle_diagnosis.py`**（新）：`build_workspace_diagnosis()`——实测快照（interrupt_causes/streak/trend/recs）→ 模型 → zh/en ≤4 句 JSON：①中断主因 ②根因假设（已知/推测分开）③一步可执行动作。
+- **GET `/api/oracle-diagnosis`**：`?fresh=1`；永远 200；断网 `live:false`。
+- **Admin tile「诊断 · 值守诊断师」**：异步加载 + refresh + token 账公示（mint 边框与 brief 的 periwinkle 边框区分）。
+- **真 lane 实测**：prompt 5,071 · cached 4,224 · 模型把 restart 主因/因素未知/常见模式/一步动作四件事全说对。
+- **测试**：`test_oracle_diagnosis.py` 6/6；route_coverage 33/33 GET + 14/14 POST B；admin_smoke 新增断言；claim gates 69/69。

@@ -907,6 +907,23 @@ def test_get_stategraph_reports_the_live_workflow(live: _LiveServer) -> None:
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_get_oracle_diagnosis_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1120: the diagnosis route is entered by the HTTP suite too —
+    # stubbed at the seam exactly like the brief test.
+    import minicc.oracle_diagnosis as od_mod
+
+    monkeypatch.setattr(od_mod, "build_workspace_diagnosis", lambda **kwargs: {
+        "live": False, "zh": "", "en": "",
+        "error": "model-unavailable: TimeoutError",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-diagnosis", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "error" in payload
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
 def test_get_oracle_brief_never_500s(live: _LiveServer, monkeypatch) -> None:
     # M8-T1119: the model-written brief is entered by the HTTP suite too.
     # The fake provider cannot answer it (60s timeout), so the route is

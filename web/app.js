@@ -809,6 +809,10 @@
       "admin.briefPending": "\u6B63\u5728\u8BFB\u53D6\u5B9E\u6D4B\u5FEB\u7167\u2026",
       "admin.briefRefresh": "\u91CD\u65B0\u751F\u6210\u7B80\u62A5",
       "admin.briefOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u5199\u4E0D\u4E86\u7B80\u62A5\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
+      "admin.diagnosisKicker": "\u8BCA\u65AD \xB7 \u503C\u5B88\u8BCA\u65AD\u5E08",
+      "admin.diagnosisPending": "\u6B63\u5728\u8BFB\u5B9E\u6D4B\u8BCA\u65AD\u5FEB\u7167\u2026",
+      "admin.diagnosisRefresh": "\u91CD\u65B0\u751F\u6210\u8BCA\u65AD",
+      "admin.diagnosisOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u8BCA\u65AD\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.toolUsageUnit": "\u6B21\u8C03\u7528",
       "admin.forecastLabel": "\u9884\u6D4B",
       "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
@@ -1591,6 +1595,10 @@
       "admin.briefPending": "Reading the measured snapshot\u2026",
       "admin.briefRefresh": "Refresh the brief",
       "admin.briefOutage": "The model is unreachable \u2014 the panel cannot write the brief. That is the only honest sentence.",
+      "admin.diagnosisKicker": "Diagnosis \xB7 on-duty analyst",
+      "admin.diagnosisPending": "Reading the measured diagnosis snapshot\u2026",
+      "admin.diagnosisRefresh": "Refresh the diagnosis",
+      "admin.diagnosisOutage": "The model is unreachable \u2014 the panel cannot write the diagnosis. That is the only honest sentence.",
       "admin.toolUsageUnit": "calls",
       "admin.forecastLabel": "Forecast",
       "admin.forecastFading": "cooling off from the peak",
@@ -7812,6 +7820,37 @@
       }
       const briefPromise = requestJson("/api/oracle-brief", {}, 3e4).catch(() => null);
       briefPromise.then((brief) => renderBrief(brief, false));
+      function renderDiagnosis(diagnosis, refreshed) {
+        const bodyEl = $("#adminDiagnosisBody");
+        const usageEl = $("#adminDiagnosisUsage");
+        const byEl = $("#adminDiagnosisModel");
+        if (byEl && diagnosis && diagnosis.model) byEl.textContent = diagnosis.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
+        if (!diagnosis || !diagnosis.live) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.diagnosisOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = diagnosis?.error ? `error: ${String(diagnosis.error).slice(0, 140)}` : "";
+          return;
+        }
+        const text = zh8() ? diagnosis.zh : diagnosis.en;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? diagnosis.en : diagnosis.zh))}</p>`;
+        if (usageEl) {
+          const u = diagnosis.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 \u5DF2\u91CD\u65B0\u751F\u6210" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 regenerated" : ""}`;
+        }
+      }
+      const diagnosisRefresh = $("#adminDiagnosisRefresh");
+      if (diagnosisRefresh) {
+        diagnosisRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminDiagnosisBody");
+          const usageEl = $("#adminDiagnosisUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.diagnosisPending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-diagnosis?fresh=1", {}, 3e4).catch(() => null).then((diagnosis) => renderDiagnosis(diagnosis, true));
+        });
+      }
+      const diagnosisPromise = requestJson("/api/oracle-diagnosis", {}, 3e4).catch(() => null);
+      diagnosisPromise.then((diagnosis) => renderDiagnosis(diagnosis, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {
