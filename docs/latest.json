@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T23:18:10.887Z",
+  "generated_at": "2026-11-16T23:41:53.927Z",
   "branch": "main",
-  "head": "a8b03b1",
-  "total_commits": 1812,
+  "head": "bd2e413",
+  "total_commits": 1814,
   "recent_commits": [
+    {
+      "short": "bd2e413",
+      "at": "2026-11-17T07:41:18+08:00",
+      "subject": "M8-T1121: the model writes its own chapter - almanac Ch.LII 'The Live Current / 通电' (live-lane draft archived in docs/CHAPTER_DRAFT.md: prompt 5,013, cached_tok"
+    },
+    {
+      "short": "04e0563",
+      "at": "2026-11-16T23:18:11Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a8b03b1",
       "at": "2026-11-17T07:17:12+08:00",
@@ -19,25 +29,15 @@
       "short": "b41f310",
       "at": "2026-11-17T06:55:00+08:00",
       "subject": "M8-T1119: the model goes on duty for the workspace - live 'workspace brief' tile in the admin panel (minicc/oracle_brief.py reads the measured fact pack, the mo"
-    },
-    {
-      "short": "2581752",
-      "at": "2026-11-16T22:19:12Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "94158a2",
-      "at": "2026-11-17T06:18:41+08:00",
-      "subject": "M8-T1118: Manual Ch.19 freshness - two measured full-run clocks (78 min / 5,701 on 2026-11-16; 106 min / 5,699 on 2026-11-17, mid-run reds from concurrent edits"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 424,
+  "roadmap_batches": 425,
   "changelog_entries": 1,
-  "roadmap_lines": 54334,
-  "tracked_files": 1093,
+  "roadmap_lines": 54348,
+  "tracked_files": 1094,
   "test_files": 720,
-  "almanac_chapters": 51,
+  "almanac_chapters": 52,
   "module_count": 14,
   "feature_surface": [
     "workbench",
