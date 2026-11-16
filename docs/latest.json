@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T13:35:08.964Z",
+  "generated_at": "2026-11-16T13:53:23.013Z",
   "branch": "main",
-  "head": "c26e65a",
-  "total_commits": 1756,
+  "head": "a34f029",
+  "total_commits": 1758,
   "recent_commits": [
+    {
+      "short": "a34f029",
+      "at": "2026-11-16T21:52:37+08:00",
+      "subject": "M8-T1092: almanac Ch.XLIII 'The Oracle' - real, live, audited API call writes the chapter (api.aizzz.xyz/v1 gpt-6.1-terra via Clash Verge 127.0.0.1:7897; HTTP 2"
+    },
+    {
+      "short": "5257754",
+      "at": "2026-11-16T13:35:09Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c26e65a",
       "at": "2026-11-16T21:33:53+08:00",
@@ -19,25 +29,15 @@
       "short": "afac0eb",
       "at": "2026-11-16T21:18:57+08:00",
       "subject": "M8-T1090: almanac Ch.XLII 'The Gathering' - the consecutive-gate-green streak night (every push after 3 pushes passed every fast gate in order; Atlas coordinate"
-    },
-    {
-      "short": "9fd495f",
-      "at": "2026-11-16T13:06:48Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "57acaf2",
-      "at": "2026-11-16T21:05:32+08:00",
-      "subject": "M8-T1089: almanac Ch.XLI 'The Arithmetic' - this epoch compiled into one chapter (5,701 passed / 12 skipped / 59,070 cumulative load-requests across two waves, "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 403,
+  "roadmap_batches": 404,
   "changelog_entries": 1,
-  "roadmap_lines": 54076,
-  "tracked_files": 1085,
+  "roadmap_lines": 54090,
+  "tracked_files": 1087,
   "test_files": 716,
-  "almanac_chapters": 43,
+  "almanac_chapters": 44,
   "module_count": 14,
   "feature_surface": [
     "workbench",
