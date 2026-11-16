@@ -52,7 +52,7 @@
 - [PERFORMANCE.md](PERFORMANCE.md) —— 实测过的性能改进与资源治理决策（import 时间、SQLite JSON1 过滤、impact BFS、网关 Redis 缓存、前端对比度门与内容寻址产物）；未经复测的不默认完成。
 - [CACHE_AFFINITY_MATRIX.md](CACHE_AFFINITY_MATRIX.md) —— wkapi.pro · gpt-6-sol（冻结）+ 2026-11-16 迁入 `api.aizzz.xyz · gpt-6.1-terra（经 Clash Verge 混合端口 · 直连 403 地理封锁）` 的 prompt_cache_key 亲和实测矩阵（Responses 流/非流报告 cached_tokens；chat/completions 流式不上报、带 key 后上报）——为什么「命中率显示低」是上报面产物而不是缓存失效。
 - [CONSOLIDATION_AUDIT.md](CONSOLIDATION_AUDIT.md) —— 分支与工树整合记录：29 工树 → 7；19 个 detached `wt*` 归为 EOL-noise 删除或救援 commit 锚定；7 个 rescue 分支保全内容；远程分支不擅自删。
-- [LOAD_TESTING.md](LOAD_TESTING.md) —— `scripts/load-test.mjs` 高并发只读端点压力测试的诚实实录（修前 /api/stats p50=43.9s、修后 c=8 p50=3.8s；10 路并发冷磁盘 walk 7.55s；2026-11-16 M8-T1075：c=24/64/128 三波累计 33,600 请求 0 非 2xx；仍属本机诊断而非 SLA）。
+- [LOAD_TESTING.md](LOAD_TESTING.md) —— `scripts/load-test.mjs` 高并发只读端点压力测试的诚实实录（修前 /api/stats p50=43.9s、修后 c=8 p50=3.8s；10 路并发冷磁盘 walk 7.55s；2026-11-16 M8-T1075 / T1086：c=24/64/128 三波累计 33,600 首测 + 25,470 复验 = 59,070 请求 0 非 2xx（2026-11-16 下午复验，warm p95 digest≈150ms；cold cohort 首波 stats p95≈10s 同步 schema 原样记录）；仍属本机诊断而非 SLA）。
 
 ## 阅读路径建议
 

@@ -185,3 +185,19 @@ Honest caveats (unchanged):
 - Loopback + fake upstream + read-only routes only. No gateway, no Redis breaker, no upstream TLS to measure from here.
 - Single process, GIL-bound; no multi-tenant claims.
 - Do not quote these as SLA numbers; they are a snapshot of one Windows box on a Sunday afternoon.
+## Update 2026-11-16 20:55 UTC+8 (M8-T1086) — re-verified after the consolidation + almanac day, cold-warm mix
+
+Same box (Windows); `minicc-web` on `127.0.0.1:8899` with `MINICC_FAKE_PROVIDER=1`; freshly restarted process minutes before the waves. Cumulative: **25,470 requests across the three waves, zero non-2xx, zero connection failures.**
+
+**Wave 1 — c=24 × 15 s (cold cohort; caches drained by earlier heavy work).** Every path `n=191`, all 200. Read: p50 ≈ 50–64 ms; **/api/stats p95 ≈ 10,012 ms** — the single-flight map correctly serialized one cold disk walk through everyone; everyone still answered 200. This is the "first concurrent cohort pays the walk once" pattern, recorded, not hidden.
+
+**Wave 2 — c=64 × 15 s (warm cohort).** `n=1896` per path, all 200. p50 ≈ 58–66 ms; `/api/stats` p95 ≈ 138 ms; `/api/workspace` p99 ≈ 448 ms.
+
+**Wave 3 — c=128 × 12 s (warm cohort, heavier load).** `n=2158` per path (12,948 calls), all 200. p50 ≈ 35–43 ms; `/api/metrics` and `/api/workspace` tails the honest peaked (p99 408 ms / 2.48 s).
+
+Daily cumulative across all pressure runs of the day: **33,600 + 25,470 = 59,070 requests · 0 non-2xx.**
+
+Honest framing (unchanged policy):
+- Loopback, fake upstream, read-only paths; no SLA implication.
+- c=24 was deliberately cold-cache — the slow p95 is *the known price of the first cohort*, not a regression: the earlier same-shape cold runs measured the same ~6–10 s disk-walk tail (M8-T1075).
+- Local pytest (5,701 passed / 12 skipped) ran during this measurement; the machine was loaded; numbers are what they are.

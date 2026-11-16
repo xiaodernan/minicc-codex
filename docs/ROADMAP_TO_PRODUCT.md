@@ -53996,3 +53996,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **onboarding / Manual Atlas 行 / README**：seventy-three coordinates / forty chapters；README 彩蛋以 The Blackout Drill 领衔。
 - **原文照录**：4680 s；5,701 passed；12 skipped；`build_does_not_dirty_a_clean_checkout` 与 `pointer_liveness_corpus` 两颗 flake 单独复跑现 5/5 与 1/1；`_ci_*.log` · `_pw.log` · `_test_full.log` · `server8765.log` · `server8767.log` 七盏灯删除；`test_the_live_repo_root_carries_no_run_output` 25/25 绿。
 - **验证**：`almanac_smoke` 40 chapters 全双语 / `atlas_smoke` 73-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / CRLF pins。
+## 批次 1071 · M8-T1086: 压测复验——同日第二次 25,470 次 0 非 2xx；cold-cohort 尾巴照记
+
+### 目的
+
+一天内多次大改之后，验证：读路径在一台被几轮并发 + 本机大门测试 + 新档案的机器上还是 0 非 2xx 吗？不演胜利，不减重跑——照实记录。
+
+### 做了什么
+
+- 实测目标：127.0.0.1:8899（fake provider，刚重启几分钟）。只打 /api/health·metrics·digest·stats·roadmap·workspace。
+- c=24×15s（cold cohort）：每路 n=191，0 错误；/api/stats p95=10,012 ms——单航线 coalescing 对整条路 hold 住一次冷盘 walk 的同步绳结；全员 200。
+- c=64×15s（warm）：每路 n=1896，0 错误；stats p95≈138 ms。
+- c=128×12s（warm 加深）：每路 n=2158；p50≈35–43 ms；12,948 次调用全 200。
+- 累计当日 **59,070 请求，0 非 2xx**；本批不改任何代码路径或 gate。
