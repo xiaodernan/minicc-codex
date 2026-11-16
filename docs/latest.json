@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T18:24:00.927Z",
+  "generated_at": "2026-11-16T18:46:41.288Z",
   "branch": "main",
-  "head": "d96955e",
-  "total_commits": 1788,
+  "head": "fe97b3f",
+  "total_commits": 1791,
   "recent_commits": [
+    {
+      "short": "fe97b3f",
+      "at": "2026-11-17T02:45:59+08:00",
+      "subject": "M8-T1108: ledger for the --periwinkle CI fix (M8-T1107); claim gates green"
+    },
+    {
+      "short": "5ac8904",
+      "at": "2026-11-17T02:45:16+08:00",
+      "subject": "M8-T1107: CI fix - '--periwinkle' was read by 5 stategraph rules but declared nowhere; declared in both :root themes (dark #a5b4fc / light #4f46e5); built CSS r"
+    },
+    {
+      "short": "124a15b",
+      "at": "2026-11-16T18:24:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d96955e",
       "at": "2026-11-17T02:23:22+08:00",
@@ -14,27 +29,12 @@
       "short": "ca5db5a",
       "at": "2026-11-16T17:55:03Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ff62710",
-      "at": "2026-11-17T01:54:28+08:00",
-      "subject": "M8-T1105: ledger entries for M8-T1103/1104 repo-root scratch evictions (changelog + roadmap); claim gates green"
-    },
-    {
-      "short": "61a2223",
-      "at": "2026-11-17T01:49:27+08:00",
-      "subject": "M8-T1104: eviction of seven unreferenced Playwright scratch probes from repo root (_ms_probe.mjs, _palette_test.mjs, _stategraph_check.mjs, _stategraph_shot*.mj"
-    },
-    {
-      "short": "525c204",
-      "at": "2026-11-17T01:48:40+08:00",
-      "subject": "M8-T1103: eviction of three agent-scratch ledgers accidentally committed in 7b33aed (_ledger_fanout.py, _ledger_sleepless.py, _sleepless_smoke.py) - unreference"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 415,
+  "roadmap_batches": 416,
   "changelog_entries": 1,
-  "roadmap_lines": 54227,
+  "roadmap_lines": 54238,
   "tracked_files": 1088,
   "test_files": 716,
   "almanac_chapters": 48,
