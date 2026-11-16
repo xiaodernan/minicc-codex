@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T11:56:05.077Z",
+  "generated_at": "2026-11-16T12:06:57.012Z",
   "branch": "main",
-  "head": "5b66689",
-  "total_commits": 1740,
+  "head": "ad3c749",
+  "total_commits": 1742,
   "recent_commits": [
+    {
+      "short": "ad3c749",
+      "at": "2026-11-16T20:06:35+08:00",
+      "subject": "M8-T1084 follow-through: remove 7 untracked CI/debug log debris files at repo root (cleanup-version zero-run-output gate); local full pytest triage: one real ro"
+    },
+    {
+      "short": "996cdf3",
+      "at": "2026-11-16T11:56:05Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5b66689",
       "at": "2026-11-16T19:55:33+08:00",
@@ -19,16 +29,6 @@
       "short": "d4ec384",
       "at": "2026-11-16T19:36:25+08:00",
       "subject": "M8-T1083: almanac Ch.XXXVIII 'The Great Basin' - the branch/worktree consolidation written into the museum (evidence-first: 29 worktrees enumerated, 19 detached"
-    },
-    {
-      "short": "db1faca",
-      "at": "2026-11-16T11:18:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a85557b",
-      "at": "2026-11-16T19:17:23+08:00",
-      "subject": "M8-T1082: branch/worktree consolidation - 29 worktrees -> 7, all in-flight content rescued (13 rescue commits across rescue/* and existing branches; .arm527 scr"
     }
   ],
   "first_commit_at": "2026-08-24",
