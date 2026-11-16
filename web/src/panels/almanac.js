@@ -69,6 +69,7 @@ export const CHAPTERS = [
   { id: "remeasure", roman: { zh: "卷四十六", en: "Chapter XLVI" }, title: { zh: "复测", en: "The Re-Measurement" }, subtitle: { zh: "同一区间的第二天", en: "Day two of the same band" } },
   { id: "eviction", roman: { zh: "卷四十七", en: "Chapter XLVII" }, title: { zh: "清道夫", en: "The Eviction" }, subtitle: { zh: "tracked 不等于对", en: "tracked does not mean correct" } },
   { id: "thewall", roman: { zh: "卷四十八", en: "Chapter XLVIII" }, title: { zh: "墙立住了", en: "The Wall Stood" }, subtitle: { zh: "红了，然后门修好", en: "red first, then the door got fixed" } },
+  { id: "livewire", roman: { zh: "卷四十九", en: "Chapter XLIX" }, title: { zh: "通缆", en: "The Live Wire" }, subtitle: { zh: "面板不再复述仓库，面板直接跑仓库", en: "a panel that reads the repo, not a retelling of it" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3451,6 +3452,66 @@ function thewallMarkup() {
     </div>`;
 }
 
+function livewireMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-livewire">
+      <div class="almanac-kicker">${zh() ? "卷四十九 · 通缆" : "Chapter XLIX · The Live Wire"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `先是一份镜像——<br/><span class="almanac-title-accent">然后是一根活线。</span>`
+        : `It began as a mirror —<br/><span class="almanac-title-accent">then it was a live wire.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 17 日傍晚，「状态图」面板不再是一件手刻的复制品：它现在每次打开都先瞬间上屏内嵌副本，然后 <code>/api/stategraph</code> 现读 <code>minicc/agent/graph.py</code> 的图与 <code>StageRouter</code> 的阶段分派——节点、边、护栏（32/16/4/64 从运行时函数签名现拍）、五条阶段路由全部来自真实仓库。
+        </p>
+        <p>
+          中途栽了一跤：第一版用 <code>beginPanelRequest()</code> 的存活句柄做「面板还活着吗」的判断——而 <code>beginPanelRequest</code> 调用的就是 <code>openPanel</code>（自增 panelVersion），所以句柄永远为假；面板上屏了，却永远跳不过去实时替换这一步。实测链路 200 OK，面板纹丝不动——修复只用 3 行：存活判断改成 <code>#stategraphBadge</code> 是否还在 DOM 里。
+        </p>
+        <p>
+          修复之后：badge 0.25 秒内翻成「实时 · 来自 minicc/agent/graph.py」，护栏条整齐列出 32/16/4/64，路由条列出 planning(balanced)/inspect(fast)/implement(balanced)/verify(fast)/repair(reasoning)。命令行再验证一遍：<code>curl 127.0.0.1:8899/api/stategraph</code>——hand echo of the graph the run executes.
+        </p>` : `<p>
+          On the evening of 2026-11-17 the StateGraph panel stopped being a hand-drawn replica. Each open now paints the embedded copy first, then <code>/api/stategraph</code> reads the live graph in <code>minicc/agent/graph.py</code> and the stage dispatch in <code>StageRouter</code> — nodes, edges, the 32/16/4/64 guards (straight off the runtime's own function signatures) and the five-stage routing strip all come from the real repository.
+        </p>
+        <p>
+          It tripped on its own feet once: the first cut used the liveness handle from <code>beginPanelRequest()</code> to decide whether the panel was still open — but <code>beginPanelRequest</code> itself calls <code>openPanel</code>, which bumps <code>panelVersion</code>, so the handle was always false. The panel painted; the live swap never ran. The endpoint returned 200 and the screen showed nothing change. The fix took three lines: liveness is now "does <code>#stategraphBadge</code> still exist in the DOM".
+        </p>
+        <p>
+          After the fix: the badge flips to "live · from minicc/agent/graph.py" within 0.25 s; the guards strip lists 32/16/4/64; the routing strip shows planning (balanced) / inspect (fast) / implement (balanced) / verify (fast) / repair (reasoning). One more check from the floor: <code>curl 127.0.0.1:8899/api/stategraph</code> — a hand-echo of the graph a real run would walk.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">87</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">50 / 50</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">34</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["面板不再复述仓库", "/api/stategraph 现读 build_coding_workflow() 与 StageRouter——curl 即得真图"],
+        ["护栏不靠背诵", "32/16/4/64 从函数签名现拍；图若收紧，面板随之收紧"],
+        ["存活句柄栽了一跤", "beginPanelRequest 自增 panelVersion → current() 永假 → 实时替换从不触发；3 行修复"],
+        ["诚实降级", "链路断 → badge 明说「离线复刻」→ 退回内嵌镜像；绝不冒充实时"],
+        ["Atlas 86→87", "curl 127.0.0.1:8899/api/stategraph | python -m json.tool——当场可验"],
+      ] : [
+        ["The panel no longer narrates the repo", "/api/stategraph reads build_coding_workflow() and StageRouter live — curl gets the real graph"],
+        ["Guards aren't recited", "32/16/4/64 are read off the runtime's own signatures; tighten the graph and the panel follows"],
+        ["The liveness handle tripped once", "beginPanelRequest bumps panelVersion → current() always false → the live swap never fired; three lines to fix"],
+        ["Honest downgrade", "wire down → badge says “replica” → falls back to the embedded mirror — never impersonating live"],
+        ["Atlas 86 → 87", "curl 127.0.0.1:8899/api/stategraph | python -m json.tool — auditable on the spot"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "镜子里是仓库。活线里也是仓库。区别只在你敲不敲它。"
+          : "The mirror was the repo. The live wire is the repo too. The only difference is whether you knock on it."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3501,6 +3562,7 @@ const CHAPTER_RENDERERS = {
   remeasure: () => remeasureMarkup(),
   eviction: () => evictionMarkup(),
   thewall: () => thewallMarkup(),
+  livewire: () => livewireMarkup(),
 };
 
 async function loadChapter(id) {

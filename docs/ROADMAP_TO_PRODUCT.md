@@ -54270,3 +54270,15 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 
 - `git rm add_tasks.py add_more_tasks.py probe_i18n.py`
 - 验证：`git grep` 全树零引用；ROADMAP 注记一致。
+## 批次 1093 · M8-T1115: 年鉴第四十九章「通缆 / The Live Wire」—— Atlas 87
+
+### 目的
+
+把“活线面板”本身写进馆里——不是一次“发布说明”，是一次“面板如何活过来”的完整记录。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `livewireMarkup()` + CHAPTERS 第四十九卷（zh 卷四十九《通缆》/ en Chapter XLIX · The Live Wire）+ CHAPTER_RENDERERS 注册；instruments grid 实时读 digest/stats；“Pushes today 34”按 `git rev-list --since` 实拍。
+- **Atlas 86 → 87 coordinates**：almanac satellites 49→50；`atlas_smoke` 87；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 50 Halls、87 坐标、年鉴（50 卷）；README 加 The Live Wire 领衔。
+- **验证**：`almanac_smoke` 50 chapters 双语 / `atlas_smoke` 87-coordinate / manual_smoke 19 / stategraph_smoke / parity en zero CJK / dazzle en+zh / admin。
