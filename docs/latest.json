@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T04:37:58.319Z",
+  "generated_at": "2026-11-16T05:22:25.601Z",
   "branch": "main",
-  "head": "bb10b4a",
-  "total_commits": 1713,
+  "head": "e329919",
+  "total_commits": 1715,
   "recent_commits": [
+    {
+      "short": "e329919",
+      "at": "2026-11-16T13:21:33+08:00",
+      "subject": "M8-T1071: almanac Ch.XXXIII 'The Candle' - the showcase's own re-lighthouse contract (Update docs/latest.json 20s wake cycle, fact pack fresh-fetched on every p"
+    },
+    {
+      "short": "7c072a2",
+      "at": "2026-11-16T04:37:58Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "bb10b4a",
       "at": "2026-11-16T12:37:22+08:00",
@@ -19,25 +29,15 @@
       "short": "17043c2",
       "at": "2026-11-16T12:03:43+08:00",
       "subject": "M8-T1069: sec.5 visual fix - sidebar overflow at short viewports: .thread-list now flex:1 1 0%/min-height 56 (yields to bottom), .nav-item height 26->24 in max-"
-    },
-    {
-      "short": "02c8de2",
-      "at": "2026-11-16T03:20:45Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9f7a36f",
-      "at": "2026-11-16T11:19:59+08:00",
-      "subject": "M8-T1068: almanac Ch.XXXI 'The Lamplighter' - the night the two Python legs came up green twice in a row (4-5 prior Windows runner starvation fails), claim chec"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 382,
+  "roadmap_batches": 383,
   "changelog_entries": 1,
-  "roadmap_lines": 53800,
+  "roadmap_lines": 53811,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 33,
+  "almanac_chapters": 34,
   "module_count": 14,
   "feature_surface": [
     "workbench",
