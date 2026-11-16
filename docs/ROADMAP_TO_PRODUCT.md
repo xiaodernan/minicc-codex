@@ -54260,3 +54260,13 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **`web/src/panels/stategraph.js`**：两阶段渲染——内嵌副本瞬间上屏；`/api/stategraph` 返回后换成实物（lane/edges/detail/badge→「实时 · 来自 minicc/agent/graph.py」/lede）。副本模式如实标「离线复刻」。修复 `beginPanelRequest` panelVersion 误用导致的永新问题。去掉 badge 的 `text-transform: uppercase`。
 - **`web/styles.css`**：`.stategraph-badge` / `.stategraph-guards` / `.stategraph-routing` 系列样式；`var(--periwinkle)` 复用（值：夜 `#a5b4fc` / 昼 `#4f46e5`）。
 - **Manual Ch.14** 双语补记实况；`tests/stategraph_smoke.mjs` 新入 `test:arcade` + CI syntax job；`tests/test_http_surface.py` 补 live 路由测试；`route_coverage` B 31/31 全绿；`check:web` 绿；CRLF 711/309 不动。
+## 批次 1092 · M8-T1113: 根目录最后三件 scratch 出库
+
+### 目的
+
+把上一批记录为“未触碰”的三件一次性脚本正式清出仓库。
+
+### 做了什么
+
+- `git rm add_tasks.py add_more_tasks.py probe_i18n.py`
+- 验证：`git grep` 全树零引用；ROADMAP 注记一致。
