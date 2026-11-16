@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T12:20:46.146Z",
+  "generated_at": "2026-11-16T12:27:08.964Z",
   "branch": "main",
-  "head": "2e5ee4b",
-  "total_commits": 1744,
+  "head": "d5ac7fa",
+  "total_commits": 1746,
   "recent_commits": [
+    {
+      "short": "d5ac7fa",
+      "at": "2026-11-16T20:26:24+08:00",
+      "subject": "M8-T1086: re-verified read plane under load after the consolidation day - three waves against fake-provider 127.0.0.1:8899 (c=24 cold cohort n=191 0 errors, /ap"
+    },
+    {
+      "short": "9db9c73",
+      "at": "2026-11-16T12:20:46Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "2e5ee4b",
       "at": "2026-11-16T20:20:08+08:00",
@@ -19,22 +29,12 @@
       "short": "ad3c749",
       "at": "2026-11-16T20:06:35+08:00",
       "subject": "M8-T1084 follow-through: remove 7 untracked CI/debug log debris files at repo root (cleanup-version zero-run-output gate); local full pytest triage: one real ro"
-    },
-    {
-      "short": "996cdf3",
-      "at": "2026-11-16T11:56:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5b66689",
-      "at": "2026-11-16T19:55:33+08:00",
-      "subject": "M8-T1084: Manual Almanac line stale-count fix (manual.js zh+en were frozen at '34 vols / Ch.XXXV The New Coast' & 'thirty-six chapters' - now 39/Ch.XXXVIII The "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 397,
+  "roadmap_batches": 398,
   "changelog_entries": 1,
-  "roadmap_lines": 53999,
+  "roadmap_lines": 54012,
   "tracked_files": 1084,
   "test_files": 716,
   "almanac_chapters": 40,
