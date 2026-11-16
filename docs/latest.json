@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T17:55:03.007Z",
+  "generated_at": "2026-11-16T18:24:00.927Z",
   "branch": "main",
-  "head": "ff62710",
-  "total_commits": 1786,
+  "head": "d96955e",
+  "total_commits": 1788,
   "recent_commits": [
+    {
+      "short": "d96955e",
+      "at": "2026-11-17T02:23:22+08:00",
+      "subject": "M8-T1106: almanac Ch.XLVII 'The Eviction' - git add -A had swept 10 ad-hoc probes into the repo; git grep zero references proved each one; git rm'd (525c204, 61"
+    },
+    {
+      "short": "ca5db5a",
+      "at": "2026-11-16T17:55:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ff62710",
       "at": "2026-11-17T01:54:28+08:00",
@@ -19,25 +29,15 @@
       "short": "525c204",
       "at": "2026-11-17T01:48:40+08:00",
       "subject": "M8-T1103: eviction of three agent-scratch ledgers accidentally committed in 7b33aed (_ledger_fanout.py, _ledger_sleepless.py, _sleepless_smoke.py) - unreference"
-    },
-    {
-      "short": "9d6e60d",
-      "at": "2026-11-16T17:44:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "324bf5c",
-      "at": "2026-11-17T01:43:04+08:00",
-      "subject": "M8-T1102: almanac Ch.XLVI 'The Re-Measurement' - second live flight of the 73.7->95.9 band (fresh lane key 2026-11-17, Clash proxy): 5731/4224 cold 73.7%, 5737/"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 414,
+  "roadmap_batches": 415,
   "changelog_entries": 1,
-  "roadmap_lines": 54215,
+  "roadmap_lines": 54227,
   "tracked_files": 1088,
   "test_files": 716,
-  "almanac_chapters": 47,
+  "almanac_chapters": 48,
   "module_count": 14,
   "feature_surface": [
     "workbench",
