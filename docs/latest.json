@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T10:23:52.071Z",
+  "generated_at": "2026-11-16T10:50:05.214Z",
   "branch": "main",
-  "head": "dc5691c",
-  "total_commits": 1732,
+  "head": "9255fb1",
+  "total_commits": 1734,
   "recent_commits": [
+    {
+      "short": "9255fb1",
+      "at": "2026-11-16T18:49:24+08:00",
+      "subject": "M8-T1081: almanac Ch.XXXVII 'The Negative Space' - the M8-T1080 coach-chip overlap fix written into the museum (fixed bottom-right inspector caption collision m"
+    },
+    {
+      "short": "fe4db58",
+      "at": "2026-11-16T10:23:52Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "dc5691c",
       "at": "2026-11-16T18:23:17+08:00",
@@ -19,25 +29,15 @@
       "short": "7c59ec2",
       "at": "2026-11-16T17:45:30+08:00",
       "subject": "M8-T1079: almanac Ch.XXXVI 'The Slack Tide' - the TTL-cliff silence written into the museum (identical prefix + lane key, A/B/C rounds after ~7min and ~16.7min "
-    },
-    {
-      "short": "475be5b",
-      "at": "2026-11-16T09:36:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5c17efd",
-      "at": "2026-11-16T17:36:22+08:00",
-      "subject": "M8-T1078: TTL-cliff probe on new lane (api.aizzz.xyz/v1 gpt-6.1-terra via Clash Verge 127.0.0.1:7897) - identical prefix + lane key A/B/C over ~16.7 min silence"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 392,
+  "roadmap_batches": 393,
   "changelog_entries": 1,
-  "roadmap_lines": 53932,
+  "roadmap_lines": 53945,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 37,
+  "almanac_chapters": 38,
   "module_count": 14,
   "feature_surface": [
     "workbench",
