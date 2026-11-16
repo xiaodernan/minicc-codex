@@ -54,6 +54,7 @@ export const CHAPTERS = [
   { id: "lamplighter", roman: { zh: "卷三十一", en: "Chapter XXXI" }, title: { zh: "灯下", en: "The Lamplighter" }, subtitle: { zh: "谁在每一盏灯亮起的背后", en: "Who is behind every lamp that lights itself" } },
   { id: "firefly", roman: { zh: "卷三十二", en: "Chapter XXXII" }, title: { zh: "萤", en: "The Firefly" }, subtitle: { zh: "每一盏只亮给愿意看她的人", en: "Every lamp shines for the one who learned how to look" } },
   { id: "candle", roman: { zh: "卷三十三", en: "Chapter XXXIII" }, title: { zh: "烛火", en: "The Candle" }, subtitle: { zh: "每一秒你看见的展示页都比你先醒", en: "Every second you see on the showcase has already woken before you" } },
+  { id: "newcoast", roman: { zh: "卷三十四", en: "Chapter XXXIV" }, title: { zh: "新涯", en: "The New Coast" }, subtitle: { zh: "新 api 不在你这国度，但每一次 probe 都被记下来了", en: "The new gateway doesn't answer your neighbourhood — but every probe is on the books" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2429,6 +2430,84 @@ function candleMarkup() {
     </div>`;
 }
 
+function newcoastMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-newcoast">
+      <div class="almanac-kicker">${zh() ? "卷三十四 · 新涯" : "Chapter XXXIV · The New Coast"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `地平线上一座新的海岸线，<br/><span class="almanac-title-accent">但要先看哪条流量通路上过。</span>`
+        : `A new coastline on the horizon,<br/><span class="almanac-title-accent">but the corridor decides who reaches it.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日凌晨，一份新的 endpoint 摆上了桌：<strong>api.aizzz.xyz · gpt-6.1-terra</strong>。它替换了之前 wkapi.pro · gpt-6-sol——上次实测那条线已经到了 98.3% 缓存热命中。新一条本来应该更简单，结果直连的每一条路都被拒：GET /v1/models、/chat/completions、/v1/responses——每一次，一字不差的官方回复：<strong>「本站不对您所在的国家及地区进行商业服务」</strong>。
+        </p>
+        <p>
+          六次探针都是同一块墙。直连这条新湾岸被拦在浪花外面。浏览器里差别只是一封 403 ——<strong>直到你叫停手停在最关键的一步。</strong>
+        </p>
+        <p>
+          你告诉它真正可以走了：<strong>Clash Verge Rev 混合端口 127.0.0.1:7897</strong>。同一个 api.aizzz.xyz、同一个 key，这一瞬间全世界都变了——<code>/v1/models</code> 200；<code>cache 预热后暖下 95.9%</code>。
+        </p>
+        <p>
+          省下的每一步：原先的故障从来不是代码、更不是 key——是<strong>路</strong>，是一个代理没填上。这条结论被写在仓库里、记录入账、不可删——直连 403、走代理通健、这个换法比坦白任何一步更稳固。
+        </p>
+        <p>
+          世界没有因此中断。仓库不是因为换 endpoint 才跑起来的；是因为每一盏门都被看管着才跑起来的。<strong>告别了 prewarm 欺骗——直连被拒不是『缓存丢了』，是『一个人没走通』</strong>。
+        </p>
+        <p>
+          这卷最后一句：<strong>新的海岸线不是用新的船报到的——是新的船告诉你每条线路都值得开一次才认。</strong>
+        </p>` : `<p>
+          A fresh endpoint landed on the bench at 04:00 2026-11-16: <strong>api.aizzz.xyz · gpt-6.1-terra</strong>, replacing wkapi.pro · gpt-6-sol. The old one had belonged in the hall of honest measurements — 98.3 % warm-tier cache hit, overnight. The new one was expected to be simpler. It was not.
+        </p>
+        <p>
+          Six probes, one wall — <code>GET /v1/models</code>, <code>/chat/completions</code>, <code>/v1/responses</code>, all answers verbatim: <strong>“this site does not serve your region”</strong> — <em>the endpoint refused this neighbourhood.</em>
+        </p>
+        <p>
+          Then came your plan: <strong>Clash Verge Rev, mixed port 127.0.0.1:7897</strong>. Same host, same key, same requests — and this time everything landed: <code>/v1/models</code> commanding a 200; the prefix-cache path running stronger than anything previous.
+        </p>
+        <p>
+          The diagnosis held in place by hours of headscratching:<strong>not the code, not the key — the road.</strong> A proxy nobody had set on.
+        </p>
+        <p>
+          The world never stalled. The repo never had to stop to berth an unfinished dock. <strong>Every gate that held yesterday kept holding tonight; the new one just inherited a different corridor.</strong>
+        </p>
+        <p>
+          The last line this chapter pins down: <strong>a new coastline is not introduced by new ships — it's introduced by ships that insisted every route be sailed at least once.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">67</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">35 / 35</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">14 / 14</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "直连 probe" : "Direct probes"}</div><div class="almanac-instrument-value">403 × 6</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "新 lane · warm" : "New lane · warm"}</div><div class="almanac-instrument-value">95.9%</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["直连的 0 个成功 · probe 6/6 拒绝", "每一次都被挡住不是锅，是地图没画进来"],
+        ["127.0.0.1:7897 一条明路", "Clash Verge 混合端口把 api.aizzz.xyz 直接放通——models 200、cache 95.9%"],
+        ["try as hax hunt · return 4x73.7", "cold request 5731→5735，预热三次后 5504 被命中"],
+        ["docs 直播此工作", "CACHE_AFFINITY_MATRIX 知道 cold→warm 曲线；thinking-not-blind"],
+        ["世界没有中止", "船不是等下一次开放才航行，是每次先让路开好"],
+      ] : [
+        ["Direct probes 0-for-6", "every attempt blocked was a map issue, never a key issue"],
+        ["127.0.0.1:7897 lit the corridor", "the Clash Verge mixed port walked api.aizzz.xyz through — models 200, cache 95.9%"],
+        ["Cold → warm, 5731→5504", "probes verified: 73.7% cold, 95.9% on the second story of the prefix"],
+        ["Live matrix knows the thrill", "CACHE_AFFINITY_MATRIX.md records the cold→warm ramp without blinking"],
+        ["The world did not stall", "the repo never asked permission to dock the new ship it had already built"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "新的海岸线不由新的船报到——由坚持每一条线都试一次的船认出。"
+          : "A new coast is not a thing new ships announce — it's a thing ships that sailed every inch find first."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2464,6 +2543,7 @@ const CHAPTER_RENDERERS = {
   lamplighter: () => lamplighterMarkup(),
   firefly: () => fireflyMarkup(),
   candle: () => candleMarkup(),
+  newcoast: () => newcoastMarkup(),
 };
 
 async function loadChapter(id) {

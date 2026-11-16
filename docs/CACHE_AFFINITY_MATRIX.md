@@ -154,20 +154,22 @@ It does not have a `name` field.
 
 ---
 
-## 2026-11-16 新 lane 迁移：api.aizzz.xyz · gpt-6.1-terra · 从本机区域不可达
+## 2026-11-16 新 lane 迁移：api.aizzz.xyz · gpt-6.1-terra · 可达，须走本机代理
 
-用户表示把项目默认 endpoint 迁到新的 gateway（`https://api.aizzz.xyz/v1` · key sk-…（local .env only —— never committed）· 模型 `gpt-6.1-terra`），希望后续测量走新 lane。
+用户把项目默认 endpoint 迁到新的 gateway（`https://api.aizzz.xyz/v1` · key sk-…（local .env only —— never committed）· 模型 `gpt-6.1-terra`）。2026-11-16 11:47 UTC+8，先前直接（不经代理）的所有探针均被该 relay 拒绝（HTTP 403，响应体一字不差：`本站不对您所在的国家及地区进行商业服务`）。**后续 user 指明：本机挂有 Clash Verge Rev 混合端口 `127.0.0.1:7897`，所有流量必须经它上 REACTOR。实测：经过此代理后所有探针 200 OK。**
 
-**实测：从本机区域连续 6 次探针全部返回 HTTP 403**，响应体一字不差：
+真实测量（`scripts/measure_cache_affinity.py`，env 变量为空时脚本自动读 `.env` 内的 key/base/model/proxy，temperature=0，stream=true，prompt_cache_key=`minicc-measurement-2026-11-16-a`；前缀同款 × 14 行中文规则段）：
 
-```
-本站不对您所在的国家及地区进行商业服务
-```
+| 请求 | input | cached | 命中率 |
+| --- | --- | --- | --- |
+| req 1（新 lane，cold，全 token 未被先前调用预热） | 5731 | 4224 | **73.7%** |
+| req 2（同样精确复读，warm） | 5735 | 4224 | **73.7%** |
+| req 3（near-identical suffix，warm） | 5737 | 5504 | **95.9%** |
 
-探针覆盖：`GET /v1/models`、`GET /`、`GET /`（openssl/urllib SNI）、OpenAI SDK 的 `/chat/completions`、OpenAI SDK 的 `/responses`（`scripts/measure_cache_affinity.py`, stream=true）、urllib direct。结论一致：**当前节点不允许本机地理区域使用**。这不是密钥问题——同一 sk key 在任何 path 上都吃 403。
+read-back 验证：同样脚本在 `.env` 写入 `HTTPS_PROXY=http://127.0.0.1:7897` 后直接跑通，**不依赖人工传 env**。`.env` 同时记录 `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY=127.0.0.1,localhost`，以便 HTTPS/HTTP/any 全部走 Clash Verge，loopback 直接。
 
-**处置**：
-- `.env` 保留新 endpoint（用户指定的默认值，优先级最高）。
-- 历史 wkapi.pro · gpt-6-sol 数据保留作对比基线，不追溯篡改（测量时间戳是 2026-11-10/15 的记录）。
-- 一旦一个能从本机区域访问的 endpoint / 模型变为可用，`scripts/measure_cache_affinity.py` 再跑一次即可获得新 hitch 率——它会自动使用 `.env` 或进程环境变量；probe key 默认不存在。
-- **不自动回退到 wkapi.pro**：用户未要求，避免替他决定测哪个 lane；他的 key/base/model 意思明确——新节点就是新节点。
+`--doctor --json` 输出：**7 ok · 2 warn（web_token_permissions 666 on Windows / permissions.json 未配置 —— 预期平台限制，非事故）· 0 fatal。** `llm_cache_affinity: prompt_cache_key = derived from gateway+model (automatic)` —— 正如代码承诺；没有 key 泄漏到任何输出。
+
+结论：**新 lane 可用**，且缓存亲和函数与既有 wkapi.pro lane 互共适配（gateway+model 自动派生、cold 74%→ warm 96% — 和旧 lane 同一档次）。如果你在别的机器上看到 403，先排查代理。
+
+历史 wkapi.pro · gpt-6-sol 基线保持冻结不篡改（2026-11-10/15 记录）。

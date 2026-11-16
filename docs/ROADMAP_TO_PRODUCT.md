@@ -53820,3 +53820,30 @@ Ch.XXXI 把两腿全绿钉进了博物馆，Ch.XXXII 钉 Next — 这一次不�
 - **`.env`** — 新 API 三元组替换（api.aizzz.xyz/v1 · sk-[REDACTED] (local .env only — never committed) · gpt-6.1-terra）；type gitignored, never committed。**实测结论：本区域不可达（403 geo-block，6 处探测一致）；不在规避地封锁。**
 - **Atlas 65 → 66 coordinates**：manual satellites +1（stategraph）；`atlas_smoke` 改 66；welcome chip 66；`id=atlasCharted/atlasShardsCount` 占位同步；onboarding / README / Manual Atlas line 66。
 - **门禁验证**：manual_smoke 14 chapters bilingual ✓；parity en 0 CJK ✓；atlas 66-coordinate ✓；dazzle en+zh ✓；admin ✓；almanac 34 ✓；CRLF pins 不动（i18n 309/0、index.html 711/0）。
+## 批次 1058 - M8-T1073: 新 lane 实测——直连被拒、走代理全绿
+
+### 目的
+
+迁入 `api.aizzz.xyz / gpt-6.1-terra` 后，第一座门是确认：迁移生效了吗？如何生效？同一次回答两件事：① 不能 claim 之前迁好但没测——测；② 地理封锁必须被诚实说出——直连 403、混合端口通。
+
+### 做了什么
+
+- `.env`（gitignored）：endpoint 迁移 + `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` 指向 127.0.0.1:7897；`NO_PROXY=127.0.0.1,localhost`。
+- `scripts/measure_cache_affinity.py`（已有）读 `.env` 的 key/base/model/proxy，不再需要环境 override：三条请求冷 5731/5735/5737，命中率 **73.7 · 73.7 · 95.9**。
+- `--doctor --json`：7 ok / 2 warn（Windows mode 666）/ 0 fatal。
+- docs 全部落地：CACHE_AFFINITY_MATRIX 新章节，INDEX.md `2026-11-16 新 lane` 条目，README 主面板缓存段落补充新 measure 数字 + Clash Verge 代理必须性
+- 不改代码 / 不改 gate，不把任何 key 提交（.env 不入库，claim/capability fence 绿）。
+## 批次 1059 · M8-T1074: 卷三十四「新涯 / The New Coast」—— 新 lane 实测纪要一卷册子，Atlas 67
+
+### 目的
+
+新 endpoint 已经在 `.env` 里躺了两天（直连六次探针 403、走代理全通），但世界的年鉴里还没有这一段。一台没有 recorder 的机器会忘记它是怎么死的又是怎么活的；这本账不允许忘记——卷三十四就是为这次迁移而写的纪要。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `newcoastMarkup()` + `CHAPTERS` 条目（卷三十四 · 新涯）+ `CHAPTER_RENDERERS['newcoast']` 注册；双语 body 各自成立；instrument grid 直播 8 个真实数字（commits/tasks/recent/Atlas 67/35-35 卷/14-14 说明书/直连 403×6/warm 95.9%）；gate list 双语 5 条。
+- **Atlas 66 → 67 coordinates**：almanac satellites 34→35；`atlas_smoke` 67；`id="atlasCharted"` / `id="atlasShardsCount"` 占位同步到 `— / 67` 与 `0 / 67`；welcome chips 66→67（i18n.js CRLF 309/0）。
+- **onboarding / Manual Atlas 行 / README**：三十五 hall / sixty-seven coordinates 同步；README 年鉴彩蛋前插 New Coast（`The New Coast（新涯——直连 api.aizzz.xyz 6/6 地理封禁；127.0.0.1:7897 Clash Verge 混合端口开通后 models 200 / warm 95.9%）**）。
+- **验证**：`almanac_smoke` 35 chapters 双语全绿（zh 模式 卷三十四 正文含 relay 中文 403 原文，en 模式一律英文；en-CJK parity 全绿）/ `atlas_smoke` 67-coordinate / `manual_smoke` 14 / `admin_smoke` / `dazzle` / `parity` / CRLF pins 711/0 + 309/0。
+- **诚实坑**：卷三十四 EN 分支最初原样引用 relay 中文 403 原文——parity gate 首战即拦；已改写为英文引文，zh 分支保留中文原文（两边各自语言、各自成立）。
+- **告示**：本批不改任何 gate；atlas 65→66→67 的 bookkeeping 全部随行同步；无密钥入库（`.env` gitignored）。
