@@ -53754,3 +53754,12 @@ Mega-spec §九：「模拟真实用户的行为：真实用户会怎么操作�
 - **Zero flaky budget**：确定性 PRNG 同一顺序；`:visible` 过滤按钮；所有 stale-node 索引概率 0；CI 也行。
 - **`package.json`** — 新增 `"test:dazzle"`，拼进 `test:arcade` 末尾。
 - **门禁验证**：本地 6/6 绿（en/zh）+ 5 arcade smokes 全绿；CRLF pins 不受影响。
+## 批次 1052 - M8-T1067: 年鉴第三十卷《潮汐 / The Tide》
+
+### 目的
+
+世界 asymmetry 的诚实——每片区以自己节拍前进——钉进博物馆。Dazzle 真用户在两个语言下全绿；almanac_smoke 27→31；Atlas 61→62。世界不对齐，世界照样亮。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `tide`（卷三十 · 潮汐 / Chapter XXX）；`tideMarkup()`；仪器：Atlas 62 / volumes 31 / Dazzle 行走双语 / live ceil milestone / commits live；CHAPTER_RENDERERS 登记。Manual 最新卷改卷三十；almanac_smoke 31 chapters；Atlas 62-coordinate contract；welcome chip 62；Manual/onboarding/README 全量指针同步；i18n.js CRLF re-pin 保住 309/0。

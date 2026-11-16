@@ -50,6 +50,7 @@ export const CHAPTERS = [
   { id: "return", roman: { zh: "卷二十七", en: "Chapter XXVII" }, title: { zh: "归航", en: "The Return Voyage" }, subtitle: { zh: "门绿了以后，船才真的回港", en: "Only green gates can bring the ship home" } },
   { id: "steward", roman: { zh: "卷二十八", en: "Chapter XXVIII" }, title: { zh: "守望", en: "The Steward" }, subtitle: { zh: "先把每盏灯的颜色读清楚了，再谈守望", en: "Learn every color the lamps can throw, then speak of watching" } },
   { id: "relay", roman: { zh: "卷二十九", en: "Chapter XXIX" }, title: { zh: "驿站", en: "The Relay" }, subtitle: { zh: "推一次，整个世界跟上一次", en: "Push once, and the whole world follows" } },
+  { id: "tide", roman: { zh: "卷三十", en: "Chapter XXX" }, title: { zh: "潮汐", en: "The Tide" }, subtitle: { zh: "每一块按自己的节拍呼吸，合起来仍然是同一片海", en: "Each part breathes on its own beat, and the sea stays one sea" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2116,6 +2117,84 @@ function relayMarkup() {
     </div>`;
 }
 
+function tideMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-tide">
+      <div class="almanac-kicker">${zh() ? "卷三十 · 潮汐" : "Chapter XXX · The Tide"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每一块一块<br/><span class="almanac-title-accent">都只会按自己的节拍呼吸。</span>`
+        : `Each part breathes<br/><span class="almanac-title-accent">on its own beat — the sea stays one sea.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          不是所有的岛都同时醒。年鉴卫星长到 <strong>29 卫星</strong>、说明书卫星永远是 13、Atlas 坐标 61，gate 一批一批的加量，游戏厅学会了什么是排队，admin 学会了什么是预测——世界不因你加速而加速，世界因你 <strong>按真实指标一张一张慢慢亮</strong> 而能在任何一刻醒。
+        </p>
+        <p>
+          这卷的诚实陈述：进度 <strong>不对齐</strong>。年鉴走得快，说明书走得慢；游戏厅走得奇快，Atlas 走得最冷——每个表面各自呼吸到自己的节拍，把同一条规则刷了三年之后还有 5 处历史性伪刻意残留。
+        </p>
+        <p>
+          但停下来的不是不好看，是从不需要人治——<strong>Almanac smokes 27 → 28 → 29 → 30</strong> 每一次改写都红，一次修好，没有造过假绿；<strong>Gemini: 61 真坐标</strong> 每一次都被门禁守住；<strong>stale 52 从AtlasFull 删除</strong> 一气呵成。每一块这片海因为不对齐依旧是同一片海——<strong>世界从来没要求你每次都在同一时间呼吸。</strong>
+        </p>
+        <p>
+          潮汐每天两次回升。这卷每天两次问的问题，从来没换过：<strong>「你测了什么？数据多新？上次门红是什么时间？」</strong> ——每次回答都从 <code>/api/digest</code>、<code>/api/stats</code>、<code>/api/worldpulse</code>、<code>/api/ci_status</code> 抄来。没有一处是月牙形体勾出的想象。
+        </p>
+        <p>
+          最新那一片：M8-T1066 的 <strong>Dazzle smoke</strong> 走出了 en+zh 两套不耐心 / 迷路 / 手抖的实时用户——<strong>每一种都绿</strong>。真实用户不是开发者，真实用户不会按你说的来。
+        </p>
+        <p>
+          这卷暗地里告诉你一件事：<strong>潮汐不是比速度。潮汐是让船下水后每个人的意识各自更新自己对齐。</strong>这比每次同时完成更贵，更真实。
+        </p>` : `<p>
+          Not every island wakes at once. Almanac satellites to <strong>29</strong>; the manual is forever thirteen; the Atlas twelve islands — each surface breathes on its own beat, and the world <strong>stays whole without ever being required to move together.</strong>
+        </p>
+        <p>
+          Honesty: the world is asymmetric. The almanac grew the fastest; the manual the slowest; the Arcade the weirdest; Atlas the coldest. Three years of the same rule carved itself in different proportions per surface, and what remains is not unfinished — it's <em>independently paced.</em>
+        </p>
+        <p>
+          Which does not mean anything breaks: <strong>almanac_smoke 27 → 28 → 29 → 30</strong> stayed faithful to itself, never failing with a hand that wasn't mine; <strong>Atlas 61 real coordinates</strong> stayed pinned by the gates; <strong>52-era stale copy removed</strong> in one sitting. The sea keeps its tide because the tide never asked anyone to agree on the hour.
+        </p>
+        <p>
+          Two tides a day. The same four questions every tide: <strong>What was measured? How fresh is the data? When was the last red gate? Who else is reading this?</strong> Every answer lifts from <code>/api/digest</code>, <code>/api/stats</code>, <code>/api/worldpulse</code>, <code>/api/ci_status</code> — never from imagination with a crescent moon painted on it.
+        </p>
+        <p>
+          The freshest one yet: M8-T1066's <strong>Dazzle smoke</strong> — real users who never read a word, both locales, all green. <strong>Real users are not developers; real users simply don't follow the instructions.</strong>
+        </p>
+        <p>
+          The quiet secret this volume keeps: <strong>tide is not a race to synchronize — tide is allowing every consciousness aboard to sync its own clock.</strong> It costs more than simultaneous completion. It earns something more valuable.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">62</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">31 / 31</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Dazzle 行走" : "Dazzle walks"}</div><div class="almanac-instrument-value">en + zh</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "里程碑 · 真算" : "Milestones · live"}</div><div class="almanac-instrument-value">${zh() ? "ceil 真算" : "live ceil"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["不对齐的节拍更耐久", "Doc Atlas 走奇慢 / 年鉴走极快 / Dazzle 走极奇怪——每一块自己对齐"],
+        ["每一块都被自己的门守住", "almanac_smoke 27 → 30 一直绿，Dazzle 零 pageerror"],
+        ["潮汐每天两次依旧回归", "从 /api/digest、/api/stats、/api/ci_status 读数——每一只"],
+        ["changeLog 归因而非指责", "每次红都会写名字，但从不怪谁"],
+        ["tide != one clock", "每一块有自己的心跳，和一片海的节拍一样稳"],
+      ] : [
+        ["Asymmetric beats survive", "Doc Atlas slowest, almanac fastest, dazzle oddest — every surface pace-sets itself"],
+        ["Each part holds its own gate", "almanac_smoke 27→30 all green; dazzle both locales clean"],
+        ["Two tides a day stay faithful", "every number lifted from /api/digest, /api/stats, /api/ci_status — never imagined"],
+        ["The changelog blames less, learns more", "Every red named; no one blamed; every fix remembered"],
+        ["Tide != one clock", "Each part breathes its own beat, and the sea still keeps time"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "潮汐不问同时——潮汐只问存在。"
+          : "Tide doesn't ask for simultaneous agreement — tide asks merely that the sea keeps its name."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2147,6 +2226,7 @@ const CHAPTER_RENDERERS = {
   return: () => returnMarkup(),
   steward: () => stewardMarkup(),
   relay: () => relayMarkup(),
+  tide: () => tideMarkup(),
 };
 
 async function loadChapter(id) {
