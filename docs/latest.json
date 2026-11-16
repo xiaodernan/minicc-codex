@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T07:50:35.386Z",
+  "generated_at": "2026-11-16T08:41:06.109Z",
   "branch": "main",
-  "head": "0fe6b44",
-  "total_commits": 1724,
+  "head": "7d6b79e",
+  "total_commits": 1726,
   "recent_commits": [
+    {
+      "short": "7d6b79e",
+      "at": "2026-11-16T16:39:58+08:00",
+      "subject": "M8-T1077: manual Ch.15 'Cache Affinity / 冷热亲和' - real measurements & mechanisms (wkapi.pro 2026-11-15 warm 98.3% / 5504-5735=96.0%; new lane 2026-11-16 via loca"
+    },
+    {
+      "short": "1fbefae",
+      "at": "2026-11-16T07:50:35Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0fe6b44",
       "at": "2026-11-16T15:50:05+08:00",
@@ -19,22 +29,12 @@
       "short": "f6cd7bf",
       "at": "2026-11-16T15:37:19+08:00",
       "subject": "M8-T1075: 128-way load wave measured against fake-provider 127.0.0.1:8899 (warm prefetch, read-only paths): c=24x15s n=1045/route 0 errors; c=64x15s n=2175/rout"
-    },
-    {
-      "short": "f615896",
-      "at": "2026-11-16T07:31:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "04bf0cd",
-      "at": "2026-11-16T15:30:54+08:00",
-      "subject": "M8-T1074: almanac Ch.XXXIV 'The New Coast' (api.aizzz.xyz/v1 gpt-6.1-terra measured live: 6x 403 geo direct -> Clash Verge Rev 127.0.0.1:7897 corridor -> /v1/mo"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 388,
+  "roadmap_batches": 389,
   "changelog_entries": 1,
-  "roadmap_lines": 53879,
+  "roadmap_lines": 53893,
   "tracked_files": 1083,
   "test_files": 716,
   "almanac_chapters": 36,
