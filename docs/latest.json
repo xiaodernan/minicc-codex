@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T19:42:18.870Z",
+  "generated_at": "2026-11-16T19:56:03.554Z",
   "branch": "main",
-  "head": "0ca9207",
-  "total_commits": 1793,
+  "head": "c3a246f",
+  "total_commits": 1795,
   "recent_commits": [
+    {
+      "short": "c3a246f",
+      "at": "2026-11-17T03:55:18+08:00",
+      "subject": "M8-T1111: CI red root-caused from own ledger - M8-T1107/1109 entries quoted content-addressed styles hash in CHANGELOG/ROADMAP (the exact anti-pattern test_no_d"
+    },
+    {
+      "short": "8da0ff3",
+      "at": "2026-11-16T19:42:19Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0ca9207",
       "at": "2026-11-17T03:41:09+08:00",
@@ -19,16 +29,6 @@
       "short": "fe97b3f",
       "at": "2026-11-17T02:45:59+08:00",
       "subject": "M8-T1108: ledger for the --periwinkle CI fix (M8-T1107); claim gates green"
-    },
-    {
-      "short": "5ac8904",
-      "at": "2026-11-17T02:45:16+08:00",
-      "subject": "M8-T1107: CI fix - '--periwinkle' was read by 5 stategraph rules but declared nowhere; declared in both :root themes (dark #a5b4fc / light #4f46e5); built CSS r"
-    },
-    {
-      "short": "124a15b",
-      "at": "2026-11-16T18:24:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
