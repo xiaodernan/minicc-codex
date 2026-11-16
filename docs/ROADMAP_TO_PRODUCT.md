@@ -54201,3 +54201,14 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **Atlas 83 → 84 coordinates**：almanac satellites 46→47；`atlas_smoke` 84；`index.html` 711/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量计数 47 Halls、84 坐标、年鉴（47 卷）；README 加 The Re-Measurement 领衔。
 - **验证**：`almanac_smoke` 47 chapters 双语 / `atlas_smoke` 84-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin。
+## 批次 1087 · M8-T1103 + M8-T1104: 根目录 scratch 清道夫
+
+### 目的
+
+仓库根目录不应存放 agent 会话的一次性脚本——上一轮捞出三个 `.py`、这一轮再捞七个 `.mjs`，全部清零，全部 zero-reference 验证过。
+
+### 做了什么
+
+- M8-T1103：`git rm _ledger_fanout.py _ledger_sleepless.py _sleepless_smoke.py`。
+- M8-T1104：`git rm` 七个 Playwright scratch probes。
+- 验证：`git grep` 全仓库零引用；`tests/_*.py` 共享夹具保留（被多测试导入）。
