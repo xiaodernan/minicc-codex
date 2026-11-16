@@ -54189,3 +54189,15 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - 实拍（2026-11-17）：5731/4224 **73.7%**（冷）→ 5737/5504 **95.9%**（暖）——与 2026-11-16 同一区间。
 - `docs/CACHE_AFFINITY_MATRIX.md` 追加「2026-11-17 重测」段；旧矩阵冻结。
 - `docs/CHANGELOG.md` 补记 M8-T1100（5,701 计数修正）与 M8-T1101。
+## 批次 1086 · M8-T1102: 年鉴第四十六章「复测 / The Re-Measurement」—— Atlas 84
+
+### 目的
+
+把“两天复现同一区间”这件事写成一卷——不是回忆昨天，是今天的三回合实拍。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `remeasureMarkup()` + CHAPTERS 第四十六卷（zh 卷四十六《复测》/ en Chapter XLVI · The Re-Measurement）+ CHAPTER_RENDERERS 注册；实时读取 `/api/digest`（commits）与 `/api/stats`（tasks）入 instruments grid；写明 5731/4224/5504 三个真数字。
+- **Atlas 83 → 84 coordinates**：almanac satellites 46→47；`atlas_smoke` 84；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 47 Halls、84 坐标、年鉴（47 卷）；README 加 The Re-Measurement 领衔。
+- **验证**：`almanac_smoke` 47 chapters 双语 / `atlas_smoke` 84-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin。

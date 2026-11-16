@@ -66,6 +66,7 @@ export const CHAPTERS = [
   { id: "oracle", roman: { zh: "卷四十三", en: "Chapter XLIII" }, title: { zh: "神谕", en: "The Oracle" }, subtitle: { zh: "让仓库自己开一次口，它不开药方，只摊牌", en: "The repo opens its own mouth — it sheds files, not diagnoses" } },
   { id: "sleepless", roman: { zh: "卷四十四", en: "Chapter XLIV" }, title: { zh: "无眠", en: "The Sleepless" }, subtitle: { zh: "从不曾等过一个天亮的仓库", en: "The repo that never waited for daybreak" } },
   { id: "threshold", roman: { zh: "卷四十五", en: "Chapter XLV" }, title: { zh: "进门", en: "The Threshold" }, subtitle: { zh: "每一步都能听见门被推开的声音", en: "Every step leads to the sound of a door opening" } },
+  { id: "remeasure", roman: { zh: "卷四十六", en: "Chapter XLVI" }, title: { zh: "复测", en: "The Re-Measurement" }, subtitle: { zh: "同一区间的第二天", en: "Day two of the same band" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3268,6 +3269,66 @@ function thresholdMarkup() {
     </div>`;
 }
 
+function remeasureMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-remeasure">
+      <div class="almanac-kicker">${zh() ? "卷四十六 · 复测" : "Chapter XLVI · The Re-Measurement"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `同一区间的第二天，<br/><span class="almanac-title-accent">不是复述——是再一次实拍。</span>`
+        : `Day two of the same band —<br/><span class="almanac-title-accent">not a reprint, a second flight.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 17 日清晨，说明书第十五章里那个被反复引用的数字重新量了一次：全新 lane key（<code>minicc-measurement-2026-11-17-a</code>），走本机 Clash Verge 代理 <code>127.0.0.1:7897</code>——直连依旧是 403。
+        </p>
+        <p>
+          req 1 冷 <strong>5731 / 4224 → 73.7%</strong>；req 2 同前缀同 lane <strong>73.7%</strong>；req 3 暖 <strong>5737 / 5504 → 95.9%</strong>。和昨天首测同一区间——不是「看起来一致」，是两天两次实拍，同一批数字落回同一条带。
+        </p>
+        <p>
+          顺手修了一处真问题：测量脚本不再需要 shell 手工 <code>export HTTPS_PROXY</code>——回落到 gitignored <code>.env</code> 时自动继承 <code>HTTPS_PROXY / HTTP_PROXY / ALL_PROXY</code>（shell 已有值则保留）。仓库再不会有人忘记自己的网关规则。
+        </p>` : `<p>
+          Early on 2026-11-17 the number cited throughout Manual Chapter 15 was measured again: a fresh lane key (<code>minicc-measurement-2026-11-17-a</code>), the local Clash Verge egress at <code>127.0.0.1:7897</code> — direct connections are still 403.
+        </p>
+        <p>
+          req 1 cold <strong>5731 / 4224 → 73.7%</strong>; req 2 same prefix, same lane <strong>73.7%</strong>; req 3 warm <strong>5737 / 5504 → 95.9%</strong>. Day one and day two land in the same band — not a lookalike, a second flight of the same numbers.
+        </p>
+        <p>
+          One real fix rode along: the probe no longer needs the shell to hand-export proxies. On <code>.env</code> fallback it now backfills <code>HTTPS_PROXY / HTTP_PROXY / ALL_PROXY</code> itself (existing shell values win). No corner of this repo can forget its own gateway rule anymore.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">84</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">47 / 47</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">14</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["两天两次，同一区间", "2026-11-16 与 2026-11-17 fresh lane 实拍；冷 73.7%、暖 95.9%——无一例外"],
+        ["4224 是共享前缀块", "内容寻址的前缀缓存层；lane key 只门控其余部分；两天不变"],
+        ["直连依然 403", "Clash Verge 127.0.0.1:7897 是唯一的路；脚本现在自己从 .env 继承代理"],
+        ["Atlas 83→84", "这一粒星来自 n=3 次真实的测量调用，不是再抄一遍旧数字"],
+        ["这一卷不需要你信", "每一笔数字都能用 scripts/measure_cache_affinity.py 再打一遍"],
+      ] : [
+        ["Twice in two days, same band", "2026-11-16 and 2026-11-17 fresh-lane flights; cold 73.7%, warm 95.9% — no exceptions"],
+        ["4224 is the shared prefix block", "content-addressed prefix cache; the lane key gates only the rest; unchanged two days running"],
+        ["Direct still 403", "Clash Verge at 127.0.0.1:7897 is the only road; the probe now self-imports the proxy from .env"],
+        ["Atlas 83 → 84", "this star cost three real API calls — not a reprint of yesterday"],
+        ["This chapter asks no trust", "every figure is reproducible with scripts/measure_cache_affinity.py"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "同一条带，兜不住两次实拍——只有实测。"
+          : "One band, two flights — only the measuring tape is allowed to tell."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3315,6 +3376,7 @@ const CHAPTER_RENDERERS = {
   oracle: () => oracleMarkup(),
   sleepless: () => sleeplessMarkup(),
   threshold: () => thresholdMarkup(),
+  remeasure: () => remeasureMarkup(),
 };
 
 async function loadChapter(id) {

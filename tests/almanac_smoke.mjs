@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold", "remeasure"];
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
@@ -50,6 +50,7 @@ const CHAPTER_MARKERS = {
   oracle: ["神谕", "The Oracle"],
   sleepless: ["无眠", "The Sleepless"],
   threshold: ["进门", "The Threshold"],
+  remeasure: ["复测", "The Re-Measurement"],
 };
 const CJK = /[\u4e00-\u9fff]/;
 
@@ -84,5 +85,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 46 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
+console.log("almanac smoke passed: 47 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
 process.exit(0);
