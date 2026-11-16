@@ -54224,3 +54224,14 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **Atlas 84 → 85 coordinates**：almanac satellites 47→48；`atlas_smoke` 85；`index.html` 711/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量计数 48 Halls、85 坐标、年鉴（48 卷）；README 加 The Eviction 领衔。
 - **验证**：`almanac_smoke` 48 chapters 双语 / `atlas_smoke` 85-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin。
+## 批次 1089 · M8-T1107: CI Windows 腿红灯——--periwinkle 补声明
+
+### 目的
+
+Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板的五条规则无声回落到初始色值。
+
+### 做了什么
+
+- `web/styles.css`：`:root`（深色）+ `:root[data-theme="light"]`（浅色）双主题声明 `--periwinkle`（`#a5b4fc` / `#4f46e5`）。
+- `npm run build:web`：重建 `web/assets/styles.6472393cfc0d9ede.css`，manifest 刷新，旧 hash 清理。
+- 验证：`test_the_palette_has_one_home.py` 5/5 绿；dazzle / almanac（48）/ atlas（85 coordinate）/ manual（19）皆过；69 doc_pointers + capability_claims 绿。
