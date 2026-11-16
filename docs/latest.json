@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T21:05:11.249Z",
+  "generated_at": "2026-11-16T21:18:01.523Z",
   "branch": "main",
-  "head": "4e858fb",
-  "total_commits": 1797,
+  "head": "3fca105",
+  "total_commits": 1800,
   "recent_commits": [
+    {
+      "short": "3fca105",
+      "at": "2026-11-17T05:17:16+08:00",
+      "subject": "M8-T1114: ledger for M8-T1113 root scratch evictions (changelog + roadmap)"
+    },
+    {
+      "short": "bd5564d",
+      "at": "2026-11-17T05:08:50+08:00",
+      "subject": "M8-T1113: eviction of remaining root scratch - add_tasks.py / add_more_tasks.py (one-off benchmarks/tasks.v2.json injection ledgers, 2026-10/2026-11) and probe_"
+    },
+    {
+      "short": "e547c2d",
+      "at": "2026-11-16T21:05:11Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4e858fb",
       "at": "2026-11-17T05:04:22+08:00",
@@ -14,28 +29,13 @@
       "short": "e7b563b",
       "at": "2026-11-16T19:56:04Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c3a246f",
-      "at": "2026-11-17T03:55:18+08:00",
-      "subject": "M8-T1111: CI red root-caused from own ledger - M8-T1107/1109 entries quoted content-addressed styles hash in CHANGELOG/ROADMAP (the exact anti-pattern test_no_d"
-    },
-    {
-      "short": "8da0ff3",
-      "at": "2026-11-16T19:42:19Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0ca9207",
-      "at": "2026-11-17T03:41:09+08:00",
-      "subject": "M8-T1110: almanac Ch.XLVIII 'The Wall Stood' - Windows-leg periwinkle red root-caused and fixed at the source; Atlas 85->86 (almanac satellites 48->49); almanac"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 418,
+  "roadmap_batches": 419,
   "changelog_entries": 1,
-  "roadmap_lines": 54263,
-  "tracked_files": 1091,
+  "roadmap_lines": 54273,
+  "tracked_files": 1088,
   "test_files": 718,
   "almanac_chapters": 49,
   "module_count": 14,
