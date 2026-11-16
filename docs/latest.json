@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T21:18:01.523Z",
+  "generated_at": "2026-11-16T21:46:51.602Z",
   "branch": "main",
-  "head": "3fca105",
-  "total_commits": 1800,
+  "head": "92bc1b1",
+  "total_commits": 1802,
   "recent_commits": [
+    {
+      "short": "92bc1b1",
+      "at": "2026-11-17T05:40:13+08:00",
+      "subject": "M8-T1115: almanac Ch.XLIX 'The Live Wire' - the panel that reads the repo instead of retelling it; the 3-line panelVersion bug told honestly; Atlas 86->87 (alma"
+    },
+    {
+      "short": "edfaad7",
+      "at": "2026-11-16T21:18:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3fca105",
       "at": "2026-11-17T05:17:16+08:00",
@@ -19,25 +29,15 @@
       "short": "e547c2d",
       "at": "2026-11-16T21:05:11Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4e858fb",
-      "at": "2026-11-17T05:04:22+08:00",
-      "subject": "M8-T1112: StateGraph panel goes live - /api/stategraph serves build_coding_workflow() + StageRouter dispatch resolved from real config; guards 32/16/4/64 read f"
-    },
-    {
-      "short": "e7b563b",
-      "at": "2026-11-16T19:56:04Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 419,
+  "roadmap_batches": 420,
   "changelog_entries": 1,
-  "roadmap_lines": 54273,
+  "roadmap_lines": 54285,
   "tracked_files": 1088,
   "test_files": 718,
-  "almanac_chapters": 49,
+  "almanac_chapters": 50,
   "module_count": 14,
   "feature_surface": [
     "workbench",
