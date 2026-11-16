@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T00:03:51.005Z",
+  "generated_at": "2026-11-16T00:24:44.720Z",
   "branch": "main",
-  "head": "4ea0058",
-  "total_commits": 1696,
+  "head": "402d1e5",
+  "total_commits": 1698,
   "recent_commits": [
+    {
+      "short": "402d1e5",
+      "at": "2026-11-16T08:17:32+08:00",
+      "subject": "M8-T1063: real-world CI-leg red - admin unlock's new /api/ci_status made 3 sequential GitHub round trips (<=24s on a starved runner); now 3-way fanout in one Th"
+    },
+    {
+      "short": "a3103cc",
+      "at": "2026-11-16T00:03:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4ea0058",
       "at": "2026-11-16T08:02:59+08:00",
@@ -19,22 +29,12 @@
       "short": "733078c",
       "at": "2026-11-16T07:15:49+08:00",
       "subject": "M8-T1059: dockyard stake XI 'The Long Haul' (2000 commits live from digest; currently 1692=85%, locked honest with progress bar) + stale welcome chips refreshed"
-    },
-    {
-      "short": "7a63720",
-      "at": "2026-11-15T22:47:40Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1da25af",
-      "at": "2026-11-16T06:47:06+08:00",
-      "subject": "M8-T1058: stardust milestone copy switched to live math ({n}/{total}, ceil(x0.25/0.5/0.75/1.0) interpolated at render-time; 52-era stale literals removed) + alm"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 373,
+  "roadmap_batches": 374,
   "changelog_entries": 1,
-  "roadmap_lines": 53700,
+  "roadmap_lines": 53711,
   "tracked_files": 1082,
   "test_files": 715,
   "almanac_chapters": 28,
