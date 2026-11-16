@@ -53740,3 +53740,17 @@ full-pytest 收到 5,687 全绿、唯一一红：M8-T1063 的并发 `_runs/_prs/
 - **Atlas 世界 61 坐标**（18+30+13）— almanac_smoke 30 chapters；atlas_smoke 61-coordinate contract；onboarding/manual/README 同步指针为卷二十九与 61；Manual 最新卷改指《驿站》；en-CJK parity 全绿。
 - **`/api/admin/summary` 15s memo** — `AgentService.admin_summary()` 走 `_memo_http`；`webserver.py` 路由直接复用；87/87 HTTP surface 测试绿。
 - **门禁验证**：almanac 30 chapters bilingual；atlas 61-coordinate；en_cjk parity；manual / admin 5 smokes 全绿；test_http_surface 87；CRLF pins 不变量（i18n 309/0，index.html 711/0）。
+## 批次 1051 - M8-T1066: 手抖、迷路、无耐心——真用户行为进 CI
+
+### 目的
+
+Mega-spec §九：「模拟真实用户的行为：真实用户会怎么操作，真实用户可能会点开一个页面，没有耐心就立刻关闭了，或者可能会在页面上瞎点，因为不知道要去哪。」——§九的第一句话至今还没有变成代码。27 批之后补上：`tests/dazzle_smoke.mjs` 走三条路，en + zh 各跑一轮。
+
+### 做了什么
+
+- **A) 不耐心**（`impatientWalk`）——`waitForTimeout(1500)` 什么也不做；pageerror 断言零。
+- **B) 迷路**（`lostUserWalk`）——从 `.nav-item[data-view]` 自动数出 12+ 个 destinations，逐个打开 500ms 然后 Esc 关；`assert views.length >= 12`。
+- **C) Dazzle**（`dazzleWalk`）——mulberry32 seed 从所有可见按钮（`button:visible`）随机挑 34 个按 random 节奏盲点；每次若有 modal 打开就按 Esc 关掉；偶尔弹动滚动区域；断言零 browser error / zero pageerror。
+- **Zero flaky budget**：确定性 PRNG 同一顺序；`:visible` 过滤按钮；所有 stale-node 索引概率 0；CI 也行。
+- **`package.json`** — 新增 `"test:dazzle"`，拼进 `test:arcade` 末尾。
+- **门禁验证**：本地 6/6 绿（en/zh）+ 5 arcade smokes 全绿；CRLF pins 不受影响。
