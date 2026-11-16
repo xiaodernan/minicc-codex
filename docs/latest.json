@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T18:46:41.288Z",
+  "generated_at": "2026-11-16T19:42:18.870Z",
   "branch": "main",
-  "head": "fe97b3f",
-  "total_commits": 1791,
+  "head": "0ca9207",
+  "total_commits": 1793,
   "recent_commits": [
+    {
+      "short": "0ca9207",
+      "at": "2026-11-17T03:41:09+08:00",
+      "subject": "M8-T1110: almanac Ch.XLVIII 'The Wall Stood' - Windows-leg periwinkle red root-caused and fixed at the source; Atlas 85->86 (almanac satellites 48->49); almanac"
+    },
+    {
+      "short": "6f593e5",
+      "at": "2026-11-16T18:46:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "fe97b3f",
       "at": "2026-11-17T02:45:59+08:00",
@@ -19,25 +29,15 @@
       "short": "124a15b",
       "at": "2026-11-16T18:24:01Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d96955e",
-      "at": "2026-11-17T02:23:22+08:00",
-      "subject": "M8-T1106: almanac Ch.XLVII 'The Eviction' - git add -A had swept 10 ad-hoc probes into the repo; git grep zero references proved each one; git rm'd (525c204, 61"
-    },
-    {
-      "short": "ca5db5a",
-      "at": "2026-11-16T17:55:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 416,
+  "roadmap_batches": 417,
   "changelog_entries": 1,
-  "roadmap_lines": 54238,
+  "roadmap_lines": 54250,
   "tracked_files": 1088,
   "test_files": 716,
-  "almanac_chapters": 48,
+  "almanac_chapters": 49,
   "module_count": 14,
   "feature_surface": [
     "workbench",
