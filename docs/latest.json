@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T21:46:51.602Z",
+  "generated_at": "2026-11-16T21:56:12.570Z",
   "branch": "main",
-  "head": "92bc1b1",
-  "total_commits": 1802,
+  "head": "468a8f3",
+  "total_commits": 1804,
   "recent_commits": [
+    {
+      "short": "468a8f3",
+      "at": "2026-11-17T05:55:30+08:00",
+      "subject": "M8-T1116: /api/stats cold path 12.9s -> p50 9.5ms - os.walk+Path.stat replaced with scandir stack walker (byte-identical 372.8 MB/8738 files; cold walk 2.97s->0"
+    },
+    {
+      "short": "a968b76",
+      "at": "2026-11-16T21:46:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "92bc1b1",
       "at": "2026-11-17T05:40:13+08:00",
@@ -19,22 +29,12 @@
       "short": "3fca105",
       "at": "2026-11-17T05:17:16+08:00",
       "subject": "M8-T1114: ledger for M8-T1113 root scratch evictions (changelog + roadmap)"
-    },
-    {
-      "short": "bd5564d",
-      "at": "2026-11-17T05:08:50+08:00",
-      "subject": "M8-T1113: eviction of remaining root scratch - add_tasks.py / add_more_tasks.py (one-off benchmarks/tasks.v2.json injection ledgers, 2026-10/2026-11) and probe_"
-    },
-    {
-      "short": "e547c2d",
-      "at": "2026-11-16T21:05:11Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 420,
+  "roadmap_batches": 421,
   "changelog_entries": 1,
-  "roadmap_lines": 54285,
+  "roadmap_lines": 54295,
   "tracked_files": 1088,
   "test_files": 718,
   "almanac_chapters": 50,
