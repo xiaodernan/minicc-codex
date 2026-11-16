@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T06:39:41.676Z",
+  "generated_at": "2026-11-16T07:31:27.893Z",
   "branch": "main",
-  "head": "b24e0da",
-  "total_commits": 1717,
+  "head": "04bf0cd",
+  "total_commits": 1720,
   "recent_commits": [
+    {
+      "short": "04bf0cd",
+      "at": "2026-11-16T15:30:54+08:00",
+      "subject": "M8-T1074: almanac Ch.XXXIV 'The New Coast' (api.aizzz.xyz/v1 gpt-6.1-terra measured live: 6x 403 geo direct -> Clash Verge Rev 127.0.0.1:7897 corridor -> /v1/mo"
+    },
+    {
+      "short": "b6d0751",
+      "at": "2026-11-16T14:43:48+08:00",
+      "subject": "docs: 2026-11-16 new lane migration measured - api.aizzz.xyz/v1 from this region returns HTTP 403 (geo); wkapi.pro retained as historical baseline; scripts/meas"
+    },
+    {
+      "short": "fd6ae80",
+      "at": "2026-11-16T06:39:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b24e0da",
       "at": "2026-11-16T14:38:49+08:00",
@@ -14,30 +29,15 @@
       "short": "90c660e",
       "at": "2026-11-16T05:22:25Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e329919",
-      "at": "2026-11-16T13:21:33+08:00",
-      "subject": "M8-T1071: almanac Ch.XXXIII 'The Candle' - the showcase's own re-lighthouse contract (Update docs/latest.json 20s wake cycle, fact pack fresh-fetched on every p"
-    },
-    {
-      "short": "7c072a2",
-      "at": "2026-11-16T04:37:58Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "bb10b4a",
-      "at": "2026-11-16T12:37:22+08:00",
-      "subject": "M8-T1070: almanac Ch.XXXII 'The Firefly' - each lamp is its own proof of light, three green CI nights in a row, 1708 commits counted and still standing; sixty-f"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 384,
+  "roadmap_batches": 386,
   "changelog_entries": 1,
-  "roadmap_lines": 53823,
+  "roadmap_lines": 53850,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 34,
+  "almanac_chapters": 35,
   "module_count": 14,
   "feature_surface": [
     "workbench",
