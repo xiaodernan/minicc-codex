@@ -53902,3 +53902,17 @@ M8-T1077 说明书把 5 分钟的 "prefix TTL 目测" 写进了影响圈。今�
 - 诚实解读：不能排除更长（例如 ≥30min）才掉崖；5min TTL 经验来自 wkapi.pro/gpt-6-sol；本 lane 可能存在网关级全局共享前缀。
 - **不改代码默认值**：`cache_keeper` 220s / 60–900 clamp / `MINICC_CACHE_KEEPER` env opt-out 维持；本次只修正文档认知，不动生产姿态。
 - `docs/CACHE_AFFINITY_MATRIX.md` 新增 M8-T1078 小节；INDEX.md 无需更新（不动既有条目结构）。
+## 批次 1064 · M8-T1079: 卷三十六「潮平 / The Slack Tide」—— 16.7 分钟沉默，92.6% 纹丝不动；Atlas 70
+
+### 目的
+
+TTL 悬崖深探（M8-T1078）不是一个能随手记的实验——它打掉了我们手册里字面 5 分钟的 TTL 目测。卷三十六就是把「平潮」这一刻写进博物馆的决定。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `slacktideMarkup()`（卷三十六 · 潮平）+ CHAPTERS + `CHAPTER_RENDERERS['slacktide']`；双语正文各自成立；quote-end 压轴。
+- **Atlas 69 → 70 coordinates**：almanac satellites 36→37；`atlas_smoke` 70；占位 69→70；welcome chips 70（i18n.js CRLF 309/0）。
+- **onboarding / Manual Atlas 行 / README**：seventy real coordinates / thirty-seven chapters；README 年鉴彩蛋以 The Slack Tide 领衔（数字取自 M8-T1078 实测）。
+- **probe 原文摘录（诚实直接）**：A1-3 / B1-3 / C1-3 全部 input=4561、cached=4224、pct=92.6%；沉默 16.7 分钟；cached 与 5731 基准同块。
+- **验证**：`almanac_smoke` 37 chapters 全双语 / `atlas_smoke` 70-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
+- **告示**：不改 cache_keeper 默认值；gate 全绿；无密钥入库。

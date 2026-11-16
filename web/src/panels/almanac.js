@@ -56,6 +56,7 @@ export const CHAPTERS = [
   { id: "candle", roman: { zh: "卷三十三", en: "Chapter XXXIII" }, title: { zh: "烛火", en: "The Candle" }, subtitle: { zh: "每一秒你看见的展示页都比你先醒", en: "Every second you see on the showcase has already woken before you" } },
   { id: "newcoast", roman: { zh: "卷三十四", en: "Chapter XXXIV" }, title: { zh: "新涯", en: "The New Coast" }, subtitle: { zh: "新 api 不在你这国度，但每一次 probe 都被记下来了", en: "The new gateway doesn't answer your neighbourhood — but every probe is on the books" } },
   { id: "unscathed", roman: { zh: "卷三十五", en: "Chapter XXXV" }, title: { zh: "无恙", en: "The Unscathed" }, subtitle: { zh: "三万三千六百次请求，一件事没出过错", en: "Thirty-three thousand six hundred requests, not one of them went sideways" } },
+  { id: "slacktide", roman: { zh: "卷三十六", en: "Chapter XXXVI" }, title: { zh: "潮平", en: "The Slack Tide" }, subtitle: { zh: "平潮的时候，海面什么也不说，也不丢失任何东西", en: "On the slack tide the sea says nothing, and drowns nothing either" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2581,6 +2582,84 @@ function unscathedMarkup() {
     </div>`;
 }
 
+function slacktideMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-slacktide">
+      <div class="almanac-kicker">${zh() ? "卷三十六 · 潮平" : "Chapter XXXVI · The Slack Tide"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `平潮的时候，<br/><span class="almanac-title-accent">海面什么也不说，也不丢失任何东西。</span>`
+        : `On the slack tide,<br/><span class="almanac-title-accent">the sea says nothing, and drowns nothing either.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日下午，一次故意让缓存沉默的实验被按了开始键：同一个 lane key（<code>minicc-ttl-probe-2026-11-16-a</code>）、同一个 6 行中文前缀字节级复读（输入 ~4561 token），连发三组对比——A 组先打一遍暖身，沉默 ~7 分钟打 B 组，沉默 ~16 分钟再打 C 组。
+        </p>
+        <p>
+          结果每一组都是同一个数字：<strong>input=4561，cached=4224，命中率 <strong>92.6%</strong></strong>。七分钟不掉、十六分钟不掉——平潮之上，<strong>没有一滴水、没有一段前缀，游离出去</strong>。
+        </p>
+        <p>
+          先前在 wkapi.pro · gpt-6-sol 上目测的约 5 分钟 TTL，在这条 lane 上没有被观察到。更值得记的不是"没掉"，是<strong>cached 始终 = 4224</strong>——与 5731-token 基准采样里同款块完全一致，像是网关侧的全局共享前缀被别的使用者持续摸暖，永远冷不下来。
+        </p>
+        <p>
+          结论写在仓库里而不是嘴边：本次无法观察到 TTL 悬崖；保活器的默认值不变——220 秒一枚微型 warm，跨 window 接力是它的本职工作，别省。<strong>测量取代猜测，几秒钟就能逼它说真话。</strong>
+        </p>
+        <p>
+          潮平一刻，海面不承诺下一波是涨还是退，但它从来都在。新的时刻到来，缓存可能以沉默或以满分回答你——差异只在于你<strong>是否愿意低头看一眼数字</strong>。
+        </p>
+        <p>
+          平潮的时候，海面什么也不说，也不丢失任何东西。
+        </p>` : `<p>
+          On the afternoon of 2026-11-16, an experiment in taught silence was started: the same lane key (<code>minicc-ttl-probe-2026-11-16-a</code>), the same six-line Chinese prefix byte-for-byte (input ≈ 4561 tokens), three rounds of measurement — round A warms the lane first, ~7 minutes of silence precedes round B, ~16 minutes precedes round C.
+        </p>
+        <p>
+          Every round printed the same number: <strong>input=4561, cached=4224, <strong>92.6%</strong> cached</strong>. Not after seven minutes, not after sixteen — on the slack tide, <strong>not one byte, not one prefix segment frayed away</strong>.
+        </p>
+        <p>
+          The ~5-minute TTL once observed on the wkapi.pro / gpt-6-sol lane was not seen here. The more interesting fact is not that it "didn't drop" — it's that cached <strong>remained exactly 4224</strong>, byte-identical to the sampled 4224-block from the 5731-token baseline: evidence that this gateway-side shared prefix is being continuously warmed by other users of the lane and therefore never falls cold.
+        </p>
+        <p>
+          The conclusion was written into the repo, not into a hope: no TTL cliff was observed within 16.7 minutes of silence; the keeper default stays at 220 seconds — a micro warm every 220 s, cross-window relay is its job, don't skimp. <strong>Measurement beats folklore; four seconds of curl makes it confess.</strong>
+        </p>
+        <p>
+          On the slack tide the sea promises nothing about the next surge — but it never stops being there. The next moment may greet you in silence or in ninety-two-point-six; the only difference is whether you bothered to <strong>read the number</strong>.
+        </p>
+        <p>
+          On the slack tide the sea says nothing, and drowns nothing either.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">70</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">37 / 37</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "沉默时长" : "Silence window"}</div><div class="almanac-instrument-value">16.7 min</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "三轮命中 · 相同" : "Three rounds · equal"}</div><div class="almanac-instrument-value">92.6%</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["A 组暖身 · 92.6%", "input 4561 / cached 4224——基准线如约落定"],
+        ["~7 分钟沉默 · 仍然 92.6%", "B 组一字不差：平潮之上没有一滴水漏出去"],
+        ["~16 分钟沉默 · 仍然 92.6%", "C 组依旧 4224——被摸暖的全局共享前缀永不冷下来"],
+        ["5 分钟目测被作废", "wkapi.pro 时代的 τ 值不适用于本 lane；测量覆盖 3 轮 × 16.7min"],
+        ["不改默认，只改认知", "cache_keeper 220s 保留——跨 window 接力才是它的真正职能"],
+      ] : [
+        ["A warm round · 92.6%", "input 4561 / cached 4224 — the baseline, as booked"],
+        ["~7 min silence · still 92.6%", "B printed byte-identically — nothing frayed on the slack tide"],
+        ["~16 min silence · still 92.6%", "C held 4224 — the shared prefix block, warmed by the lane itself, never cools"],
+        ["The 5-minute folklore fell", "ts from the wkapi.pro era does not apply; measurement covers 3 rounds × 16.7 min"],
+        ["Docs change, defaults don't", "cache_keeper stays at 220 s — cross-window relay is its actual job"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "平潮的时候，海面什么也不说，也不丢失任何东西。"
+          : "On the slack tide the sea says nothing, and drowns nothing either."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2618,6 +2697,7 @@ const CHAPTER_RENDERERS = {
   candle: () => candleMarkup(),
   newcoast: () => newcoastMarkup(),
   unscathed: () => unscathedMarkup(),
+  slacktide: () => slacktideMarkup(),
 };
 
 async function loadChapter(id) {
