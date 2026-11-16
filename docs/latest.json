@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T19:56:03.554Z",
+  "generated_at": "2026-11-16T21:05:11.249Z",
   "branch": "main",
-  "head": "c3a246f",
-  "total_commits": 1795,
+  "head": "4e858fb",
+  "total_commits": 1797,
   "recent_commits": [
+    {
+      "short": "4e858fb",
+      "at": "2026-11-17T05:04:22+08:00",
+      "subject": "M8-T1112: StateGraph panel goes live - /api/stategraph serves build_coding_workflow() + StageRouter dispatch resolved from real config; guards 32/16/4/64 read f"
+    },
+    {
+      "short": "e7b563b",
+      "at": "2026-11-16T19:56:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c3a246f",
       "at": "2026-11-17T03:55:18+08:00",
@@ -19,24 +29,14 @@
       "short": "0ca9207",
       "at": "2026-11-17T03:41:09+08:00",
       "subject": "M8-T1110: almanac Ch.XLVIII 'The Wall Stood' - Windows-leg periwinkle red root-caused and fixed at the source; Atlas 85->86 (almanac satellites 48->49); almanac"
-    },
-    {
-      "short": "6f593e5",
-      "at": "2026-11-16T18:46:41Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "fe97b3f",
-      "at": "2026-11-17T02:45:59+08:00",
-      "subject": "M8-T1108: ledger for the --periwinkle CI fix (M8-T1107); claim gates green"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 417,
+  "roadmap_batches": 418,
   "changelog_entries": 1,
-  "roadmap_lines": 54250,
-  "tracked_files": 1088,
-  "test_files": 716,
+  "roadmap_lines": 54263,
+  "tracked_files": 1091,
+  "test_files": 718,
   "almanac_chapters": 49,
   "module_count": 14,
   "feature_surface": [
