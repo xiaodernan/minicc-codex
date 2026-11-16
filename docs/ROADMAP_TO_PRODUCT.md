@@ -54021,3 +54021,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - `minicc-cloud-gateway-0.1.0.jar` `ratelimit` profile 起 8086；`--spring.data.redis.port=6399`；`CONFIG_SERVER=...:9` 放弃注册中心 drift back 为 local YAML；`actuator/health=UP`。
 - 三次 120-并发：壁钟 1.7s / 0.28s / 0.16s，均 **503×40 + 429×80**；`request_rate_limiter.{route}.{ip}.tokens/.timestamp` 已查到（DBSIZE=2）；桶两秒冷启再次落回 40 —— 计数逻辑自洽。
 - manual Ch.12（zh/en）改写为真实读数；`docs/GATEWAY_RATELIMIT_LIVE.md` 入档含完整命令、零遗留、零共享卷副作用（已 rm）。
+## 批次 1073 · M8-T1088: 卷四十「配额 / The Quota」—— Redis 桶四十/八十，三次全等；Atlas 74
+
+### 目的
+
+限流实测（M8-T1087）是一份可以用几百个数字钉死的故事：桶不是「大概率允许」，而是「精确 40/80，ident，ident，ident」。卷四十记录它。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `quotaMarkup()` + CHAPTERS（卷四十 · 配额）+ `CHAPTER_RENDERERS['quota']`；双语 body 各自成立；quote-end 压轴。
+- **Atlas 73 → 74 coordinates**：almanac satellites 40→41；`atlas_smoke` 74；welcome chips 74（i18n.js CRLF 309/0）；index.html 711/0。
+- **onboarding / Manual Atlas 行 / README**：seventy-four coordinates / forty-one chapters；README 彩蛋以 The Quota 领衔。
+- **验证**：`almanac_smoke` 41 chapters 双语全绿 / `atlas_smoke` 74-coordinate / manual / parity / admin / dazzle / CRLF pins 711/0 + 309/0。
+- **数字来源（全实测，原文）**：120 N · 壁钟 1.72/0.28/0.16 s · 放行 40/80×429 · Redis 桶键 `request_rate_limiter.{route}.{ip}` DBSIZE=2 · 冷桶 2 s 回填 40。

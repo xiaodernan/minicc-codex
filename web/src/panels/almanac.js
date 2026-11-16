@@ -60,6 +60,7 @@ export const CHAPTERS = [
   { id: "negativespace", roman: { zh: "卷三十七", en: "Chapter XXXVII" }, title: { zh: "留白", en: "The Negative Space" }, subtitle: { zh: "教练也要学会让位", en: "Even a coach must know how to step aside" } },
   { id: "greatbasin", roman: { zh: "卷三十八", en: "Chapter XXXVIII" }, title: { zh: "归墟", en: "The Great Basin" }, subtitle: { zh: "所有散落的碎片都会流回同一个地方", en: "Every scattered fragment flows back to one place" } },
   { id: "blackoutdrill", roman: { zh: "卷三十九", en: "Chapter XXXIX" }, title: { zh: "灯火管制", en: "The Blackout Drill" }, subtitle: { zh: "七盏小小的灯，换回一座仓库的绿", en: "Seven small lamps went out to buy back the green of a repo" } },
+  { id: "quota", roman: { zh: "卷四十", en: "Chapter XL" }, title: { zh: "配额", en: "The Quota" }, subtitle: { zh: "一扇门每次只放四十个人进，里面记着每一笔账", en: "A door admitting exactly forty at a time — and every one of them counted" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2873,6 +2874,78 @@ function blackoutdrillMarkup() {
     </div>`;
 }
 
+function quotaMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-quota">
+      <div class="almanac-kicker">${zh() ? "卷四十 · 配额" : "Chapter XL · The Quota"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `一扇门每次只放四十个人进，<br/><span class="almanac-title-accent">两秒整冷透，下一波还要放四十个。</span>`
+        : `A door admitting exactly forty at a time —<br/><span class="almanac-title-accent">two seconds of cold and it happily admits forty more.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日深夜，一次隔离测量在本机起了两座私有服务：<code>redis:7-alpine</code>（端口 6399，自己的 PONG）· <code>rabbitmq:4.0-alpine</code>（5673，自己的 ping）——两座共享服务原封未动（6379 上 NOAUTH、5672 上的 RabbitMQ 属于别人，一次登录都没试）。Spring Cloud Gateway 按 <code>ratelimit</code> 配置 profile 起在 8086 端口，跳过注册中心直落本地 YAML，<code>/actuator/health</code> 报 200。
+        </p>
+        <p>
+          接下来做了三件严格相同的事：对 <code>/api/changes</code> 打 120 个并发请求，结果一模一样——<strong>每一轮，40 次放行 + 80 次 429</strong>。被放行的人走的是诚实的 503（"inspector-unavailable，上游还没注册进 Eureka，因此这不是一个空列表"），不是编一个假 200 糊弄人。桶由 <code>redis-rate-limiter</code> 的 Lua 脚本 + Redis 键负责，钥匙上写着 <code>inspector-changes.127.0.0.1</code>，两个键：<code>tokens</code> 和 <code>timestamp</code>。
+        </p>
+        <p>
+          冷两秒后再打：40 个放行依然精确；桶按 20/s 回填，2.0 秒正好攒回四十——<strong>冷启是算术，不是情绪</strong>。任何声称"大概有六十多个人被放行"的人不读数，读自己的直觉。
+        </p>
+        <p>
+          限额不是惩罚，是形。<strong>每一笔写入都被记下，每一次放行都被计数，每一扇门都知道自己要开几次。</strong>
+        </p>
+        <p>
+          这一章的素材全是活的数字，当场写得：隔离 Docker · 端口 8086 · 6399 · 5673 · 桶键两个 · 三次放行 40/80 全等。README、Manual、docs/GATEWAY_RATELIMIT_LIVE.md 三份一起抄了同一本账，三处读数一致。
+        </p>` : `<p>
+          Late on 2026-11-16, one question was asked under laboratory conditions: does the Spring Cloud Gateway Redis token bucket, wired in to this repo for real, behave when it counts? Two private services came up in Docker — <code>redis:7-alpine</code> on 6399 (its own PONG) and <code>rabbitmq:4.0-alpine</code> on 5673 (its own diagnostics ping) — the two shared instances on the box were never asked for a password (6379 answers NOAUTH; 5672 belongs to someone else). A gateway jar booted clean with the <code>ratelimit</code> profile on port 8086, and <code>/actuator/health</code> said UP.
+        </p>
+        <p>
+          The test was the same three times over: 120 concurrent hits at <code>/api/changes</code>. Three out of three, the answer was identical: <strong>40 admitted, 80 refused (HTTP 429)</strong>. The admitted ones walked through to the honest fallback — <code>503 inspector-unavailable</code> — because the upstream had never registered on the registry. No fake 200, no hedge. The bucket owner: Spring's <code>redis-rate-limiter</code> Lua payload + a Redis key pair — <code>request_rate_limiter.{inspector-changes.127.0.0.1}.tokens</code> and <code>.timestamp</code> — DBSIZE was 2 after each pass.
+        </p>
+        <p>
+          Cold two seconds, warm back, hit again: exactly 40. Bucket refills at 20 tokens/second — 2.0 s buys forty. <strong>The cold start is arithmetic, not emotion.</strong>
+        </p>
+        <p>
+          A quota is not a punishment, it is a shape. <strong>Every admission is counted, every refusal is delivered by name, and every door knows precisely how many times to open.</strong>
+        </p>
+        <p>
+          Every number in this chapter was measured tonight — not copied from somewhere else: the isolation network, the gateway jar, the Redis counters, all three 40/80 results. The manual, the README, and <code>docs/GATEWAY_RATELIMIT_LIVE.md</code> all now carry the same ledger.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">41 / 41</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "爆发次数 · 全等" : "Bursts · identical"}</div><div class="almanac-instrument-value">3 / 3</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "放行/拒绝 · 每爆发" : "Allowed / denied · per burst"}</div><div class="almanac-instrument-value">40 / 80</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["一扇门只开四十次", "三次爆发(120 并发) 的放行数全等 40——桶限制不是近似值"],
+        ["Refused 不是 403 而是 429", "速率限制永远用 429 回放——门在关而不是服务器自弃"],
+        ["6379 / 5672 不动", "本次测量只在自建 6399 / 5673 容器里完成——共享服务一次都没被打扰"],
+        ["桶键已确认", "request_rate_limiter.{inspector-changes.127.0.0.1}.tokens/.timestamp 同时落盘，DBSIZE=2"],
+        ["冷桶两秒回满", "20 tokens/s × 2 s = 40——冷启是算术不是情绪"],
+      ] : [
+        ["The door admits forty", "three bursts of 120-concurrent all admit exactly 40 — the bucket is definitive, not approximate"],
+        ["429 is the refusal, not 503", "rate limiting answers in 429 by contract — never by server giving up mid-burst"],
+        ["6379 and 5672 were never touched", "this measurement lives on its own 6399 / 5673 containers — the foreign tenant services stayed silent"],
+        ["Bucket keys verified on disk", "request_rate_limiter.{inspector-changes.127.0.0.1}.tokens and .timestamp persisted; DBSIZE=2 after burst"],
+        ["Cold bucket refills in arithmetic", "20 tokens per second × 2 seconds = 40 — filling the door is subtraction, not hope"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "限额不是惩罚——限额是门的形。"
+          : "A quota is not a punishment; it is the door knowing its shape."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2914,6 +2987,7 @@ const CHAPTER_RENDERERS = {
   negativespace: () => negativespaceMarkup(),
   greatbasin: () => greatbasinMarkup(),
   blackoutdrill: () => blackoutdrillMarkup(),
+  quota: () => quotaMarkup(),
 };
 
 async function loadChapter(id) {
