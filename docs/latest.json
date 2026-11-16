@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T15:27:33.801Z",
+  "generated_at": "2026-11-16T15:31:49.600Z",
   "branch": "main",
-  "head": "d6adb01",
-  "total_commits": 1762,
+  "head": "226cc20",
+  "total_commits": 1764,
   "recent_commits": [
+    {
+      "short": "226cc20",
+      "at": "2026-11-16T23:31:11+08:00",
+      "subject": "M8-T1094 followthrough: fix the two CI red flags from head 71ce659 (docs/INDEX.md missed ORACLE_DRAFT.md and my prior ROADMAP line carried the retired pruned bu"
+    },
+    {
+      "short": "5335f72",
+      "at": "2026-11-16T15:27:34Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d6adb01",
       "at": "2026-11-16T23:23:15+08:00",
@@ -19,16 +29,6 @@
       "short": "71ce659",
       "at": "2026-11-16T22:15:15+08:00",
       "subject": "M8-T1093: manual Ch.16 'Sandbox & Safety' - documented from real code (minicc/sandbox.py + config.py): three SANDBOX_MODE values (host/docker/auto) + fourth una"
-    },
-    {
-      "short": "f150da4",
-      "at": "2026-11-16T13:53:23Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a34f029",
-      "at": "2026-11-16T21:52:37+08:00",
-      "subject": "M8-T1092: almanac Ch.XLIII 'The Oracle' - real, live, audited API call writes the chapter (api.aizzz.xyz/v1 gpt-6.1-terra via Clash Verge 127.0.0.1:7897; HTTP 2"
     }
   ],
   "first_commit_at": "2026-08-24",
