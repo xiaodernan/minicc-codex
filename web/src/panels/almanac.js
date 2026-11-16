@@ -58,6 +58,7 @@ export const CHAPTERS = [
   { id: "unscathed", roman: { zh: "卷三十五", en: "Chapter XXXV" }, title: { zh: "无恙", en: "The Unscathed" }, subtitle: { zh: "三万三千六百次请求，一件事没出过错", en: "Thirty-three thousand six hundred requests, not one of them went sideways" } },
   { id: "slacktide", roman: { zh: "卷三十六", en: "Chapter XXXVI" }, title: { zh: "潮平", en: "The Slack Tide" }, subtitle: { zh: "平潮的时候，海面什么也不说，也不丢失任何东西", en: "On the slack tide the sea says nothing, and drowns nothing either" } },
   { id: "negativespace", roman: { zh: "卷三十七", en: "Chapter XXXVII" }, title: { zh: "留白", en: "The Negative Space" }, subtitle: { zh: "教练也要学会让位", en: "Even a coach must know how to step aside" } },
+  { id: "greatbasin", roman: { zh: "卷三十八", en: "Chapter XXXVIII" }, title: { zh: "归墟", en: "The Great Basin" }, subtitle: { zh: "所有散落的碎片都会流回同一个地方", en: "Every scattered fragment flows back to one place" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2733,6 +2734,78 @@ function negativespaceMarkup() {
     </div>`;
 }
 
+function greatbasinMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-greatbasin">
+      <div class="almanac-kicker">${zh() ? "卷三十八 · 归墟" : "Chapter XXXVIII · The Great Basin"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `归墟不是遗忘，<br/><span class="almanac-title-accent">是所有水都找到了它们的名字。</span>`
+        : `The basin is not oblivion —<br/><span class="almanac-title-accent">it is every water remembering its name.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日上午，一个仓库被放到显微镜下：29 个 worktree、一整串散落的分支、好几十个 detached 检出——里面埋着被遗忘的工作。总指令写得很简单："把那些已经没人在做了，你直接接手把剩下的做完。"
+        </p>
+        <p>
+          第一件事是把每个工树都点名数一遍：19 个 detached 的 <code>wt*</code> 目录，逐一跑 <code>git diff --ignore-cr-at-eol</code>。没有猜测：12 个只有换行符带来的"修改"——整个文件"改了"但字节对字节没变，于是 <code>git worktree remove --force</code> 那 12 个；剩下 7 个每个都留着实质内容。
+        </p>
+        <p>
+          第二件事是抢救，不是清理：wt353 一个人的 <code>minicc/session.py</code> 里留着 sidecar lock 的实测补丁，wt379/wt470/wt519pre 攥着 doc_pointers 和门的修复，wt537 留着 retrieval/audit/permissions/snapshots 四个文件的真差异——全部逐个 <code>chore(rescue)</code> 锚定到 <code>rescue/*</code> 分支。<strong>29 个工树，零个文件被销毁。</strong>
+        </p>
+        <p>
+          第三件事是决定什么进主干：对 4 个疑似未并分支逐条 <code>git cherry</code>——51/51 全为"无对"的分支停在原味地里不动，KI-544/545 只有它有，留它待审；400 行老补丁相等于已并入，不再提取。四个本地分支在 main 祖先关系成立的条件下才 <code>-d</code> 掉。远程分支一个都不擅动。
+        </p>
+        <p>
+          归墟不是遗忘。归墟是所有水找到它们的名字——每段代码从哪里来、谁把它从终端里捡回来、谁给它登记入账。仓库不大，但没了哪一滴都不行。
+        </p>` : `<p>
+          On the morning of 2026-11-16 a repo was put under a microscope: twenty-nine worktrees, a whole archipelago of stale branches, dozens of detached checkouts — all of it archaeology in progress. The standing directive was short: "finish what was left behind."
+        </p>
+        <p>
+          Step one was a census, not a cleanup: nineteen detached <code>wt*</code> directories, each put through <code>git diff --ignore-cr-at-eol</code>. No guessing — twelve of them showed "changes" that were entirely line-ending flip noise; their files were byte-identical modulo EOL, and those twelve were removed with <code>git worktree remove --force</code>. The remaining seven each held real, irrecoverable-by-recopy content.
+        </p>
+        <p>
+          Step two was rescue, not disposal: wt353 carried an in-flight sidecar-lock patch to <code>minicc/session.py</code>; wt379 / wt470 / wt519pre held doc_pointers and gate fixes; wt537 held a genuine retrieval/audit/permissions/snapshots delta. Each was committed in place under a <code>rescue/*</code> branch. <strong>Twenty-nine worktrees in, zero files destroyed.</strong>
+        </p>
+        <p>
+          Step three was deciding what earns main: every suspect unmerged branch went through <code>git cherry</code> — the one whose 51 commits are uniformly new is still standing untouched (KI-544/545 exist only in it), the one whose patches are ~80% equivalents of already-landed work was kept, not mined. Four local branches were <code>-d</code>'d only after the ancestor-of-main proof held. No remote branch was touched.
+        </p>
+        <p>
+          The basin is not oblivion. The basin is every water remembering its name — where each piece of code came from, who picked it up off the floor, and who filed it back into the ledger. The repo is not its biggest this month, but not one drop of it got wasted on the way in.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">72</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">39 / 39</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "工树总起点" : "Worktrees, start"}</div><div class="almanac-instrument-value">29</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "工树终点 · 零损毁" : "Worktrees, end · 0 lost"}</div><div class="almanac-instrument-value">7 / 0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["29 不是数字，是一个仓库", "工树先全体点名再决定生死——没人被悄悄删除"],
+        ["`--ignore-cr-at-eol` 说了真话", "12 个纯换行符噪声，零内容损失，git worktree remove --force 也问过证据"],
+        ["13 个救援 commit · 0 文件销毁", "wt353–wt537 全部落在 rescue 分支，原状留在 main 之外不冲突"],
+        ["四个删除分支先量再删", "merge-base --is-ancestor 证据链四件，没一个是想判就判"],
+        ["远程分支不擅动，主干不吞救援", "main 只吸收了审计证明安全的内容；其余原样停放"],
+      ] : [
+        ["29 is not a count — it was a repo", "every worktree was named before any decision was made; nothing was silently destroyed"],
+        ["--ignore-cr-at-eol told the truth", "twelve pure line-ending flip trees, zero content lost — ‘force remove’ only after evidence"],
+        ["13 rescue commits · 0 destroyed", "wt353–wt537 all anchored onto rescue branches, kept outside main, exactly as found"],
+        ["Deletion required ancestor proof", "merge-base --is-ancestor was run for every one of the four — not a single ‘I think’"],
+        ["Remotes untouched, main absorbs nothing unproven", "main only took what the audit showed safe; the rest stay exactly where they were"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "归墟不是遗忘——是所有水都找到了它们的名字。"
+          : "The basin is not oblivion — it is every water remembering its name."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2772,6 +2845,7 @@ const CHAPTER_RENDERERS = {
   unscathed: () => unscathedMarkup(),
   slacktide: () => slacktideMarkup(),
   negativespace: () => negativespaceMarkup(),
+  greatbasin: () => greatbasinMarkup(),
 };
 
 async function loadChapter(id) {

@@ -53959,3 +53959,16 @@ M8-T1080 是三行 CSS 的修复，但它来自一整套方法——截图、定
 ### 后续（下一批）
 
 rescue 分支按优先级复审：wt537（retrieval/audit/permissions/snapshots）→ wt353（session sidecar lock）→ t544-plane（doc_pointers）→ wt519pre。
+## 批次 1068 · M8-T1083: 卷三十八「归墟 / The Great Basin」—— 整合实录写进年鉴，Atlas 72
+
+### 目的
+
+M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八记录这一夜的方式和方法，给以后的考古者留证物。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `greatbasinMarkup()`（卷三十八 · 归墟）+ CHAPTERS + `CHAPTER_RENDERERS['greatbasin']`；双语正文、quote-end 压轴。
+- **Atlas 71 → 72 coordinates**：almanac satellites 38→39；`atlas_smoke` 72；welcome chips 72（i18n.js CRLF 309/0）；index.html 711/0。
+- **onboarding / Manual Atlas 行 / README**：seventy-two coordinates / thirty-nine chapters；README 彩蛋以 The Great Basin 领衔。
+- **验证**：`almanac_smoke` 39 chapters 双语 / `atlas_smoke` 72-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins；Claim gates 及 Doc pointers 照过。
+- **数字来源（全部实测）**：工树 29→7；12 纯 EOL-noise `git worktree remove --force`；unique content 工树 `wt353/wt379/wt470/wt478par/wt519pre/wt529/wt537` 全救援（059c5c0/033e26f/44517cc/800369c/e179505/89f159d/6674b9b）；6 大脏工树先救援（plane715 `f59dca55` / minicc-dev-4ba3 `7988dc4d` / plane195 `7ca47cfc` / plane196 `6b93a90b` / plane_sdist `e9a8dac` / t544-plane `2b7803bd`）；4 个删除分支先 `merge-base --is-ancestor` 验祖；远程分支未擅删；`.arm527/` scratch 保留 untracked。
