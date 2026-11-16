@@ -1,41 +1,41 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T17:44:13.927Z",
+  "generated_at": "2026-11-16T17:55:03.007Z",
   "branch": "main",
-  "head": "324bf5c",
-  "total_commits": 1782,
+  "head": "ff62710",
+  "total_commits": 1786,
   "recent_commits": [
+    {
+      "short": "ff62710",
+      "at": "2026-11-17T01:54:28+08:00",
+      "subject": "M8-T1105: ledger entries for M8-T1103/1104 repo-root scratch evictions (changelog + roadmap); claim gates green"
+    },
+    {
+      "short": "61a2223",
+      "at": "2026-11-17T01:49:27+08:00",
+      "subject": "M8-T1104: eviction of seven unreferenced Playwright scratch probes from repo root (_ms_probe.mjs, _palette_test.mjs, _stategraph_check.mjs, _stategraph_shot*.mj"
+    },
+    {
+      "short": "525c204",
+      "at": "2026-11-17T01:48:40+08:00",
+      "subject": "M8-T1103: eviction of three agent-scratch ledgers accidentally committed in 7b33aed (_ledger_fanout.py, _ledger_sleepless.py, _sleepless_smoke.py) - unreference"
+    },
+    {
+      "short": "9d6e60d",
+      "at": "2026-11-16T17:44:14Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "324bf5c",
       "at": "2026-11-17T01:43:04+08:00",
       "subject": "M8-T1102: almanac Ch.XLVI 'The Re-Measurement' - second live flight of the 73.7->95.9 band (fresh lane key 2026-11-17, Clash proxy): 5731/4224 cold 73.7%, 5737/"
-    },
-    {
-      "short": "48970ab",
-      "at": "2026-11-16T17:24:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a69e4d8",
-      "at": "2026-11-17T01:24:08+08:00",
-      "subject": "M8-T1101: new-lane 2026-11-17 cache affinity re-measured live (fresh lane key, Clash proxy): cold 73.7% (5731/4224) -> warm 95.9% (5737/5504), same band as 2026"
-    },
-    {
-      "short": "304db83",
-      "at": "2026-11-16T17:17:13Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ba032a7",
-      "at": "2026-11-17T01:16:38+08:00",
-      "subject": "M8-T1100: manual Ch.19 count corrected to measured 5,701 passed / 12 skipped (README claims must be reproducible; my own 5,149 was stale from an earlier window)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 413,
+  "roadmap_batches": 414,
   "changelog_entries": 1,
-  "roadmap_lines": 54204,
-  "tracked_files": 1098,
+  "roadmap_lines": 54215,
+  "tracked_files": 1088,
   "test_files": 716,
   "almanac_chapters": 47,
   "module_count": 14,
