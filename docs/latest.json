@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T12:27:08.964Z",
+  "generated_at": "2026-11-16T12:43:29.954Z",
   "branch": "main",
-  "head": "d5ac7fa",
-  "total_commits": 1746,
+  "head": "dfb49ae",
+  "total_commits": 1748,
   "recent_commits": [
+    {
+      "short": "dfb49ae",
+      "at": "2026-11-16T20:42:16+08:00",
+      "subject": "M8-T1087: live isolated rate-limit measurement replaces stale 52x200/67x429/1x503 claim in manual - isolated Redis 7-alpine on 6399 + RabbitMQ 4.0-alpine on 567"
+    },
+    {
+      "short": "5ed2afe",
+      "at": "2026-11-16T12:27:09Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d5ac7fa",
       "at": "2026-11-16T20:26:24+08:00",
@@ -19,23 +29,13 @@
       "short": "2e5ee4b",
       "at": "2026-11-16T20:20:08+08:00",
       "subject": "M8-T1085: almanac Ch.XXXIX 'The Blackout Drill' - the full-suite marathon written into the museum (4680s local run: 5701 passed / 12 skipped / 3 red: 1 real (7 "
-    },
-    {
-      "short": "62c1065",
-      "at": "2026-11-16T12:06:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ad3c749",
-      "at": "2026-11-16T20:06:35+08:00",
-      "subject": "M8-T1084 follow-through: remove 7 untracked CI/debug log debris files at repo root (cleanup-version zero-run-output gate); local full pytest triage: one real ro"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 398,
+  "roadmap_batches": 399,
   "changelog_entries": 1,
-  "roadmap_lines": 54012,
-  "tracked_files": 1084,
+  "roadmap_lines": 54024,
+  "tracked_files": 1085,
   "test_files": 716,
   "almanac_chapters": 40,
   "module_count": 14,
