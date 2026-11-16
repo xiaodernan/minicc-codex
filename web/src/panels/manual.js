@@ -29,6 +29,7 @@ export const CHAPTERS = [
   { id: "cloud", roman: "十二", romanEn: "12", title: "Spring Cloud plane", titleZh: "微服务平面" },
   { id: "arch", roman: "十三", romanEn: "13", title: "Full Stack", titleZh: "前后端全景架构" },
   { id: "stategraph", roman: "十四", romanEn: "14", title: "StateGraph", titleZh: "状态图" },
+  { id: "cache", roman: "十五", romanEn: "15", title: "Cache Affinity", titleZh: "冷热亲和" },
 ];
 
 function zhStart() {
@@ -109,7 +110,7 @@ function zhModules() {
       <li><strong>船厂 · Dockyard</strong> — 侧边栏「船厂」：把你自己的真实旅程做成展厅——「航海日志」六格全部来自真实任务与 git 元数据（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率，数据直接读 /api/digest、/api/metrics、/api/worldpulse）；「灯塔 · 十一座里程碑」照真实指标逐格解锁（起航 / 领主 1,000 提交 / 卷典者十七卷 / 万点繁星 / 守夜人 80% 亲和率等），未达成的只显示真实进度，不放演示徽章。</li>
       <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：三十四卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷三十三《橙灯》，讲的是两个 Python legs 红了一晚却真正读过的书——红灯只是没说完的真话，每个数字都要特有它的身份），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>管理员 · Admin</strong> — 侧边栏「管理」：密码 123 研一道共享门（非登录，只对本地自己人可见）；stats（任务数 / 完成 / 中断 / 缓存亲和率 / 审计行 / 会话数）+ 七日事件 Canvas（requestAnimationFrame 真绘制）+ 最小二乘线性预测（明文标注：这是估计，不是承诺）+ 中断原因自动分桶（这个仓库全部 3 次中断全部是服务重启）+ 顶部工具真实使用直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%，全部从 /api/admin/summary 真实读数，零虚构）；点 4 下之后就能看见所有数字。</li>
-      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（12 座岛屿、68 个真实坐标——18 面板 + 36 年鉴卫星 + 14 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十二岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
+      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（12 座岛屿、69 个真实坐标——18 面板 + 36 年鉴卫星 + 15 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十二岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -129,7 +130,7 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in thirty-six chapters (the newest, Chapter XXXV “The New Coast” — the week every gate named the rocks instead of the fog: the loader gate, the impact-floor audience rule, both legs green; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — twelve islands, sixty-eight real coordinates — 18 panes + 36 almanac satellites + 14 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — twelve islands, sixty-nine real coordinates — 18 panes + 36 almanac satellites + 15 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -420,6 +421,24 @@ function enCloud() {
   `;
 }
 
+function zhCacheAffinity() {
+  return `
+    <p class="manual-lede">「亲和」是这套系统里最便宜、也最难的一类缓存：它不在你的机器上，它在网关里。每一次请求都携带 prefix 的字节指纹——同一 workspace 的系统提示 byte-stable，指纹就一致，网关就命中；prefix 差一个字节，整段前缀从头再付。</p>
+    <ol class="manual-list">
+      <li><strong>什么决定命中率</strong> — 亲和键由 <code>minicc/cache_keeper.py::_derive_cache_key(base_url, model)</code> 派生：<code>minicc-</code> + sha256(gateway|model) 的前 16 个 hex；显式设置 <code>MINICC_PROMPT_CACHE_KEY</code> 时显式键优先。命中前提：byte-identical prefix（system prompt + tools）+ 处于网关 prefix TTL 之内 + 显式 / 派生键一致。TTL 超时、compaction、换模型、改 tools 任一触发，整段 prefix 重付。</li>
+      <li><strong>真实测量</strong> — 历史基线冻结：wkapi.pro · gpt-6-sol（2026-11-15）：warm 热命中 <strong>98.3%</strong>；冷突变 5504/5735 = 96.0%。新 lane（api.aizzz.xyz · gpt-6.1-terra，经本机 Clash Verge Rev 混合端口 127.0.0.1:7897，2026-11-16）：冷启动 4224/5731 = 73.7%；near-identical 后缀请求 5504/5737 = <strong>95.9%</strong>。直连六次探针全部 HTTP 403——地理封锁，代理是唯一通路。</li>
+      <li><strong>保活机制（cache_keeper）</strong> — <code>minicc/cache_keeper.py</code> 每 220 秒（可用 <code>MINICC_CACHE_KEEPER_INTERVAL</code> 调，范围 60–900），对同一 prefix 打一枚微型 <code>responses.create</code> warm 请求：约 20 个 output token / 次，无工具调用；失败只计数不抛；每一次 warm 都在 /api/provider-ping 上报；可用 MINICC_CACHE_KEEPER=0 关掉。网关 prefix TTL 目测约 5 分钟——超过这个缺口，下一次全额重付。</li>
+      <li><strong>为什么「一直显示非流」</strong> — 早期 lane 存在「流式缓存指标更稳、非流命中更低」的观察；测量脚本（<code>scripts/measure_cache_affinity.py</code>）为此固定 stream=true、temperature=0、复读同一前缀，并把命中统计显式打印。non-stream 行为未伪造任何「流式更快」的叙事——它只是同一套 prefix 纪律下的另一种 wire shape。</li>
+      <li><strong>诚实的用量口径</strong> — chat/completions 不回传 cached_tokens；用量条只呈现网关如实给出的三个键（<code>measured_usage</code>：prompt / completion / total），若有 cached_tokens 字段则附加 <code>prompt_cache_hit_tokens</code>——<strong>绝不伪造命中率</strong>；cache_keeper 的 warm 不记入 agent 的 token 账。</li>
+      <li><strong>什么最值钱</strong> — prefix 的字节稳定性。system prompt 与 tools 清单不轻变、hint 不乱加空格、cache_key 不在会话间漂移；一次测量的机会成本只有一个 5731-token 的请求。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的事</strong>
+      <p>Cache Affinity 不是银弹：它救不了换模型、救不了 compaction、救不了五分钟 TTL。这卷说明书写的是测量与机制——数字只有你跑一次测量脚本就能复现。写在这里是为了让下一个人少踩一盏灯。</p>
+    </div>
+  `;
+}
+
 function zhStateGraph() {
   return `
     <p class="manual-lede">minicc 跑起来之后，每个任务先落在一张<strong>受限的状态图</strong>上——这从来不是把一个 <code>if</code> 嵌套叫做 Agent 的包装层，而是真的图。</p>
@@ -432,6 +451,24 @@ function zhStateGraph() {
       <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
     </div>
     <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
+  `;
+}
+
+function enCacheAffinity() {
+  return `
+    <p class="manual-lede">“Affinity” is the cheapest, hardest cache in this system: it does not live on your machine, it lives in the gateway. Every request carries a byte fingerprint of its prefix — a byte-stable system prompt for a given workspace means the fingerprint matches and the gateway hits; one stray byte and the whole prefix is re-paid in full.</p>
+    <ol class="manual-list">
+      <li><strong>What decides a hit</strong> — the affinity key is derived by <code>minicc/cache_keeper.py::_derive_cache_key(base_url, model)</code>: <code>minicc-</code> + the first 16 hex of sha256(gateway|model); an explicit <code>MINICC_PROMPT_CACHE_KEY</code> wins. A hit needs a byte-identical prefix (system prompt + tools), an in-TTL window, and the same explicit or derived key. TTL expiry, compaction, a model switch, or a tools change — any one triggers a full prefix re-pay.</li>
+      <li><strong>Measured reality</strong> — frozen historical baseline: wkapi.pro / gpt-6-sol (2026-11-15): warm <strong>98.3%</strong>; the cold-mutation re-hit 5504/5735 = 96.0%. New lane (api.aizzz.xyz / gpt-6.1-terra, via the local Clash Verge Rev mixed port 127.0.0.1:7897, 2026-11-16): cold 4224/5731 = 73.7%; near-identical suffix 5504/5737 = <strong>95.9%</strong>. Six direct probes all returned HTTP 403 — a geographic refusal; the proxy is the only corridor.</li>
+      <li><strong>The warm keeper</strong> — <code>minicc/cache_keeper.py</code> fires a tiny warm <code>responses.create</code> every 220 s (tune with <code>MINICC_CACHE_KEEPER_INTERVAL</code>, floor 60, cap 900), costing ~20 output tokens per beat, no tool calls; failures are counted, never raised; every warm reports on /api/provider-ping; MINICC_CACHE_KEEPER=0 disables it. The gateway's prefix TTL is roughly five minutes — exceed that gap and the next turn re-pays the whole prefix.</li>
+      <li><strong>Why it always showed "non-stream"</strong> — early lanes showed a steadier cache read-out on stream responses; the measurement script (<code>scripts/measure_cache_affinity.py</code>) therefore pins stream=true and temperature=0 over a byte-same prefix, and prints the hit counters explicitly. No fabricated "stream is faster" story — stream is a different wire shape of the same prefix discipline.</li>
+      <li><strong>Honest usage accounting</strong> — chat/completions does not return cached_tokens; the usage bar carries exactly what the gateway gave (<code>measured_usage</code>: prompt / completion / total), with <code>prompt_cache_hit_tokens</code> only when the gateway surfaced it — <strong>never fabricated</strong>; the keeper's warm pings never bill the agent's token ledger.</li>
+      <li><strong>What pays best</strong> — prefix byte-stability. Keep the system prompt and tools list calm, don't sprinkle hints with varying spaces, don't let the session key drift; the cost of one measurement is a single 5731-token request.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest limits</strong>
+      <p>Cache affinity is not a silver bullet: it cannot rescue a model switch, compaction, or the five-minute TTL. This page documents measurement and mechanism — run the script once and the numbers reproduce in front of you. Written so the next person loses one less lamp.</p>
+    </div>
   `;
 }
 
@@ -511,6 +548,7 @@ const BODIES = {
   cloud: { zh: zhCloud, en: enCloud },
   arch: { zh: zhArch, en: enArch },
   stategraph: { zh: zhStateGraph, en: enStateGraph },
+  cache: { zh: zhCacheAffinity, en: enCacheAffinity },
 };
 
 function chapterMarkup(chapter) {

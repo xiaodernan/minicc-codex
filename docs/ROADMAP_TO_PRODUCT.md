@@ -53876,3 +53876,17 @@ M8-T1075 的三波满负荷 33,600 次请求、0 非 2xx——这意味着一本
 - **验证**：`almanac_smoke` 36 chapters 双语全绿 / `atlas_smoke` 68-coordinate / `manual_smoke` 14 / `admin_smoke` / `dazzle` / `parity` / CRLF pins。
 - **诚实坑**：卷三十四（M8-T1074 / The New Coast）的 instrument grid 保留 67——那是卷三十四写作时的真实坐标，按冻结纪律不追溯。Atlas 68 是卷三十五的坐标。
 - **告示**：不改 gate；Atlas 67→68 bookkeeping 全部随行同步；无密钥入库。
+## 批次 1062 · M8-T1077: 说明书第十五章「冷热亲和 / Cache Affinity」—— Atlas 69
+
+### 目的
+
+前缀亲和在这个仓库里是被密集测量、密集讨论的主题，却还没有一本「嵌在产品里的」完整说明。第十五章补齐了：测量与机制、暖保活、TTL、用量诚实口径——全部取自真实代码与冻结记录，不另编故事。
+
+### 做了什么
+
+- **`web/src/panels/manual.js`**：新增 `zhCacheAffinity` / `enCacheAffinity`（Chapter 15 · 十五 · 冷热亲和）；CHAPTERS + BODIES 注册；Atlas 行 68→69 / 14→15 说明书卫星。
+- **Atlas 68 → 69 coordinates**：manual satellites 14→15；`atlas_smoke` 69；占位符 68→69；welcome chips 69（i18n.js CRLF 309/0）。
+- **onboarding / README / Manual Atlas 行**：`sixty-nine real coordinates` / `fifteen manual chapters / 十五章说明书`；README 彩蛋以 Cache Affinity 领衔。
+- **数字来源（全部实测/冻结记录，不杜撰）**：wkapi.pro 2026-11-15 98.3% / 96.0%；新 lane 2026-11-16（Clash Verge 7897）73.7% → 95.9%；cache_keeper 220s（60–900）；TTL ≈ 5min；chat/completions 不回传 cached_tokens——measured_usage 三键；stream=true/temp=0 固定方法学。
+- **验证**：`manual_smoke` 15 chapters 全双语 / `atlas_smoke` 69-coordinate / `parity` / `almanac_smoke` 36 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
+- **告示**：不改 gate；说明书世代 14→15 陪随 Atlas 卫星同步；无密钥入库。
