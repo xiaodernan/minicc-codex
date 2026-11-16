@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T15:31:49.600Z",
+  "generated_at": "2026-11-16T15:50:50.496Z",
   "branch": "main",
-  "head": "226cc20",
-  "total_commits": 1764,
+  "head": "7b33aed",
+  "total_commits": 1766,
   "recent_commits": [
+    {
+      "short": "7b33aed",
+      "at": "2026-11-16T23:48:17+08:00",
+      "subject": "M8-T1095: manual Ch.17 'Parallel Subagents' - documented from real code (minicc/agent/orchestration.py constants verbatim: AUTO_FANOUT_THRESHOLD=4, AUTO_FANOUT_"
+    },
+    {
+      "short": "c7bdd74",
+      "at": "2026-11-16T15:31:49Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "226cc20",
       "at": "2026-11-16T23:31:11+08:00",
@@ -19,23 +29,13 @@
       "short": "d6adb01",
       "at": "2026-11-16T23:23:15+08:00",
       "subject": "M8-T1094: StateGraph panel goes live in the workbench - web/src/panels/stategraph.js reproduces build_coding_workflow() (7 nodes, 8 edges, repair loop); i18n 'O"
-    },
-    {
-      "short": "b0e4497",
-      "at": "2026-11-16T14:16:34Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "71ce659",
-      "at": "2026-11-16T22:15:15+08:00",
-      "subject": "M8-T1093: manual Ch.16 'Sandbox & Safety' - documented from real code (minicc/sandbox.py + config.py): three SANDBOX_MODE values (host/docker/auto) + fourth una"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 406,
+  "roadmap_batches": 407,
   "changelog_entries": 1,
-  "roadmap_lines": 54119,
-  "tracked_files": 1095,
+  "roadmap_lines": 54131,
+  "tracked_files": 1096,
   "test_files": 716,
   "almanac_chapters": 44,
   "module_count": 14,
