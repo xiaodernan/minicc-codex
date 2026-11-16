@@ -24,15 +24,15 @@ async function checkMode(locale, expectCjk) {
 
   const charted = await page.locator("#atlasCharted").innerText();
   const expectTotal = expectCjk ? "/ 76 个坐标" : "/ 76 coordinates";
-  assert.ok(charted.includes(expectTotal), `charted line must carry the 53-coordinate contract, saw: ${charted}`);
+  assert.ok(charted.includes(expectTotal), `charted line must carry the 76-coordinate contract, saw: ${charted}`);
 
-  // islands ledger: opens via the toggle, lists twelve regions, every row real
+  // islands ledger: opens via the toggle, lists thirteen regions, every row real
   await page.click("#atlasIslandsToggle");
   await page.waitForTimeout(500);
   const rows = await page.locator(".atlas-island-row").count();
-  assert.equal(rows, 12, `islands ledger must list twelve islands, got ${rows}`);
+  assert.equal(rows, 13, `islands ledger must list thirteen islands, got ${rows}`);
   const districts = await page.locator(".atlas-island-count").allInnerTexts();
-  assert.equal(districts.length, 12);
+  assert.equal(districts.length, 13);
   for (const bar of districts) assert.match(bar.trim(), /^\d+ \/ \d+$/u, `island count must be 'done / total', saw: ${bar}`);
   await page.click("#atlasIslandsToggle");
   await page.waitForTimeout(250);
@@ -53,5 +53,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("atlas smoke passed: nav button bilingual, panel opens, 76-coordinate charted line renders, islands ledger lists 12 real islands, close restores hidden state, zero pageerror");
+console.log("atlas smoke passed: nav button bilingual, panel opens, 76-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror");
 await browser.close();

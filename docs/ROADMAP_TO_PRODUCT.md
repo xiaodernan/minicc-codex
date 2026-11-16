@@ -54060,3 +54060,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **onboarding / Manual Atlas 行**：seventy-six coordinates / forty-three chapters。
 - **收录数字（全实测）**：5,701 pytest passed / 12 skipped；59,070 压测请求 · 0 非 2xx；A/B/C prefix cache 92.6%；README × Manual × CHANGELOG × ROADMAP 四处口径一致。
 - **验证**：almanac / manual / atlas / parity / admin / dazzle / CRLF pins 全绿。
+## 批次 1076 · M8-T1091: 世界地图新增第十三岛「测绘岛 / The Cartographer」—— 13 岛账本，Atlas 76
+
+### 目的
+
+世界会用不会少一块？加第十三岛——它不是数字鸡毛，是“世界为这样一种节奏才存在”的象征：每一个坐标都先勘探、后安放。
+
+### 做了什么
+
+- **`web/src/panels/atlas.js`**：REGIONS 新增 cartographer（x=310,y=230,tint `#f0b35e`,r=115）；ISLAND_ORDER 追加 cartographer；ISLAND_LORE 双语 lore（zh:「每一处坐标先勘探，后安放——这一岛只认数字，不认情绪。」en:「Every coordinate surveyed before it was named — the one island that only reads numbers.」）；ISLAND_LORE 检查器 12→13。
+- **index.html · i18n.js**：kicker「岛屿志 · 十三岛 / Islands, thirteen」；islandsOf「charted · thirteen islands」；注释 / smoke 数字全体同步。
+- **README / Manual / Onboarding**：11/13 岛屿数字同步；冻结章节 almanac 不回改（12 是它们落笔时的真实）。
+- **`tests/atlas_smoke.mjs`**：islands ledger 契约改为 13（rows · districts · log）。
+- **坐标**：±0（坐标 = 18 面板 + 43 卷年鉴卫星 + 15 章说明书 = 76）。

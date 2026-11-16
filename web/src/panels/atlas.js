@@ -52,6 +52,7 @@ const REGIONS = [
   { id: "archive",   zh: "档案馆",     en: "Archive Shelves",     tint: "#8fd6a1", x: 1010, y: 1230, r: 170 },
   { id: "arcade",    zh: "小游戏乐园", en: "The Arcade",          tint: "#b39af7", x: 1600, y: 1170, r: 190 },
   { id: "infirmary", zh: "诊断中心",   en: "The Infirmary",       tint: "#8fd6a1", x: 2050, y: 1270, r: 150 },
+  { id: "cartographer", zh: "测绘岛",   en: "The Cartographer",   tint: "#f0b35e", x: 310,  y: 230,  r: 115 },
 ];
 
 /* ---------- the 18 pane coordinates ---------- */
@@ -135,9 +136,10 @@ const MANUAL_SATELLITES = MANUAL_CHAPTERS.map((ch, i) => {
 });
 
 
-/* v M8-T1039 — the islands ledger. Twelve islands exactly, counted honestly. */
-const ISLAND_ORDER = ["workbench", "captain", "museum", "reading", "vault", "overlook", "dockyard", "infirmary", "gatekeeper", "arcade", "observatory", "archive"];
+/* v M8-T1039 — the islands ledger. Thirteen islands exactly, counted honestly. */
+const ISLAND_ORDER = ["workbench", "captain", "museum", "reading", "vault", "overlook", "dockyard", "infirmary", "gatekeeper", "arcade", "observatory", "archive", "cartographer"];
 const ISLAND_LORE = [
+  { region: "cartographer", zhName: "测绘岛", enName: "The Cartographer", zhLore: "每一处坐标先勘探，后安放——这一岛只认数字，不认情绪。", enLore: "Every coordinate surveyed before it was named — the one island that only reads numbers.", tint: "#f0b35e" },
   { region: "workbench",  zhName: "工作台大厅", enName: "The Workbench Hall", zhLore: "任务、工作区、动态、模板——长椅上的每一块木头都留着你的指纹。", enLore: "Tasks, workspaces, activity, templates — every plank on these benches carries your fingerprints.", tint: "#f0b35e" },
   { region: "captain",    zhName: "船长日志",   enName: "The Captain's Log", zhLore: "账本、脉搏、近况、日志——这艘船唯一从不掩饰自己的地方。", enLore: "Ledger, pulse, recent and journal — the one place on this ship that never flatters itself.", tint: "#f0b35e" },
   { region: "museum",     zhName: "年鉴博物馆", enName: "Museum of Volumes", zhLore: "二十二卷每一页都来自仓库自己说的话，读它们等于审计你的坚持。", enLore: "Twenty-two volumes of the repo's own voice — reading them is auditing your own persistence.", tint: "#f0b35e" },
