@@ -53916,3 +53916,16 @@ TTL 悬崖深探（M8-T1078）不是一个能随手记的实验——它打掉�
 - **probe 原文摘录（诚实直接）**：A1-3 / B1-3 / C1-3 全部 input=4561、cached=4224、pct=92.6%；沉默 16.7 分钟；cached 与 5731 基准同块。
 - **验证**：`almanac_smoke` 37 chapters 全双语 / `atlas_smoke` 70-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
 - **告示**：不改 cache_keeper 默认值；gate 全绿；无密钥入库。
+## 批次 1065 · M8-T1080: 实体块互不遮盖——`.tour-offer` 教练按钮让位右栏字幕
+
+### 目的
+
+直接呼应需求五（前端体验与视觉：实体块互相重叠、挤压、遮盖）。这次不是抽象重构，是实锤修复——先截图、定位 DOM、精准改 CSS、再截图验收。
+
+### 做了什么
+
+- 真机驱动 Playwright 截图 × 6 视图（workbench / almanac / atlas / manual / archive / journal）定位重叠：仅一处确定——`.tour-offer` 盖住 inspector 底部字幕。
+- 用 `document.elementFromPoint` + `.changes-section` 边界框测出 inspector 固定栏 left=1076 / width=290（≥1181px 时 290；base 时 278；grid 三栏模板证实）。
+- CSS 精确修复（3 行）：`.tour-offer { right: calc(278px + 22px); bottom: calc(22px + 92px); } @media (min-width:1181px) { .tour-offer { right: calc(290px + 22px); bottom: calc(22px + 92px); } }`（minifier 后解析为 300/312px）。
+- 验收：workbench 1366×768 / 1280×720 / 1600×900 三视窗复查——右栏字幕、"跳到最新"浮动按钮、橙色发送键、右栏「最近改动」字幕与 chip 无接触；`/api/tags`- 1306 chunks 之外无任何接触。
+- 无 JS 变更，无行为变更；exit-0 parity / dazzle 全绿；CRLF pins 保持。
