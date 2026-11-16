@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T02:48:03.557Z",
+  "generated_at": "2026-11-16T03:20:45.180Z",
   "branch": "main",
-  "head": "1ce5a97",
-  "total_commits": 1707,
+  "head": "9f7a36f",
+  "total_commits": 1709,
   "recent_commits": [
+    {
+      "short": "9f7a36f",
+      "at": "2026-11-16T11:19:59+08:00",
+      "subject": "M8-T1068: almanac Ch.XXXI 'The Lamplighter' - the night the two Python legs came up green twice in a row (4-5 prior Windows runner starvation fails), claim chec"
+    },
+    {
+      "short": "4401f7e",
+      "at": "2026-11-16T02:48:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1ce5a97",
       "at": "2026-11-16T10:47:29+08:00",
@@ -19,25 +29,15 @@
       "short": "86c95a6",
       "at": "2026-11-16T02:01:49Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1afca76",
-      "at": "2026-11-16T10:01:13+08:00",
-      "subject": "M8-T1065: almanac Ch.XXIX 'The Relay' - the story of the bot that re-pins fact pack on every push (M8-T84), 61 coordinates flywheel, 30 volumes bilingual; /api/"
-    },
-    {
-      "short": "8011d97",
-      "at": "2026-11-16T01:21:16Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 379,
+  "roadmap_batches": 380,
   "changelog_entries": 1,
-  "roadmap_lines": 53766,
+  "roadmap_lines": 53777,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 31,
+  "almanac_chapters": 32,
   "module_count": 14,
   "feature_surface": [
     "workbench",
