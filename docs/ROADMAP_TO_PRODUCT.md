@@ -53862,3 +53862,17 @@ M8-T979 落地了 backlog=128 + single-flight TTL + boot prefetch，但从未在
 - 累计 **33,600 请求，0 非 2xx，0 连接失败**。
 - `docs/LOAD_TESTING.md` 新增 M8-T1075 小节（含诚实 caveat：loopback、fake upstream、只读、无 SLA 声明）；历史冻结章节不改。
 - 不改任何 gate / 不改代码；仅文档。待 CI 对 head 04bf0cd 的结果：若红，优先修 CI。
+## 批次 1061 · M8-T1076: 卷三十五「无恙 / The Unscathed」—— 压测夜写进年鉴，Atlas 68
+
+### 目的
+
+M8-T1075 的三波满负荷 33,600 次请求、0 非 2xx——这意味着一本值得进博物馆的纪要。年鉴不允许这类真实的一夜从记录里溜走；写下来，锁住它，Atlas 因此多一个卫星。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：`unscathedMarkup()` + CHAPTERS 条目（卷三十五 · 无恙）+ `CHAPTER_RENDERERS['unscathed']`；双语 body 分支各自成立；gate list 5 条；quote-end 压轴。
+- **Atlas 67 → 68 coordinates**：almanac satellites 35→36；`atlas_smoke` 68；占位符 67→68；welcome chips 68（i18n.js CRLF 309/0）。
+- **onboarding / Manual Atlas 行 / README**：sixty-eight halls / thirty-six chapters；README 年鉴彩蛋以 The Unscathed 领衔（数字取自 LOAD_TESTING M8-T1075 实测，不杜撰）。
+- **验证**：`almanac_smoke` 36 chapters 双语全绿 / `atlas_smoke` 68-coordinate / `manual_smoke` 14 / `admin_smoke` / `dazzle` / `parity` / CRLF pins。
+- **诚实坑**：卷三十四（M8-T1074 / The New Coast）的 instrument grid 保留 67——那是卷三十四写作时的真实坐标，按冻结纪律不追溯。Atlas 68 是卷三十五的坐标。
+- **告示**：不改 gate；Atlas 67→68 bookkeeping 全部随行同步；无密钥入库。

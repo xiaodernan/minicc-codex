@@ -55,6 +55,7 @@ export const CHAPTERS = [
   { id: "firefly", roman: { zh: "卷三十二", en: "Chapter XXXII" }, title: { zh: "萤", en: "The Firefly" }, subtitle: { zh: "每一盏只亮给愿意看她的人", en: "Every lamp shines for the one who learned how to look" } },
   { id: "candle", roman: { zh: "卷三十三", en: "Chapter XXXIII" }, title: { zh: "烛火", en: "The Candle" }, subtitle: { zh: "每一秒你看见的展示页都比你先醒", en: "Every second you see on the showcase has already woken before you" } },
   { id: "newcoast", roman: { zh: "卷三十四", en: "Chapter XXXIV" }, title: { zh: "新涯", en: "The New Coast" }, subtitle: { zh: "新 api 不在你这国度，但每一次 probe 都被记下来了", en: "The new gateway doesn't answer your neighbourhood — but every probe is on the books" } },
+  { id: "unscathed", roman: { zh: "卷三十五", en: "Chapter XXXV" }, title: { zh: "无恙", en: "The Unscathed" }, subtitle: { zh: "三万三千六百次请求，一件事没出过错", en: "Thirty-three thousand six hundred requests, not one of them went sideways" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2508,6 +2509,78 @@ function newcoastMarkup() {
     </div>`;
 }
 
+function unscathedMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-unscathed">
+      <div class="almanac-kicker">${zh() ? "卷三十五 · 无恙" : "Chapter XXXV · The Unscathed"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `三万三千六百次敲门，<br/><span class="almanac-title-accent">没有一扇门关过。</span>`
+        : `Thirty-three thousand six hundred knocks,<br/><span class="almanac-title-accent">and not a single door was closed.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日下午，三股递增的满负荷敲到同一扇门上：先是 <strong>24 个并发</strong>，再是 <strong>64 个</strong>，最后是 <strong>128 个——监听队列被推到它的设计值</strong>。只读路径：/api/health、/api/metrics、/api/digest、/api/stats、/api/roadmap、/api/workspace。
+        </p>
+        <p>
+          每次敲门都有回执：c=24×15 秒，每条路径 <strong>n=1045、0 错误</strong>；c=64×15 秒，每条路径 <strong>n=2175、0 错误</strong>；c=128×12 秒，每条路径 <strong>n=2380——总计 14,280 次、0 次非 2xx、0 次连接失败</strong>。三波累计 <strong>33,600 次请求，没有一次不是 200</strong>。
+        </p>
+        <p>
+          门没有关：p50 5.4 毫秒（health）/ 5.44（digest）/ 5.53（stats）/ 6.07（roadmap）/ 6.02（workspace）/ 568.87（metrics——<strong>诚实点名新的最重路径</strong>）；p99 最坏 1.42 秒（workspace）。/api/stats 的冷缓存 p99 ≈ 6 秒——磁盘 walk 的老实账，不是 bug 的借口。
+        </p>
+        <p>
+          这一夜证明的是先前落地的三张保险：<strong>listen backlog 128</strong>、<strong>single-flight TTL 重建</strong>、<strong>boot prefetch</strong>。一夜没有 crash、没有 429、没有 503——<strong>假 provider 不在乎真假压力，生产纪律这样写自己的雕像</strong>。这不是 SLA，是本机 loopback 上一位工程师下午的账本。
+        </p>
+        <p>
+          三万三千六百次敲门，没有一扇门关过。
+        </p>` : `<p>
+          On the afternoon of 2026-11-16, three waves of rising pressure knocked on the same door: first <strong>24 concurrent workers</strong>, then <strong>64</strong>, finally <strong>128 — the listen backlog pushed to its designed maximum</strong>. Read-only paths: /api/health, /api/metrics, /api/digest, /api/stats, /api/roadmap, /api/workspace.
+        </p>
+        <p>
+          Every knock had a receipt: c=24 over 15 s, <strong>n=1045 per path, 0 errors</strong>; c=64 over 15 s, <strong>n=2175 per path, 0 errors</strong>; c=128 over 12 s, <strong>n=2380 per path — 14,280 requests in total, 0 non-2xx, 0 connection failures</strong>. Cumulative across the three waves: <strong>33,600 requests, every answer a 200</strong>.
+        </p>
+        <p>
+          The doors stayed open: p50 5.4 ms (health) / 5.44 (digest) / 5.53 (stats) / 6.07 (roadmap) / 6.02 (workspace) / 568.87 (metrics — <strong>the honestly named new heavy path</strong>); worst p99 1.42 s (workspace). Cold /api/stats p99 ≈ 6 s — the honest ledger of an on-disk walk, not an excuse for a bug.
+        </p>
+        <p>
+          That night proved three insurances already paid for: <strong>listen backlog 128</strong>, <strong>single-flight TTL rebuilds</strong>, and <strong>boot prefetch</strong>. Not a crash, not a 429, not a 503 — <strong>the fake provider cares about pressure, not its own legend</strong>. Not an SLA; one engineer's afternoon ledger on a loopback.
+        </p>
+        <p>
+          Thirty-three thousand six hundred knocks, and not a single door was closed.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">36 / 36</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">14 / 14</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "满负荷波次" : "Pressure waves"}</div><div class="almanac-instrument-value">3</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "累计请求 · 0 错误" : "Requests · 0 errors"}</div><div class="almanac-instrument-value">33,600</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["c=128 满负荷 · 0 非 2xx", "14,280 次请求全部 200——Backlog 128 不是声明，是实测承载值"],
+        ["c=64 · 13,050 次 · 0 错误", "/api/metrics p50 569ms 被诚实点名为新的最重路径——没人假装它免费"],
+        ["冷 /api/stats p99 ≈ 6 秒", "原样记录。缓存收敛之后它会消失，但账本上它永远存在"],
+        ["假 provider · 只读路径 · loopback", "这不是 SLA——这是一位工程师在真实机器上真实跑出的数字"],
+        ["世界一秒没停", "没有 crash、没有 429、没有 503——三万三千六百次敲门，三扇门都没关"],
+      ] : [
+        ["c=128 max wave · 0 non-2xx", "14,280 requests, every one a 200 — backlog 128 is not a claim, it's a measured capacity"],
+        ["c=64 · 13,050 requests · 0 errors", "/api/metrics p50 569 ms honestly named the new heavy path — nobody pretended it was free"],
+        ["cold /api/stats p99 ≈ 6 s", "recorded as is. The cache converges, but the number never stops being true"],
+        ["fake provider · read-only · loopback", "Not an SLA — one engineer's real numbers on a real box"],
+        ["The world never stalled", "no crash, no 429, no 503 — thirty-three thousand six hundred knocks, every door opened"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "三万三千六百次敲门，没有一扇门关过。"
+          : "Thirty-three thousand six hundred knocks, and not a single door was closed."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2544,6 +2617,7 @@ const CHAPTER_RENDERERS = {
   firefly: () => fireflyMarkup(),
   candle: () => candleMarkup(),
   newcoast: () => newcoastMarkup(),
+  unscathed: () => unscathedMarkup(),
 };
 
 async function loadChapter(id) {
