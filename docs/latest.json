@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T16:22:42.847Z",
+  "generated_at": "2026-11-16T16:34:05.566Z",
   "branch": "main",
-  "head": "e00d5b3",
-  "total_commits": 1770,
+  "head": "d89f5d0",
+  "total_commits": 1772,
   "recent_commits": [
+    {
+      "short": "d89f5d0",
+      "at": "2026-11-17T00:33:10+08:00",
+      "subject": "M8-T1097: manual Ch.18 'Evidence & Gates' - the repo's 'constitution' chapter (test_readme_capability_claims / test_doc_pointers / test_tracked_evidence_census "
+    },
+    {
+      "short": "ef35cb4",
+      "at": "2026-11-16T16:22:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e00d5b3",
       "at": "2026-11-17T00:20:02+08:00",
@@ -19,22 +29,12 @@
       "short": "b627fa1",
       "at": "2026-11-17T00:17:01+08:00",
       "subject": "M8-T1096: almanac Ch.XLIV 'The Sleepless' - digest spans end-to-end through the session (1,767 commits, 44->45 volumes, 79->80 coordinates, 1096 tracked files /"
-    },
-    {
-      "short": "9a8a0f1",
-      "at": "2026-11-16T15:50:50Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7b33aed",
-      "at": "2026-11-16T23:48:17+08:00",
-      "subject": "M8-T1095: manual Ch.17 'Parallel Subagents' - documented from real code (minicc/agent/orchestration.py constants verbatim: AUTO_FANOUT_THRESHOLD=4, AUTO_FANOUT_"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 408,
+  "roadmap_batches": 409,
   "changelog_entries": 1,
-  "roadmap_lines": 54144,
+  "roadmap_lines": 54156,
   "tracked_files": 1098,
   "test_files": 716,
   "almanac_chapters": 45,
