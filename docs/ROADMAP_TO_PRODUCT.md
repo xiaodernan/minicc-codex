@@ -53697,3 +53697,14 @@ CI ubuntu-latest 5686 全绿、唯一一红：`test_a_module_is_registered_befor
 - `tests/test_ci_health.py` — 四个诚实断言（wire death → live:false；wire ok → parse + PR/issue 去重；两次 live-server HTTP roundtrip 及 REDLINE B compare-line）；`route_coverage` A/B 端点 coverage 30/30；impact floor 绿。
 - `web/index.html` + `web/styles.css` + `web/src/panels/admin.js` + `web/src/core/i18n.js` — 新 tile：`admin-card-live` admin layer；结论（mint/coral/quiet）、开 issues 数、开 PRs 数（片之环底也用 chips 表达）、最近三次 runs 的三颗 dot。双语 i18n：`admin.ciKicker / admin.ciNote / admin.ciIssues / admin.ciPrs / admin.ciUnavailable`。
 - **en-CJK parity**：en 走 admin stage 零 CJK；docked route_coverage gated 30/30；impact floor 绿。
+## 批次 1047 - M8-T1063: 管理员实时 tile 的网络路径再校准
+
+### 背景
+
+Arcade Playwright suites 红了一阵——admin/en_cjk 两条 smoke 都重走 git unlock 里的 `/api/admin/summary → /api/ci_status → 三次顺序 GitHub REST 8s timeout` —— 在 starving runner 上这是一次拉长。本批修两个地方：① 并发 fan 三个请求（最长 8s，而不是 24s），② 把 tile 的 `/api/ci_status` 推迟到 summary 渲染收尾触发，tile 纯粹是 best-effort。
+
+### 做了什么
+
+- `minicc/ci_health.py` — `fetch_ci_health()` 内部分 3 个 `_runs/_prs/_issues` worker，`concurrent.futures.ThreadPoolExecutor(max_workers=3)`；返回后 unions `errors`；缓存命中率不受影响。
+- `web/src/panels/admin.js` — `/api/ci_status` 改为 `ciPromise.then(...)`，summary 渲染收尾之后才触发，tile 异常一律 `.catch(() => null)`，best-effort。
+- **零 API 变更、零 i18n 改动**（keys 已有）；`admin_smoke / en_cjk / almanac / manual / atlas` 全绿。

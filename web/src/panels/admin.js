@@ -137,9 +137,11 @@ export async function openAdmin() {
         : `<li class="admin-rec admin-rec-good">${esc(zh() ? "暂无建议 —— 数据看起来不错。" : "No outstanding calls to make on this data — it looks healthy.")}</li>`;
     }
 
-    // M8-T1062: live mainline health — degrades silently if the wire is down;
-    // the tile always shows the last honest read (never a blank, never a guess)
-    const ci = await requestJson("/api/ci_status", {}, 15000).catch(() => null);
+    // M8-T1062/M8-T1063: live mainline health — fire-and-forget after the summary render
+    // closes; the tile fills in when GitHub answers. The admin unlock never waits on it.
+    const ciPromise = requestJson("/api/ci_status", {}, 20000).catch(() => null);
+    ciPromise.then((ci) => {
+    try {
     const ciEl = (id) => $(`#${id}`);
     const recent = ci && typeof ci === "object" && Array.isArray(ci.recent) ? ci.recent : [];
     const conclusion = recent.length ? String(recent[0]?.conclusion || recent[0]?.status || "").toLowerCase() : "";
@@ -177,6 +179,8 @@ export async function openAdmin() {
           </li>`).join("")
         : `<li class="admin-ci-dot admin-ci-dot-unknown" title="${esc(String(t("admin.ciUnavailable")))}"><small>—</small><strong>${esc(String(t("admin.ciUnavailable")))}</strong></li>`;
     }
+    } catch { /* the tile is best-effort; the panel never depends on it */ }
+    });
 
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];

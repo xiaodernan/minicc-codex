@@ -59,28 +59,50 @@ def fetch_ci_health(*, force_refresh: bool = False) -> dict[str, Any]:
     if isinstance(cached, dict) and cached.get("live"):
         return cached
 
+    # Fan out all three fetches on a thread pool — the slowest leg (8s timeout
+    # each) bounds the whole call, not the sum. Sequential round-trips would
+    # stretch the admin unlock lane to ~24s on a rate-limited or throttled network.
+    import concurrent.futures as _cf
+
+    own_errors: list[str] = []
     runs: list[Any] = []
     open_prs: int | None = None
     open_issues: int | None = None
-    own_errors: list[str] = []
-    try:
-        payload = _get_json(_RUNS_URL)
-        runs = payload.get("workflow_runs", []) if isinstance(payload, dict) else []
-    except Exception as exc:  # noqa: BLE001
-        own_errors.append(f"runs: {type(exc).__name__}")
 
-    try:
-        prs = _get_json(_PRS_URL)
-        open_prs = len(prs) if isinstance(prs, list) else None
-    except Exception as exc:  # noqa: BLE001
-        own_errors.append(f"prs: {type(exc).__name__}")
+    def _runs():
+        try:
+            payload = _get_json(_RUNS_URL)
+            return payload.get("workflow_runs", []) if isinstance(payload, dict) else [], None
+        except Exception as exc:
+            return [], f"runs: {type(exc).__name__}"
 
-    try:
-        issues = _get_json(_ISSUES_URL)
-        if isinstance(issues, list):
-            open_issues = len([i for i in issues if isinstance(i, dict) and "pull_request" not in i])
-    except Exception as exc:  # noqa: BLE001
-        own_errors.append(f"issues: {type(exc).__name__}")
+    def _prs():
+        try:
+            prs = _get_json(_PRS_URL)
+            return (len(prs) if isinstance(prs, list) else None), None
+        except Exception as exc:
+            return None, f"prs: {type(exc).__name__}"
+
+    def _issues():
+        try:
+            issues = _get_json(_ISSUES_URL)
+            if isinstance(issues, list):
+                return len([i for i in issues if isinstance(i, dict) and "pull_request" not in i]), None
+            return None, None
+        except Exception as exc:
+            return None, f"issues: {type(exc).__name__}"
+
+    with _cf.ThreadPoolExecutor(max_workers=3) as pool:
+        f_runs, f_prs, f_issues = pool.submit(_runs), pool.submit(_prs), pool.submit(_issues)
+        runs, err = f_runs.result()
+        if err:
+            own_errors.append(err)
+        open_prs, err = f_prs.result()
+        if err:
+            own_errors.append(err)
+        open_issues, err = f_issues.result()
+        if err:
+            own_errors.append(err)
 
     latest = runs[0] if runs else None
     payload = {

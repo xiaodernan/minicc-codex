@@ -5988,38 +5988,43 @@
             <span>${esc2(zh8() ? rec.why_zh : rec.why_en)}</span>
           </li>`).join("") : `<li class="admin-rec admin-rec-good">${esc2(zh8() ? "\u6682\u65E0\u5EFA\u8BAE \u2014\u2014 \u6570\u636E\u770B\u8D77\u6765\u4E0D\u9519\u3002" : "No outstanding calls to make on this data \u2014 it looks healthy.")}</li>`;
       }
-      const ci = await requestJson("/api/ci_status", {}, 15e3).catch(() => null);
-      const ciEl = (id) => $(`#${id}`);
-      const recent = ci && typeof ci === "object" && Array.isArray(ci.recent) ? ci.recent : [];
-      const conclusion = recent.length ? String(recent[0]?.conclusion || recent[0]?.status || "").toLowerCase() : "";
-      const ciClass = conclusion === "success" ? "ci-up" : conclusion === "failure" || conclusion === "cancelled" || conclusion === "timed_out" ? "ci-down" : "ci-unknown";
-      if (ciEl("adminCiConclusion")) {
-        ciEl("adminCiConclusion").classList.remove("ci-up", "ci-down", "ci-unknown");
-        ciEl("adminCiConclusion").classList.add(ciClass);
-        ciEl("adminCiConclusion").textContent = conclusion ? conclusion.toUpperCase() : String(t("admin.ciUnavailable"));
-      }
-      if (ciEl("adminCiWorkflow")) {
-        ciEl("adminCiWorkflow").textContent = recent.length ? `${recent[0]?.workflow ?? "CI"} \xB7 ${String(recent[0]?.head_sha ?? "")}` : String(t("admin.ciUnavailable"));
-      }
-      if (ciEl("adminCiMeta")) {
-        ciEl("adminCiMeta").textContent = recent.length ? `${String(recent[0]?.created_at ?? "").replace("T", " ").replace("Z", " UTC")}` : String(t("admin.ciUnavailable"));
-      }
-      if (ciEl("adminCiIssues")) ciEl("adminCiIssues").textContent = ci && typeof ci === "object" && ci.open_issues != null ? String(ci.open_issues) : "\u2014";
-      if (ciEl("adminCiPulls")) ciEl("adminCiPulls").textContent = ci && typeof ci === "object" && ci.open_prs != null ? String(ci.open_prs) : "\u2014";
-      const dotsEl = ciEl("adminCiDots");
-      if (dotsEl) {
-        const dotOf = (conclusion2) => {
-          const c = String(conclusion2 || "").toLowerCase();
-          if (c === "success") return "admin-ci-dot-up";
-          if (c === "failure" || c === "cancelled" || c === "timed_out") return "admin-ci-dot-down";
-          return "admin-ci-dot-unknown";
-        };
-        dotsEl.innerHTML = recent.length ? recent.slice(0, 3).map((r) => `
+      const ciPromise = requestJson("/api/ci_status", {}, 2e4).catch(() => null);
+      ciPromise.then((ci) => {
+        try {
+          const ciEl = (id) => $(`#${id}`);
+          const recent = ci && typeof ci === "object" && Array.isArray(ci.recent) ? ci.recent : [];
+          const conclusion = recent.length ? String(recent[0]?.conclusion || recent[0]?.status || "").toLowerCase() : "";
+          const ciClass = conclusion === "success" ? "ci-up" : conclusion === "failure" || conclusion === "cancelled" || conclusion === "timed_out" ? "ci-down" : "ci-unknown";
+          if (ciEl("adminCiConclusion")) {
+            ciEl("adminCiConclusion").classList.remove("ci-up", "ci-down", "ci-unknown");
+            ciEl("adminCiConclusion").classList.add(ciClass);
+            ciEl("adminCiConclusion").textContent = conclusion ? conclusion.toUpperCase() : String(t("admin.ciUnavailable"));
+          }
+          if (ciEl("adminCiWorkflow")) {
+            ciEl("adminCiWorkflow").textContent = recent.length ? `${recent[0]?.workflow ?? "CI"} \xB7 ${String(recent[0]?.head_sha ?? "")}` : String(t("admin.ciUnavailable"));
+          }
+          if (ciEl("adminCiMeta")) {
+            ciEl("adminCiMeta").textContent = recent.length ? `${String(recent[0]?.created_at ?? "").replace("T", " ").replace("Z", " UTC")}` : String(t("admin.ciUnavailable"));
+          }
+          if (ciEl("adminCiIssues")) ciEl("adminCiIssues").textContent = ci && typeof ci === "object" && ci.open_issues != null ? String(ci.open_issues) : "\u2014";
+          if (ciEl("adminCiPulls")) ciEl("adminCiPulls").textContent = ci && typeof ci === "object" && ci.open_prs != null ? String(ci.open_prs) : "\u2014";
+          const dotsEl = ciEl("adminCiDots");
+          if (dotsEl) {
+            const dotOf = (conclusion2) => {
+              const c = String(conclusion2 || "").toLowerCase();
+              if (c === "success") return "admin-ci-dot-up";
+              if (c === "failure" || c === "cancelled" || c === "timed_out") return "admin-ci-dot-down";
+              return "admin-ci-dot-unknown";
+            };
+            dotsEl.innerHTML = recent.length ? recent.slice(0, 3).map((r) => `
           <li class="admin-ci-dot ${dotOf(r?.conclusion)}" title="${esc2(String(r?.workflow ?? "") + " \xB7 " + String(r?.created_at ?? "") + " \xB7 " + String(r?.head_sha ?? ""))}">
             <small>${esc2(String(r?.created_at ?? "").slice(0, 16))}</small>
             <strong>${esc2(String(r?.conclusion || r?.status || "unknown"))} \xB7 ${esc2(String(r?.head_sha ?? ""))}</strong>
           </li>`).join("") : `<li class="admin-ci-dot admin-ci-dot-unknown" title="${esc2(String(t("admin.ciUnavailable")))}"><small>\u2014</small><strong>${esc2(String(t("admin.ciUnavailable")))}</strong></li>`;
-      }
+          }
+        } catch {
+        }
+      });
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {
