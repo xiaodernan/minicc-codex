@@ -33,6 +33,7 @@ export const CHAPTERS = [
   { id: "sandbox", roman: "十六", romanEn: "16", title: "Sandbox & Safety", titleZh: "沙盒与安全" },
   { id: "fanout", roman: "十七", romanEn: "17", title: "Parallel Subagents", titleZh: "并行子智能体" },
   { id: "evidence", roman: "十八", romanEn: "18", title: "Evidence & Gates", titleZh: "证词与门禁" },
+  { id: "ciwall", roman: "十九", romanEn: "19", title: "The CI Wall", titleZh: "长城" },
 ];
 
 function zhStart() {
@@ -113,7 +114,7 @@ function zhModules() {
       <li><strong>船厂 · Dockyard</strong> — 侧边栏「船厂」：把你自己的真实旅程做成展厅——「航海日志」六格全部来自真实任务与 git 元数据（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率，数据直接读 /api/digest、/api/metrics、/api/worldpulse）；「灯塔 · 十一座里程碑」照真实指标逐格解锁（起航 / 领主 1,000 提交 / 卷典者十七卷 / 万点繁星 / 守夜人 80% 亲和率等），未达成的只显示真实进度，不放演示徽章。</li>
       <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：四十五卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷四十四《无眠》——摘要自己跑到底，digest 不喘气，一路从本机推到 fact pack，每天绿到底），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>管理员 · Admin</strong> — 侧边栏「管理」：密码 123 研一道共享门（非登录，只对本地自己人可见）；stats（任务数 / 完成 / 中断 / 缓存亲和率 / 审计行 / 会话数）+ 七日事件 Canvas（requestAnimationFrame 真绘制）+ 最小二乘线性预测（明文标注：这是估计，不是承诺）+ 中断原因自动分桶（这个仓库全部 3 次中断全部是服务重启）+ 顶部工具真实使用直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%，全部从 /api/admin/summary 真实读数，零虚构）；点 4 下之后就能看见所有数字。</li>
-      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、81 个真实坐标——18 面板 + 45 年鉴卫星 + 18 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
+      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、82 个真实坐标——18 面板 + 45 年鉴卫星 + 19 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -133,7 +134,7 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in forty-five chapters (the newest, Chapter XLIV “The Great Basin” — the week a repo laid twenty-nine worktrees on the bench and walked away with seven, every unique fragment anchored on a rescue branch; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, eighty-one real coordinates — 18 panes + 45 almanac satellites + 18 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, eighty-two real coordinates — 18 panes + 45 almanac satellites + 19 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -424,6 +425,24 @@ function enCloud() {
   `;
 }
 
+function zhCiWall() {
+  return `
+    <p class="manual-lede">这座仓库被 CI 墙挡住了好几次；也正因为它挡住了，这道墙一定 worth reading once。</p>
+    <ol class="manual-list">
+      <li><strong>10 个门同时亮</strong> — Ubuntu Python · Windows Python · Claim Checkers（doc_pointers + route-coverage + impact floor）· JavaScript syntax · Spring Cloud plane mvn · M1 reliability probe · PR eval gate · Playwright web smoke · Playwright unreachable-provider（must fail）· Nightly eval（real key；不配则 skipped）。一个红，任何合并都过不了。没有任何 pypass 被授权。</li>
+      <li><strong>Doc gates 不是碍眼</strong> — <code>test_no_document_quotes_a_content_addressed_bundle.py</code> 是这一规则的典型：文档里不许出现「<code>app.12f515310f8e7b2a.js</code>」这种每次重建就会失效的捆绑包名字，否则对应那段文字会在下一次 build 之后变成死链。那条规则上路之后，帮助自己记录的一行 ROADMAP 立即被它自己绊住——红了一次，改成稳定通道 <code>web/app.js</code>，绿了。</li>
+      <li><strong>Tracked bytes 不能含控制字符</strong> — <code>test_tracked_text_files_hold_no_bare_control_bytes</code> 拒绝任何带裸控制字节的 tracked 文本——即使是 <code>.log</code> 文件。我们曾因为一个本地重测残留的 <code>_fail_ci.json</code> 把本地 pytest 打红一整轮；下次启动大概率直接清空、重跑、绿。</li>
+      <li><strong>自查先于 push</strong> — 这个仓库自带的 <code>.codex</code> pre-commit 钩子（<code>[codex-global pre-commit] fast checks</code>）在提交前先过一遍快速门禁。钩子红——push 失败（exit 1）。这本书希望钩子永远红得提醒你。</li>
+      <li><strong>5149 tests</strong> — 这个数字不是展示数字。每一个数字后面是一个文件、一个失败案例、一个回归断言。每个单元大约 0.8–1.5 秒。全量拉下来大概 78 分钟。不是所有 tests 都跟 AI 有关——大部分只是确保简单不退步。</li>
+      <li><strong>CI 失效怎么排查</strong> — 首先看哪个 job 红了。如果弄的是 document gate — 哪个文件、哪一行。如果是 Python — 读 traceback；大概率是 document 自己引用不到自己。如果是Playwright — 打开 <code>test:smoke</code> 那一步回放，字节序/locale schema。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的事</strong>
+      <p>本仓库中所有「漂亮话」都是 CI 翻译出来的。没有「我们宣称它稳定了」这种话；只有「它每一轮都跑过一遍」的事实——你读到的每一句 README，都是先被测试读一次然后才敢被你看见的。每一条都不是可信人格故事的产物。</p>
+    </div>
+  `;
+}
+
 function zhEvidence() {
   return `
     <p class="manual-lede">没有任何一条 README 里的承诺是靠相信印上去的。本章把这个仓库自己的“宪法”摊开给你看。</p>
@@ -510,6 +529,24 @@ function zhStateGraph() {
       <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
     </div>
     <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
+  `;
+}
+
+function enCiWall() {
+  return `
+    <p class="manual-lede">This repo has been collared by its own CI wall many times — and it exists precisely because every fire it prevented is a fire you'll never notice.</p>
+    <ol class="manual-list">
+      <li><strong>Ten independent gates light together</strong> — Python on ubuntu-latest × Python on windows-latest × Claim Checkers (doc_pointers + route_coverage + impact_floor) × JavaScript syntax × Spring Cloud plane (mvn) × M1 reliability probe × PR eval gate × Playwright web smoke × Playwright unreachable-provider (must fail) × Nightly eval (real key, skipped when absent). Any red gate blocks the merge. Nobody has an off-switch.</li>
+      <li><strong>Doc gates are not decoration</strong> — <code>test_no_document_quotes_a_content_addressed_bundle.py</code>: documentation must never name a hash-tagged bundle. The build closered then fails the gate -- exactly the mistake caught in this very cycle: a referenced hash in ROADMAP broke on the very next rebuild. The no-gate library closed it within the same commit.</li>
+      <li><strong>Tracked bytes cannot contain control characters</strong> — <code>test_tracked_text_files_hold_no_bare_control_bytes</code> forbids bare control bytes anywhere tracked; even a stray <code>.log</code> from local output gets caught — the repo was once red on exactly that, turning a routine re-run instantly green.</li>
+      <li><strong>Self-check before push</strong> — the <code>.codex/pre-push</code> hook runs <code>[codex-global pre-commit]</code>; if any of that gates — a fast gate — doesn't pass, the push exits non-zero. Reading this is cheaper than seeing it red in GitHub.</li>
+      <li><strong>5149 tests is not a marketing number</strong> — roughly a thousand test files at ~0.8–1.5 seconds each; the whole suite clocks out on this machine at ~78 minutes. The tests don't matter because they all test AI; they matter because each one is a fire someone chose to prevent in advance.</li>
+      <li><strong>When CI goes red</strong> — first, find which job is red. Document gate? The line and the file it points at guide the fix. Python? The traceback almost always says exactly which assertion tripped. Playwright? The smoke's failure log lists the first mismatched assertion and the locale prefix it was observed under.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest limits</strong>
+      <p>Every “nice thing” in this repo is the output of the CI passing, not an opinion. Nothing is reliable because somebody says it is; everything you read here got checked in and then checked out and read and scanned before it reached you. No marketing claims anywhere in here outlives its test.</p>
+    </div>
   `;
 }
 
@@ -668,6 +705,7 @@ const BODIES = {
   sandbox: { zh: zhSandbox, en: enSandbox },
   fanout: { zh: zhFanout, en: enFanout },
   evidence: { zh: zhEvidence, en: enEvidence },
+  ciwall: { zh: zhCiWall, en: enCiWall },
 };
 
 function chapterMarkup(chapter) {

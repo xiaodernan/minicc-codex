@@ -54153,3 +54153,15 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **Atlas 80 → 81 coordinates**：manual satellites 17→18；`atlas_smoke` 81；placeholders 80→81（html 711 / i18n 309）。
 - **onboarding / Manual Atlas 行 / README**：与 Atlas 一致；README 彩蛋以 Evidence & Gates 领衔——全 repo claim 都受控。
 - **验证**：`manual_smoke` 18 chapters 双语全绿 / `atlas_smoke` 81-coordinate / parity en zero CJK / `admin_smoke` / dazzle。
+## 批次 1083 · M8-T1098: 说明书第十九章「长城 / The CI Wall」—— Atlas 82
+
+### 目的
+
+把每个 CI 红的原因和规则写进手册，让所有读者都懂这道墙为什么在这里、怎么过、怎么读红线。
+
+### 做了什么
+
+- **`web/src/panels/manual.js`**：新增 `zhCiWall`/`enCiWall` + BODIES+CHAPTERS 注册（Ch.19 · 十九 · 长城）；Atlas 行 81→82 / 18→19 manual satellites。
+- **Atlas 81 → 82 coordinates**：`atlas_smoke` 82；`index.html` 711/0；`i18n.js` 309/0；welcome chips 82。
+- **README / onboarding / Manual Atlas 行**：`eighty-two real coordinates / nineteen manual chapters`；README 早先推加了一句「The CI Wall」。
+- **验证**：`manual_smoke` 19 chapters 全双语 / `atlas_smoke` 82-coordinate / parity en zero CJK / dazzle / admin。
