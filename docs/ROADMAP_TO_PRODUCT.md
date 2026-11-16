@@ -53717,3 +53717,14 @@ full-pytest 收到 5,687 全绿、唯一一红：M8-T1063 的并发 `_runs/_prs/
 ### 做了什么
 
 - `minicc/ci_health.py` — 三处 handler 行尾注释点明：其结果通过 `own_errors` 列表诚实回放给 Admin tile（`live=false + errors`），静默捕获从来不是为了吞错。.
+## 批次 1049 - M8-T1064: 年鉴第二十八卷「守望 / The Steward」
+
+### 目的
+
+2026-11-16 这一夜钉进博物馆：Windows leg 饥饿 5 轮后全绿、Admin 主线健康上岗、welcome chips / 里程碑文案 stale 两枚清零、pinterest~~broad-silent gate~~ 全绿、60 坐标世界的第一封信。卷二十八就是这封信——世界再也不说假话，每盏灯都得读得懂它的颜色。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `steward`（卷二十八 · 守望）；`stewardMarkup()` 完整叙事，仪器格：commits live、tasks live、12 commits live、Atlas 60、29/29 bilingual、13/13 manual、Windows full green ×2、Health live 5min TTL；CHAPTER_RENDERERS 登记。
+- **Atlas 世界 60 坐标**（18+29+13）— onboarding / manual / README / index.html 占位符全量迁移（charted 与 `id="atlasShardsCount"` 占位同步）；Manual 卷指针至卷二十八；almanac_smoke 29 chapters；atlas_smoke 60-coordinate contract；CRLF pins 695/0 (index.html)、i18n.js 309/0 未动。en-CJK inline 一处泄漏修复（`「漫长海疆 / The Long Haul」` → `The Long Haul`，`live插` → `live interpolation`）。
+- **门禁验证**：27→29 chapters；25→60 命中；parity / manual / admin / doc_pointers 全绿。

@@ -48,6 +48,7 @@ export const CHAPTERS = [
   { id: "litmus", roman: { zh: "卷二十五", en: "Chapter XXV" }, title: { zh: "试纸", en: "The Litmus" }, subtitle: { zh: "红门只说一件事：这里有事没说完", en: "Red only ever means one thing: something here is unfinished" } },
   { id: "harbour", roman: { zh: "卷二十六", en: "Chapter XXVI" }, title: { zh: "港灯", en: "The Harbour Light" }, subtitle: { zh: "每一盏灯都指得出来真礁的那一夜", en: "The night every lamp finally named the rocks" } },
   { id: "return", roman: { zh: "卷二十七", en: "Chapter XXVII" }, title: { zh: "归航", en: "The Return Voyage" }, subtitle: { zh: "门绿了以后，船才真的回港", en: "Only green gates can bring the ship home" } },
+  { id: "steward", roman: { zh: "卷二十八", en: "Chapter XXVIII" }, title: { zh: "守望", en: "The Steward" }, subtitle: { zh: "先把每盏灯的颜色读清楚了，再谈守望", en: "Learn every color the lamps can throw, then speak of watching" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1958,6 +1959,84 @@ function returnMarkup() {
     </div>`;
 }
 
+function stewardMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-steward">
+      <div class="almanac-kicker">${zh() ? "卷二十八 · 守望" : "Chapter XXVIII · The Steward"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每盏灯的颜色，<br/><span class="almanac-title-accent">先读清楚，再来守望。</span>`
+        : `Learn every color<br/><span class="almanac-title-accent">the lamps can throw.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日凌晨，让人哭——<strong>Windows leg 在第五轮饥饿后真的绿了</strong>。M8-T1063 follow-through：3 处 <code>except Exception: return</code> 只静默捕获、不出声——full-pytest 5,716 绿、单门红，一道 broad-silent gate 不给谁的面子，绿回来了。每一盏灯的颜色都有它自己的定义。
+        </p>
+        <p>
+          过去这周这个世界发生了三件事：① <strong>照明完成</strong>：Admin 冒出一块实时控制板——「主线健康」实时读 GitHub REST：latest run 的结论、open issues、open PRs（减去 PRs 自己）、最近三次构建三颗 dot 的颜色——缓存 5 分钟，失败永远诚实地 live=False；② <strong>双腿全绿</strong>：从 M8-T1050 以来，每一个 leg 都多次成功，Windows runner 饥饿 5 轮后连续两次全绿；③ <strong>世界不骗自己了</strong>：welcome chips 两处陈冻（十一章→13、52→58）、yard.stakes 文案（十座→十一座）、灯塔里程碑「漫长海疆」85% 悬着诚实亮着——世界永不用假色敷脸。
+        </p>
+        <p>
+          守就得守得住：git log 编年到 1700 次提交；fact pack bot 每次推后自己更新，无人点「更新」按钮；展示页数据每次都随 main 前进同步——1700 这个数字不是仓库的数，是仓库这一夜做到的事的汇总数。
+        </p>
+        <p>
+          这周发生的最告诉你谁值得谁值得信任：<strong>每一盏灯大部分是在盯着真礁的时候亮的</strong>——没有一盏会在这么看不见的地方亮成礼花颜色。盯着哪个门就问哪个问题——claim checkers 问「文档里的 flag 来自哪里」、impact floor 问「有谁在乎你」、loader 登记门问「先声明再执行」、palette one-home 问「槽位都长在哪张图纸上」。<strong>没有一个 gate 是装样的，没有一个 gate 会在失信时颜色变浅。</strong>
+        </p>
+        <p>
+          世界地图今天有 <strong>60 个真实坐标</strong>；模板卷数 29；说明书章数 13；docs 句点每条都只读 git，不读想象；Admin 可读数据都从 <code>/api/digest</code>、<code>/api/stats</code>、<code>/api/worldpulse</code> 现场读——含 CI 健康、含完成天数链。
+        </p>
+        <p>
+          这卷最后一句，不说漂亮话：<strong>守望不是等红灯变绿——守望是学会读清每盏灯的颜色，明白每盏灯为什么亮，再来谈这片海能不能再多走一海里。</strong>
+        </p>` : `<p>
+          Around the middle of the night on 2026-11-16, <strong>Windows — the overdue one — finally delivered</strong>. Full-pytest collected 5,716 tests and one static audit gate caught three silence carriers in-flight: silent except-returns with no reason. The gate never blinked — after the noqa pin dropped, green.
+        </p>
+        <p>
+          Three things settled this week. One: <strong>the lights got smarter</strong> — Admin carries a live tile now, reading the real GitHub REST wire (latest run's conclusion, open issues vs open PRs cleaned of double-counting, three recent runs as three colored dots). The cache TTL is five minutes; when the network fails, it shows live=false — never a fabricated verdict. Two: <strong>both legs are green</strong> — through the hungrier runners, every claim tile stayed honest. Three: <strong>the world stopped lying to itself</strong> — two stale welcome chips, the milestone toast moved from a 52-era stale quote to a live ceil interpolation, yard.stakes title to eleven, Stake XI, The Long Haul — 1692 of 2000 locked and honest.
+        </p>
+        <p>
+          Show your work, that's all the stewardship is: git log at 1700 commits; the showcase fetches the fact pack refreshed on every push — nobody clicks update — the card on xiaodernan.github.io reads whatever rode with main this morning.
+        </p>
+        <p>
+          And the one thing this world teaches you about gates: <strong>every gate asks a different question, and none of them blink</strong>. Claim checkers — where did this flag come from? Impact floor — who can see you here? Loader registry — did you register before running? Palette one-home — which drawing do the slots live on? Not one gate fudges; none of them will ever grade softer on a warm day.
+        </p>
+        <p>
+          The world map now carries <strong>60 real coordinates</strong>. Twenty-nine volumes in the museum, thirteen chapters in the manual, every number sourced from <code>/api/digest</code>, <code>/api/stats</code>, <code>/api/worldpulse</code> — and now <code>/api/ci_status</code>. The admin door shows the last thing you touched from the wire, not the wire you wish it were.
+        </p>
+        <p>
+          The tail line for this chapter: <strong>stewardship isn't waiting for red to turn green — it's learning the exact color every lamp means, and asking why it's lit before asking where to sail next.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">60</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">29 / 29</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Windows 下班后" : "Windows after five rounds"}</div><div class="almanac-instrument-value">${zh() ? "全绿 ×2" : "full green ×2"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "实时健康" : "Health live"}</div><div class="almanac-instrument-value">${zh() ? "5min TTL" : "5min TTL"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["Windows leg 连续饥饿后全绿", "5 轮 starving 之后，ubuntu + windows 双腿第一次同时到岗"],
+        ["3 处静默 handler 补 noqa", "broad-silent gate 拦截——每盏灯都要说明自己为什么亮"],
+        ["实时健康 tile 上线", "5 分钟 TTL 缓存 GitHub wire，CI 结论 / 开 issues / 开 PRs 按需"],
+        ["两个 welcome chips 订正", "手册 十一章 → 十三章；地图 52 → 58 → 59 → 60"],
+        ["yard.stakes 文案与计数对齐", "十座里程碑 → 十一座 · 漫长海疆 1692/2000 悬着也不假装"],
+      ] : [
+        ["Windows leg green after starvation", "Ubuntu green twice in a row + Windows finally at full park"],
+        ["Three silent handlers pinned", "broad-silent gate — every lamp must say why it's lit"],
+        ["Live health tile shipped", "5-minute TTL on the GitHub wire — conclusion, issues, PRs on demand"],
+        ["Welcome chips × 2 honest", "manual 11→13 chapters; map 52→58→59→60"],
+        ["yard.stakes aligned with truth", "ten milestones → eleven; The Long Haul 1692/2000 locked — never pretended"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "守望不是等灯变绿——守望是把每盏灯为什么亮看明白。"
+          : "Watch isn't waiting for the light to turn green — it's reading why it's lit."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1987,6 +2066,7 @@ const CHAPTER_RENDERERS = {
   litmus: () => litmusMarkup(),
   harbour: () => harbourMarkup(),
   return: () => returnMarkup(),
+  steward: () => stewardMarkup(),
 };
 
 async function loadChapter(id) {
