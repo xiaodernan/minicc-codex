@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T12:43:29.954Z",
+  "generated_at": "2026-11-16T12:54:41.464Z",
   "branch": "main",
-  "head": "dfb49ae",
-  "total_commits": 1748,
+  "head": "9506224",
+  "total_commits": 1750,
   "recent_commits": [
+    {
+      "short": "9506224",
+      "at": "2026-11-16T20:54:05+08:00",
+      "subject": "M8-T1088: almanac Ch.XL 'The Quota' - the isolated Redis token-bucket night written into the museum (three 120-concurrent bursts at /api/changes: wall 1.72s/0.2"
+    },
+    {
+      "short": "f856129",
+      "at": "2026-11-16T12:43:30Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "dfb49ae",
       "at": "2026-11-16T20:42:16+08:00",
@@ -19,25 +29,15 @@
       "short": "d5ac7fa",
       "at": "2026-11-16T20:26:24+08:00",
       "subject": "M8-T1086: re-verified read plane under load after the consolidation day - three waves against fake-provider 127.0.0.1:8899 (c=24 cold cohort n=191 0 errors, /ap"
-    },
-    {
-      "short": "9db9c73",
-      "at": "2026-11-16T12:20:46Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "2e5ee4b",
-      "at": "2026-11-16T20:20:08+08:00",
-      "subject": "M8-T1085: almanac Ch.XXXIX 'The Blackout Drill' - the full-suite marathon written into the museum (4680s local run: 5701 passed / 12 skipped / 3 red: 1 real (7 "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 399,
+  "roadmap_batches": 400,
   "changelog_entries": 1,
-  "roadmap_lines": 54024,
+  "roadmap_lines": 54037,
   "tracked_files": 1085,
   "test_files": 716,
-  "almanac_chapters": 40,
+  "almanac_chapters": 41,
   "module_count": 14,
   "feature_surface": [
     "workbench",
