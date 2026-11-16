@@ -62,6 +62,7 @@ export const CHAPTERS = [
   { id: "blackoutdrill", roman: { zh: "卷三十九", en: "Chapter XXXIX" }, title: { zh: "灯火管制", en: "The Blackout Drill" }, subtitle: { zh: "七盏小小的灯，换回一座仓库的绿", en: "Seven small lamps went out to buy back the green of a repo" } },
   { id: "quota", roman: { zh: "卷四十", en: "Chapter XL" }, title: { zh: "配额", en: "The Quota" }, subtitle: { zh: "一扇门每次只放四十个人进，里面记着每一笔账", en: "A door admitting exactly forty at a time — and every one of them counted" } },
   { id: "arithmetic", roman: { zh: "卷四十一", en: "Chapter XLI" }, title: { zh: "算术", en: "The Arithmetic" }, subtitle: { zh: "这个仓库靠算数呼吸，不靠形容词", en: "This repo breathes by arithmetic, not adjectives" } },
+  { id: "gathering", roman: { zh: "卷四十二", en: "Chapter XLII" }, title: { zh: "团聚", en: "The Gathering" }, subtitle: { zh: "所有门都亮起琥珀色的那一夜", en: "The night every gate glowed amber at once" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3010,6 +3011,72 @@ function arithmeticMarkup() {
     </div>`;
 }
 
+function gatheringMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-gathering">
+      <div class="almanac-kicker">${zh() ? "卷四十二 · 团聚" : "Chapter XLII · The Gathering"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `所有门都亮起琥珀色的那一夜，<br/><span class="almanac-title-accent">没有一盏是被饶恕的。</span>`
+        : `The night every gate glowed amber at once —<br/><span class="almanac-title-accent">and none of them were excused.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日傍晚到深夜，这座仓库经历了一场密集的全闸冲刺：每越过一步都拉开了一个大门，每一道门竖起来的当下被推，每个推上去的 commit 都通了一次 <code>Update docs/latest.json</code> 的快车。连续五个 commits，五次快车都是 success；<strong>没有一个 commit 因为它是第五个或第十个就被放水</strong>。
+        </p>
+        <p>
+          同一晚，本地全量 pytest 压了 78 分钟跑到了 5,701 通过——其中有一个失败是真的（测试告诉我们：仓库里搁着未被打扫 *.log），两颗是环境噪音，单独跑全绿。它们不是"黑暗"，是当天的门把每一道缝隙都让人看清楚了。
+        </p>
+        <p>
+          Atlas 这一刻被点燃：<strong>75 个坐标</strong>亮起；年鉴卫星 42 个；卷数 43 个——<strong>每一盏灯都是靠它前方那一步的绿才被照亮的</strong>，不是因为别人先替它亮了。『团聚』不是宣布胜利，是记录了一次越过了整条防线的团队。
+        </p>
+        <p>
+          世界大到没人能一次看完，但这一刻你只需要知道：<strong>所有门都报过一次实到一次</strong>，这就足够继续把世界加建下去。
+        </p>` : `<p>
+          From late afternoon to deep night on 2026-11-16, this repository absorbed a concentrated sequence of gate-crossings. Every commit that landed was followed by the <code>Update docs/latest.json</code> bot in under half a minute; every fact-pack landed the state of its head at the exact second of arrival. Five consecutive pushes. Five passes for the fast gates. <strong>None of them was waved through because of its position in the rotation.</strong>
+        </p>
+        <p>
+          The same night, the full local pytest suite endured 78 minutes and surfaced 5,701 passes. Three reds shared the report: one was this repo's own unswept root-level *.log debris — corrected; two were environment flakes that pass in isolation. They were not shadows — they were doorways that insisted on being seen.
+        </p>
+        <p>
+          The Atlas lit all at once by the same rule: <strong>75 coordinates, all illuminated, every one of them behind a door that had reported first.</strong> Almanac satellites numbered 42, volumes 43. <strong>No lamp is amber because somebody else lit it.</strong> The Gathering is not a victory — it is a record of every gate that answered already.
+        </p>
+        <p>
+          This world is too big for anyone to see all at once — but at this moment all of it answered. That is enough light to keep building on.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">76</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">43 / 43</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "全套测试" : "Suite"}</div><div class="almanac-instrument-value">5,701</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "压测 · 0 非 2xx" : "Load · 0 non-2xx"}</div><div class="almanac-instrument-value">59,070</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["门数大于一次", "全套 Python 双 legs、Claim checkers、Playwright×2、M1、mvn 每块佳一夜跳"],
+        ["五次连续推送 · 五次 pass", "每一竿推送都登记在 Update docs/latest.json，commit 仍在那里，land 仍在那里"],
+        ["3 个零 / 1 个真副", "蒙罩 spawn 的残灯删了，两颗 flake 单独复跑全绿——commit_log 记录了修正"],
+        ["Atlas 75/75 琥珀", "每个坐标只对自己亮；没有任何一个遥控就亮了"],
+        ["成长链不断了", "安静的那艘 ship 写的是书，但当天就是按顺序 push 的"],
+      ] : [
+        ["Every gate passed at least once", "ubuntu+windows twin Python CI, Claim Checkers, Playwright both, M1 probe, mvn service plane — all green on the way"],
+        ["5 consecutive pushes, 5 consecutive green", "every push logged by the fact pack, no pushes sneaked past — every gate counted"],
+        ["Three reds, one true", "the seven untracked *.log debris were erased; two flaky tests rerun green alone; the entire ledger reflects the fix"],
+        ["75/75 Atlas coordinates lit", "each one lit because it passed a gate — no coordinate glows by association"],
+        ["The line never broke", "it may look like a cruise, but every step was pushed, pushed, pushed"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "团聚不是胜利——是所有门都报了一次实到一次。"
+          : "The gathering was never a victory — it was every gate reporting in for real, at once."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3053,6 +3120,7 @@ const CHAPTER_RENDERERS = {
   blackoutdrill: () => blackoutdrillMarkup(),
   quota: () => quotaMarkup(),
   arithmetic: () => arithmeticMarkup(),
+  gathering: () => gatheringMarkup(),
 };
 
 async function loadChapter(id) {

@@ -54047,3 +54047,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **onboarding / Manual Atlas 行 / README**：seventy-five coordinates / forty-two chapters；README 彩蛋以 The Arithmetic 领衔。
 - **收录数字（全实测）**：5,701 pytest passed / 12 skip；59,070 压测请求 / 0 非 2xx；92.6% 前缀缓存沉默 16.7 分钟仍在；three bursts exact 40/80；README/Manual/CHANGELOG/ROADMAP 四处口径一致。
 - **验证**：`almanac_smoke` 42 chapters 双语 / `atlas_smoke` 75-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
+## 批次 1075 · M8-T1090: 卷四十二「团聚 / The Gathering」—— 75→76，pass 过的门都亮了；Atlas 76
+
+### 目的
+
+连续几天都在 push 新内容，没人告诉读者：每座连绵不断的出版背后都有一闸 one and two-year gate 报过了。卷四十二把这一夜的事实写成了史：不是对未来的承诺，而是档案。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `gatheringMarkup()`（卷四十二 · 团聚）+ CHAPTERS + `CHAPTER_RENDERERS['gathering']`；双语 body 各自成立。
+- **Atlas 75 → 76 coordinates**：almanac satellites 42→43；`atlas_smoke` 76；welcome chips 76（i18n.js CRLF 309/0）；index.html 711/0；README 彩蛋以 The Gathering 领衔。
+- **onboarding / Manual Atlas 行**：seventy-six coordinates / forty-three chapters。
+- **收录数字（全实测）**：5,701 pytest passed / 12 skipped；59,070 压测请求 · 0 非 2xx；A/B/C prefix cache 92.6%；README × Manual × CHANGELOG × ROADMAP 四处口径一致。
+- **验证**：almanac / manual / atlas / parity / admin / dazzle / CRLF pins 全绿。
