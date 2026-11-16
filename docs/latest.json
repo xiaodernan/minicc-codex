@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T02:01:49.025Z",
+  "generated_at": "2026-11-16T02:48:03.557Z",
   "branch": "main",
-  "head": "1afca76",
-  "total_commits": 1704,
+  "head": "1ce5a97",
+  "total_commits": 1707,
   "recent_commits": [
+    {
+      "short": "1ce5a97",
+      "at": "2026-11-16T10:47:29+08:00",
+      "subject": "M8-T1067: almanac Ch.XXX 'The Tide' - asymmetric-beat narrative (almanac fastest / manual slowest / fresh parallel growth), 62 coordinates flywheel, 31 volumes "
+    },
+    {
+      "short": "ee9e733",
+      "at": "2026-11-16T10:40:05+08:00",
+      "subject": "M8-T1066: dazzle - real user behavior in CI: impatient (open and bounce within a second), lost-user (all 12+ nav destinations, 500ms each, Esc-bounce) and dazzl"
+    },
+    {
+      "short": "86c95a6",
+      "at": "2026-11-16T02:01:49Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1afca76",
       "at": "2026-11-16T10:01:13+08:00",
@@ -14,30 +29,15 @@
       "short": "8011d97",
       "at": "2026-11-16T01:21:16Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "245c476",
-      "at": "2026-11-16T09:20:41+08:00",
-      "subject": "M8-T1064: almanac Ch.XXVIII 'The Steward' - the night the queue finally delivered (Windows leg greens after 5 rounds of starvation) + admin mainline health live"
-    },
-    {
-      "short": "373348f",
-      "at": "2026-11-16T00:42:27Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f6227d9",
-      "at": "2026-11-16T08:41:57+08:00",
-      "subject": "M8-T1063 follow-through: broad-silent gate - 3 'except Exception' handlers in ci_health.py silently returned without reason; noqa BLE001 with honest why (errors"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 377,
+  "roadmap_batches": 379,
   "changelog_entries": 1,
-  "roadmap_lines": 53743,
-  "tracked_files": 1082,
-  "test_files": 715,
-  "almanac_chapters": 30,
+  "roadmap_lines": 53766,
+  "tracked_files": 1083,
+  "test_files": 716,
+  "almanac_chapters": 31,
   "module_count": 14,
   "feature_surface": [
     "workbench",
