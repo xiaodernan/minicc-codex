@@ -53786,3 +53786,14 @@ Mega-spec §五 重发：「修复前端的不合理之处：字体的变形、�
 - **`.thread-list` 被改为 `flex: 1 1 0%`**（本来 `1 1 auto`）→ 让位给 sidebar-bottom；同时 `min-height: 156 → 64 → 56`。
 - **`.nav-item` height（in `@media (max-height: 900px)`）26 → 24**（每行省 2px × 12 说明书条目 = 24px）。
 - **`@media (max-height: 790px)`** 新增：隐藏 `.streak-chip`（h ≈ 28px） → 侧栏再节约。.
+## 批次 1055 - M8-T1070: 年鉴第三十二卷「萤 / The Firefly」
+
+### 目的
+
+Ch.XXXI 把两腿全绿钉进了博物馆，Ch.XXXII 钉 Next — 这一次不是 Cyberwarn 那一条线，是「每一盏灯怎么把自己点亮」。萤火虫跳不出自己的优雅之外——所以它是历史见证最合适的名字。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `firefly`（卷三十二 · 萤 / Chapter XXXII · The Firefly）；`fireflyMarkup()`；instrument 格：commits live 1711 / tasks live / Atlas 64 / 33·33 bilingual / 13·13 manual / Dazzle en+zh / Windows 2× 全绿；CHAPTER_RENDERERS 登记。
+- **Manual 最新卷改卷三十二**；Almanac smoke 33 chapters；Atlas 64-coordinate contract；en-CJK parity 绿；Welcome chip 64；Manual/README/onboarding 同步。
+- **门禁验证**：6 smokes 全绿；CRLF pins 不变（index.html 711 / i18n.js 309）。

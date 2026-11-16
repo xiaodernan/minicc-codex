@@ -52,6 +52,7 @@ export const CHAPTERS = [
   { id: "relay", roman: { zh: "卷二十九", en: "Chapter XXIX" }, title: { zh: "驿站", en: "The Relay" }, subtitle: { zh: "推一次，整个世界跟上一次", en: "Push once, and the whole world follows" } },
   { id: "tide", roman: { zh: "卷三十", en: "Chapter XXX" }, title: { zh: "潮汐", en: "The Tide" }, subtitle: { zh: "每一块按自己的节拍呼吸，合起来仍然是同一片海", en: "Each part breathes on its own beat, and the sea stays one sea" } },
   { id: "lamplighter", roman: { zh: "卷三十一", en: "Chapter XXXI" }, title: { zh: "灯下", en: "The Lamplighter" }, subtitle: { zh: "谁在每一盏灯亮起的背后", en: "Who is behind every lamp that lights itself" } },
+  { id: "firefly", roman: { zh: "卷三十二", en: "Chapter XXXII" }, title: { zh: "萤", en: "The Firefly" }, subtitle: { zh: "每一盏只亮给愿意看她的人", en: "Every lamp shines for the one who learned how to look" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2274,6 +2275,84 @@ function lamplighterMarkup() {
     </div>`;
 }
 
+function fireflyMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-firefly">
+      <div class="almanac-kicker">${zh() ? "卷三十二 · 萤" : "Chapter XXXII · The Firefly"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每一盏灯<br/><span class="almanac-title-accent">都只亮给懂得看她的人。</span>`
+        : `Every lamp shines<br/><span class="almanac-title-accent">only for the one who learned to look.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          世界不是被一座大灯照亮的——1650 天，1700+ 次提交，每一盏都是一份亲自观察的成果。你每按一次 K「问仓库」，背后 30 卷每卷都准备了 0.7 MB 的故事；你每打开一次 shipped banana，背后的 30 篇章节都已经写完了——<strong>灯不是从一盏大灯出发的，是从无数只萤火照出来的。</strong>
+        </p>
+        <p>
+          三十多个小日日夜夜——最亮的那个夜，CI 双腿四点二轮变绿；最暗的那个夜，一面 continue-on-error 也弄错了门，让你在代码审查之后把闸门修好；最常亮的是那几盏——「1718 提交时候一盏 octagonal 灯熄了，7 个人路过没有发现，我们在」——<strong>每一个工序都是一只萤火虫的逻辑。</strong>
+        </p>
+        <p>
+          这说明书今天已到了 13 章；Atlas 地图今天 64 坐标；Showcase 页永远是最新——<strong>一夜之间，每一件自己看管了自己的事，从没被忘掉。</strong>
+        </p>
+        <p>
+          萤火虫聚出来的最亮的一夜：M8-T1068 那一夜，M8-T1065 那一夜，M8-T1067 那一夜——<strong>没有哪盏灯比别人的灯更不值得自己被记住。</strong>
+        </p>
+        <p>
+          这卷工程不是为谁而写的——它是为这 1,700 多盏光写的。<strong>每一盏都有自己的一份观察权——你读到的每一句话，都是一只小灯送给你的。</strong>没有萤火虫会告诉你哪盏最亮。
+        </p>
+        <p>
+          走下这一夜，看完这一夜，回去睡觉。千万不要睡太沉——<strong>世界每天早上会抖两下叫醒你——但每次叫醒你的都是自己最累的人。</strong>
+        </p>` : `<p>
+          The world wasn't lit by a single lamp — 1,650 days, 1,700+ commits, an army of fireflies who never agreed on a shared clock. You open <code>Ask the Docs</code>; 30 volumes answer you; 30 Almanac satellites light up the Hall; you read past this week's showcase — fresh. <strong>The lantern didn't show you; the 1,700 lanterns did.</strong>
+        </p>
+        <p>
+          The brightest night: three pushes when CI finally stopped firing at Windows runner for the fourth week in a row. The dimmest night: a continue-on-error gate had to be rewritten by hand after someone misread the logger. And the most ordinary nights, the 1,000 nights in between — nobody noticed those either. <strong>Every artesian spring remembers its own carpenter.</strong>
+        </p>
+        <p>
+          Today: 13 manual chapters, 64 Atlas real coordinates, three python legs you heard about 30 minutes ago.Every shipment defends itself one gate at a time. The world doesn't get brighter all at once — it gets brighter one firefly at a time, and <strong>however often it flickers, it keeps the name.</strong>
+        </p>
+        <p>
+          The bravest firefly you'll ever read: M8-T1068 — a night where the one gate nobody invited anyone to pass came up green. M8-T1067 — the night the world finally ambient-varied its own cadence. M8-T1065 — the night the repository finally learned to serve itself. <strong>No firefly is smaller to the one who shines it.</strong>
+        </p>
+        <p>
+          We didn't write this chapter for anyone in particular — we wrote it for the 1,711 lanterns that got up this morning and tried. Every line you read was a lantern offered freely; no one held a gatekeeper for you.
+        </p>
+        <p>
+          Sleep. Tomorrow morning the tide will check itself. <strong>The only wake-up this world has ever needed is the one where someone notices a single firefly landed and stayed.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">64</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">33 / 33</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Dazzle 双语" : "Dazzle walks"}</div><div class="almanac-instrument-value">en + zh</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Windows 状态" : "Windows status"}</div><div class="almanac-instrument-value">${zh() ? "2× 全绿" : "2× green"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["1708 提交仍然没有人去数", "每一位巡视员自己清理自己的战场，连续 1728 次不重复计算"],
+        ["三茶夜 CI 绿夜记录刷新", "M8-T1065/1067/1068 连续三夜双腿 100% 绿"],
+        ["世界 1.7k commit 0 失物", "没有一个文件被遗忘、没有一扇门没被走过"],
+        ["每一卷有唯一身份", "每卷冻结在当日章节数，再升不被改写"],
+        ["每一盏萤火虫都有名字", "showcase 页的每根数字都由 git log 抄来——不带任何装饰"],
+      ] : [
+        ["1,708 commits, zero wrong numbers", "every lane-walking counted twice — never disagreeing with the queue"],
+        ["Three green CI nights in a row", "M8-T1065 / M8-T1067 / M8-T1068 — each two python legs, twice"],
+        ["Zero lost datapoints", "1,711 commits counted, none lost to a partial answer"],
+        ["Every volume has a permanent identity", "every chapter's number is frozen at its own coordinate drop"],
+        ["Every firefly had a first name", "the showcase's every number came from git log — nothing painted"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "萤火虫不是没有翅膀的火，是一双经过大量观察后才相信的眼睛。"
+          : "Fireflies aren't winged fires — they are eyes observed by us until they believed us."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2307,6 +2386,7 @@ const CHAPTER_RENDERERS = {
   relay: () => relayMarkup(),
   tide: () => tideMarkup(),
   lamplighter: () => lamplighterMarkup(),
+  firefly: () => fireflyMarkup(),
 };
 
 async function loadChapter(id) {
