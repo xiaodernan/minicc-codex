@@ -214,13 +214,26 @@ def _disk_bytes(path: Path) -> int:
         if cached is not None and now - cached[0] < _DISK_TTL_SECONDS:
             return cached[1]
         total = 0
-        for dirpath, _dirs, files in os.walk(path):
-            for name in files:
-                try:
-                    total += (Path(dirpath) / name).stat().st_size
-                except OSError:
-                    # A file vanished mid-walk; count what we saw, skip silently.
-                    continue
+        # scandir beats Path-per-file: one directory read per dir and the
+        # DirEntry cache on Windows saves ~2/3 of the syscalls. Identical
+        # semantics (file sizes, symlinks resolved, vanished files skipped).
+        stack = [str(path)]
+        while stack:
+            current = stack.pop()
+            try:
+                entries = os.scandir(current)
+            except OSError:
+                continue
+            with entries:
+                for entry in entries:
+                    try:
+                        if entry.is_file():
+                            total += entry.stat().st_size
+                        elif entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                    except OSError:
+                        # A file vanished mid-walk; count what we saw, skip silently.
+                        continue
         _disk_cache[key] = (now, total)
         return total
 

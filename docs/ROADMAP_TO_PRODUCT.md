@@ -54282,3 +54282,13 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Atlas 86 → 87 coordinates**：almanac satellites 49→50；`atlas_smoke` 87；`index.html` 711/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量计数 50 Halls、87 坐标、年鉴（50 卷）；README 加 The Live Wire 领衔。
 - **验证**：`almanac_smoke` 50 chapters 双语 / `atlas_smoke` 87-coordinate / manual_smoke 19 / stategraph_smoke / parity en zero CJK / dazzle en+zh / admin。
+## 批次 1094 · M8-T1116: `/api/stats` 冷路径走查 5.2× 提速（scandir）
+
+### 目的
+
+压测实拍暴露的单路径之王：322MB `.minicc` 树走查把 `/api/stats` 压到 p50 ≈ 12.9s。
+
+### 做了什么
+
+- `minicc/stats.py::_disk_bytes`：`os.walk` + `Path.stat` 逐文件 → `os.scandir` 栈式走查 + `DirEntry` 目录缓存；语义一致（同 372.8 MB / 8738 files）；冷走查 2.97s → 0.57s；`gather()` 17.6s → 1.25s。
+- 实拍复验：c=50 × 12s → 8,820 次请求 0 非 2xx；`/api/stats` p50 9.5ms。
