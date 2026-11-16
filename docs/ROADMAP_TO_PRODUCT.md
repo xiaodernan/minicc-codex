@@ -54073,3 +54073,17 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **README / Manual / Onboarding**：11/13 岛屿数字同步；冻结章节 almanac 不回改（12 是它们落笔时的真实）。
 - **`tests/atlas_smoke.mjs`**：islands ledger 契约改为 13（rows · districts · log）。
 - **坐标**：±0（坐标 = 18 面板 + 43 卷年鉴卫星 + 15 章说明书 = 76）。
+## 批次 1077 · M8-T1092: 卷四十三「神谕 / The Oracle」—— 让模型亲笔写一页年鉴，Atlas 77
+
+### 目的
+
+长期规格里坚持要"彻底、深度地发挥大模型 API"——本卷不是让模型作一句点评，而是让它**真正写一次年鉴正文**，接受审计后再收进仓库。
+
+### 做了什么
+
+- `.venv\Scripts\python.exe` 调新 lane：HTTP 200；usage 实测：`{ prompt_tokens: 4683, completion_tokens: 178, total_tokens: 4861, prompt_tokens_details: {} }`（**不回传 cached_tokens**，原话诚实）。`docs/ORACLE_DRAFT.md` + `output/oracle_draft_usage.json` 留证。
+- 中文支线整段原封不动贴入 `oracleMarkup()`；英文支线按完全相同的 digest 数字重建。所有数字来自 `/api/digest`（1757/43/403/1085/2026-08-24/5257754）。
+- `web/src/panels/almanac.js`：`oracleMarkup()` + CHAPTERS + `CHAPTER_RENDERERS['oracle']`。
+- **Atlas 76 → 77 coordinates**；welcome chips 77（i18n.js CRLF 309/0）。
+- **验证**：`almanac_smoke` 44 chapters 双语（正文严格原文 + 严格审计）/ `atlas_smoke` 77 / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
+- `.env` 保持 gitignored；prompt 绝不携带 sk- 片段，回复绝不回显 key；`.env` 内 proxy 走 Clash Verge 7897。

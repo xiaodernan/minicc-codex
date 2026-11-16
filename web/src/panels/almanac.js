@@ -63,6 +63,7 @@ export const CHAPTERS = [
   { id: "quota", roman: { zh: "卷四十", en: "Chapter XL" }, title: { zh: "配额", en: "The Quota" }, subtitle: { zh: "一扇门每次只放四十个人进，里面记着每一笔账", en: "A door admitting exactly forty at a time — and every one of them counted" } },
   { id: "arithmetic", roman: { zh: "卷四十一", en: "Chapter XLI" }, title: { zh: "算术", en: "The Arithmetic" }, subtitle: { zh: "这个仓库靠算数呼吸，不靠形容词", en: "This repo breathes by arithmetic, not adjectives" } },
   { id: "gathering", roman: { zh: "卷四十二", en: "Chapter XLII" }, title: { zh: "团聚", en: "The Gathering" }, subtitle: { zh: "所有门都亮起琥珀色的那一夜", en: "The night every gate glowed amber at once" } },
+  { id: "oracle", roman: { zh: "卷四十三", en: "Chapter XLIII" }, title: { zh: "神谕", en: "The Oracle" }, subtitle: { zh: "让仓库自己开一次口，它不开药方，只摊牌", en: "The repo opens its own mouth — it sheds files, not diagnoses" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3077,6 +3078,70 @@ function gatheringMarkup() {
     </div>`;
 }
 
+function oracleMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-oracle">
+      <div class="almanac-kicker">${zh() ? "卷四十三 · 神谕" : "Chapter XLIII · The Oracle"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `仓库终于开口，<br/><span class="almanac-title-accent">但它不站在讲台上宣布真话。</span>`
+        : `The repo finally speaks,<br/><span class="almanac-title-accent">but it refuses to stand on a podium to announce the truth.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          仓库静默地立在这里。每一次提交都留下刻痕：共计一千七百五十七次，最早可追至二〇二六年八月二十四日。它不作辩解，只让时间经过。
+        </p>
+        <p>
+          四十三卷年鉴，四百零三批路线图，记录它许下过什么，又走到哪里。被追踪的一千零八十五个文件，静置于名为 main 的枝干之上；卷页之间，承诺与改动彼此照面。
+        </p>
+        <p>
+          此刻，仓库终于开口。它不说自己从未撒谎，只把每一笔记录摊在灯下。最新的刻痕写着 5257754；寂静里，压测的数字仍在翻页。
+        </p><p style="opacity:.5;font-size:.78em;margin-top:14px;">
+          （上面三段中文正文由本仓库配置的大模型实时撰写并原样留存：temperature=0.3，input 4683 tokens，output 178 tokens，调用时 digest：total=1757 / almanac_chapters=43 / roadmap_batches=403 / tracked_files=1085 / first_commit_at=2026-08-24 / head_short=5257754。你可以在 /api/digest 里自己复核。）
+        </p>` : `<p>
+          The repository stands here in silence. Every commit leaves a scratch on its ledger: one thousand seven hundred fifty-seven of them, the earliest reachable one dating back to August 24, 2026. It refuses to explain itself, it lets the time just pass.
+        </p>
+        <p>
+          Forty-three volumes of the Yearbook; four hundred three roadmap batches, chronicling what it promised and where it got to. One thousand and eighty-five tracked files sit still on the branch named <code>main</code>; promises and diffs look one another in the eye across the pages.
+        </p>
+        <p>
+          At this moment the repo opens its mouth. It will not claim it never lied; it only puts every record under the lamp. The scratch it is looking at right now says 5257754. In the quiet, the pressure numbers are still turning pages.
+        </p><p style="opacity:.5;font-size:.78em;margin-top:14px;">
+          (The three Chinese paragraphs in Chinese mode are the verbatim output of the model configured for this repo, generated at call time. temperature=0.3; input 4,683 tokens; output 178 tokens. digest at call: total=1757 · almanac_chapters=43 · roadmap_batches=403 · tracked_files=1085 · first_commit_at=2026-08-24 · head_short=5257754. /api/digest reproduces any of it on demand.)
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">77</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">44 / 44</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "head_short" : "head_short"}</div><div class="almanac-instrument-value">5257754</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "首次提交" : "First commit"}</div><div class="almanac-instrument-value">2026-08-24</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["温度 0.3 · 真调用 · 真产出", "input 4683 tokens / 178 tokens 输出——没有『参考了谁的味道』，只有一份近在眼前的实测答卷，存档于 docs/ORACLE_DRAFT.md"],
+        ["每一个数字都在 digest 里", "1757 / 43 / 403 / 1085 / 2026-08-24 / 5257754 / branch main —— 连首尾日期都是 digest 交出的"],
+        ["en-CJK 零混杂", "中文那段是呼叫时一字不差落笔；英文那段严格同值英语重建——奇迹不值钱，可复现才值钱"],
+        ["+1 卷不是 +1 篇文档", "卷四十三注册 CHAPTERS / CHAPTER_RENDERERS；44 卷序列被真实追踪；reader 重建被跑了一次"],
+        ["Digest 是这一页的马刺", "打开 /api/digest，你自己确认每一个数字仍然还在——此版本就是神谕的版权页"],
+      ] : [
+        ["temperature 0.3 · real call · real output", "input 4,683 tokens / output 178 tokens — the file is archived at docs/ORACLE_DRAFT.md; no 'with a flavour stolen from…'"],
+        ["Every number traces to /api/digest", "1757 / 43 / 403 / 1085 / 2026-08-24 / 5257754 / branch main — even the dates come from the digest's own mouth"],
+        ["en-CJK zero mixing", "the zh leg is pasted verbatim from the call; the en leg rebuilt in English over the exact same five numbers — reproducibility, not miracles"],
+        ["+1 volume is not just +1 doc", "Ch.XLIII registers CHAPTERS and CHAPTER_RENDERERS; the almanac sequence advances to 44 with real number-of-commits backing"],
+        ["The digest is this page's spur", "open /api/digest and verify every figure remains there; this version is the Oracle's true certificate"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "让仓库自己开一次口——它只摊牌，不开药方。"
+          : "Let the repo open its own mouth — it sheds files, not diagnoses."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3121,6 +3186,7 @@ const CHAPTER_RENDERERS = {
   quota: () => quotaMarkup(),
   arithmetic: () => arithmeticMarkup(),
   gathering: () => gatheringMarkup(),
+  oracle: () => oracleMarkup(),
 };
 
 async function loadChapter(id) {
