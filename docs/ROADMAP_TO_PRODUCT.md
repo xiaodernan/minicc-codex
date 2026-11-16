@@ -53942,3 +53942,20 @@ M8-T1080 是三行 CSS 的修复，但它来自一整套方法——截图、定
 - **onboarding / Manual Atlas 行 / README**：seventy-one coordinates / thirty-eight halls；README 彩蛋以 The Negative Space 领衔。
 - **验证**：`almanac_smoke` 38 chapters 双语 / `atlas_smoke` 71-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / CRLF pins。
 - **告示**：不动 M8-T1080 冻结基线；Atlas 70→71 bookkeeping 全部随行同步；无密钥入库。
+## 批次 1067 · M8-T1082: 分支与工树整合——29 工树 → 7，全部救援保全，不盲并
+
+### 目的
+
+总指令第二项：多个工作分支与 worktree 合并收拢，主分支集大成，并轨内容接手做完。
+
+### 做了什么
+
+- **取证先行**：`git cherry main <branch>` 对 4 个疑似未并分支逐条判定（51/51 `+` 的 `dev/minicc-reliability-4ba3` 不硬并；KI-544/545 主题仅在此分支，待后续审计）。
+- **13 个脏工树先救援**：`plane715`（`f59dca55`）、`minicc-dev-4ba3`（`7988dc4d`）、`plane195`（`7ca47cfc`）、`plane196`（`6b93a90b`，`.arm527/` 未跟踪）、`plane_sdist`（`e9a8dac`）、`t544-plane`（`2b7803bd`）、`wt353`（`059c5c0`）、`wt379`（`033e26f`）、`wt470`（`44517cc`）、`wt478par`（`800369c`）、`wt519pre`（`e179505`）、`wt529`（`89f159d`）、`wt537`（`6674b9b`）——全部 `chore(rescue)` commit，`rescue/*` 分支锚定。
+- **12 个 detached `wt*` 纯 EOL 噪声**（`git diff --ignore-cr-at-eol` 为空）→ `git worktree remove --force`；**3 个 scratch 工树 clean 且完全并入 main**（plane-cloud/plane716/plane718）→ 删除 + 分支 `-d`。
+- **留放**：`.arm527/` 为 agent scratch，保留未跟踪；远程分支不擅删；`main` 不吸收 rescue 提交。
+- `docs/CONSOLIDATION_AUDIT.md` 全表入档；docs/INDEX.md 同步。
+
+### 后续（下一批）
+
+rescue 分支按优先级复审：wt537（retrieval/audit/permissions/snapshots）→ wt353（session sidecar lock）→ t544-plane（doc_pointers）→ wt519pre。
