@@ -151,3 +151,23 @@ It does not have a `name` field.
 - 冷启动 73.7%（4224/5729）：全新 lane key + 全新 shard，首次调用从未分到全量片区；与 2026-11-15 基线一致（冷启动 0% 是无 key 时代的魔咒；73% 是**有 key 但 shard 尚热的第一次**——key 越早建越早热）。
 - `store=False` 同穿：wkapi 在流式路径下真实回传 `input_tokens_details.cached_tokens`，无需留存响应。
 - 本轮验证的不是「缓存能工作」——这一点 2026-11-10 起已经烂熟于心——而是**M8-T1038 之后，修好的流式原路径仍然记账**：数字来自 Responses 事件栏的 `response.completed.usage`，与生命周期内逐 token 入账的每一行 usage 链一致。atomic 原子路径并进来之后缓存亲和性没有被稀释。
+
+---
+
+## 2026-11-16 新 lane 迁移：api.aizzz.xyz · gpt-6.1-terra · 从本机区域不可达
+
+用户表示把项目默认 endpoint 迁到新的 gateway（`https://api.aizzz.xyz/v1` · key sk-…（local .env only —— never committed）· 模型 `gpt-6.1-terra`），希望后续测量走新 lane。
+
+**实测：从本机区域连续 6 次探针全部返回 HTTP 403**，响应体一字不差：
+
+```
+本站不对您所在的国家及地区进行商业服务
+```
+
+探针覆盖：`GET /v1/models`、`GET /`、`GET /`（openssl/urllib SNI）、OpenAI SDK 的 `/chat/completions`、OpenAI SDK 的 `/responses`（`scripts/measure_cache_affinity.py`, stream=true）、urllib direct。结论一致：**当前节点不允许本机地理区域使用**。这不是密钥问题——同一 sk key 在任何 path 上都吃 403。
+
+**处置**：
+- `.env` 保留新 endpoint（用户指定的默认值，优先级最高）。
+- 历史 wkapi.pro · gpt-6-sol 数据保留作对比基线，不追溯篡改（测量时间戳是 2026-11-10/15 的记录）。
+- 一旦一个能从本机区域访问的 endpoint / 模型变为可用，`scripts/measure_cache_affinity.py` 再跑一次即可获得新 hitch 率——它会自动使用 `.env` 或进程环境变量；probe key 默认不存在。
+- **不自动回退到 wkapi.pro**：用户未要求，避免替他决定测哪个 lane；他的 key/base/model 意思明确——新节点就是新节点。
