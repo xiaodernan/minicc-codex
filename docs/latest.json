@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T21:56:12.570Z",
+  "generated_at": "2026-11-16T22:14:20.970Z",
   "branch": "main",
-  "head": "468a8f3",
-  "total_commits": 1804,
+  "head": "0eb9208",
+  "total_commits": 1806,
   "recent_commits": [
+    {
+      "short": "0eb9208",
+      "at": "2026-11-17T06:13:23+08:00",
+      "subject": "M8-T1117: almanac Ch.L 'The Surge' - the textbook profile-then-rewrite of /api/stats (cProfile 87% in _disk_bytes; scandir stack; byte-identical ledger; /api/st"
+    },
+    {
+      "short": "fb946cc",
+      "at": "2026-11-16T21:56:12Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "468a8f3",
       "at": "2026-11-17T05:55:30+08:00",
@@ -19,25 +29,15 @@
       "short": "92bc1b1",
       "at": "2026-11-17T05:40:13+08:00",
       "subject": "M8-T1115: almanac Ch.XLIX 'The Live Wire' - the panel that reads the repo instead of retelling it; the 3-line panelVersion bug told honestly; Atlas 86->87 (alma"
-    },
-    {
-      "short": "edfaad7",
-      "at": "2026-11-16T21:18:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3fca105",
-      "at": "2026-11-17T05:17:16+08:00",
-      "subject": "M8-T1114: ledger for M8-T1113 root scratch evictions (changelog + roadmap)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 421,
+  "roadmap_batches": 422,
   "changelog_entries": 1,
-  "roadmap_lines": 54295,
+  "roadmap_lines": 54307,
   "tracked_files": 1088,
   "test_files": 718,
-  "almanac_chapters": 50,
+  "almanac_chapters": 51,
   "module_count": 14,
   "feature_surface": [
     "workbench",
