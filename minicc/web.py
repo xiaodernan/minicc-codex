@@ -3489,6 +3489,16 @@ class AgentService:
 
         return self._memo_http("digest", 30.0, lambda: build_digest(self.workspace))
 
+    def admin_summary(self) -> dict[str, Any]:
+        """15s-memo of the admin fact pack — the same payload ``/api/admin/summary``
+        serves. The admin panel unlock does one hot read; a 7-day analysis of audit
+        lines/sessions/cache is being rebuilt otherwise on every call in the same minute.
+        Never raises; degrades to the best honest answer on failure.
+        """
+        from .admin import build_summary
+
+        return self._memo_http("admin_summary", 15.0, lambda: build_summary(self.workspace))
+
     def stats(self) -> dict[str, Any]:
         """The read-only operational inventory for ``/api/stats``.
 

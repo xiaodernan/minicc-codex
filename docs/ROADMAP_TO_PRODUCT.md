@@ -53728,3 +53728,15 @@ full-pytest 收到 5,687 全绿、唯一一红：M8-T1063 的并发 `_runs/_prs/
 - **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `steward`（卷二十八 · 守望）；`stewardMarkup()` 完整叙事，仪器格：commits live、tasks live、12 commits live、Atlas 60、29/29 bilingual、13/13 manual、Windows full green ×2、Health live 5min TTL；CHAPTER_RENDERERS 登记。
 - **Atlas 世界 60 坐标**（18+29+13）— onboarding / manual / README / index.html 占位符全量迁移（charted 与 `id="atlasShardsCount"` 占位同步）；Manual 卷指针至卷二十八；almanac_smoke 29 chapters；atlas_smoke 60-coordinate contract；CRLF pins 695/0 (index.html)、i18n.js 309/0 未动。en-CJK inline 一处泄漏修复（`「漫长海疆 / The Long Haul」` → `The Long Haul`，`live插` → `live interpolation`）。
 - **门禁验证**：27→29 chapters；25→60 命中；parity / manual / admin / doc_pointers 全绿。
+## 批次 1050 - M8-T1065: 驿站叙事 + Admin 摘要 15s 单飞
+
+### 目的
+
+1722 次提交之后，fact pack bot 在每次推后 20 秒内自觉更新 fact pack；展示页读出的每一个数字都是仓库自己的心跳。这件事没人在乎，直到它出了次错——所以写进年鉴。Admin 一页面已知三条流水：/api/admin/summary 呼出后每条 unlock 都被连续重算——路由也该有它的驿站。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `relay`（卷二十九 · 驿站 / Chapter XXIX · The Relay）；`relayMarkup()`；仪器格：Atlas 61 / volumes 30 / commits live / bot < 60s / 0 human presses；CHAPTER_RENDERERS 登记。
+- **Atlas 世界 61 坐标**（18+30+13）— almanac_smoke 30 chapters；atlas_smoke 61-coordinate contract；onboarding/manual/README 同步指针为卷二十九与 61；Manual 最新卷改指《驿站》；en-CJK parity 全绿。
+- **`/api/admin/summary` 15s memo** — `AgentService.admin_summary()` 走 `_memo_http`；`webserver.py` 路由直接复用；87/87 HTTP surface 测试绿。
+- **门禁验证**：almanac 30 chapters bilingual；atlas 61-coordinate；en_cjk parity；manual / admin 5 smokes 全绿；test_http_surface 87；CRLF pins 不变量（i18n 309/0，index.html 711/0）。

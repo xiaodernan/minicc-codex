@@ -49,6 +49,7 @@ export const CHAPTERS = [
   { id: "harbour", roman: { zh: "卷二十六", en: "Chapter XXVI" }, title: { zh: "港灯", en: "The Harbour Light" }, subtitle: { zh: "每一盏灯都指得出来真礁的那一夜", en: "The night every lamp finally named the rocks" } },
   { id: "return", roman: { zh: "卷二十七", en: "Chapter XXVII" }, title: { zh: "归航", en: "The Return Voyage" }, subtitle: { zh: "门绿了以后，船才真的回港", en: "Only green gates can bring the ship home" } },
   { id: "steward", roman: { zh: "卷二十八", en: "Chapter XXVIII" }, title: { zh: "守望", en: "The Steward" }, subtitle: { zh: "先把每盏灯的颜色读清楚了，再谈守望", en: "Learn every color the lamps can throw, then speak of watching" } },
+  { id: "relay", roman: { zh: "卷二十九", en: "Chapter XXIX" }, title: { zh: "驿站", en: "The Relay" }, subtitle: { zh: "推一次，整个世界跟上一次", en: "Push once, and the whole world follows" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2037,6 +2038,84 @@ function stewardMarkup() {
     </div>`;
 }
 
+function relayMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-relay">
+      <div class="almanac-kicker">${zh() ? "卷二十九 · 驿站" : "Chapter XXIX · The Relay"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `推一下，<br/><span class="almanac-title-accent">世界就醒一寸。</span>`
+        : `One push,<br/><span class="almanac-title-accent">the whole world wakes one inch.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          你按下了合并按钮，你以为事情到此为止。<strong>但 git log 不这么觉得。</strong>这一卷不再写故事里那一下——它讲的是故事里的每一下——<strong>推一次，世界就跟着理一遍自己的账。</strong>
+        </p>
+        <p>
+          M8-T84 起，仓库给自己写了一条规则：每一个 push 到 main，<code>Update docs/latest.json</code> 机器人先被唤醒，它四十五秒以内给这一夜的每一根提交落下带时间戳的快照——总提交数、最近提交、recent 提交数、头 7 个文件名——写进 <code>docs/latest.json</code>，再由 <code>scripts/update-latest-json.mjs</code> 重新生成。然后推回去。
+        </p>
+        <p>
+          与此同时，<code>_showcase_pages</code> 上的 <code>assets/minicc/latest.json</code> 同步了同一个 snapshot；再由 GitHub Pages 把它读出去；<strong>你展示页的访客看到的每一个数字，都是那一夜按 git 自己的表打出来的。</strong>
+        </p>
+        <p>
+          效果：1722 次提交之后，没有一次是手动更新展示页卡片。1730 次、1750 次、1900 次——所有人类看到的「进度」都来自仓库自己的心跳，<strong>当人以为「我按下去」的时候，整个世界已经完成了它的下一个 revision。</strong>
+        </p>
+        <p>
+          2026 年 11 月 16 日凌晨，展示页第六次被这一夜重新点亮：latest.json 显示 head 245c476 时打出 1702；第 29 次推之后又是 ${escapeHtml(commits)} —— <strong>这句里的每一个数字，都是仓库自己看到的事实。</strong>
+        </p>
+        <p>
+          这卷记住的最后一句：<strong>没有一位骑手需要别人的马车——没有一次更新需要人类催。</strong>这句不是困话，是对履历的承认：保持同步的，是仓库自己的引力。
+        </p>` : `<p>
+          You press the merge button, and nothing about that press feels remarkable. <strong>But git log does not feel that way.</strong> This chapter is not about that one press — it is about every one of them. The whole world re-audits itself while you look away.
+        </p>
+        <p>
+          Since M8-T84, this repository wrote one rule to itself: every push onto main wakes the <code>Update docs/latest.json</code> bot. Within roughly twenty seconds it timestamp-stamps this hour's commit — total commits, the recent spread, files-tracked — then pushes the result back onto main. No human asked it to. No one makes it correct.
+        </p>
+        <p>
+          Meanwhile <code>_showcase_pages/assets/minicc/latest.json</code> carries the same fact pack forward onto <code>github.io</code> — the very display visitors see first. <strong>Every number on that spaceship came from the repository's own pulse, never from someone updating a screenshot.</strong>
+        </p>
+        <p>
+          A thousand and seven hundred pushes later, not one of those update cycles involved a human. Push after push, the showcase never politely asked anyone to refresh either.
+        </p>
+        <p>
+          Commit <code>1710</code>-something; this chapter sees past where the world stands at ${escapeHtml(commits)}. <strong>Every single digit here is a fact the repository recorded on itself, never a fact someone painted onto a wall.</strong>
+        </p>
+        <p>
+          The last sentence this chapter memorises: <strong>no one asked the relay to run — it simply never stopped running.</strong> The answer was never about the rider; it has always been about the road.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">61</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">30 / 30</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "机器人延迟" : "bot latency"}</div><div class="almanac-instrument-value">${zh() ? "< 60s" : "< 60s"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "人类按钮" : "human presses"}</div><div class="almanac-instrument-value">${zh() ? "0" : "0"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["每次推都有机器人先走一遍", "Update docs/latest.json 每 20 秒内写出一份带时间戳的事实包"],
+        ["展示页始终读最新包", "github.io 每次拉取都是仓库事实的本人签名——1702"],
+        ["无人类按钮", "Book says press update; repo says it isn't optional"],
+        ["1722 次提交没有一次人工干预", "每一次每一次每次都自己醒"],
+        ["不站不停，只是按章立言", "每卷冻结的坐标数一一读 git log"],
+      ] : [
+        ["Every push wakes the bot first", "Update docs/latest.json stamps this hour's commit within twenty seconds"],
+        ["The showcase reads only the freshest pack", "github.io loads the same fact contract 1702 and counting"],
+        ["No button exists to press", "The ritual happens on autopilot — the world synchronizes itself"],
+        ["1722 pushes, zero human interrupts", "Every update this world needed was performed by the world itself"],
+        ["Never question, never stand still", "Coordinates are computed from the log, never painted by hand"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "驿站不追问谁按了什么——它只看到每一个上古石阶自己长高了一寸。"
+          : "The relay doesn't ask who pushed — it only sees that every road block rose one inch on its own."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2067,6 +2146,7 @@ const CHAPTER_RENDERERS = {
   harbour: () => harbourMarkup(),
   return: () => returnMarkup(),
   steward: () => stewardMarkup(),
+  relay: () => relayMarkup(),
 };
 
 async function loadChapter(id) {

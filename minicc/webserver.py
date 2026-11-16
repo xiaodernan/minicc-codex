@@ -593,10 +593,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/admin/summary":
             # M8-T1014: the admin panel's single read — built from real
             # workspace data, never raises; returns honest empty dict on breakage.
+            # M8-T1065: the payload is memoized 15s by AgentService.admin_summary
+            # so a fat unlock burst never re-walks the audit log per read.
             try:
-                from .admin import build_summary
-
-                self._json(build_summary(self.server.service.workspace))
+                self._json(self.server.service.admin_summary())
             except Exception as exc:  # noqa: BLE001 - the admin route must never 500
                 self._json({"error": f"{type(exc).__name__}: {exc}"}, 200)
             return
