@@ -1035,7 +1035,7 @@
       "session.emptyChip2": "\u8DD1\u6D4B\u8BD5\u5E76\u62A5\u544A\uFF1A\u54EA\u6302\u4E86\u3001\u4E3A\u4EC0\u4E48",
       "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669",
       "session.emptyChip4": "\u6253\u5F00\u8BF4\u660E\u4E66\uFF0C\u5341\u4E09\u7AE0\u5168\u7FFB\u5230",
-      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201465 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9"
+      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201466 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1812,7 +1812,7 @@
       "session.emptyChip2": "Run the test suite and report failures",
       "session.emptyChip3": "Review the diff and flag regressions",
       "session.emptyChip4": "Open the manual \u2014 all thirteen chapters",
-      "session.emptyChip5": "Open the world map \u2014 65 real coordinates to tap"
+      "session.emptyChip5": "Open the world map \u2014 66 real coordinates to tap"
     }
   };
   function t(key) {
@@ -5229,7 +5229,8 @@
     { id: "askdocs", roman: "\u5341", romanEn: "10", title: "Ask the Repo", titleZh: "\u95EE\u4ED3\u5E93" },
     { id: "load", roman: "\u5341\u4E00", romanEn: "11", title: "Load & Capacity", titleZh: "\u538B\u6D4B\u4E0E\u5BB9\u91CF" },
     { id: "cloud", roman: "\u5341\u4E8C", romanEn: "12", title: "Spring Cloud plane", titleZh: "\u5FAE\u670D\u52A1\u5E73\u9762" },
-    { id: "arch", roman: "\u5341\u4E09", romanEn: "13", title: "Full Stack", titleZh: "\u524D\u540E\u7AEF\u5168\u666F\u67B6\u6784" }
+    { id: "arch", roman: "\u5341\u4E09", romanEn: "13", title: "Full Stack", titleZh: "\u524D\u540E\u7AEF\u5168\u666F\u67B6\u6784" },
+    { id: "stategraph", roman: "\u5341\u56DB", romanEn: "14", title: "StateGraph", titleZh: "\u72B6\u6001\u56FE" }
   ];
   function zhStart() {
     return `
@@ -5310,7 +5311,7 @@
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
       <li><strong>\u706B\u82D7 \xB7 The flame</strong> \u2014 \u8FDE\u7EED\u5B8C\u6210\u4EFB\u52A1\u7684\u5929\u6570\uFF1A\u4E00\u5929 \u22651 \u6B21\u771F\u5B9E\u4EFB\u52A1\u5373\u70B9\u4EAE\u4E00\u6B21\uFF0C\u91D1\u7130\u8272\u547C\u5438\u5149\u6655\u7F6E\u4E8E\u4FA7\u8FB9\u680F\uFF1B\u4E24\u5929\u6CA1\u5B8C\u6210\u5C31\u4ECE\u5934\u8BA1\u7B97\u3002\u5168\u90E8\u672C\u5730\u4FDD\u5B58\uFF0C\u4E0D\u51FA\u7F51\u3002</li>
-      <li><strong>\u5C0F\u6E38\u620F \xB7 Arcade</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u8FDB\u5165\u5854\u9632\u690D\u7269\u5927\u6218\u50F5\u5C38\u7CFB\u5217\uFF1Bbuild \u5728 <code>web/game.js</code>\uFF0C\u7EAF\u79BB\u7EBF\uFF0C\u79BB\u7EBF\u4E5F\u80FD\u73A9\u3002</li>
+      <li><strong>\u72B6\u6001\u56FE \xB7 StateGraph</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8BF4\u660E\u4E66 \u2192 \u72B6\u6001\u56FE\u300D\uFF1Aminicc \u5185\u90E8\u7684\u9636\u6BB5\u8F74 / \u53EA\u8BFB DAG \u6267\u884C\u5668 / \u9884\u7B97\u62A4\u680F\u7684\u5B8C\u6574\u8BF4\u660E\u2014\u2014\u771F\u6B63\u628A\u300CAgent \u5982\u4F55\u8D70\u300D\u5199\u8FDB\u4E86\u4E00\u5F20\u4F60\u80FD\u770B\u89C1\u7684\u56FE\u91CC\u3002</li>
     </ul>
   `;
   }
@@ -5324,12 +5325,12 @@
       <li><strong>Dockyard</strong> \u2014 sidebar \u201CDockyard\u201D: your own real journey as a harbour of stakes. \u201CCaptain's log\u201D shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity \u2014 read in place from /api/digest, /api/metrics, /api/worldpulse); \u201CLighthouse stakes\u201D \u2014 eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity\u2026). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in thirty-four chapters (the newest, Chapter XXXIII \u201CThe Candle\u201D \u2014 the week every gate named the rocks instead of the fog: the loader gate, the impact-floor audience rule, both legs green; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> \u2014 sidebar entry \u201CAdmin\u201D: password <code>123</code> unlocks a shared door (not a login \u2014 a door for anyone who knows it); stats \u2014 tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast \u2014 labelled\u201Cthis is an estimate, not a promise\u201D; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store \u2014 read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5% \u2014 not one demo number.</li>
-      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 twelve islands, sixty-five real coordinates \u2014 18 panes + 34 almanac satellites + 13 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 twelve islands, sixty-six real coordinates \u2014 18 panes + 34 almanac satellites + 14 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
       <li><strong>The flame</strong> \u2014 days in a row with at least one completed task: one flame per calendar day, breathing gold in the sidebar; two misses restart the count. Local-only, never leaves this machine.</li>
-      <li><strong>Arcade</strong> \u2014 sidebar entry \u201CArcade\u201D opens a Plants-vs-Zombies-style tower defense; pure offline, playable with the network down.</li>
+      <li><strong>StateGraph</strong> \u2014 manual \u2192 \u201CStateGraph\u201D chapter: the phase axis, the readonly-only DAG executor and the budget guardrail \u2014 written down as a map you can follow, not a myth you have to infer.</li>
     </ul>
   `;
   }
@@ -5595,6 +5596,34 @@
     <p>Full architecture: <code>../docs/SERVICE_PLANE_PLAN.md</code>. Every endpoint + env var: <code>../docs/SERVICE_PLANE_OPERATOR.md</code>.</p>
   `;
   }
+  function zhStateGraph() {
+    return `
+    <p class="manual-lede">minicc \u8DD1\u8D77\u6765\u4E4B\u540E\uFF0C\u6BCF\u4E2A\u4EFB\u52A1\u5148\u843D\u5728\u4E00\u5F20<strong>\u53D7\u9650\u7684\u72B6\u6001\u56FE</strong>\u4E0A\u2014\u2014\u8FD9\u4ECE\u6765\u4E0D\u662F\u628A\u4E00\u4E2A <code>if</code> \u5D4C\u5957\u53EB\u505A Agent \u7684\u5305\u88C5\u5C42\uFF0C\u800C\u662F\u771F\u7684\u56FE\u3002</p>
+    <p class="manual-lede">\u8FD9\u4E00\u7AE0\u53EA\u8BB2\u4E09\u4EF6\u4E8B\uFF1A<strong>\u9636\u6BB5\u8F74</strong>\uFF08\u8D1F\u8D23\u8BB0\u5F55 trace\uFF09\u3001<strong>\u53EA\u8BFB DAG \u6267\u884C\u5668</strong>\uFF08<code>execute_dag</code>\uFF09\u548C<strong>\u9884\u7B97\u62A4\u680F</strong>\uFF08<code>BudgetExceeded</code>\uFF09\u3002</p>
+    <div class="manual-grid-list">
+      <div><strong>StateGraph \u662F\u9636\u6BB5\u8F74\uFF0C\u4E0D\u662F\u6267\u884C\u5668</strong><span>\u771F\u6B63\u8DD1\u4EFB\u52A1\u7684\u662F <code>run_agent</code> \u5DE5\u5177\u5FAA\u73AF\u3002StateGraph \u8D1F\u8D23\u56DE\u7B54\u300C\u73B0\u5728\u5230\u54EA\u4E00\u6B65\u4E86\u300D\u2014\u2014<code>intake \u2192 plan \u2192 inspect \u2192 implement \u2192 verify \u2192 repair \u2192 summarize</code> \u6BCF\u4E2A\u8282\u70B9\u90FD\u5728\u4EFB\u52A1\u5F00\u59CB\u4E4B\u524D\u767B\u8BB0\u597D\u3002</span></div>
+      <div><strong>\u9636\u6BB5\u987A\u5E8F\uFF08V1 \u4E03\u6BB5\uFF09</strong><span>intake \u8BFB\u61C2\u95EE\u9898 \u2192 plan \u628A\u8DEF\u5B50\u8D70\u5B8C \u2192 inspect \u5148\u8BFB\u518D\u5199 \u2192 implement \u771F\u6B63\u52A8\u624B\u6539 \u2192 verify \u8DD1\u6D4B\u8BD5 \u2192 repair \u53EA\u6709 verify \u5931\u8D25\u624D\u8FDB\u6765\u3001\u6700\u591A\u4E24\u8F6E \u2192 summarize \u7EC8\u70B9\u3002</span></div>
+      <div><strong>execute_dag \u53EA\u8DD1\u53EA\u8BFB\u8282\u70B9</strong><span>DAG \u91CC\u53EA\u8BB8\u51FA\u73B0 readonly / review / merge\u2014\u2014\u5199\u8282\u70B9\uFF08<code>write</code> / <code>exec</code>\uFF09\u4ECE\u5165\u53E3\u5C31\u88AB\u62D2\u3002\u8FD9\u4E0D\u662F\u300C\u4E0D\u63A8\u8350\u8FD9\u6837\u505A\u300D\uFF0C\u662F\u300C\u5199\u4E86\u4E5F\u4E0D\u4F1A\u6267\u884C\u300D\u3002</span></div>
+      <div><strong>\u4E0D\u53EF\u7F29\u5F15\u7684\u786C\u9650</strong><span>\u8282\u70B9\u6570 \u2264 32\u3001\u6DF1\u5EA6 \u2264 16\u3001\u5E76\u884C \u2264 4\uFF0C\u5165\u53E3\u5148\u68C0\u6D4B\u73AF\u2014\u2014\u5E26\u81EA\u73AF\u7684\u8BA1\u5212\u6839\u672C\u4E0D\u4F1A\u88AB\u653E\u51FA\u6765\u6267\u884C\u3002\u5916\u52A0\u4E00\u679A <code>BudgetExceeded</code>\uFF1A\u56FE\u6700\u591A\u8D70 64 \u6B65\u2014\u2014\u6C38\u8FDC\u4E0D\u4F1A\u8BA9\u4E00\u4E2A\u70C2\u8BBE\u8BA1\u628A token \u5403\u5230\u5929\u8352\u5730\u8001\u3002</span></div>
+      <div><strong>\u56FA\u5B9A\u4E09\u4E2A\u6A21\u677F</strong><span><code>inspect_summarize</code>\uFF1A\u626B\u4E00\u904D \u2192 \u5199\u603B\u7ED3\u3002<code>inspect_implement_verify</code>\uFF1A\u68C0 \u2192 \u5199 \u2192 \u9A8C \u2192 \u603B\u7ED3\u3002<code>parallel_inspect</code>\uFF1AN \u4E2A\u53EA\u8BFB\u626B\u63CF\u5E76\u53D1\u81F3 merge \u6C47\u805A \u2192 \u518D\u8FDB implement / verify / summarize \u7BA1\u7EBF\u3002\u540C\u4E00\u4EFD\u767D\u540D\u5355\uFF0C\u6CA1\u6709\u4EFB\u4F55\u4E00\u4EFD\u80FD\u8F7B\u6613\u7ED5\u8FC7\u3002</span></div>
+    </div>
+    <p class="manual-footnote">\u8FD9\u4E0D\u662F LangGraph \u7684\u5C71\u5BE8\u2014\u2014\u5B83\u662F minicc \u4E13\u7528\u7684\u4EEA\u8868\u8F74\u3002\u771F\u60F3\u770B\u522B\u7684\uFF08durable execution\u3001checkpointing\u3001human-in-the-loop\u3001Send( fanout)\u3001Send==send\uFF09\u8BF7\u76F4\u63A5\u8BFB <code>docs/AGENT_LLM_ROADMAP.md</code> \u91CC\u7684\u53EF\u89C2\u6D4B\u7F16\u6392\u5C42\u5C0F\u8282\uFF1B\u771F\u6B63\u843D\u5730\u5C31\u5728 <code>minicc/agent/graph.py</code>\u3002\u2014\u2014\u4E09\u4EF6\u4E8B\u7684\u672C\u8D28\u662F\u4E00\u6837\u7684\uFF1A\u8BA9\u6BCF\u6B21\u6D41\u8F6C\u90FD\u80FD\u88AB\u770B\u89C1\u3002</p>
+  `;
+  }
+  function enStateGraph() {
+    return `
+    <p class="manual-lede">A <strong>bounded state graph</strong> sits under every run \u2014 this is never decoration around an if-cascade, and never a shortcut around <code>run_agent</code>.</p>
+    <p class="manual-lede">Three things in this chapter: the <strong>phase axis</strong> (the recorder), the <strong>readonly DAG executor</strong> (<code>execute_dag</code>) and the <strong>budget guardrail</strong> (<code>BudgetExceeded</code>).</p>
+    <div class="manual-grid-list">
+      <div><strong>Phase axis, not executor</strong><span>Actual tasks ride <code>run_agent</code>, the tool-calling loop. The graph answers "where am I now": <code>intake \u2192 plan \u2192 inspect \u2192 implement \u2192 verify \u2192 repair \u2192 summarize</code> \u2014 every node registered before the task begins.</span></div>
+      <div><strong>Seven phases</strong><span>intake reads the brief \xB7 plan admits the mapped steps \xB7 inspect reads before writing \xB7 implement touches the code \xB7 verify runs the tests \xB7 repair (capped at 2) only admits verify failures \xB7 summarize reports at the end.</span></div>
+      <div><strong>Readonly DAG only</strong><span><code>execute_dag</code> admits only <code>readonly</code> / <code>review</code> / <code>merge</code> node kinds. Hand it <code>write</code> or <code>exec</code>, and it refuses before the first wave \u2014 a hard reject at the entry, not a polite warning.</span></div>
+      <div><strong>The four ratios that keep it honest</strong><span>Node count \u2264 32 \xB7 plan depth \u2264 16 \xB7 concurrent waves \u2264 4 \xB7 cycle rejected at plan time \u2014 a plan with a self-edge never exists at run time. Plus <code>BudgetExceeded</code>: no loop may live past step 64.</span></div>
+      <div><strong>Three fixed templates</strong><span><code>inspect_summarize</code> (scan once \u2192 summarize), <code>inspect_implement_verify</code> (inspect \u2192 write \u2192 check \u2192 summarize) and <code>parallel_inspect</code> (N concurrent readonly scans fanning into <code>merge</code> \u2192 implement \u2192 verify \u2192 summarize). All three live in <code>minicc/agent/graph.py</code>; each whitelist is shared.</span></div>
+    </div>
+    <p class="manual-footnote">This is not a watered-down LangGraph \u2014 durable execution, checkpointing, human-in-the-loop and the Send API family all ship inside the upstream project; read <code>docs/AGENT_LLM_ROADMAP.md</code> for the observability-layer chapter where the real overlap lives. In this repository \u2014 <code>minicc/agent/graph.py</code> \u2014 is where the idea earns its keep.</p>
+  `;
+  }
   function zhArch() {
     return `
     <p class="manual-lede">\u8FD9\u6709\u4E00\u4EFD\u4ECE\u4E0A\u5230\u4E0B\u3001\u6309\u771F\u5B9E\u6570\u636E\u6392\u5217\u7684\u67B6\u6784\u5168\u666F\u2014\u2014\u524D\u7AEF\u3001\u540E\u7AEF\u3001\u6570\u636E\u5E93\u3001\u7F13\u5B58\u3001\u6D88\u606F\u961F\u5217\uFF0C\u6BCF\u4E00\u6837\u90FD\u70B9\u5230\u3002\u8FD9\u4E0D\u662F\u67B6\u6784\u56FE\uFF0C\u662F\u4F60\u521A\u624D\u770B\u4E86\u5341\u51E0\u7AE0\u3001\u8DD1\u8FC7\u5341\u51E0\u8F6E\u4EFB\u52A1\u4E4B\u540E\u8BE5\u77E5\u9053\u7684\u4E00\u7BC7\u3002</p>
@@ -5652,7 +5681,8 @@
     askdocs: { zh: zhAskDocs, en: enAskDocs },
     load: { zh: zhLoad, en: enLoad },
     cloud: { zh: zhCloud, en: enCloud },
-    arch: { zh: zhArch, en: enArch }
+    arch: { zh: zhArch, en: enArch },
+    stategraph: { zh: zhStateGraph, en: enStateGraph }
   };
   function chapterMarkup2(chapter) {
     const zh11 = state.locale === "zh";
@@ -10923,8 +10953,8 @@
       id: "atlas",
       anchor: "#atlasButton",
       interact: "atlas",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 10 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C12 \u5EA7\u5C9B\u5C7F\u300165 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 34 \u5377\u5E74\u9274\u536B\u661F + 13 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
-      en: { kicker: "Start here \xB7 Step 5 of 10", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: twelve islands, sixty-five real coordinates \u2014 18 panes, 34 almanac satellites, 13 manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 10 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C12 \u5EA7\u5C9B\u5C7F\u300166 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 34 \u5377\u5E74\u9274\u536B\u661F + 14 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
+      en: { kicker: "Start here \xB7 Step 5 of 10", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: twelve islands, sixty-six real coordinates \u2014 18 panes, 34 almanac satellites, fourteen manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
     },
     {
       id: "dockyard",

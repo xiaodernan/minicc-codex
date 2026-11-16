@@ -28,6 +28,7 @@ export const CHAPTERS = [
   { id: "load", roman: "十一", romanEn: "11", title: "Load & Capacity", titleZh: "压测与容量" },
   { id: "cloud", roman: "十二", romanEn: "12", title: "Spring Cloud plane", titleZh: "微服务平面" },
   { id: "arch", roman: "十三", romanEn: "13", title: "Full Stack", titleZh: "前后端全景架构" },
+  { id: "stategraph", roman: "十四", romanEn: "14", title: "StateGraph", titleZh: "状态图" },
 ];
 
 function zhStart() {
@@ -113,7 +114,7 @@ function zhModules() {
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
       <li><strong>火苗 · The flame</strong> — 连续完成任务的天数：一天 ≥1 次真实任务即点亮一次，金焰色呼吸光晕置于侧边栏；两天没完成就从头计算。全部本地保存，不出网。</li>
-      <li><strong>小游戏 · Arcade</strong> — 侧边栏「小游戏」进入塔防植物大战僵尸系列；build 在 <code>web/game.js</code>，纯离线，离线也能玩。</li>
+      <li><strong>状态图 · StateGraph</strong> — 侧边栏「说明书 → 状态图」：minicc 内部的阶段轴 / 只读 DAG 执行器 / 预算护栏的完整说明——真正把「Agent 如何走」写进了一张你能看见的图里。</li>
     </ul>
   `;
 }
@@ -128,12 +129,12 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in thirty-four chapters (the newest, Chapter XXXIII “The Candle” — the week every gate named the rocks instead of the fog: the loader gate, the impact-floor audience rule, both legs green; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — twelve islands, sixty-five real coordinates — 18 panes + 34 almanac satellites + 13 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — twelve islands, sixty-six real coordinates — 18 panes + 34 almanac satellites + 14 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
       <li><strong>The flame</strong> — days in a row with at least one completed task: one flame per calendar day, breathing gold in the sidebar; two misses restart the count. Local-only, never leaves this machine.</li>
-      <li><strong>Arcade</strong> — sidebar entry “Arcade” opens a Plants-vs-Zombies-style tower defense; pure offline, playable with the network down.</li>
+      <li><strong>StateGraph</strong> — manual → “StateGraph” chapter: the phase axis, the readonly-only DAG executor and the budget guardrail — written down as a map you can follow, not a myth you have to infer.</li>
     </ul>
   `;
 }
@@ -419,6 +420,36 @@ function enCloud() {
   `;
 }
 
+function zhStateGraph() {
+  return `
+    <p class="manual-lede">minicc 跑起来之后，每个任务先落在一张<strong>受限的状态图</strong>上——这从来不是把一个 <code>if</code> 嵌套叫做 Agent 的包装层，而是真的图。</p>
+    <p class="manual-lede">这一章只讲三件事：<strong>阶段轴</strong>（负责记录 trace）、<strong>只读 DAG 执行器</strong>（<code>execute_dag</code>）和<strong>预算护栏</strong>（<code>BudgetExceeded</code>）。</p>
+    <div class="manual-grid-list">
+      <div><strong>StateGraph 是阶段轴，不是执行器</strong><span>真正跑任务的是 <code>run_agent</code> 工具循环。StateGraph 负责回答「现在到哪一步了」——<code>intake → plan → inspect → implement → verify → repair → summarize</code> 每个节点都在任务开始之前登记好。</span></div>
+      <div><strong>阶段顺序（V1 七段）</strong><span>intake 读懂问题 → plan 把路子走完 → inspect 先读再写 → implement 真正动手改 → verify 跑测试 → repair 只有 verify 失败才进来、最多两轮 → summarize 终点。</span></div>
+      <div><strong>execute_dag 只跑只读节点</strong><span>DAG 里只许出现 readonly / review / merge——写节点（<code>write</code> / <code>exec</code>）从入口就被拒。这不是「不推荐这样做」，是「写了也不会执行」。</span></div>
+      <div><strong>不可缩引的硬限</strong><span>节点数 ≤ 32、深度 ≤ 16、并行 ≤ 4，入口先检测环——带自环的计划根本不会被放出来执行。外加一枚 <code>BudgetExceeded</code>：图最多走 64 步——永远不会让一个烂设计把 token 吃到天荒地老。</span></div>
+      <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
+    </div>
+    <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
+  `;
+}
+
+function enStateGraph() {
+  return `
+    <p class="manual-lede">A <strong>bounded state graph</strong> sits under every run — this is never decoration around an if-cascade, and never a shortcut around <code>run_agent</code>.</p>
+    <p class="manual-lede">Three things in this chapter: the <strong>phase axis</strong> (the recorder), the <strong>readonly DAG executor</strong> (<code>execute_dag</code>) and the <strong>budget guardrail</strong> (<code>BudgetExceeded</code>).</p>
+    <div class="manual-grid-list">
+      <div><strong>Phase axis, not executor</strong><span>Actual tasks ride <code>run_agent</code>, the tool-calling loop. The graph answers "where am I now": <code>intake → plan → inspect → implement → verify → repair → summarize</code> — every node registered before the task begins.</span></div>
+      <div><strong>Seven phases</strong><span>intake reads the brief · plan admits the mapped steps · inspect reads before writing · implement touches the code · verify runs the tests · repair (capped at 2) only admits verify failures · summarize reports at the end.</span></div>
+      <div><strong>Readonly DAG only</strong><span><code>execute_dag</code> admits only <code>readonly</code> / <code>review</code> / <code>merge</code> node kinds. Hand it <code>write</code> or <code>exec</code>, and it refuses before the first wave — a hard reject at the entry, not a polite warning.</span></div>
+      <div><strong>The four ratios that keep it honest</strong><span>Node count ≤ 32 · plan depth ≤ 16 · concurrent waves ≤ 4 · cycle rejected at plan time — a plan with a self-edge never exists at run time. Plus <code>BudgetExceeded</code>: no loop may live past step 64.</span></div>
+      <div><strong>Three fixed templates</strong><span><code>inspect_summarize</code> (scan once → summarize), <code>inspect_implement_verify</code> (inspect → write → check → summarize) and <code>parallel_inspect</code> (N concurrent readonly scans fanning into <code>merge</code> → implement → verify → summarize). All three live in <code>minicc/agent/graph.py</code>; each whitelist is shared.</span></div>
+    </div>
+    <p class="manual-footnote">This is not a watered-down LangGraph — durable execution, checkpointing, human-in-the-loop and the Send API family all ship inside the upstream project; read <code>docs/AGENT_LLM_ROADMAP.md</code> for the observability-layer chapter where the real overlap lives. In this repository — <code>minicc/agent/graph.py</code> — is where the idea earns its keep.</p>
+  `;
+}
+
 function zhArch() {
   return `
     <p class="manual-lede">这有一份从上到下、按真实数据排列的架构全景——前端、后端、数据库、缓存、消息队列，每一样都点到。这不是架构图，是你刚才看了十几章、跑过十几轮任务之后该知道的一篇。</p>
@@ -479,6 +510,7 @@ const BODIES = {
   load: { zh: zhLoad, en: enLoad },
   cloud: { zh: zhCloud, en: enCloud },
   arch: { zh: zhArch, en: enArch },
+  stategraph: { zh: zhStateGraph, en: enStateGraph },
 };
 
 function chapterMarkup(chapter) {

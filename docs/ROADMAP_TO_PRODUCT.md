@@ -53808,3 +53808,15 @@ Ch.XXXI 把两腿全绿钉进了博物馆，Ch.XXXII 钉 Next — 这一次不�
 - **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `candle`（卷三十三 · 烛火 / Chapter XXXIII · The Candle）；`candleMarkup()`；Atlas 65、commits live 1,714 / tasks 24 / recent 12 / volumes 34/34；`CHAPTER_RENDERERS["candle"]` 登记。手工重命名避开与已存「卷十三《余烬 / The Ember》」的 funcion 名字冲突——ember vs. cinder → candle 路径圆满。
 - **Manual 最新卷改指卷三十三**；**Atlas 65-coordinate contract**；Welcome chips 65；onboarding `thirty-four halls`；i18n.js CRLF re-pin 309/0。Almanac smoke 34 chapters bilingual；parity / manual / admin / dazzle 全绿。
 - **CRLF pins**：index.html 711 CRLF / i18n.js 309 CRLF 仍按原 pin 守门。
+## 批次 1057 - M8-T1072: StateGraph 十四章上线 + 域封锁实测 + 65→66
+
+### 目的
+
+两个目标一步做完：① 把 miniature `minicc/agent/graph.py` 里真正的设计写进说明书——`StateGraph` / `DAGPlan` / `execute_dag` 都在 · 环检测 · 4 layouts of rigidity (32 nodes / 16 depth / 4 concurrency) · 3 个 templates。② 新 API 端到端实测——结果凝固为 HTTP 403（地理封锁），不替用户自己扩散。
+
+### 做了什么
+
+- **`web/src/panels/manual.js`** — 新增 `stategraph` 章（roman 十四 / 章标题「状态图 · StateGraph」）+ 正文 zh/en + BODIES + CHAPTERS 登记；zh/en Modules 各加一条。说明书里的章数：13 → **14**。
+- **`.env`** — 新 API 三元组替换（api.aizzz.xyz/v1 · sk-[REDACTED] (local .env only — never committed) · gpt-6.1-terra）；type gitignored, never committed。**实测结论：本区域不可达（403 geo-block，6 处探测一致）；不在规避地封锁。**
+- **Atlas 65 → 66 coordinates**：manual satellites +1（stategraph）；`atlas_smoke` 改 66；welcome chip 66；`id=atlasCharted/atlasShardsCount` 占位同步；onboarding / README / Manual Atlas line 66。
+- **门禁验证**：manual_smoke 14 chapters bilingual ✓；parity en 0 CJK ✓；atlas 66-coordinate ✓；dazzle en+zh ✓；admin ✓；almanac 34 ✓；CRLF pins 不动（i18n 309/0、index.html 711/0）。
