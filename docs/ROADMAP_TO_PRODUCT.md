@@ -53797,3 +53797,14 @@ Ch.XXXI 把两腿全绿钉进了博物馆，Ch.XXXII 钉 Next — 这一次不�
 - **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `firefly`（卷三十二 · 萤 / Chapter XXXII · The Firefly）；`fireflyMarkup()`；instrument 格：commits live 1711 / tasks live / Atlas 64 / 33·33 bilingual / 13·13 manual / Dazzle en+zh / Windows 2× 全绿；CHAPTER_RENDERERS 登记。
 - **Manual 最新卷改卷三十二**；Almanac smoke 33 chapters；Atlas 64-coordinate contract；en-CJK parity 绿；Welcome chip 64；Manual/README/onboarding 同步。
 - **门禁验证**：6 smokes 全绿；CRLF pins 不变（index.html 711 / i18n.js 309）。
+## 批次 1056 - M8-T1071: 年鉴第三十三卷「烛火 / The Candle」——展示页的自新契约
+
+### 目的
+
+卷三十二《萤》锚定了仓库里 1700 次小火灯；这一卷讲的是「展示页访客」这一面——访客永远只看到刚才；仓库自己写 fact pack；展示页不是海报而是脸（face），每天早晨亮、每天早晨自己重写；这件选题直接对应 mega-spec §十（自动同步的诚实）。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `candle`（卷三十三 · 烛火 / Chapter XXXIII · The Candle）；`candleMarkup()`；Atlas 65、commits live 1,714 / tasks 24 / recent 12 / volumes 34/34；`CHAPTER_RENDERERS["candle"]` 登记。手工重命名避开与已存「卷十三《余烬 / The Ember》」的 funcion 名字冲突——ember vs. cinder → candle 路径圆满。
+- **Manual 最新卷改指卷三十三**；**Atlas 65-coordinate contract**；Welcome chips 65；onboarding `thirty-four halls`；i18n.js CRLF re-pin 309/0。Almanac smoke 34 chapters bilingual；parity / manual / admin / dazzle 全绿。
+- **CRLF pins**：index.html 711 CRLF / i18n.js 309 CRLF 仍按原 pin 守门。

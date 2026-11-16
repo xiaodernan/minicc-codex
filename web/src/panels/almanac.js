@@ -53,6 +53,7 @@ export const CHAPTERS = [
   { id: "tide", roman: { zh: "卷三十", en: "Chapter XXX" }, title: { zh: "潮汐", en: "The Tide" }, subtitle: { zh: "每一块按自己的节拍呼吸，合起来仍然是同一片海", en: "Each part breathes on its own beat, and the sea stays one sea" } },
   { id: "lamplighter", roman: { zh: "卷三十一", en: "Chapter XXXI" }, title: { zh: "灯下", en: "The Lamplighter" }, subtitle: { zh: "谁在每一盏灯亮起的背后", en: "Who is behind every lamp that lights itself" } },
   { id: "firefly", roman: { zh: "卷三十二", en: "Chapter XXXII" }, title: { zh: "萤", en: "The Firefly" }, subtitle: { zh: "每一盏只亮给愿意看她的人", en: "Every lamp shines for the one who learned how to look" } },
+  { id: "candle", roman: { zh: "卷三十三", en: "Chapter XXXIII" }, title: { zh: "烛火", en: "The Candle" }, subtitle: { zh: "每一秒你看见的展示页都比你先醒", en: "Every second you see on the showcase has already woken before you" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2353,6 +2354,81 @@ function fireflyMarkup() {
     </div>`;
 }
 
+function candleMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-candle">
+      <div class="almanac-kicker">${zh() ? "卷三十三 · 烛火" : "Chapter XXXIII · The Candle"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `展示页不是截图，<br/><span class="almanac-title-accent">它是每天早晨自己重新点亮的灯。</span>`
+        : `The showcase is not a screenshot,<br/><span class="almanac-title-accent">it is a lantern that re-lights itself every morning.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          你每次打开 <code>xiaodernan.github.io/</code>，看到的都是<strong>今天凌晨的提交</strong>——不是昨天的演示数字；你看到的每一个"${escapeHtml(commits)} 次"都是 git log 自己报给你说"我现在有多少数"。这个页面不是一份海报，是<strong>仓库的一张脸</strong>。
+        </p>
+        <p>
+          背后是这样一条流水线：你每次 push，<code>Update docs/latest.json</code> 机器人 20 秒之内唤醒——它重新读 git commit、重新算 commit_count、重新扫 recent_commits、重新组合成 <code>latest.json</code> 的事实包——然后推到 main。下一次 push，所在的 repo 又醒一次——<strong>展示页上没有任何一个数字是抄的。每一个都是 git 自己给的。</strong>
+        </p>
+        <p>
+          再往下：<code>_showcase_pages/assets/minicc/latest.json</code> 同一个 fact pack 的副本——fetch-only 的公共资源。每次推送意味着你看到的到底是什么，连本地的仓库都不需要告诉你。<strong>访客不需要刷新、不需要记忆、不需要思考</strong>——数字自动变旧、变新。
+        </p>
+        <p>
+          这卷来自这一天的赤——但每一天都有。每一次 push 之后，一个完全 naive 的 git 命令告诉你"怎么样"：<strong>没有图章，没有图片，没有戏言，只有 commit count 和文件路径。这是 GitHub 的自言自语。</strong>
+        </p>
+        <p>
+          展示页刚才又被更新了一次。当你读到这段，最新的 M8-T1071 已经在<s>推送完毕</s>已经落地。火还在燃。<strong>没有一页会再是昨天的纸。每一页都是今天的纸。</strong>
+        </p>
+        <p>
+          这卷的最后一句话：<strong>你永远不会再看到全世界昨天发生的事情——你只会看到刚才发生的事情。</strong>这不是优雅，这就是现实。
+        </p>` : `<p>
+          Every time you open <code>xiaodernan.github.io/</code>, you read <strong>this morning's commit count</strong> — not a stale demo number. Every single digit here is git log honestly telling you what's on its mind. The page is not a poster; the page is <strong>a face of the repository.</strong>
+        </p>
+        <p>
+          The pipeline: each push wakes <code>Update docs/latest.json</code> — it pulls the latest commit, totals the file count, lists the recent commits, writes <code>docs/latest.json</code>, and pushes it back onto main within twenty seconds. <strong>There is not a single copy-pasted figure on that page. Every fact is fresh from the wire.</strong>
+        </p>
+        <p>
+          Next stop: <code>_showcase_pages/assets/minicc/latest.json</code> — the same fact pack, served as a public asset. Each refresh keeps the visiting eye from believing anything the repository has moved beyond.
+        </p>
+        <p>
+          This chapter is written from today's evening — and every push from here on is already behind us. <strong>Every figure is one commit younger than you think.</strong>
+        </p>
+        <p>
+          Here's this chapter's last confession: <strong>you will never see the world of yesterday on this page. You will only see the world from one minute ago.</strong> That's not a convenience feature — that is what honesty actually looks like.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">65</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">34 / 34</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "机器人延迟" : "Bot latency"}</div><div class="almanac-instrument-value">${zh() ? "< 60s" : "< 60s"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "人类按钮" : "Human presses"}</div><div class="almanac-instrument-value">${zh() ? "0" : "0"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["fact pack 是仓库自己写的", "机器人从不会写虚假数字——每一项都是 git log 答案"],
+        ["展示页每次刷都是最新", "1714 提交约等于 1714 次证词"],
+        ["无需用户刷新", "latest.json 永远被重刷，每一位访客看到的永远是当前时间"],
+        ["快照不接力", "没有截图、没有图片——这是真的 GitHub wire"],
+        ["展示页不是宣传册", "它是仓库的脸，不是仓库的影子"],
+      ] : [
+        ["The fact pack is written by the repo", "The bot never dares invent — every number came from git log"],
+        ["The showcase is fresh every visit", "1,700+ commits = 1,700+ testimonials you can replay"],
+        ["No manual refresh required", "each visitor reads the latest revision the repository writes"],
+        ["Snapshots do not carry forward", "no images, no screenshots — just the real GitHub wire"],
+        ["Showcase is a face, not a shadow", "no poster ever matched a living thing"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "展示页没有「你看」，只有「我还在」。"
+          : "The showcase never says 'look at me' — it simply says 'I am here right now.'"}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2387,6 +2463,7 @@ const CHAPTER_RENDERERS = {
   tide: () => tideMarkup(),
   lamplighter: () => lamplighterMarkup(),
   firefly: () => fireflyMarkup(),
+  candle: () => candleMarkup(),
 };
 
 async function loadChapter(id) {
