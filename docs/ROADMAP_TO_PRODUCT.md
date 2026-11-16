@@ -54100,3 +54100,19 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **onboarding / Manual Atlas 行 / README**：`thirteen islands, seventy-eight real coordinates` / `sixteen manual chapters`；README 彩蛋以 Sandbox & Safety 领衔。
 - **验证**：`manual_smoke` 16 chapters 全双语 / `atlas_smoke` 78-coordinate / `parity` / `almanac_smoke` 44 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
 - **告示**：不改 gate；手册世代 15→16 随行 Atlas 卫星同一步；无密钥入库。
+## 批次 1079 · M8-T1094: StateGraph 面板上架 —— 从手册里走到产品里
+
+### 目的
+
+总指令后半段的硬件指令：别只在文档里讲 StateGraph，把它做进产品。
+
+### 做了什么
+
+- **新面板**：`web/src/panels/stategraph.js` —— immersive、双语，ASCII `
+  5-node lane` 原样复刻 graph.py 的 `build_coding_workflow()`：`GraphNode(id, phase, max_retries)`
+  逐节点入账；收录 EDGES 恢复 failure 回环（verify→repair→verify / repair→summarize）。
+- **入口**：i18n `palette.cmd.stategraph` zh/en 入驻；Ctrl/⌘+K → 打开状态图；`dispatchView` 认 "stategraph"。
+- **画面**：immersive 面板期间，`.tour-offer` 自动 `display: none`（`body:has(.immersive-modal.show) .tour-offer`），解开 immersive 面板上的飘浮 chips。
+- **Ch.14 横向阅读链接**：手册 StateGraph 章 zh/en 均加一行「See it in person / 亲眼看一下」。
+- **验证**：almanac / atlas / manual / parity / admin / dazzle 全绿；CRLF pins 711/0 + 309/0。
+- **告示**：Atlas 78 不变；手册世代仍为 16；en-CJK 零泄漏；parity gate 见档。

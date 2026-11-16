@@ -5717,3 +5717,43 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-ci-dot small { color: var(--quiet); display: block; font: 9.5px "DM Mono", monospace; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-ci-dot strong { color: var(--text); display: block; font: 700 10.5px Manrope, sans-serif; }
 @media (max-width: 700px) { .admin-ci-wrap { flex-direction: column; align-items: flex-start; } .admin-ci-chips { align-items: flex-start; flex-direction: row; } }
+/* ============================================================
+   StateGraph · stage-axis explorer panel (M8-T1094)
+   ============================================================ */
+.stategraph-shell { padding: 26px 28px 40px; max-width: 960px; color: var(--text); }
+.stategraph-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--periwinkle); margin-bottom: 10px; }
+.stategraph-title { margin: 0 0 14px; font-size: clamp(24px, 3.2vw, 36px); font-weight: 750; line-height: 1.15; }
+.stategraph-title-accent { color: var(--periwinkle); }
+.stategraph-lede { max-width: 680px; opacity: .82; line-height: 1.65; margin-bottom: 22px; font-size: 13.5px; }
+
+.stategraph-lane { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--surface) 70%, transparent); margin-bottom: 22px; }
+.stategraph-lane-arrow { color: var(--quiet); font-size: 16px; flex: 0 0 auto; opacity: .55; }
+.stategraph-node { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 14px; border: 1px solid var(--line-bright); border-radius: 10px; background: var(--surface-raised); cursor: pointer; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; font: inherit; color: var(--text); flex: 0 0 auto; }
+.stategraph-node:hover { border-color: var(--periwinkle); box-shadow: 0 0 0 1px var(--periwinkle); transform: translateY(-1px); }
+.stategraph-node-active { border-color: var(--periwinkle); box-shadow: 0 0 0 2px var(--periwinkle); background: color-mix(in srgb, var(--periwinkle) 12%, var(--surface-raised)); }
+.stategraph-node-name { font-weight: 700; font-size: 13px; }
+.stategraph-node-phase { font-size: 10.5px; color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em; }
+.stategraph-node-retries { font-size: 10px; color: var(--periwinkle); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.stategraph-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+.stategraph-body-callout { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: color-mix(in srgb, var(--surface) 65%, transparent); }
+.stategraph-body-callout-wide { grid-column: 1 / -1; line-height: 1.65; font-size: 13px; }
+.stategraph-callout-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .18em; color: var(--quiet); margin-bottom: 6px; }
+.stategraph-callout-value { font-size: 22px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.stategraph-callout-value-inline { font-size: 14px; font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.stategraph-callout-row { display: flex; align-items: baseline; gap: 10px; }
+.stategraph-callout-sub { opacity: .7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+.stategraph-call { display: block; font-size: 11.5px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; }
+
+.stategraph-edges { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.stategraph-edges-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .18em; color: var(--quiet); margin-bottom: 10px; }
+.stategraph-edge-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 6px; border-radius: 6px; font-size: 11.5px; }
+.stategraph-edge-row:nth-child(odd) { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.stategraph-edge-on { color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; }
+.stategraph-edge-pill { padding: 1px 6px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+.stategraph-edge-ok { color: var(--mint); border: 1px solid color-mix(in srgb, var(--mint) 40%, transparent); background: transparent; }
+.stategraph-edge-fail { color: var(--coral); border: 1px solid color-mix(in srgb, var(--coral) 40%, transparent); background: transparent; }
+
+.stategraph-foot { max-width: 640px; opacity: .55; font-size: 11.5px; line-height: 1.6; margin-top: 20px; }
+/* Hide the first-visit coach chip when an immersive panel modal is open (overlays must not be claimed by fixed-bottom elements) */
+body:has(.immersive-modal.show) .tour-offer { display: none; }

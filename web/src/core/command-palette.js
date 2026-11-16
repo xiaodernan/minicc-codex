@@ -7,6 +7,7 @@ import { t } from "./i18n.js";
 import { setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setTheme } from "./locale.js";
 import { openArcade } from "./arcade.js";
 import { exportChat, openActivityPanel, openAlmanacPanel, openArchivePanel, openAskDocsPanel, openAxiomsPanel, openJournalPanel, openManualPanel, openRecentPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
+import { openStategraphPanel } from "../panels/stategraph.js";
 import { openGlobalSearchPanel, scrollChat, showToast } from "../panels/index.js";
 import { startTour } from "../panels/onboarding.js";
 import { $, state } from "./state.js";
@@ -34,6 +35,7 @@ function commands() {
     { id: "ledger", glyph: "ledger", group: "palette.group.task", run: () => openLedgerPanel() },
     { id: "templates", glyph: "sparkles", group: "palette.group.task", run: () => openTemplatesPanel() },
     { id: "almanac", glyph: "book-open", group: "palette.group.task", run: () => openAlmanacPanel() },
+    { id: "stategraph", glyph: "git-branch", group: "palette.group.task", run: () => openStategraphPanel() },
     { id: "manual", glyph: "book-open-text", group: "palette.group.task", run: () => openManualPanel() },
     { id: "axioms", glyph: "scroll-text", group: "palette.group.task", run: () => openAxiomsPanel() },
     { id: "journal", glyph: "notebook-pen", group: "palette.group.task", run: () => openJournalPanel() },
