@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T13:53:23.013Z",
+  "generated_at": "2026-11-16T14:16:34.042Z",
   "branch": "main",
-  "head": "a34f029",
-  "total_commits": 1758,
+  "head": "71ce659",
+  "total_commits": 1760,
   "recent_commits": [
+    {
+      "short": "71ce659",
+      "at": "2026-11-16T22:15:15+08:00",
+      "subject": "M8-T1093: manual Ch.16 'Sandbox & Safety' - documented from real code (minicc/sandbox.py + config.py): three SANDBOX_MODE values (host/docker/auto) + fourth una"
+    },
+    {
+      "short": "f150da4",
+      "at": "2026-11-16T13:53:23Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a34f029",
       "at": "2026-11-16T21:52:37+08:00",
@@ -19,22 +29,12 @@
       "short": "c26e65a",
       "at": "2026-11-16T21:33:53+08:00",
       "subject": "M8-T1091: Atlas island #13 'The Cartographer' - new island in REGIONS/ISLAND_ORDER/ISLAND_LORE (x=310,y=230, tint gold, no overlap - full pairwise boundary chec"
-    },
-    {
-      "short": "7307890",
-      "at": "2026-11-16T13:19:34Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "afac0eb",
-      "at": "2026-11-16T21:18:57+08:00",
-      "subject": "M8-T1090: almanac Ch.XLII 'The Gathering' - the consecutive-gate-green streak night (every push after 3 pushes passed every fast gate in order; Atlas coordinate"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 404,
+  "roadmap_batches": 405,
   "changelog_entries": 1,
-  "roadmap_lines": 54090,
+  "roadmap_lines": 54103,
   "tracked_files": 1087,
   "test_files": 716,
   "almanac_chapters": 44,
