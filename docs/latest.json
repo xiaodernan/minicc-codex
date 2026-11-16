@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T09:36:55.315Z",
+  "generated_at": "2026-11-16T09:48:54.636Z",
   "branch": "main",
-  "head": "5c17efd",
-  "total_commits": 1728,
+  "head": "7c59ec2",
+  "total_commits": 1730,
   "recent_commits": [
+    {
+      "short": "7c59ec2",
+      "at": "2026-11-16T17:45:30+08:00",
+      "subject": "M8-T1079: almanac Ch.XXXVI 'The Slack Tide' - the TTL-cliff silence written into the museum (identical prefix + lane key, A/B/C rounds after ~7min and ~16.7min "
+    },
+    {
+      "short": "475be5b",
+      "at": "2026-11-16T09:36:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5c17efd",
       "at": "2026-11-16T17:36:22+08:00",
@@ -19,25 +29,15 @@
       "short": "7d6b79e",
       "at": "2026-11-16T16:39:58+08:00",
       "subject": "M8-T1077: manual Ch.15 'Cache Affinity / 冷热亲和' - real measurements & mechanisms (wkapi.pro 2026-11-15 warm 98.3% / 5504-5735=96.0%; new lane 2026-11-16 via loca"
-    },
-    {
-      "short": "1fbefae",
-      "at": "2026-11-16T07:50:35Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0fe6b44",
-      "at": "2026-11-16T15:50:05+08:00",
-      "subject": "M8-T1076: almanac Ch.XXXV 'The Unscathed' - the 2026-11-16 pressure night written into the museum (three waves c=24/64/128 read-only, cumulative 33,600 requests"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 390,
+  "roadmap_batches": 391,
   "changelog_entries": 1,
-  "roadmap_lines": 53905,
+  "roadmap_lines": 53919,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 36,
+  "almanac_chapters": 37,
   "module_count": 14,
   "feature_surface": [
     "workbench",
