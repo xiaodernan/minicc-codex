@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T12:54:41.464Z",
+  "generated_at": "2026-11-16T13:06:47.626Z",
   "branch": "main",
-  "head": "9506224",
-  "total_commits": 1750,
+  "head": "57acaf2",
+  "total_commits": 1752,
   "recent_commits": [
+    {
+      "short": "57acaf2",
+      "at": "2026-11-16T21:05:32+08:00",
+      "subject": "M8-T1089: almanac Ch.XLI 'The Arithmetic' - this epoch compiled into one chapter (5,701 passed / 12 skipped / 59,070 cumulative load-requests across two waves, "
+    },
+    {
+      "short": "7426808",
+      "at": "2026-11-16T12:54:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9506224",
       "at": "2026-11-16T20:54:05+08:00",
@@ -19,25 +29,15 @@
       "short": "dfb49ae",
       "at": "2026-11-16T20:42:16+08:00",
       "subject": "M8-T1087: live isolated rate-limit measurement replaces stale 52x200/67x429/1x503 claim in manual - isolated Redis 7-alpine on 6399 + RabbitMQ 4.0-alpine on 567"
-    },
-    {
-      "short": "5ed2afe",
-      "at": "2026-11-16T12:27:09Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d5ac7fa",
-      "at": "2026-11-16T20:26:24+08:00",
-      "subject": "M8-T1086: re-verified read plane under load after the consolidation day - three waves against fake-provider 127.0.0.1:8899 (c=24 cold cohort n=191 0 errors, /ap"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 400,
+  "roadmap_batches": 401,
   "changelog_entries": 1,
-  "roadmap_lines": 54037,
+  "roadmap_lines": 54050,
   "tracked_files": 1085,
   "test_files": 716,
-  "almanac_chapters": 41,
+  "almanac_chapters": 42,
   "module_count": 14,
   "feature_surface": [
     "workbench",
