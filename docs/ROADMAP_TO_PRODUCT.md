@@ -54233,7 +54233,7 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 ### 做了什么
 
 - `web/styles.css`：`:root`（深色）+ `:root[data-theme="light"]`（浅色）双主题声明 `--periwinkle`（`#a5b4fc` / `#4f46e5`）。
-- `npm run build:web`：重建 `web/assets/styles.6472393cfc0d9ede.css`，manifest 刷新，旧 hash 清理。
+- `npm run build:web`：重建稳定通道 `web/styles.css`，manifest 刷新，旧 hash 清理。
 - 验证：`test_the_palette_has_one_home.py` 5/5 绿；dazzle / almanac（48）/ atlas（85 coordinate）/ manual（19）皆过；69 doc_pointers + capability_claims 绿。
 ## 批次 1090 · M8-T1109: 年鉴第四十八章「墙立住了 / The Wall Stood」—— Atlas 86
 
