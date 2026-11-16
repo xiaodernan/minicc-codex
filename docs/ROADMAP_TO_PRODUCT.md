@@ -53929,3 +53929,16 @@ TTL 悬崖深探（M8-T1078）不是一个能随手记的实验——它打掉�
 - CSS 精确修复（3 行）：`.tour-offer { right: calc(278px + 22px); bottom: calc(22px + 92px); } @media (min-width:1181px) { .tour-offer { right: calc(290px + 22px); bottom: calc(22px + 92px); } }`（minifier 后解析为 300/312px）。
 - 验收：workbench 1366×768 / 1280×720 / 1600×900 三视窗复查——右栏字幕、"跳到最新"浮动按钮、橙色发送键、右栏「最近改动」字幕与 chip 无接触；`/api/tags`- 1306 chunks 之外无任何接触。
 - 无 JS 变更，无行为变更；exit-0 parity / dazzle 全绿；CRLF pins 保持。
+## 批次 1066 · M8-T1081: 卷三十七「留白 / The Negative Space」—— 教练按钮让位的修复实录，Atlas 71
+
+### 目的
+
+M8-T1080 是三行 CSS 的修复，但它来自一整套方法——截图、定位、量测、改、再验收。卷三十七把它写成了博物馆篇章：方法可以被复刻，结论不能被冲销。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `negativespaceMarkup()` + CHAPTERS（卷三十七 · 留白）+ `CHAPTER_RENDERERS['negativespace']`；quote-end 压轴。
+- **Atlas 70 → 71 coordinates**：almanac satellites 37→38；`atlas_smoke` 71；welcome chips 71（i18n.js CRLF 309/0）；index.html 711/0。
+- **onboarding / Manual Atlas 行 / README**：seventy-one coordinates / thirty-eight halls；README 彩蛋以 The Negative Space 领衔。
+- **验证**：`almanac_smoke` 38 chapters 双语 / `atlas_smoke` 71-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / CRLF pins。
+- **告示**：不动 M8-T1080 冻结基线；Atlas 70→71 bookkeeping 全部随行同步；无密钥入库。

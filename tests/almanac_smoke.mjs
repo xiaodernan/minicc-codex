@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace"];
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
@@ -41,6 +41,7 @@ const CHAPTER_MARKERS = {
   newcoast: ["新涯", "The New Coast"],
   unscathed: ["无恙", "The Unscathed"],
   slacktide: ["潮平", "The Slack Tide"],
+  negativespace: ["留白", "The Negative Space"],
 };
 const CJK = /[\u4e00-\u9fff]/;
 
@@ -75,5 +76,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 37 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
+console.log("almanac smoke passed: 38 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
 process.exit(0);

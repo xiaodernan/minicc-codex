@@ -57,6 +57,7 @@ export const CHAPTERS = [
   { id: "newcoast", roman: { zh: "卷三十四", en: "Chapter XXXIV" }, title: { zh: "新涯", en: "The New Coast" }, subtitle: { zh: "新 api 不在你这国度，但每一次 probe 都被记下来了", en: "The new gateway doesn't answer your neighbourhood — but every probe is on the books" } },
   { id: "unscathed", roman: { zh: "卷三十五", en: "Chapter XXXV" }, title: { zh: "无恙", en: "The Unscathed" }, subtitle: { zh: "三万三千六百次请求，一件事没出过错", en: "Thirty-three thousand six hundred requests, not one of them went sideways" } },
   { id: "slacktide", roman: { zh: "卷三十六", en: "Chapter XXXVI" }, title: { zh: "潮平", en: "The Slack Tide" }, subtitle: { zh: "平潮的时候，海面什么也不说，也不丢失任何东西", en: "On the slack tide the sea says nothing, and drowns nothing either" } },
+  { id: "negativespace", roman: { zh: "卷三十七", en: "Chapter XXXVII" }, title: { zh: "留白", en: "The Negative Space" }, subtitle: { zh: "教练也要学会让位", en: "Even a coach must know how to step aside" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2660,6 +2661,78 @@ function slacktideMarkup() {
     </div>`;
 }
 
+function negativespaceMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-negativespace">
+      <div class="almanac-kicker">${zh() ? "卷三十七 · 留白" : "Chapter XXXVII · The Negative Space"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `留白不是空无，<br/><span class="almanac-title-accent">是一个按键学会不盖住另一个字。</span>`
+        : `Negative space is not emptiness —<br/><span class="almanac-title-accent">it's a button learning not to cover another word.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日上午，一枚格格不入的小教练按钮站在了错误的位置：右下角，固定的 <code>bottom: 22px / right: 22px / z-index: 850</code>。那片区域本来住着右栏 inspector 最底下的字幕——"每个任务单独授权写入 · READY"。两个元素在同一个 200×46 像素的坐标里办公，谁也不给谁面子。
+        </p>
+        <p>
+          这次没有先写代码再道歉：先打开 <code>document.elementFromPoint</code>：x=1240、y=730 落进了 <code>changes-section</code> 和 <code>.inspector</code>（left=1076、width=290）。嫌疑人清楚了——chip 的 boundingClientRect={x:1117, y:702, w:227, h:44}，横跨 caption 的下沿，<strong>右侧字幕原全被盖住，没有剩余像素</strong>。
+        </p>
+        <p>
+          处方只改了三行 CSS：grid 三栏的 inspector 宽度基线 278px（1181 断点以上 290px），于是 <code>right: calc(278px + 22px)</code>、<code>bottom: calc(22px + 92px)</code>，1181 断点以上换成 290。minifier 自动化为 300/312px。没有动一行 JS，没有走一次重排浏览。
+        </p>
+        <p>
+          验收按同一把尺子量：1366×768、1280×720、1600×900 三个视窗，RUN_CJK parity 仍为零，dazzle / almanac / atlas / manual / admin / parity 六个 smoke 全绿——<strong>而右侧那行字，整夜都印在它自己该印的位置</strong>。
+        </p>
+        <p>
+          留白不是空无。留白是两个元素之间的让贤——坐得太近会撞，退得太远会散，刚刚好的时候两个人都看得见字。
+        </p>` : `<p>
+          On the morning of 2026-11-16, a first-visit coach button stood in the wrong place: bottom-right, fixed at <code>bottom: 22px / right: 22px / z-index: 850</code> — an area already inhabited by the inspector rail's bottom caption ("every task is authorized in isolation · READY"). Two elements shared one 200×46 pixel office and neither showed the other an inch of courtoisie.
+        </p>
+        <p>
+          No code was written before the evidence was in: <code>document.elementFromPoint</code> at (1240, 730) fell inside <code>changes-section</code> / <code>.inspector</code> (left=1076, width=290). The culprit was plainly visible: the chip's bounding box {x=1117, y=702, w=227, h=44} spanned the caption — <strong>zero pixels of the caption survived</strong>.
+        </p>
+        <p>
+          The entire remedy touched three lines of CSS: the grid's inspector column (base 278px; ≥1181px breapoints 290px). <code>right: calc(278px + 22px)</code>, <code>bottom: calc(22px + 92px)</code>; at ≥1181px the same rule with 290px. The minifier folded the arithmetic to 300/312px. No JS was touched, no layout haemorrhage was induced.
+        </p>
+        <p>
+          Acceptance used the same ruler: three viewports (1366×768, 1280×720, 1600×900), zero-CJK en parity intact, and all six smokes — dazzle / almanac / atlas / manual / admin / en_cjk — exited 0. <strong>The caption spends the whole night printed exactly where it was meant to be printed.</strong>
+        </p>
+        <p>
+          Negative space is not emptiness. It is two elements yielding — sit too close and they collide, stand too far and they drift, and at exactly-right two neighbours both see the word.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">71</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">38 / 38</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "验收视窗" : "Viewports checked"}</div><div class="almanac-instrument-value">3</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "修改 CSS 行数" : "CSS lines changed"}</div><div class="almanac-instrument-value">3</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["一个按键学会让位", "chip 与右栏字幕、跳到最新、发送键同时无接触——最近距离 22 像素"],
+        ["一行 elementFromPoint 的诚实", "先测再改：嫌疑人 left=1076 / width=290，改前 chip x=1117 正好盖在字幕上"],
+        ["三行 CSS、零行 JS", "278→290 断点安全错位，minifier 自动算出 300/312px——改动最小，影响最准"],
+        ["CRLF 双 pin 续命", "index.html 711（0 LF-only）、i18n.js 309（0 LF-only）——这一刀没动一个 pinned byte"],
+        ["六 smoke 全绿", "dazzle / almanac / atlas / manual / admin / parity——这次截图范围之外的一切，一次没红"],
+      ] : [
+        ["One button learned retreat", "chip now clears the rail caption, jump-to-latest, and the send arrow — minimum standoff 22 px"],
+        ["elementFromPoint told the truth", "measured before modified: suspect at left=1076 / width=290, old chip x=1117 sat dead on the caption"],
+        ["Three lines CSS, zero JS", "278→290 breakpoint-safe offset; the minifier itself resolved 300/312 px — surgical and exact"],
+        ["CRLF pins survived", "index.html 711 LF-only=0; i18n.js 309 LF-only=0 — not one pinned byte was sliced"],
+        ["Six smokes, zero red", "dazzle / almanac / atlas / manual / admin / parity — everything beyond the screenshot grid, all green"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "留白不是空无，是两个元素之间的让贤。"
+          : "Negative space is not emptiness — it is two elements yielding."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2698,6 +2771,7 @@ const CHAPTER_RENDERERS = {
   newcoast: () => newcoastMarkup(),
   unscathed: () => unscathedMarkup(),
   slacktide: () => slacktideMarkup(),
+  negativespace: () => negativespaceMarkup(),
 };
 
 async function loadChapter(id) {
