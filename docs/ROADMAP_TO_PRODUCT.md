@@ -54212,3 +54212,15 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - M8-T1103：`git rm _ledger_fanout.py _ledger_sleepless.py _sleepless_smoke.py`。
 - M8-T1104：`git rm` 七个 Playwright scratch probes。
 - 验证：`git grep` 全仓库零引用；`tests/_*.py` 共享夹具保留（被多测试导入）。
+## 批次 1088 · M8-T1106: 年鉴第四十七章「清道夫 / The Eviction」—— Atlas 85
+
+### 目的
+
+把“tracked 不等于对”写进馆里——今天被 git rm 的十件一次性脚本，本身就是一卷值得铭记的工程日记。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `evictionMarkup()` + CHAPTERS 第四十七卷（zh 卷四十七《清道夫》/ en Chapter XLVII · The Eviction）+ CHAPTER_RENDERERS 注册；instruments grid 实时读 digest/stats；“Pushes today 20”按 `git rev-list --since` 实拍。
+- **Atlas 84 → 85 coordinates**：almanac satellites 47→48；`atlas_smoke` 85；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 48 Halls、85 坐标、年鉴（48 卷）；README 加 The Eviction 领衔。
+- **验证**：`almanac_smoke` 48 chapters 双语 / `atlas_smoke` 85-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin。

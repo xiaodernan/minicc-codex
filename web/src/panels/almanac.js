@@ -67,6 +67,7 @@ export const CHAPTERS = [
   { id: "sleepless", roman: { zh: "卷四十四", en: "Chapter XLIV" }, title: { zh: "无眠", en: "The Sleepless" }, subtitle: { zh: "从不曾等过一个天亮的仓库", en: "The repo that never waited for daybreak" } },
   { id: "threshold", roman: { zh: "卷四十五", en: "Chapter XLV" }, title: { zh: "进门", en: "The Threshold" }, subtitle: { zh: "每一步都能听见门被推开的声音", en: "Every step leads to the sound of a door opening" } },
   { id: "remeasure", roman: { zh: "卷四十六", en: "Chapter XLVI" }, title: { zh: "复测", en: "The Re-Measurement" }, subtitle: { zh: "同一区间的第二天", en: "Day two of the same band" } },
+  { id: "eviction", roman: { zh: "卷四十七", en: "Chapter XLVII" }, title: { zh: "清道夫", en: "The Eviction" }, subtitle: { zh: "tracked 不等于对", en: "tracked does not mean correct" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3329,6 +3330,66 @@ function remeasureMarkup() {
     </div>`;
 }
 
+function evictionMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-eviction">
+      <div class="almanac-kicker">${zh() ? "卷四十七 · 清道夫" : "Chapter XLVII · The Eviction"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `你以为自己早就清干净了——<br/><span class="almanac-title-accent">直到 git 告诉你没有。</span>`
+        : `You thought it was already clean —<br/><span class="almanac-title-accent">until git said it wasn't.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 17 日傍晚，清扫队在根目录开工：三把 <code>_ledger_*.py</code> 和七把 <code>_*.mjs</code>——全部是我多轮会话里被 <code>git add -A</code> 顺手卷进仓库的一次性脚本。
+        </p>
+        <p>
+          证据链完整：<code>git grep</code> 全仓库零引用；<code>tests/_css_rules.py</code> / <code>tests/_fixture_doors.py</code> / <code>tests/_silence_reason_shared.py</code> 是被十几个测试导入的共享夹具，必须留；其余十个全部 <code>git rm</code>——<code>525c204</code> 拿下三件 Python，<code>61a2223</code> 拿下七件 Playwright 勘探。没有任何 tracked 文档提过它们，<code>docs/INDEX.md</code> 不列它们——仓库早就知道它们存在，只是不敢说。
+        </p>
+        <p>
+          最后的裁判是 <code>git ls-files</code>——<strong>tracked 不等于对</strong>。十件出库之后，事实包自己更新了：<code>tracked_files</code> 1098 → 1088，<code>total_commits</code> 1786——一个整数的尊严，由机器人亲手改写。
+        </p>` : `<p>
+          On the evening of 2026-11-17 the janitor crew opened up in the repo root: three <code>_ledger_*.py</code> files and seven <code>_*.mjs</code> probes — every one of them an ad-hoc script my own <code>git add -A</code> had swept into the checkout across many runs.
+        </p>
+        <p>
+          The evidence chain held: <code>git grep</code> across the tree found zero references; <code>tests/_css_rules.py</code> / <code>tests/_fixture_doors.py</code> / <code>tests/_silence_reason_shared.py</code> turned out to be shared fixtures imported by a dozen tests and had to stay; the rest were <code>git rm</code>'d — <code>525c204</code> took the three Python probes, <code>61a2223</code> took the seven Playwright ones. Not one tracked document had ever mentioned them, and <code>docs/INDEX.md</code> never listed them — the repo had known they were there all along and just never said it out loud.
+        </p>
+        <p>
+          The final umpire is <code>git ls-files</code> — <strong>tracked does not mean correct</strong>. Ten files out, and the fact pack updated itself: <code>tracked_files</code> 1098 → 1088, <code>total_commits</code> 1786 — the dignity of a single integer, rewritten by the bot.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">85</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">48 / 48</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">20</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["十件 scratch 出库", "525c204（3 个 Python）+ 61a2223（7 个 Playwright）——全树 git grep 零引用验证"],
+        ["tracked 不等于对", "git add -A 顺手卷进来的东西，永远值得再盘一次"],
+        ["共享夹具不是 scratch", "tests/_css_rules / _fixture_doors / _silence_reason_shared 被十几个测试导入，保留"],
+        ["事实包诚实更新", "tracked_files 1098→1088；bot 在 ff62710 自动 refresh——这就是这本书为什么可信"],
+        ["这一卷不需要你信", "git show --stat 525c204 61a2223——当场可验"],
+      ] : [
+        ["Ten scratch scripts evicted", "525c204 (3 Python) + 61a2223 (7 Playwright) — git grep across the tree returned zero references"],
+        ["tracked does not mean correct", "anything git add -A swept in is always worth recounting"],
+        ["Shared fixtures are not scratch", "tests/_css_rules / _fixture_doors / _silence_reason_shared are imported by a dozen tests — they stay"],
+        ["The fact pack updated honestly", "tracked_files 1098→1088; the bot refreshed ff62710 on its own — this is why the book is trusted"],
+        ["This chapter asks no trust", "git show --stat 525c204 61a2223 — auditable on the spot"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "清道夫不问它为什么来——只问它还要不要留。"
+          : "The janitor never asks why it came — only whether it still needs to stay."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3377,6 +3438,7 @@ const CHAPTER_RENDERERS = {
   sleepless: () => sleeplessMarkup(),
   threshold: () => thresholdMarkup(),
   remeasure: () => remeasureMarkup(),
+  eviction: () => evictionMarkup(),
 };
 
 async function loadChapter(id) {
