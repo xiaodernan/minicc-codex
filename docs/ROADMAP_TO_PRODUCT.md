@@ -54235,3 +54235,15 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - `web/styles.css`：`:root`（深色）+ `:root[data-theme="light"]`（浅色）双主题声明 `--periwinkle`（`#a5b4fc` / `#4f46e5`）。
 - `npm run build:web`：重建 `web/assets/styles.6472393cfc0d9ede.css`，manifest 刷新，旧 hash 清理。
 - 验证：`test_the_palette_has_one_home.py` 5/5 绿；dazzle / almanac（48）/ atlas（85 coordinate）/ manual（19）皆过；69 doc_pointers + capability_claims 绿。
+## 批次 1090 · M8-T1109: 年鉴第四十八章「墙立住了 / The Wall Stood」—— Atlas 86
+
+### 目的
+
+把 Windows leg 那盏真红灯写进馆里——不是一次“CI 挂了”，是一次“门如何被修好”的完整记录。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `thewallMarkup()` + CHAPTERS 第四十八卷（zh 卷四十八《墙立住了》/ en Chapter XLVIII · The Wall Stood）+ CHAPTER_RENDERERS 注册；instruments grid 实时读 digest/stats；“Pushes today 25”按 `git rev-list --since` 实拍。
+- **Atlas 85 → 86 coordinates**：almanac satellites 48→49；`atlas_smoke` 86；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 49 Halls、86 坐标、年鉴（49 卷）；README 加 The Wall Stood 领衔。
+- **验证**：`almanac_smoke` 49 chapters 双语 / `atlas_smoke` 86-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin；中途失败的全量 pytest 复跑稳定树 23/23 全绿。

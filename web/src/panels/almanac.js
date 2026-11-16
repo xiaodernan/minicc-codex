@@ -68,6 +68,7 @@ export const CHAPTERS = [
   { id: "threshold", roman: { zh: "卷四十五", en: "Chapter XLV" }, title: { zh: "进门", en: "The Threshold" }, subtitle: { zh: "每一步都能听见门被推开的声音", en: "Every step leads to the sound of a door opening" } },
   { id: "remeasure", roman: { zh: "卷四十六", en: "Chapter XLVI" }, title: { zh: "复测", en: "The Re-Measurement" }, subtitle: { zh: "同一区间的第二天", en: "Day two of the same band" } },
   { id: "eviction", roman: { zh: "卷四十七", en: "Chapter XLVII" }, title: { zh: "清道夫", en: "The Eviction" }, subtitle: { zh: "tracked 不等于对", en: "tracked does not mean correct" } },
+  { id: "thewall", roman: { zh: "卷四十八", en: "Chapter XLVIII" }, title: { zh: "墙立住了", en: "The Wall Stood" }, subtitle: { zh: "红了，然后门修好", en: "red first, then the door got fixed" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3390,6 +3391,66 @@ function evictionMarkup() {
     </div>`;
 }
 
+function thewallMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-thewall">
+      <div class="almanac-kicker">${zh() ? "卷四十八 · 墙立住了" : "Chapter XLVIII · The Wall Stood"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `红在谁手上都算失败——<br/><span class="almanac-title-accent">目标是门修好，不是门关上。</span>`
+        : `Red on whoever's watch counts as a failure —<br/><span class="almanac-title-accent">the goal was a fixed door, not a shut one.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 17 日，Windows Python leg 升了一盏红灯：<code>tests/test_the_palette_has_one_home.py::test_the_palette_covers_the_roles_components_ask_for</code>——<code>['--periwinkle'] are read with var() but declared nowhere in css or js</code>。StateGraph 面板的五条规则，读的那枚变量，从来没人声明过。
+        </p>
+        <p>
+          红的不是 Windows，是一笔真账：<code>web/styles.css</code> 里 <code>--periwinkle</code> 只出现在消费侧。修复不是「注释掉那个测试」，也不是「只在 Windows 跳过」——是在 <code>:root</code>（夜）和 <code>:root[data-theme="light"]</code>（昼）各补一枚声明：夜 <code>#a5b4fc</code>，昼 <code>#4f46e5</code>。
+        </p>
+        <p>
+          CSS 重新 build 出 <code>styles.6472393cfc0d9ede.css</code>，消费侧那五条规则原样不变；palette gate 一把扑灭 5/5 全绿；claim gates 69/69 绿。红了，然后门修好——这才是这台门应该的工作方式。
+        </p>` : `<p>
+          On 2026-11-17 the Windows Python leg raised a red flag: <code>tests/test_the_palette_has_one_home.py::test_the_palette_covers_the_roles_components_ask_for</code> — <code>['--periwinkle'] are read with var() but declared nowhere in css or js</code>. Five rules in the StateGraph panel were reading a token nobody had ever declared.
+        </p>
+        <p>
+          It wasn't Windows being picky — it was a real ledger entry: in <code>web/styles.css</code> the token <code>--periwinkle</code> appeared only on the consumption side. The fix was not "comment out the test" and not "skip on Windows" — one declaration was added in <code>:root</code> (night) and another in <code>:root[data-theme="light"]</code> (day): night <code>#a5b4fc</code>, day <code>#4f46e5</code>.
+        </p>
+        <p>
+          CSS was rebuilt as <code>styles.6472393cfc0d9ede.css</code> with the five consumption rules untouched; the palette gate went 5/5 green at once; claim gates 69/69 green. A red fired — and the door got fixed. That is how a door like this is supposed to work.
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">86</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">49 / 49</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">25</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["红灯来自真账本", "Windows leg 捕获：--periwinkle 消费 5 次、声明 0 次——任何人都能复核"],
+        ["修在源头，不修在症状", "测试没改、没 skip、没注释——只在 :root 补了两处声明，双主题都补"],
+        ["CSS 重新 build", "styles.6472393cfc0d9ede.css——消费侧 5 条规则原样，新增声明生效"],
+        ["Atlas 85→86", "这粒星的分数是一盏真红的灯——修好之后才亮"],
+        ["这一卷不需要你信", "git show 5ac8904；claim gates 69/69；Windows leg 远程重跑即凭据"],
+      ] : [
+        ["The red came from a real ledger", "Windows leg caught it: --periwinkle consumed 5 times, declared 0 — anyone can re-audit"],
+        ["Fix at the source, not the symptom", "no test modified, skipped or commented — two declarations added in :root, both themes"],
+        ["CSS rebuilt", "styles.6472393cfc0d9ede.css — the five consumption rules untouched, the new declarations live"],
+        ["Atlas 85 → 86", "this star's score is a real red light — it only lit after the fix"],
+        ["This chapter asks no trust", "git show 5ac8904; claim gates 69/69; the rerun Windows leg is the receipt"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "门没关上——它被修好了。"
+          : "The door was never shut — it was fixed."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3439,6 +3500,7 @@ const CHAPTER_RENDERERS = {
   threshold: () => thresholdMarkup(),
   remeasure: () => remeasureMarkup(),
   eviction: () => evictionMarkup(),
+  thewall: () => thewallMarkup(),
 };
 
 async function loadChapter(id) {
