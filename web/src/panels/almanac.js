@@ -65,6 +65,7 @@ export const CHAPTERS = [
   { id: "gathering", roman: { zh: "卷四十二", en: "Chapter XLII" }, title: { zh: "团聚", en: "The Gathering" }, subtitle: { zh: "所有门都亮起琥珀色的那一夜", en: "The night every gate glowed amber at once" } },
   { id: "oracle", roman: { zh: "卷四十三", en: "Chapter XLIII" }, title: { zh: "神谕", en: "The Oracle" }, subtitle: { zh: "让仓库自己开一次口，它不开药方，只摊牌", en: "The repo opens its own mouth — it sheds files, not diagnoses" } },
   { id: "sleepless", roman: { zh: "卷四十四", en: "Chapter XLIV" }, title: { zh: "无眠", en: "The Sleepless" }, subtitle: { zh: "从不曾等过一个天亮的仓库", en: "The repo that never waited for daybreak" } },
+  { id: "threshold", roman: { zh: "卷四十五", en: "Chapter XLV" }, title: { zh: "进门", en: "The Threshold" }, subtitle: { zh: "每一步都能听见门被推开的声音", en: "Every step leads to the sound of a door opening" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3206,6 +3207,67 @@ function sleeplessMarkup() {
     </div>`;
 }
 
+function thresholdMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-threshold">
+      <div class="almanac-kicker">${zh() ? "卷四十五 · 进门" : "Chapter XLV · The Threshold"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每一步都是门被推开的声音，<br/><span class="almanac-title-accent">没有一道门是这家仓库不敢敲的。</span>`
+        : `Every step sounds like a door opening —<br/><span class="almanac-title-accent">none of them is one this repo won't knock on.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日深夜，一天被推送挤满：从大清早的 Redis 压测一整夜，到晚上 21 点 push StateGraph 面板（M8-T1094）——每一步都按下快门。
+        </p>
+        <p>
+          然后一个 <strong>red flag</strong> 升到头顶：<code>tests/test_tracked_text_files_hold_no_bare_control_bytes</code> 报了一份，<code>docs/INDEX.md</code> 忘掉了 ORACLE_DRAFT 这一条，<code>docs/ROADMAP_TO_PRODUCT.md</code> 里还留着一个过时 bundle hash——两条，一东一西，同一杆。Gate 一亮，星空一黑。
+        </p>
+        <p>
+          修补不需要重新发明：<code>test_no_document_quotes_a_content_addressed_bundle.py</code> 早就声明 <code>web/app.js</code> 是永远对的路径（<code>STABLE_NAMES</code>）。INDEX 的缺口补上，ROADMAP 里那一行换成稳定通道——
+          再推上去，双双绿过。<strong>没有人跳过自己的红，没有人告诉机器“这次不算”——这就是本仓库一整天在加固的那个门。</strong>
+        </p>` : `<p>
+          Late on 2026-11-16, the day was packed with pushes — from pre-dawn burst tests on the gateway to the 21:00 push of the StateGraph panel (M8-T1094), every step passed dozens of gates.
+        </p>
+        <p>
+          Then one red flag rose: <code>tests/test_tracked_text_files_hold_no_bare_control_bytes</code> screamed, <code>docs/INDEX.md</code> had quietly omitted ORACLE_DRAFT, and <code>docs/ROADMAP_TO_PRODUCT.md</code> still contained a stale hash-tagged bundle — east and west, same problem, same red. Gate lit, the sky turned off.
+        </p>
+        <p>
+          Fixing was not an invention: <code>test_no_document_quotes_a_content_addressed_bundle.py</code> already declared <code>web/app.js</code> the only stable channel (<em>STABLE_NAMES</em>). Index patched, the offending sentence in ROADMAP rewritten to the stable channel; the gates came back green on the very next push. <strong>Nobody skipped their own red flag; nobody told the robot "this once doesn't count" — that is the door the repo spent the whole day reinforcing.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">83</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">46 / 46</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">17+</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["十块红 flag 挤在一起了", "缺口 ORACLE_DRAFT + 过时 hash bundle——两个独立 gate 各自抓到同一天，同一时段"],
+        ["红了，没逃过去", "门禁——Claim Checker / Doc pointers / Bare control bytes 每一次都是独立的红"],
+        ["改对了只剩一个提交", "226cc20 补齐了两条 dangling reference——CI 流过去，全绿"],
+        ["Atlas 82→83", "每粒星背后都有一次真实的 push；每个坐标都是一杯茶点"],
+        ["这就是仓库的“自白”", "卷目前为止最接近工程日记的一卷——按里程碑记的不是文学，是事实"],
+      ] : [
+        ["Two red flags, one afternoon", "a missing ORACLE_DRAFT pointer + a hashed bundle rooted in ROADMAP — two gates caught it together"],
+        ["Red, never evaded", "doc_pointers / no_content_addressed_bundle / bare-control-bytes are independent gates, none of them chained"],
+        ["One commit mended both", "226cc20: lawful recovery; every gate turned green on the next push, no exceptions"],
+        ["Atlas 82 → 83", "every star lit only after a real push landed and CI honored its stripe"],
+        ["Closest to a log we have ever shipped", "a chapter whose every line ties to an actual CI line — not performance, not decorative"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "推开这扇门的不是勇气——是声音。"
+          : "What opens this door isn't courage. It's the sound of a lock turning."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3252,6 +3314,7 @@ const CHAPTER_RENDERERS = {
   gathering: () => gatheringMarkup(),
   oracle: () => oracleMarkup(),
   sleepless: () => sleeplessMarkup(),
+  threshold: () => thresholdMarkup(),
 };
 
 async function loadChapter(id) {

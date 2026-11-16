@@ -39,8 +39,8 @@ const STEPS = [
   },
   {
     id: "atlas", anchor: "#atlasButton", interact: "atlas",
-    zh: { kicker: "上手演练 · 第 5 步 / 共 10 步", title: "把这片世界摊开看一眼", body: "点「地图」，13 座岛屿、82 个坐标——18 个面板 + 45 卷年鉴卫星 + 19 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
-    en: { kicker: "Start here · Step 5 of 10", title: "Unfold the world", body: "Press the “Atlas” button: thirteen islands, eighty-two real coordinates — 18 panes, 45 almanac satellites, nineteen manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
+    zh: { kicker: "上手演练 · 第 5 步 / 共 10 步", title: "把这片世界摊开看一眼", body: "点「地图」，13 座岛屿、83 个坐标——18 个面板 + 46 卷年鉴卫星 + 19 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
+    en: { kicker: "Start here · Step 5 of 10", title: "Unfold the world", body: "Press the “Atlas” button: thirteen islands, eighty-three real coordinates — 18 panes, 46 almanac satellites, nineteen manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
   },
   {
     id: "dockyard", anchor: "#dockyardButton", interact: "dockyard",
@@ -59,8 +59,8 @@ const STEPS = [
   },
   {
     id: "almanac", anchor: '.nav-item[data-view="almanac"]',
-    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷四十五的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
-    en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in forty-five halls", body: "Forty-five chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
+    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷四十六的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
+    en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in forty-six halls", body: "Forty-six chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
   },
   {
     id: "done", anchor: null,

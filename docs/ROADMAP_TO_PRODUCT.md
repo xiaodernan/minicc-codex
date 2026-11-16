@@ -54165,3 +54165,15 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **Atlas 81 → 82 coordinates**：`atlas_smoke` 82；`index.html` 711/0；`i18n.js` 309/0；welcome chips 82。
 - **README / onboarding / Manual Atlas 行**：`eighty-two real coordinates / nineteen manual chapters`；README 早先推加了一句「The CI Wall」。
 - **验证**：`manual_smoke` 19 chapters 全双语 / `atlas_smoke` 82-coordinate / parity en zero CJK / dazzle / admin。
+## 批次 1084 · M8-T1099: 年鉴第四十五章「进门 / The Threshold」—— Atlas 83
+
+### 目的
+
+把今天这一天本身写成一卷——红旗是怎么亮起来的、它是怎么被修好的一次推送、以及这个仓库最贴近“自白”的那一次工程记录。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `thresholdMarkup()` + CHAPTERS 第四十五卷（zh 卷四十五《进门》/ en Chapter XLV · The Threshold）+ CHAPTER_RENDERERS 注册；实时读取 `/api/digest`（commits）与 `/api/stats`（tasks）入 instruments grid 和 “Atlas 83” 格。
+- **Atlas 82 → 83 coordinates**：almanac satellites 45→46；`atlas_smoke` 83；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 46 Halls、83 坐标、年鉴（46 卷）；README 加 The Threshold 领衔。
+- **验证**：`almanac_smoke` 46 chapters 双语 / `atlas_smoke` 83-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin。
