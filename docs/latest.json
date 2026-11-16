@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T22:14:20.970Z",
+  "generated_at": "2026-11-16T22:19:11.900Z",
   "branch": "main",
-  "head": "0eb9208",
-  "total_commits": 1806,
+  "head": "94158a2",
+  "total_commits": 1808,
   "recent_commits": [
+    {
+      "short": "94158a2",
+      "at": "2026-11-17T06:18:41+08:00",
+      "subject": "M8-T1118: Manual Ch.19 freshness - two measured full-run clocks (78 min / 5,701 on 2026-11-16; 106 min / 5,699 on 2026-11-17, mid-run reds from concurrent edits"
+    },
+    {
+      "short": "3b520c9",
+      "at": "2026-11-16T22:14:21Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0eb9208",
       "at": "2026-11-17T06:13:23+08:00",
@@ -19,16 +29,6 @@
       "short": "468a8f3",
       "at": "2026-11-17T05:55:30+08:00",
       "subject": "M8-T1116: /api/stats cold path 12.9s -> p50 9.5ms - os.walk+Path.stat replaced with scandir stack walker (byte-identical 372.8 MB/8738 files; cold walk 2.97s->0"
-    },
-    {
-      "short": "a968b76",
-      "at": "2026-11-16T21:46:51Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "92bc1b1",
-      "at": "2026-11-17T05:40:13+08:00",
-      "subject": "M8-T1115: almanac Ch.XLIX 'The Live Wire' - the panel that reads the repo instead of retelling it; the 3-line panelVersion bug told honestly; Atlas 86->87 (alma"
     }
   ],
   "first_commit_at": "2026-08-24",
