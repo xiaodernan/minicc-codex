@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T04:04:27.490Z",
+  "generated_at": "2026-11-16T04:37:58.319Z",
   "branch": "main",
-  "head": "17043c2",
-  "total_commits": 1711,
+  "head": "bb10b4a",
+  "total_commits": 1713,
   "recent_commits": [
+    {
+      "short": "bb10b4a",
+      "at": "2026-11-16T12:37:22+08:00",
+      "subject": "M8-T1070: almanac Ch.XXXII 'The Firefly' - each lamp is its own proof of light, three green CI nights in a row, 1708 commits counted and still standing; sixty-f"
+    },
+    {
+      "short": "1c0af09",
+      "at": "2026-11-16T04:04:27Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "17043c2",
       "at": "2026-11-16T12:03:43+08:00",
@@ -19,25 +29,15 @@
       "short": "9f7a36f",
       "at": "2026-11-16T11:19:59+08:00",
       "subject": "M8-T1068: almanac Ch.XXXI 'The Lamplighter' - the night the two Python legs came up green twice in a row (4-5 prior Windows runner starvation fails), claim chec"
-    },
-    {
-      "short": "4401f7e",
-      "at": "2026-11-16T02:48:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1ce5a97",
-      "at": "2026-11-16T10:47:29+08:00",
-      "subject": "M8-T1067: almanac Ch.XXX 'The Tide' - asymmetric-beat narrative (almanac fastest / manual slowest / fresh parallel growth), 62 coordinates flywheel, 31 volumes "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 381,
+  "roadmap_batches": 382,
   "changelog_entries": 1,
-  "roadmap_lines": 53789,
+  "roadmap_lines": 53800,
   "tracked_files": 1083,
   "test_files": 716,
-  "almanac_chapters": 32,
+  "almanac_chapters": 33,
   "module_count": 14,
   "feature_surface": [
     "workbench",
