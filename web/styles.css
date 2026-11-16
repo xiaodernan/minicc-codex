@@ -5688,3 +5688,28 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .game-modal.show #gameCanvas { max-height: min(52vh, 500px); object-fit: contain; width: 100%; }
   .game-modal.show .game-controls { margin: 10px -18px -16px; padding: 10px 18px 14px; }
 }
+.admin-card-live { position: relative; }
+.admin-ci-wrap { align-items: center; display: flex; gap: 18px; justify-content: space-between; padding: 6px 0 12px; }
+.admin-ci-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.admin-ci-conclusion { font: 700 26px Manrope, sans-serif; letter-spacing: -.3px; }
+.admin-ci-conclusion.ci-up { color: var(--mint); }
+.admin-ci-conclusion.ci-down { color: var(--coral); }
+.admin-ci-conclusion.ci-unknown { color: var(--quiet); }
+.admin-ci-workflow { color: var(--text); font: 600 13px Manrope, sans-serif; }
+.admin-ci-meta { color: var(--quiet); font: 11px "DM Mono", monospace; }
+.admin-ci-chips { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; flex: 0 0 auto; }
+.admin-ci-chip { align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--text); display: inline-flex; font: 600 11px Manrope, sans-serif; gap: 6px; padding: 4px 10px; }
+.admin-ci-chip i { color: var(--quiet); width: 13px; height: 13px; }
+.admin-ci-chip strong { color: var(--text); font: 700 12px "DM Mono", monospace; }
+.admin-ci-dots { display: flex; gap: 8px; list-style: none; margin: 10px 0 0; padding: 0; }
+.admin-ci-dot { border-radius: 6px; flex: 1 1 0; padding: 6px 8px; text-align: left; }
+.admin-ci-dot::after { border-radius: inherit; content: ""; display: block; height: 3px; margin-top: 6px; }
+.admin-ci-dot-up { background: color-mix(in srgb, var(--mint) 12%, transparent); }
+.admin-ci-dot-up::after { background: var(--mint); }
+.admin-ci-dot-down { background: color-mix(in srgb, var(--coral) 12%, transparent); }
+.admin-ci-dot-down::after { background: var(--coral); }
+.admin-ci-dot-unknown { background: color-mix(in srgb, var(--quiet) 12%, transparent); }
+.admin-ci-dot-unknown::after { background: var(--quiet); }
+.admin-ci-dot small { color: var(--quiet); display: block; font: 9.5px "DM Mono", monospace; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-ci-dot strong { color: var(--text); display: block; font: 700 10.5px Manrope, sans-serif; }
+@media (max-width: 700px) { .admin-ci-wrap { flex-direction: column; align-items: flex-start; } .admin-ci-chips { align-items: flex-start; flex-direction: row; } }

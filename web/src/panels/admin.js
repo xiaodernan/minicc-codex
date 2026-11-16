@@ -137,6 +137,47 @@ export async function openAdmin() {
         : `<li class="admin-rec admin-rec-good">${esc(zh() ? "暂无建议 —— 数据看起来不错。" : "No outstanding calls to make on this data — it looks healthy.")}</li>`;
     }
 
+    // M8-T1062: live mainline health — degrades silently if the wire is down;
+    // the tile always shows the last honest read (never a blank, never a guess)
+    const ci = await requestJson("/api/ci_status", {}, 15000).catch(() => null);
+    const ciEl = (id) => $(`#${id}`);
+    const recent = ci && typeof ci === "object" && Array.isArray(ci.recent) ? ci.recent : [];
+    const conclusion = recent.length ? String(recent[0]?.conclusion || recent[0]?.status || "").toLowerCase() : "";
+    const ciClass = conclusion === "success" ? "ci-up" : (conclusion === "failure" || conclusion === "cancelled" || conclusion === "timed_out") ? "ci-down" : "ci-unknown";
+    if (ciEl("adminCiConclusion")) {
+      ciEl("adminCiConclusion").classList.remove("ci-up", "ci-down", "ci-unknown");
+      ciEl("adminCiConclusion").classList.add(ciClass);
+      ciEl("adminCiConclusion").textContent = conclusion ? conclusion.toUpperCase() : String(t("admin.ciUnavailable"));
+    }
+    if (ciEl("adminCiWorkflow")) {
+      ciEl("adminCiWorkflow").textContent = recent.length
+        ? `${recent[0]?.workflow ?? "CI"} · ${String(recent[0]?.head_sha ?? "")}`
+        : String(t("admin.ciUnavailable"));
+    }
+    if (ciEl("adminCiMeta")) {
+      ciEl("adminCiMeta").textContent = recent.length
+        ? `${String(recent[0]?.created_at ?? "").replace("T", " ").replace("Z", " UTC")}`
+        : String(t("admin.ciUnavailable"));
+    }
+    if (ciEl("adminCiIssues")) ciEl("adminCiIssues").textContent = ci && typeof ci === "object" && ci.open_issues != null ? String(ci.open_issues) : "—";
+    if (ciEl("adminCiPulls")) ciEl("adminCiPulls").textContent = ci && typeof ci === "object" && ci.open_prs != null ? String(ci.open_prs) : "—";
+    const dotsEl = ciEl("adminCiDots");
+    if (dotsEl) {
+      const dotOf = (conclusion) => {
+        const c = String(conclusion || "").toLowerCase();
+        if (c === "success") return "admin-ci-dot-up";
+        if (c === "failure" || c === "cancelled" || c === "timed_out") return "admin-ci-dot-down";
+        return "admin-ci-dot-unknown";
+      };
+      dotsEl.innerHTML = recent.length
+        ? recent.slice(0, 3).map((r) => `
+          <li class="admin-ci-dot ${dotOf(r?.conclusion)}" title="${esc(String(r?.workflow ?? "") + " · " + String(r?.created_at ?? "") + " · " + String(r?.head_sha ?? ""))}">
+            <small>${esc(String(r?.created_at ?? "").slice(0, 16))}</small>
+            <strong>${esc(String(r?.conclusion || r?.status || "unknown"))} · ${esc(String(r?.head_sha ?? ""))}</strong>
+          </li>`).join("")
+        : `<li class="admin-ci-dot admin-ci-dot-unknown" title="${esc(String(t("admin.ciUnavailable")))}"><small>—</small><strong>${esc(String(t("admin.ciUnavailable")))}</strong></li>`;
+    }
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");

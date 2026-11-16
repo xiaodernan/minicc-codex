@@ -47,6 +47,7 @@ export const CHAPTERS = [
   { id: "lawn", roman: { zh: "卷二十四", en: "Chapter XXIV" }, title: { zh: "翠茵", en: "The Lawn" }, subtitle: { zh: "先给草插上旗子，再让僵尸来", en: "Plant the flag before the zombie learns the gate" } },
   { id: "litmus", roman: { zh: "卷二十五", en: "Chapter XXV" }, title: { zh: "试纸", en: "The Litmus" }, subtitle: { zh: "红门只说一件事：这里有事没说完", en: "Red only ever means one thing: something here is unfinished" } },
   { id: "harbour", roman: { zh: "卷二十六", en: "Chapter XXVI" }, title: { zh: "港灯", en: "The Harbour Light" }, subtitle: { zh: "每一盏灯都指得出来真礁的那一夜", en: "The night every lamp finally named the rocks" } },
+  { id: "return", roman: { zh: "卷二十七", en: "Chapter XXVII" }, title: { zh: "归航", en: "The Return Voyage" }, subtitle: { zh: "门绿了以后，船才真的回港", en: "Only green gates can bring the ship home" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1879,6 +1880,84 @@ function harbourMarkup() {
     </div>`;
 }
 
+function returnMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-return">
+      <div class="almanac-kicker">${zh() ? "卷二十七 · 归航" : "Chapter XXVII · The Return Voyage"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `门绿了以后，<br/><span class="almanac-title-accent">船才真的回港。</span>`
+        : `Only green gates can<br/><span class="almanac-title-accent">bring the ship home.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          港灯之后不是终点——是你第一次站在码头上，回头数浮标，再数门。<strong>1692 次提交到今天，每一条仓库事实都说「门没说假话」。</strong>把这件事钉进博物馆：码头这一夜，只钉三样东西。
+        </p>
+        <p>
+          第一样：<strong>星尘里程碑的复制粘贴错</strong>。2026-11-15 立的是「52-era 一张偷偷冻住的硬编码文案」；2026-11-16 凌晨，里程碑文案改成了当场插——<code>{n}/{total}</code> 按同一条 ceil 公式在切换时才计算，永远滞随世界实际大小。清除足迹 → 里程碑 → toast——没有注水语句能骗过它。
+        </p>
+        <p>
+          第二样：<strong>欢迎芯片里两处冻死的旧世界</strong>。「打开说明书 · 十一章全翻到」——真实手册是 <strong>13 章</strong>；「58 个真实坐标随便点」板上写的是 52 —— 板上改写之后，首页第一次讲假话的次数归零。
+        </p>
+        <p>
+          第三样：<strong>1692 次提交、85% 出航</strong>。第十一票里程碑「漫长海疆」——目标 2000 提交，现在 1692，悬着但诚实地亮出进度条。解锁不到的里程碑不假装点亮；<strong>世界从不用假色敷脸。</strong>
+        </p>
+        <p>
+          于是：<code>yard.stakes</code> 改成了「灯塔 · 十一座里程碑」；README、Manual、index.html 的光照样同步。<strong>码头上什么都还没动，但每一盏指示灯现在都指着真礁。</strong>
+        </p>
+        <p>
+          写这一卷时 main 上又按完了十六轮 CI——每一次都把双腿涂成绿的，但<strong>从不靠任何腿上的绿、只靠每盏灯自己读数</strong>。1691 → 1692 → 1694——世界永不停港。<strong>锚是一件东西——绿色是一件地方。</strong>
+        </p>` : `<p>
+          The harbour light chapter was supposed to be the end, but no chapter truly ends — it just teaches the dock what to keep asking. <strong>1692 commits speak one thing in common: no gate has lied.</strong> Three facts now pin the sea wall instead of wishing it would.
+        </p>
+        <p>
+          First: <strong>the stardust milestone copy</strong>. November 15 froze the thresholds at the 52-era manifest deliberately — but the toast was still telling users the wrong quarter. The fix writes <code>{n}/{total}</code> against the same ceil-0.25/0.5/0.75/1.0 math used by the unlock logic — permanently aligned, forever landing wherever the world actually is.
+        </p>
+        <p>
+          Second: <strong>two stale welcome chips</strong>. "the manual, all eleven chapters" — it had been thirteen; "52 real coordinates to tap" — by then the world already sailed with 58. The first impression stopped telling the first lie.
+        </p>
+        <p>
+          Third: <strong>1692 commits, 85% across the line</strong>. Stake XI, The Long Haul — 2,000 commits as the lighthouse lane ahead, 1692 in the wake — still locked, honestly showing its progress bar. Seventeen unlock conditions out of the world's history, none were lit falsely. <strong>The world never puts on cosmetic bloom.</strong>
+        </p>
+        <p>
+          That night the zh/en copy fossil was dug out of both surfaces — <code>yard.stakes</code> flipped to eleven medals, README / Manual / index.html came along too. Nothing slid on the pier, only the lamps got honest.
+        </p>
+        <p>
+          While drafting this chapter main went through sixteen more CI cycles — every one made both legs green, and not one spelled them green by hand.<strong>The anchor is one thing; green is a place.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">59</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">28 / 28</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "里程碑 · 真算插" : "Milestones · interpolation"}</div><div class="almanac-instrument-value">${zh() ? "ceil 真算" : "live ceil"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "双腿 · 全绿" : "Both legs"}</div><div class="almanac-instrument-value">100%</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["52-era 硬编码文案除根", "milestone 弹幕按 ceil 公式现场插——一碎旧冻结果"],
+        ["欢迎芯片 × 2 订正", "说明书 13 章、地图 58 坐标——第一次见面就讲真话"],
+        ["第十一票灯塔里程碑上岗", "漫长海疆：2,000 提交天河，现在 1692 / 85%，诚实锁着"],
+        ["yard.stakes 标题换为十一座", "欢迎 / index.html / README / manual——门面上的每处都对齐"],
+        ["两个 CI head 双绿收官", "733078c 起，所有部署信号从不带「手动涂绿」的手感"],
+      ] : [
+        ["52-era milestone copy poisoned", "{n}/{total} replaced the blind 52 constants — the same ceil math the unlock logic uses"],
+        ["Welcome chips × 2 honest", "thirteen chapters in the manual; 58 coordinates on the map — the first sentence stopped lying"],
+        ["Stake XI clocked in", "The Long Haul — 2,000 commits, 1692 in the wake, 85% shown honestly, never painted"],
+        ["yard.stakes → eleven medals", "manual, README, zh index.html — every surface aligned"],
+        ["Two CI heads, two green builds", "733078c and beyond — deployment never slept, never fudged"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "归航不是到岸——是船身再次有真的身份。"
+          : "Returning home is not landing — it is the hull being rebuilt into a ship."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -1907,6 +1986,7 @@ const CHAPTER_RENDERERS = {
   lawn: () => lawnMarkup(),
   litmus: () => litmusMarkup(),
   harbour: () => harbourMarkup(),
+  return: () => returnMarkup(),
 };
 
 async function loadChapter(id) {

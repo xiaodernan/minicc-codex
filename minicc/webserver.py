@@ -580,6 +580,16 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except ChangeError as exc:
                 self._fail(400, str(exc), exc=exc)
             return
+        if path == "/api/ci_status":
+            # M8-T1062: live mainline health for THIS repository — GitHub REST
+            # honest wire (never raises; failure reports live=False).
+            try:
+                from .ci_health import fetch_ci_health
+
+                self._json(fetch_ci_health())
+            except Exception as exc:  # noqa: BLE001 - the admin tile must never 500
+                self._json({"live": False, "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/admin/summary":
             # M8-T1014: the admin panel's single read — built from real
             # workspace data, never raises; returns honest empty dict on breakage.

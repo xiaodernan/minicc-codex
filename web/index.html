@@ -521,6 +521,22 @@
               </div>
             </section>
           </div>
+          <section class="admin-card admin-card-live" aria-label="mainline health">
+            <div class="admin-card-kicker"><i data-lucide="activity-square"></i><span data-i18n="admin.ciKicker">主线健康 · 本仓库 CI 实况</span><span class="admin-card-note" data-i18n="admin.ciNote">缓存 5 分钟 · 数字来自真实 API · 从不伪造</span></div>
+            <div class="admin-ci-wrap">
+              <div class="admin-ci-main">
+                <strong class="admin-ci-conclusion ci-unknown" id="adminCiConclusion">—</strong>
+                <span class="admin-ci-workflow" id="adminCiWorkflow">—</span>
+                <span class="admin-ci-meta" id="adminCiMeta">—</span>
+              </div>
+              <div class="admin-ci-chips">
+                <span class="admin-ci-chip"><i data-lucide="git-branch"></i><span>main</span></span>
+                <span class="admin-ci-chip"><i data-lucide="alert-circle"></i><span data-i18n="admin.ciIssues">open issues</span><strong id="adminCiIssues">—</strong></span>
+                <span class="admin-ci-chip"><i data-lucide="git-pull-request"></i><span data-i18n="admin.ciPrs">open PRs</span><strong id="adminCiPulls">—</strong></span>
+              </div>
+            </div>
+            <ol class="admin-ci-dots" id="adminCiDots" aria-label="last three runs"></ol>
+          </section>
 
           <div class="admin-duo">
             <section class="admin-card" aria-label="tool usage">
@@ -549,7 +565,7 @@
         <div class="atlas-hud-inner">
           <div class="atlas-kicker"><i data-lucide="compass"></i><span data-i18n="atlas.kicker">世界地图 · 真实坐标 · 拖拽平移</span></div>
           <h2 class="atlas-title" id="atlasTitle" data-i18n="atlas.title">这片世界没有尽头，导航却从不迷路。</h2>
-          <div class="atlas-charted-line"><i data-lucide="map-pin"></i><span class="atlas-charted" id="atlasCharted">— / 58</span></div>
+          <div class="atlas-charted-line"><i data-lucide="map-pin"></i><span class="atlas-charted" id="atlasCharted">— / 59</span></div>
         </div>
         <div class="atlas-hud-buttons">
           <button class="atlas-icon-button atlas-islands-toggle" id="atlasIslandsToggle" type="button" aria-label="岛屿志" title="岛屿志" data-i18n-aria="atlas.islandsToggle" data-i18n-title="atlas.islandsToggle"><i data-lucide="library"></i></button>
@@ -565,7 +581,7 @@
       </aside>
       <footer class="atlas-hud atlas-hud-bottom">
         <div class="atlas-shards" id="atlasShards" hidden aria-label="stardust count">
-          <i data-lucide="sparkles"></i><span data-i18n="atlas.shardsLabel">星尘</span><strong id="atlasShardsCount">0 / 52</strong><small data-i18n="atlas.shardsHint">每登陆一个坐标 = 一粒星尘</small>
+          <i data-lucide="sparkles"></i><span data-i18n="atlas.shardsLabel">星尘</span><strong id="atlasShardsCount">0 / 59</strong><small data-i18n="atlas.shardsHint">每登陆一个坐标 = 一粒星尘</small>
         </div>
         <div class="atlas-hint"><i data-lucide="move-diagonal"></i><span data-i18n="atlas.hint">拖拽平移 · 滚轮缩放 · 点击前往 · 问仓库查源码</span></div>
         <div class="atlas-legend"><span class="atlas-legend-dot atlas-legend-amber"></span><span data-i18n="atlas.legendWork">琥珀 · 工作面</span><span class="atlas-legend-dot atlas-legend-mint"></span><span data-i18n="atlas.legendFact">Mint · 事实面</span><span class="atlas-legend-dot atlas-legend-violet"></span><span data-i18n="atlas.legendExperiment">紫罗兰 · 实验面</span></div>

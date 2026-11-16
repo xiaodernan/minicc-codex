@@ -53670,3 +53670,30 @@ CI ubuntu-latest 5686 全绿、唯一一红：`test_a_module_is_registered_befor
 - **`web/index.html`** (CRLF 695/0)：zh fallback 「灯塔 · 十一座里程碑」。
 - **说明书 + README**：船厂十一座里程碑同步。
 - **现场读 + Playwright probe**：en locale 里 11 stakes 全名互不重复（`The Long Haul` 与老 `The Long Voyage` 撞名消解）；en dockyard 零 CJK。
+
+
+## 批次 1045 - M8-T1060: 年鉴第二十七卷「归航 / The Return Voyage」— 全绿图景 + 占位符再订正
+
+### 目的
+
+把 733078c 这完整一轮全绿（CI 双腿、gate 全绿、里程碑文案真数学化、welcome chips 两处旧冻订正、stake XI 上岗 85% 诚实锁着）写进博物馆——而不是等下次有人遗忘。钉死事实：52-era 硬编码里程碑文案除根、id="atlasShardsCount" 推送过的占位符 52→59。
+
+### 做了什么
+
+- `web/src/panels/almanac.js` — `CHAPTERS` 新增 `return`（卷二十七 · 归航 / Chapter XXVII · The Return Voyage）；`returnMarkup()` 完整叙事（微章 1692 次提交、第十一票灯塔里程碑上岗、双全绿双 CI、stub 门禁）；CHAPTER_RENDERERS 登记。
+- **Atlas 世界 59 坐标**（18+28+13）— onboarding / manual / README / index.html 占位符全量迁移；EN 侧「The Return Voyage」最新卷指针。Manual 叙事改指卷二十七；59-coordinate Atlas contract；CRLF pins 695/0、i18n.js 仍是 CRLF 309/0。
+- **门禁修补**：en 侧 narrative 一个 CJK 泄漏（`漫长海疆 / The Long Haul` → `The Long Haul`），en_cjk parity 绿。
+
+## 批次 1046 - M8-T1062: 管理员「主线健康」— 真 API 的实时接线
+
+### 目的
+
+管理员面板的数据以前只有本工作区统计 + 一轮 SIG 的警报；本轮给 Admin 加一面镜子：**这个仓库自己的 CI 在不在绿**——实时读公开 wire（actions/runs?branch=main、pulls、issues）。门 5 分钟 TTL 缓存（不烧 API budget），失败永落诚实的 live=False。`/api/ci_status` 是全新的只读端点，从 ADMIN 面板触发。
+
+### 做了什么
+
+- `minicc/ci_health.py`（新）— `fetch_ci_health()`：GitHub REST 真 read，`_get_json` 注入点供测试 monkeypatch；runs 三次结论 + 首次 7-char sha + html_url；`open issues` ＝ issues 列表里剔除 `pull_request` 条目；`open PRs` 净计数；LRU/Redis cache 5 分钟 TTL；**`live: bool` 永远存在**；失败时返回 `live: false, errors: [...]`，**绝不 raise**。
+- `minicc/webserver.py` — 新增 GET `/api/ci_status` 路由，镜像 `/api/admin/summary` 的只读契约：永远 200 + JSON，绝无 500，也绝无 traceback；失败路径返回 `{live: false, error: ...}`。
+- `tests/test_ci_health.py` — 四个诚实断言（wire death → live:false；wire ok → parse + PR/issue 去重；两次 live-server HTTP roundtrip 及 REDLINE B compare-line）；`route_coverage` A/B 端点 coverage 30/30；impact floor 绿。
+- `web/index.html` + `web/styles.css` + `web/src/panels/admin.js` + `web/src/core/i18n.js` — 新 tile：`admin-card-live` admin layer；结论（mint/coral/quiet）、开 issues 数、开 PRs 数（片之环底也用 chips 表达）、最近三次 runs 的三颗 dot。双语 i18n：`admin.ciKicker / admin.ciNote / admin.ciIssues / admin.ciPrs / admin.ciUnavailable`。
+- **en-CJK parity**：en 走 admin stage 零 CJK；docked route_coverage gated 30/30；impact floor 绿。
