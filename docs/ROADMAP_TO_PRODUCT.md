@@ -54141,3 +54141,15 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **onboarding / Manual Atlas 行 / README**：seventy-eight → eighty coordinates；README 以 The Sleepless 领衔。
 - **验证**：`almanac_smoke` 45 chapters 双语全绿 / `atlas_smoke` 80-coordinate / `parity` / `manual_smoke` 17 / `admin_smoke` / dazzle。
 - **数字采集口**：/api/digest 当前值，不用任何生成器捏造。
+## 批次 1082 · M8-T1097: 说明书第十八章「证词与门禁 / Evidence & Gates」—— Atlas 81
+
+### 目的
+
+一切承诺都要有人收单。仓库的“宪法”再也不藏在一堆测试名字里——本章把它们印发给读者。
+
+### 做了什么
+
+- **`web/src/panels/manual.js`**：新增 `zhEvidence`/`enEvidence` + BODIES+CHAPTERS 注册（Chapter 18 · 十八 · 证词与门禁）；Atlas 行 80→81 / 17→18 manual satellites。
+- **Atlas 80 → 81 coordinates**：manual satellites 17→18；`atlas_smoke` 81；placeholders 80→81（html 711 / i18n 309）。
+- **onboarding / Manual Atlas 行 / README**：与 Atlas 一致；README 彩蛋以 Evidence & Gates 领衔——全 repo claim 都受控。
+- **验证**：`manual_smoke` 18 chapters 双语全绿 / `atlas_smoke` 81-coordinate / parity en zero CJK / `admin_smoke` / dazzle。

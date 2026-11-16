@@ -32,6 +32,7 @@ export const CHAPTERS = [
   { id: "cache", roman: "十五", romanEn: "15", title: "Cache Affinity", titleZh: "冷热亲和" },
   { id: "sandbox", roman: "十六", romanEn: "16", title: "Sandbox & Safety", titleZh: "沙盒与安全" },
   { id: "fanout", roman: "十七", romanEn: "17", title: "Parallel Subagents", titleZh: "并行子智能体" },
+  { id: "evidence", roman: "十八", romanEn: "18", title: "Evidence & Gates", titleZh: "证词与门禁" },
 ];
 
 function zhStart() {
@@ -112,7 +113,7 @@ function zhModules() {
       <li><strong>船厂 · Dockyard</strong> — 侧边栏「船厂」：把你自己的真实旅程做成展厅——「航海日志」六格全部来自真实任务与 git 元数据（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率，数据直接读 /api/digest、/api/metrics、/api/worldpulse）；「灯塔 · 十一座里程碑」照真实指标逐格解锁（起航 / 领主 1,000 提交 / 卷典者十七卷 / 万点繁星 / 守夜人 80% 亲和率等），未达成的只显示真实进度，不放演示徽章。</li>
       <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：四十五卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷四十四《无眠》——摘要自己跑到底，digest 不喘气，一路从本机推到 fact pack，每天绿到底），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>管理员 · Admin</strong> — 侧边栏「管理」：密码 123 研一道共享门（非登录，只对本地自己人可见）；stats（任务数 / 完成 / 中断 / 缓存亲和率 / 审计行 / 会话数）+ 七日事件 Canvas（requestAnimationFrame 真绘制）+ 最小二乘线性预测（明文标注：这是估计，不是承诺）+ 中断原因自动分桶（这个仓库全部 3 次中断全部是服务重启）+ 顶部工具真实使用直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%，全部从 /api/admin/summary 真实读数，零虚构）；点 4 下之后就能看见所有数字。</li>
-      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、80 个真实坐标——18 面板 + 45 年鉴卫星 + 17 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
+      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、81 个真实坐标——18 面板 + 45 年鉴卫星 + 18 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -132,7 +133,7 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in forty-five chapters (the newest, Chapter XLIV “The Great Basin” — the week a repo laid twenty-nine worktrees on the bench and walked away with seven, every unique fragment anchored on a rescue branch; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, eighty real coordinates — 18 panes + 45 almanac satellites + 17 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, eighty-one real coordinates — 18 panes + 45 almanac satellites + 18 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -423,6 +424,24 @@ function enCloud() {
   `;
 }
 
+function zhEvidence() {
+  return `
+    <p class="manual-lede">没有任何一条 README 里的承诺是靠相信印上去的。本章把这个仓库自己的“宪法”摊开给你看。</p>
+    <ol class="manual-list">
+      <li><strong>README 不能随便写</strong> — <code>tests/test_readme_capability_claims.py</code> 就是会"读你自己的 README 然后走红"的那个测试。每一句引用都必须能从仓库里打出来；打不出来，CI 变红。所以你看到的 README 每一行都对应一段 tracked 的证据。</li>
+      <li><strong>一条常量一个家</strong> — 命名成 <code>tests/test_the_&lt;name&gt;_have_one_home.py</code> 的 15+ 个测试，每条钉死一个常量必须返回同一个值。不这么写，同名异值问题就会在代码评审时发现不了。本仓库几乎所有 "done" 状态、颜色名、网关状态码、状态枚举、sentinel key——都被钉死了。</li>
+      <li><strong>证据 census</strong> — <code>tests/test_tracked_evidence_census.py</code> 统计所有指向测试文件的文字引用、路径存在性、boundary sk- 泄漏格网。每推一次 push，census 重新数一遍。任何一个漂移的数字都在 CI 上下一个红点。</li>
+      <li><strong>index 与路由不会自动迷路</strong> — <code>docs/INDEX.md</code> 必须列出 <code>docs/</code> 下每一个文件。不列 = CI 红 = 不能合并进主分支。这不是审美偏好，是纪律。</li>
+      <li><strong>你在读的每一件展品都是一次性交付</strong> — 这一句本身也是被 <code>test_doc_pointers.py</code> 盘的；hashed 文件名变了整段就烂，所以 hash 被剔出所有文档；新增活跃 bundle 只能叫 <code>web/app.js</code>、<code>web/game.js</code>、<code>web/styles.css</code>。</li>
+      <li><strong>红一次不算事故</strong> — 本质上是一个工程纪律：每个红点都是发现一个裂缝；绿一个立一段墙。本仓库 Ch.44（无眠）比 Ch.39（灯火）多的是一个概念：<strong>醒来之后整夜绿闸</strong>。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的事</strong>
+      <p>这里没有一条承诺是外包给“信任我”的：所有的数字、路径、接口名——每一条都必须在 git 里寻到，并且满足那一个测试。你看见的任何 claim；如果你找不到对应的那个测试，本仓库就不是来骗你的，就是 bug。</p>
+    </div>
+  `;
+}
+
 function zhFanout() {
   return `
     <p class="manual-lede">「并行子智能体」是你习惯了之后再回来看，才会说：啊，原来这个不是玄学，是纯评分表。 — 见 minicc/agent/orchestration.py。</p>
@@ -491,6 +510,24 @@ function zhStateGraph() {
       <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
     </div>
     <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
+  `;
+}
+
+function enEvidence() {
+  return `
+    <p class="manual-lede">Every promise in the README was earned by a gate that actually runs against the checked-out tree. This chapter hands you the constitution.</p>
+    <ol class="manual-list">
+      <li><strong>READMEs cannot fib</strong> — <code>tests/test_readme_capability_claims.py</code> parses your README on every CI run and refuses any claim the repo cannot back up. If a sentence you wrote cannot be reproduced from the checkout, CI goes red. So every claim you see in the README exists because a test told it to exist.</li>
+      <li><strong>One home per constant</strong> — the family of <code>tests/test_the_&lt;name&gt;_have_one_home.py</code> tests enforce that a named constant has exactly one identity across the codebase. Statuses, sentinels, keys, colors, codes all comply. Nobody is allowed to spell the same concept two different ways without a gate noticing.</li>
+      <li><strong>Evidence census</strong> — <code>tests/test_tracked_evidence_census.py</code> walks the docs and reconciles every claim with a file: does the path exist? does the number match? does the name appear twice? Every push invalidates every citation until the next clean run confirms it again.</li>
+      <li><strong>INDEX.md is part of the contract</strong> — <code>docs/INDEX.md</code> must name every file under <code>docs/</code>; a missing entry fails the gate <code>test_docs_index_enumerates_every_docs_md.py</code> and the push cannot land on <code>main</code>.</li>
+      <li><strong>Every beautiful exhibit is one push deep</strong> — even the sentence you're reading is validated by <code>test_doc_pointers.py</code>: document-references must resolve to existing files; hashed bundle names are forbidden in docs because they break on the next rebuild; stable paths are the contract between the writing and the artifact.</li>
+      <li><strong>Red gates are not failures of faith</strong> — each red gate is a found crack; each green gate is a wall built in its place. Ch.44 carries more wisdom than Ch.39 because the world learned the difference between "we stopped to fix it" (the storms of Ch 38→39) and "it kept going green for weeks" (starting Ch 41+).</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest limits</strong>
+      <p>There is no claim here that requires you to trust the author — every one is backed by a test whose exit status you can inspect in this very checkout. If you cannot find the test for a claim you expected, that is the definition of a bug in this repo, not a fudge.</p>
+    </div>
   `;
 }
 
@@ -630,6 +667,7 @@ const BODIES = {
   cache: { zh: zhCacheAffinity, en: enCacheAffinity },
   sandbox: { zh: zhSandbox, en: enSandbox },
   fanout: { zh: zhFanout, en: enFanout },
+  evidence: { zh: zhEvidence, en: enEvidence },
 };
 
 function chapterMarkup(chapter) {
