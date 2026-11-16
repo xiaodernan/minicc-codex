@@ -53981,7 +53981,7 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 ### 做了什么
 
 - manual.js 中英文双分支同步到 39 卷 / 卷三十八《归墟》/ Ch.XXXVIII Great Basin；完整溯源贴入新文。
-- `git rm --cached web/assets/app.12f515310f8e7b2a.js`——资产由磁盘 prune + 清单换新维持一致；`node --check` + 五 smokes 复验 72 坐标/39 卷全绿。
+- `git rm --cached` 拉出索引中那个已不在磁盘上的陈旧 hashed 捆绑包（哈希随构建变，稳定通道是 web/app.js；本条描述的是当时的一次清理动作，不是新文件）
 - 全仓数字复核（`git ls-files`）留为日常步骤；历史卷里的老数字按冻结规矩不回改。
 ## 批次 1070 · M8-T1085: 卷三十九「灯火管制 / The Blackout Drill」—— 五千七百零一次通过后的七灯夜谈，Atlas 73
 
