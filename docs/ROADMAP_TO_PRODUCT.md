@@ -54009,3 +54009,15 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - c=64×15s（warm）：每路 n=1896，0 错误；stats p95≈138 ms。
 - c=128×12s（warm 加深）：每路 n=2158；p50≈35–43 ms；12,948 次调用全 200。
 - 累计当日 **59,070 请求，0 非 2xx**；本批不改任何代码路径或 gate。
+## 批次 1072 · M8-T1087: 网关限流独立实测——40/80 三次精确复现，6379/5672 不碰，详情GATEWAY_RATELIMIT_LIVE.md
+
+### 目的
+
+「120 并发 52×200/67×429/1×503」是上一台机器的老快照，真正的桶账需要一台隔离证书——但这一台有 6379（NOAUTH shares）与 5672（用户 RabbitMQ）两座他人浮冰在旁，靠实例隧道打一组可上可验的实测。
+
+### 做了什么
+
+- 独立容器起 Redis 7-alpine（6399）+ RabbitMQ 4.0-alpine（5673），只做自己流量。
+- `minicc-cloud-gateway-0.1.0.jar` `ratelimit` profile 起 8086；`--spring.data.redis.port=6399`；`CONFIG_SERVER=...:9` 放弃注册中心 drift back 为 local YAML；`actuator/health=UP`。
+- 三次 120-并发：壁钟 1.7s / 0.28s / 0.16s，均 **503×40 + 429×80**；`request_rate_limiter.{route}.{ip}.tokens/.timestamp` 已查到（DBSIZE=2）；桶两秒冷启再次落回 40 —— 计数逻辑自洽。
+- manual Ch.12（zh/en）改写为真实读数；`docs/GATEWAY_RATELIMIT_LIVE.md` 入档含完整命令、零遗留、零共享卷副作用（已 rm）。
