@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T13:06:47.626Z",
+  "generated_at": "2026-11-16T13:19:34.126Z",
   "branch": "main",
-  "head": "57acaf2",
-  "total_commits": 1752,
+  "head": "afac0eb",
+  "total_commits": 1754,
   "recent_commits": [
+    {
+      "short": "afac0eb",
+      "at": "2026-11-16T21:18:57+08:00",
+      "subject": "M8-T1090: almanac Ch.XLII 'The Gathering' - the consecutive-gate-green streak night (every push after 3 pushes passed every fast gate in order; Atlas coordinate"
+    },
+    {
+      "short": "9fd495f",
+      "at": "2026-11-16T13:06:48Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "57acaf2",
       "at": "2026-11-16T21:05:32+08:00",
@@ -19,25 +29,15 @@
       "short": "9506224",
       "at": "2026-11-16T20:54:05+08:00",
       "subject": "M8-T1088: almanac Ch.XL 'The Quota' - the isolated Redis token-bucket night written into the museum (three 120-concurrent bursts at /api/changes: wall 1.72s/0.2"
-    },
-    {
-      "short": "f856129",
-      "at": "2026-11-16T12:43:30Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "dfb49ae",
-      "at": "2026-11-16T20:42:16+08:00",
-      "subject": "M8-T1087: live isolated rate-limit measurement replaces stale 52x200/67x429/1x503 claim in manual - isolated Redis 7-alpine on 6399 + RabbitMQ 4.0-alpine on 567"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 401,
+  "roadmap_batches": 402,
   "changelog_entries": 1,
-  "roadmap_lines": 54050,
+  "roadmap_lines": 54063,
   "tracked_files": 1085,
   "test_files": 716,
-  "almanac_chapters": 42,
+  "almanac_chapters": 43,
   "module_count": 14,
   "feature_surface": [
     "workbench",
