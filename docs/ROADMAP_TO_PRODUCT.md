@@ -54247,3 +54247,16 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Atlas 85 → 86 coordinates**：almanac satellites 48→49；`atlas_smoke` 86；`index.html` 711/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量计数 49 Halls、86 坐标、年鉴（49 卷）；README 加 The Wall Stood 领衔。
 - **验证**：`almanac_smoke` 49 chapters 双语 / `atlas_smoke` 86-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin；中途失败的全量 pytest 复跑稳定树 23/23 全绿。
+## 批次 1091 · M8-T1112: StateGraph 面板接入实时链路——`/api/stategraph` 上线
+
+### 目的
+
+说明书 Ch.14 与 M8-T1094 的面板一直是「手刻镜像」——这次给它一根真的 wire。
+
+### 做了什么
+
+- **`minicc/stategraph_payload.py`**（新）：`stategraph_payload(config)`——节点/边/entry 来自 `build_coding_workflow()`，护栏从 `StateGraph.validate`/`DAGPlan.validate`/`execute_dag`/`StateGraph.run` 的**函数签名**现读（`inspect`），路由由同一个 `StageRouter` 按同一份 config 解析（per-stage tier/model/effort/cost cap/fallback）；测试对 live 对象逐一断言，零重写常数。
+- **`minicc/webserver.py`**：GET `/api/stategraph`（lazy import；永远 200；失败 `{"error": ...}`，面板据此降级回内嵌镜像）。
+- **`web/src/panels/stategraph.js`**：两阶段渲染——内嵌副本瞬间上屏；`/api/stategraph` 返回后换成实物（lane/edges/detail/badge→「实时 · 来自 minicc/agent/graph.py」/lede）。副本模式如实标「离线复刻」。修复 `beginPanelRequest` panelVersion 误用导致的永新问题。去掉 badge 的 `text-transform: uppercase`。
+- **`web/styles.css`**：`.stategraph-badge` / `.stategraph-guards` / `.stategraph-routing` 系列样式；`var(--periwinkle)` 复用（值：夜 `#a5b4fc` / 昼 `#4f46e5`）。
+- **Manual Ch.14** 双语补记实况；`tests/stategraph_smoke.mjs` 新入 `test:arcade` + CI syntax job；`tests/test_http_surface.py` 补 live 路由测试；`route_coverage` B 31/31 全绿；`check:web` 绿；CRLF 711/309 不动。

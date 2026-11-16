@@ -580,6 +580,17 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except ChangeError as exc:
                 self._fail(400, str(exc), exc=exc)
             return
+        if path == "/api/stategraph":
+            # Live StateGraph + stage-routing read for the panel. Never raises;
+            # a broken read is a 200 with an error field so the panel can fall
+            # back to its embedded replica instead of crashing.
+            try:
+                from .stategraph_payload import stategraph_payload
+
+                self._json(stategraph_payload(self.server.service.config))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/ci_status":
             # M8-T1062: live mainline health for THIS repository — GitHub REST
             # honest wire (never raises; failure reports live=False).

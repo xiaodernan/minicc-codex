@@ -890,6 +890,23 @@ def test_get_mcp_reports_unconfigured_workspace(live: _LiveServer) -> None:
     assert payload.get("configured", 0) == 0
 
 
+def test_get_stategraph_reports_the_live_workflow(live: _LiveServer) -> None:
+    # M8-T1112: the panel's live wire must be entered by the HTTP suite too —
+    # otherwise route_coverage.py has no entry into this branch.
+    status, _, body = _request(f"{live.url}/api/stategraph", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["name"] == "coding"
+    assert payload["entry"] == "intake"
+    assert [node["id"] for node in payload["nodes"]] == [
+        "intake", "plan", "inspect", "implement", "verify", "repair", "summarize",
+    ]
+    assert payload["guards"] == {"max_nodes": 32, "max_depth": 16, "max_parallel": 4, "max_steps": 64}
+    assert len(payload["edges"]) == 8
+    assert len(payload["routing"]["stages"]) == 5
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
 def test_get_mcp_surfaces_malformed_config_as_error_not_500(tmp_path: Path) -> None:
     # M8-T138 (M5-4 recheck): the service loads .minicc/mcp.json at
     # construction (web.py _set_current_mcp), so a broken file must be

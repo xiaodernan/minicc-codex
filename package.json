@@ -33,10 +33,11 @@
     "test:almanac": "node tests/almanac_smoke.mjs",
     "test:atlas": "node tests/atlas_smoke.mjs",
     "test:parity": "node tests/en_cjk_smoke.mjs",
+    "test:stategraph": "node tests/stategraph_smoke.mjs",
     "test:admin": "node tests/admin_smoke.mjs",
     "test:dazzle": "node tests/dazzle_smoke.mjs",
     "test:manual": "node tests/manual_smoke.mjs",
-    "test:arcade": "npm run test:game && npm run test:codex && npm run test:zombie && npm run test:almanac && npm run test:manual && npm run test:atlas && npm run test:admin && npm run test:parity && npm run test:dazzle",
+    "test:arcade": "npm run test:game && npm run test:codex && npm run test:zombie && npm run test:almanac && npm run test:manual && npm run test:atlas && npm run test:parity && npm run test:stategraph && npm run test:admin && npm run test:dazzle",
     "test:all": "npm run test:web && npm run test:arcade",
     "build:web": "node scripts/build-web.mjs",
     "check:web": "node scripts/build-web.mjs --check"

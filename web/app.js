@@ -6663,6 +6663,10 @@
       <div><strong>\u4E0D\u53EF\u7F29\u5F15\u7684\u786C\u9650</strong><span>\u8282\u70B9\u6570 \u2264 32\u3001\u6DF1\u5EA6 \u2264 16\u3001\u5E76\u884C \u2264 4\uFF0C\u5165\u53E3\u5148\u68C0\u6D4B\u73AF\u2014\u2014\u5E26\u81EA\u73AF\u7684\u8BA1\u5212\u6839\u672C\u4E0D\u4F1A\u88AB\u653E\u51FA\u6765\u6267\u884C\u3002\u5916\u52A0\u4E00\u679A <code>BudgetExceeded</code>\uFF1A\u56FE\u6700\u591A\u8D70 64 \u6B65\u2014\u2014\u6C38\u8FDC\u4E0D\u4F1A\u8BA9\u4E00\u4E2A\u70C2\u8BBE\u8BA1\u628A token \u5403\u5230\u5929\u8352\u5730\u8001\u3002</span></div>
       <div><strong>\u56FA\u5B9A\u4E09\u4E2A\u6A21\u677F</strong><span><code>inspect_summarize</code>\uFF1A\u626B\u4E00\u904D \u2192 \u5199\u603B\u7ED3\u3002<code>inspect_implement_verify</code>\uFF1A\u68C0 \u2192 \u5199 \u2192 \u9A8C \u2192 \u603B\u7ED3\u3002<code>parallel_inspect</code>\uFF1AN \u4E2A\u53EA\u8BFB\u626B\u63CF\u5E76\u53D1\u81F3 merge \u6C47\u805A \u2192 \u518D\u8FDB implement / verify / summarize \u7BA1\u7EBF\u3002\u540C\u4E00\u4EFD\u767D\u540D\u5355\uFF0C\u6CA1\u6709\u4EFB\u4F55\u4E00\u4EFD\u80FD\u8F7B\u6613\u7ED5\u8FC7\u3002</span></div>
     </div>
+    <div class="manual-callout">
+      <strong>\u9762\u677F\u770B\u5B9E\u51B5</strong>
+      <p>Ctrl/\u2318K \u8F93\u5165\u300C\u72B6\u6001\u56FE\u300D\u6253\u5F00\u7684\u9762\u677F\u4E0D\u518D\u662F\u624B\u523B\u590D\u523B\u2014\u2014\u5B83\u6BCF\u6B21\u6253\u5F00\u73B0\u8BFB <code>/api/stategraph</code>\uFF08<code>minicc/stategraph_payload.py</code> \u73B0\u62CD <code>minicc/agent/graph.py</code> \u7684\u56FE\u4E0E <code>StageRouter</code> \u7684\u9636\u6BB5\u8DEF\u7531\uFF09\uFF1A\u8282\u70B9\u3001\u8FB9\u3001\u62A4\u680F 32/16/4/64\u3001\u4E94\u6761\u9636\u6BB5\u8DEF\u7531\u5168\u90E8\u6765\u81EA\u8FD0\u884C\u65F6\u3002\u94FE\u8DEF\u65AD\u65F6\uFF0C\u9762\u677F\u5982\u5B9E\u6807\u6CE8\u300C\u79BB\u7EBF\u590D\u523B\u300D\u5E76\u9000\u56DE\u5185\u5D4C\u955C\u50CF\u3002</p>
+    </div>
     <p class="manual-footnote">\u8FD9\u4E0D\u662F LangGraph \u7684\u5C71\u5BE8\u2014\u2014\u5B83\u662F minicc \u4E13\u7528\u7684\u4EEA\u8868\u8F74\u3002\u771F\u60F3\u770B\u522B\u7684\uFF08durable execution\u3001checkpointing\u3001human-in-the-loop\u3001Send( fanout)\u3001Send==send\uFF09\u8BF7\u76F4\u63A5\u8BFB <code>docs/AGENT_LLM_ROADMAP.md</code> \u91CC\u7684\u53EF\u89C2\u6D4B\u7F16\u6392\u5C42\u5C0F\u8282\uFF1B\u771F\u6B63\u843D\u5730\u5C31\u5728 <code>minicc/agent/graph.py</code>\u3002\u2014\u2014\u4E09\u4EF6\u4E8B\u7684\u672C\u8D28\u662F\u4E00\u6837\u7684\uFF1A\u8BA9\u6BCF\u6B21\u6D41\u8F6C\u90FD\u80FD\u88AB\u770B\u89C1\u3002</p>
   `;
   }
@@ -6763,6 +6767,10 @@
       <div><strong>Readonly DAG only</strong><span><code>execute_dag</code> admits only <code>readonly</code> / <code>review</code> / <code>merge</code> node kinds. Hand it <code>write</code> or <code>exec</code>, and it refuses before the first wave \u2014 a hard reject at the entry, not a polite warning.</span></div>
       <div><strong>The four ratios that keep it honest</strong><span>Node count \u2264 32 \xB7 plan depth \u2264 16 \xB7 concurrent waves \u2264 4 \xB7 cycle rejected at plan time \u2014 a plan with a self-edge never exists at run time. Plus <code>BudgetExceeded</code>: no loop may live past step 64.</span></div>
       <div><strong>Three fixed templates</strong><span><code>inspect_summarize</code> (scan once \u2192 summarize), <code>inspect_implement_verify</code> (inspect \u2192 write \u2192 check \u2192 summarize) and <code>parallel_inspect</code> (N concurrent readonly scans fanning into <code>merge</code> \u2192 implement \u2192 verify \u2192 summarize). All three live in <code>minicc/agent/graph.py</code>; each whitelist is shared.</span></div>
+    </div>
+    <div class="manual-callout">
+      <strong>The panel shows the live wire</strong>
+      <p>Ctrl/\u2318K \u2192 \u201Cstategraph\u201D: the panel is no longer a hand-drawn replica \u2014 each open reads <code>/api/stategraph</code> (<code>minicc/stategraph_payload.py</code> snapshots the graph in <code>minicc/agent/graph.py</code> and the per-stage dispatch in <code>StageRouter</code>): nodes, edges, the 32/16/4/64 guards and the five-stage routing strip all come from the runtime. When the wire is down, it says so (\u201Creplica\u201D) and falls back to the embedded mirror.</p>
     </div>
     <p class="manual-footnote">This is not a watered-down LangGraph \u2014 durable execution, checkpointing, human-in-the-loop and the Send API family all ship inside the upstream project; read <code>docs/AGENT_LLM_ROADMAP.md</code> for the observability-layer chapter where the real overlap lives. In this repository \u2014 <code>minicc/agent/graph.py</code> \u2014 is where the idea earns its keep.</p>
   `;
@@ -12136,6 +12144,10 @@
   function nodeCall(node) {
     return `GraphNode("${node.id}", "${node.phase}", max_retries=${node.maxRetries})`;
   }
+  function nodeBlurb(node) {
+    const match = NODES.find((n) => n.id === node.id);
+    return zh10() ? match?.zh ?? "" : match?.en ?? "";
+  }
   function renderNode(node, active) {
     return `<button type="button" class="stategraph-node ${active === node.id ? "stategraph-node-active" : ""}" data-node="${escapeHtml(node.id)}">
             <span class="stategraph-node-name">${escapeHtml(node.id)}</span>
@@ -12143,11 +12155,11 @@
             <span class="stategraph-node-retries">${node.maxRetries > 0 ? `max_retries=${node.maxRetries}` : "\u2014"}</span>
           </button>`;
   }
-  function laneMarkup(active) {
-    return NODES.map((node) => renderNode(node, active)).join(`<span class="stategraph-lane-arrow">\u2192</span>`);
+  function laneMarkup(nodes, active) {
+    return nodes.map((node) => renderNode(node, active)).join(`<span class="stategraph-lane-arrow">\u2192</span>`);
   }
-  function detailMarkup(id) {
-    const node = NODES.find((n) => n.id === id) ?? NODES[0];
+  function detailMarkup(nodes, id) {
+    const node = nodes.find((n) => n.id === id) ?? nodes[0];
     const isZh = zh10();
     return `
     <div class="stategraph-body-callout">
@@ -12162,35 +12174,103 @@
       <div class="stategraph-callout-label">${escapeHtml(isZh ? "\u6E90\u7801\u8C03\u7528" : "Source call")}</div>
       <code class="stategraph-call">${escapeHtml(nodeCall(node))}</code>
     </div>
-    <div class="stategraph-body-callout stategraph-body-callout-wide">${escapeHtml(isZh ? node.zh : node.en)}</div>`;
+    <div class="stategraph-body-callout stategraph-body-callout-wide">${escapeHtml(nodeBlurb(node))}</div>`;
   }
-  function render4() {
+  function guardsMarkup(guards) {
+    const isZh = zh10();
+    const cells = [
+      [isZh ? "\u8282\u70B9 \u2264" : "nodes \u2264", guards.max_nodes],
+      [isZh ? "\u6DF1\u5EA6 \u2264" : "depth \u2264", guards.max_depth],
+      [isZh ? "\u5E76\u53D1 \u2264" : "parallel \u2264", guards.max_parallel],
+      [isZh ? "\u6B65\u6570 \u2264" : "steps \u2264", guards.max_steps]
+    ];
+    return `<div class="stategraph-guards" id="stategraphGuards">
+    ${cells.map(([label2, value]) => `<div class="stategraph-guard"><div class="stategraph-guard-label">${escapeHtml(String(label2))}</div><div class="stategraph-guard-value">${escapeHtml(String(value))}</div></div>`).join("")}
+  </div>`;
+  }
+  function routingMarkup(routing) {
+    const isZh = zh10();
+    const enabled = routing?.enabled === true;
+    const rows = (routing?.stages ?? []).map((stage) => {
+      const detail = [
+        `<span class="stategraph-routing-model">${escapeHtml(stage.model)}</span>`,
+        `<span class="stategraph-routing-tier">${escapeHtml(stage.tier)}</span>`,
+        stage.reasoning_effort ? `<span class="stategraph-routing-effort">${escapeHtml(stage.reasoning_effort)}</span>` : "",
+        stage.max_cost_usd != null ? `<span class="stategraph-routing-cost">\u2264$${escapeHtml(String(stage.max_cost_usd))}</span>` : ""
+      ].filter(Boolean).join("");
+      return `<div class="stategraph-routing-row"><code>${escapeHtml(stage.stage)}</code>${detail}</div>`;
+    }).join("");
+    const note = enabled ? isZh ? "stage_routing \u5DF2\u542F\u7528\u2014\u2014\u6309\u9636\u6BB5\u5206\u6D3E\u6A21\u578B\uFF08\u672C\u9875\u4E0E\u6BCF\u6B21\u4EFB\u52A1\u540C\u4E00 StageRouter\uFF09" : "stage_routing on \u2014 models dispatched per stage (the same StageRouter a live run builds)" : isZh ? `stage_routing \u672A\u542F\u7528\u2014\u2014\u6240\u6709\u9636\u6BB5\u5171\u7528\u9ED8\u8BA4\u6A21\u578B ${routing?.default_model ?? ""}` : `stage_routing off \u2014 every stage rides the default model ${routing?.default_model ?? ""}`;
+    return `<div class="stategraph-routing" id="stategraphRouting">
+    <div class="stategraph-edges-title">${escapeHtml(isZh ? "\u9636\u6BB5\u8DEF\u7531 \xB7 stage_routing" : "Stage routing")}</div>
+    <p class="stategraph-routing-note">${escapeHtml(note)}</p>
+    <div class="stategraph-routing-rows">${rows || `<div class="stategraph-routing-row"><em>${escapeHtml(isZh ? "\uFF08\u6682\u65E0\u9636\u6BB5\u6570\u636E\uFF09" : "(no stage data)")}</em></div>`}</div>
+  </div>`;
+  }
+  function edgesMarkup(edges) {
+    return edges.map((edge) => `<div class="stategraph-edge-row"><code>${escapeHtml(edge.from)} \u2192 ${escapeHtml(edge.to)}</code><span class="stategraph-edge-on">on = ${escapeHtml(edge.on)}</span></div>`).join("");
+  }
+  function renderShell() {
     const isZh = zh10();
     const activeId = "verify";
     return `
     <div class="stategraph-shell">
-      <div class="stategraph-kicker">${escapeHtml(isZh ? "\u72B6\u6001\u56FE \xB7 \u672C\u9879\u76EE\u81EA\u5DF1\u7684\u9636\u6BB5\u8F74" : "StateGraph \xB7 this repo's own phase axis")}</div>
+      <div class="stategraph-kicker">${escapeHtml(isZh ? "\u72B6\u6001\u56FE \xB7 \u672C\u9879\u76EE\u81EA\u5DF1\u7684\u9636\u6BB5\u8F74" : "StateGraph \xB7 this repo's own phase axis")}<span class="stategraph-badge stategraph-badge-replica" id="stategraphBadge">${escapeHtml(isZh ? "\u79BB\u7EBF\u590D\u523B \xB7 \u5185\u5D4C\u526F\u672C" : "replica \xB7 embedded copy")}</span></div>
       <h1 class="stategraph-title">${isZh ? `\u4F60\u773C\u524D\u8FD9\u4E00\u9875\u4E0D\u662F<br/><span class="stategraph-title-accent">\u53E6\u4E00\u4EFD\u8BF4\u660E\u3002</span>` : `You are not reading<br/><span class="stategraph-title-accent">another spec.</span>`}</h1>
-      <p class="stategraph-lede">${escapeHtml(isZh ? "\u8FD9\u662F minicc/agent/graph.py::build_coding_workflow() \u8FD4\u56DE\u7684 StateGraph \u7684\u5FE0\u5B9E\u590D\u523B\u2014\u2014\u70B9\u8282\u70B9\uFF0C\u770B\u5B83\u5728\u6E90\u6587\u4EF6\u91CC\u771F\u6B63\u88AB\u523B\u6210\u7684\u6837\u5B50\u3002" : "A faithful replica of the StateGraph that minicc/agent/graph.py::build_coding_workflow() returns \u2014 click a node and read the very call the runtime makes.")}</p>
+      <p class="stategraph-lede" id="stategraphLede">${escapeHtml(isZh ? "\u5185\u5D4C\u526F\u672C\uFF1Aminicc/agent/graph.py::build_coding_workflow() \u7684\u624B\u523B\u955C\u50CF\u2014\u2014\u6B63\u5728\u95EE\u5B9E\u65F6\u94FE\u8DEF\u2026\u2026" : "Embedded replica: a hand mirror of minicc/agent/graph.py::build_coding_workflow() \u2014 asking the live wire\u2026")}</p>
 
-      <div class="stategraph-lane" role="list">${laneMarkup(activeId)}</div>
+      <div class="stategraph-lane" id="stategraphLane" role="list">${laneMarkup(NODES, activeId)}</div>
 
-      <div class="stategraph-body" id="stategraphDetail">${detailMarkup(activeId)}</div>
+      <div class="stategraph-body" id="stategraphDetail">${detailMarkup(NODES, activeId)}</div>
 
       <div class="stategraph-edges">
         <div class="stategraph-edges-title">${escapeHtml(isZh ? "\u8FB9 \xB7 on=" : "Edges \xB7 on=")}${escapeHtml(isZh ? "\u6761\u4EF6" : "condition")}</div>
-        ${EDGES.map((edge) => `<div class="stategraph-edge-row"><code>${escapeHtml(edge.from)} \u2192 ${escapeHtml(edge.to)}</code><span class="stategraph-edge-on">on = ${escapeHtml(edge.on)}</span></div>`).join("")}
+        <div id="stategraphEdges">${edgesMarkup(EDGES)}</div>
       </div>
 
-      <p class="stategraph-foot">${escapeHtml(isZh ? "\u672C\u9762\u677F\u4E0D\u8C03\u4EFB\u4F55\u6A21\u578B\u3001\u4E0D\u8D70\u7F51\u7EDC\u2014\u2014\u5B83\u53EA\u628A\u4F60\u6E90\u4ED3\u5E93\u91CC\u90A3\u4E2A\u7F16\u8BD1\u65F6\u5E38\u6570\u5E73\u94FA\u5230\u4F60\u773C\u524D\u3002" : "Zero API calls, zero network \u2014 this panel only lays flat the compile-time constants living in your repo.")}</p>
+      <p class="stategraph-foot">${escapeHtml(isZh ? "\u5185\u5D4C\u526F\u672C\u4E0D\u8C03\u4EFB\u4F55\u6A21\u578B\u2014\u2014\u5B9E\u65F6\u6A21\u5F0F\u7531 minicc/stategraph_payload.py \u5728\u6BCF\u6B21\u6253\u5F00\u65F6\u73B0\u8BFB minicc/agent/graph.py\u3002" : "The embedded replica calls nothing \u2014 live mode reads minicc/agent/graph.py through minicc/stategraph_payload.py on every open.")}</p>
     </div>`;
+  }
+  async function fetchStategraph() {
+    try {
+      const res = await fetch("/api/stategraph", { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges) || data.error) return null;
+      return data;
+    } catch {
+      return null;
+    }
   }
   async function openStategraphPanel() {
     const title = zh10() ? "\u72B6\u6001\u56FE \xB7 \u9636\u6BB5\u8F74" : "StateGraph \xB7 The Axis";
-    const current = beginPanelRequest(title);
+    const isZh = zh10();
     try {
-      openPanel(title, render4(), { wide: true, immersive: true });
-      $("#stategraphDetail").querySelectorAll(".stategraph-node");
+      openPanel(title, renderShell(), { wide: true, immersive: true });
+      const live = await fetchStategraph();
+      if (!$("#stategraphBadge")) return;
+      if (live) {
+        const activeId = live.nodes.some((n) => n.id === "verify") ? "verify" : live.nodes[0].id;
+        const lane = $("#stategraphLane");
+        if (lane) lane.innerHTML = laneMarkup(live.nodes, activeId);
+        const edges = $("#stategraphEdges");
+        if (edges) edges.innerHTML = edgesMarkup(live.edges);
+        const detail = $("#stategraphDetail");
+        if (detail) detail.innerHTML = detailMarkup(live.nodes, activeId);
+        const badge = $("#stategraphBadge");
+        if (badge) {
+          badge.textContent = isZh ? "\u5B9E\u65F6 \xB7 \u6765\u81EA minicc/agent/graph.py" : "live \xB7 from minicc/agent/graph.py";
+          badge.classList.remove("stategraph-badge-replica");
+          badge.classList.add("stategraph-badge-live");
+        }
+        const lede = $("#stategraphLede");
+        if (lede) lede.textContent = isZh ? "\u5B9E\u65F6\u6A21\u5F0F\uFF1A\u8282\u70B9\u3001\u8FB9\u3001\u62A4\u680F\u4E0E\u9636\u6BB5\u8DEF\u7531\u5168\u90E8\u73B0\u8BFB\u81EA minicc/agent/graph.py \u4E0E StageRouter\u2014\u2014\u4E0D\u662F\u53E6\u4E00\u4EFD\u8BF4\u660E\u3002" : "Live mode: nodes, edges, guards and stage routing are all read straight out of minicc/agent/graph.py and StageRouter \u2014 not another spec.";
+        const edgesBlock = document.querySelector(".stategraph-edges");
+        if (edgesBlock && !$("#stategraphGuards")) {
+          edgesBlock.insertAdjacentHTML("beforebegin", guardsMarkup(live.guards ?? {}));
+          edgesBlock.insertAdjacentHTML("afterend", routingMarkup(live.routing));
+        }
+      }
       document.querySelectorAll(".stategraph-node").forEach((button) => {
         button.addEventListener("click", () => {
           const id = button.getAttribute("data-node") || "verify";
@@ -12198,12 +12278,14 @@
             nodeEl.classList.toggle("stategraph-node-active", nodeEl === button);
           });
           const detail = $("#stategraphDetail");
-          if (detail) detail.innerHTML = detailMarkup(id);
+          if (detail) {
+            const liveNodes = live?.nodes ?? NODES;
+            detail.innerHTML = detailMarkup(liveNodes, id);
+          }
         });
       });
       refreshIcons();
     } catch (error) {
-      if (!current()) return;
       openPanel(title, `<div class="error-panel">${escapeHtml(error.message)}</div>`);
     }
   }
@@ -12850,7 +12932,7 @@
     }
     return 60 - index * 0.2 + runs * 2;
   }
-  function render5() {
+  function render4() {
     const query = inputNode.value.trim();
     const all = commands();
     filtered = query ? all.map((command) => ({ command, points: score(query, command) })).filter((entry) => entry.points >= 0).sort((a, b) => b.points - a.points).map((entry) => entry.command) : all;
@@ -12924,13 +13006,13 @@
     inputNode.value = "";
     modal.classList.add("show");
     modal.setAttribute("aria-hidden", "false");
-    render5();
+    render4();
     setActive(activeIndex);
     activateDialog(modal, { initialFocus: "#paletteInput", onEscape: closeCommandPalette });
     inputNode.focus({ preventScroll: true });
     inputNode.oninput = () => {
       activeIndex = 0;
-      render5();
+      render4();
       setActive(activeIndex);
     };
     inputNode.onkeydown = (event) => {

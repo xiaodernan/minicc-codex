@@ -129,6 +129,7 @@ jobs:
           node --check tests/codex_smoke.mjs
           node --check tests/zombie_spawn_smoke.mjs
           node --check tests/almanac_smoke.mjs
+          node --check tests/stategraph_smoke.mjs
           node --check tests/frontend_phase_classes_smoke.mjs
           node --check tests/frontend_phase_one_home_smoke.mjs
           node --check tests/frontend_trace_code_one_home_smoke.mjs

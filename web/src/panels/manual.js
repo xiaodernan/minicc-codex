@@ -528,6 +528,10 @@ function zhStateGraph() {
       <div><strong>不可缩引的硬限</strong><span>节点数 ≤ 32、深度 ≤ 16、并行 ≤ 4，入口先检测环——带自环的计划根本不会被放出来执行。外加一枚 <code>BudgetExceeded</code>：图最多走 64 步——永远不会让一个烂设计把 token 吃到天荒地老。</span></div>
       <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
     </div>
+    <div class="manual-callout">
+      <strong>面板看实况</strong>
+      <p>Ctrl/⌘K 输入「状态图」打开的面板不再是手刻复刻——它每次打开现读 <code>/api/stategraph</code>（<code>minicc/stategraph_payload.py</code> 现拍 <code>minicc/agent/graph.py</code> 的图与 <code>StageRouter</code> 的阶段路由）：节点、边、护栏 32/16/4/64、五条阶段路由全部来自运行时。链路断时，面板如实标注「离线复刻」并退回内嵌镜像。</p>
+    </div>
     <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
   `;
 }
@@ -634,6 +638,10 @@ function enStateGraph() {
       <div><strong>Readonly DAG only</strong><span><code>execute_dag</code> admits only <code>readonly</code> / <code>review</code> / <code>merge</code> node kinds. Hand it <code>write</code> or <code>exec</code>, and it refuses before the first wave — a hard reject at the entry, not a polite warning.</span></div>
       <div><strong>The four ratios that keep it honest</strong><span>Node count ≤ 32 · plan depth ≤ 16 · concurrent waves ≤ 4 · cycle rejected at plan time — a plan with a self-edge never exists at run time. Plus <code>BudgetExceeded</code>: no loop may live past step 64.</span></div>
       <div><strong>Three fixed templates</strong><span><code>inspect_summarize</code> (scan once → summarize), <code>inspect_implement_verify</code> (inspect → write → check → summarize) and <code>parallel_inspect</code> (N concurrent readonly scans fanning into <code>merge</code> → implement → verify → summarize). All three live in <code>minicc/agent/graph.py</code>; each whitelist is shared.</span></div>
+    </div>
+    <div class="manual-callout">
+      <strong>The panel shows the live wire</strong>
+      <p>Ctrl/⌘K → “stategraph”: the panel is no longer a hand-drawn replica — each open reads <code>/api/stategraph</code> (<code>minicc/stategraph_payload.py</code> snapshots the graph in <code>minicc/agent/graph.py</code> and the per-stage dispatch in <code>StageRouter</code>): nodes, edges, the 32/16/4/64 guards and the five-stage routing strip all come from the runtime. When the wire is down, it says so (“replica”) and falls back to the embedded mirror.</p>
     </div>
     <p class="manual-footnote">This is not a watered-down LangGraph — durable execution, checkpointing, human-in-the-loop and the Send API family all ship inside the upstream project; read <code>docs/AGENT_LLM_ROADMAP.md</code> for the observability-layer chapter where the real overlap lives. In this repository — <code>minicc/agent/graph.py</code> — is where the idea earns its keep.</p>
   `;
