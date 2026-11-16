@@ -54177,3 +54177,15 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **Atlas 82 → 83 coordinates**：almanac satellites 45→46；`atlas_smoke` 83；`index.html` 711/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量计数 46 Halls、83 坐标、年鉴（46 卷）；README 加 The Threshold 领衔。
 - **验证**：`almanac_smoke` 46 chapters 双语 / `atlas_smoke` 83-coordinate / manual_smoke 19 / parity en zero CJK / dazzle en+zh / admin。
+## 批次 1085 · M8-T1101: 新 lane 缓存复测 + 测量脚本代理自继承
+
+### 目的
+
+把「两天复现同一区间」这件事写进账册——不是转述，是实拍。
+
+### 做了什么
+
+- `scripts/measure_cache_affinity.py`：`.env` 回落时自动继承 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`（缺省才设），`NO_PROXY` 同步；lane bump 至 `minicc-measurement-2026-11-17-a`。dry-run 继续零网络。
+- 实拍（2026-11-17）：5731/4224 **73.7%**（冷）→ 5737/5504 **95.9%**（暖）——与 2026-11-16 同一区间。
+- `docs/CACHE_AFFINITY_MATRIX.md` 追加「2026-11-17 重测」段；旧矩阵冻结。
+- `docs/CHANGELOG.md` 补记 M8-T1100（5,701 计数修正）与 M8-T1101。

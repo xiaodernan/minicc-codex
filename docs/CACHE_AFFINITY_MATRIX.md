@@ -190,3 +190,16 @@ read-back 验证：同样脚本在 `.env` 写入 `HTTPS_PROXY=http://127.0.0.1:7
 **行为变化（诚实建议，不擅自加码）**：`MINICC_CACHE_KEEPER_INTERVAL` 仍保留 220 秒默认值，不改默认；若以后实测新 lane 悬崖在 ~15 分钟级附近，可安全把间隔提升到 600 秒并将 warm 冷却开销减掉一半——但没有测量就不动手。本次只记录，不擅自改参数。
 
 `minicc/cache_keeper.py` 的 220 秒决策因此**仍然有效**：warm 的 ~20 output token 成本极低，而跨 window 接力仍然是它的正确职能；本次实验只修正文档认知，未改代码默认值。
+## 2026-11-17 重测 · aizzz.xyz / gpt-6.1-terra（新 lane，代理实拍）
+
+**方法**（仍旧：key 不落盘纸、不打印；走本机 Clash Verge 代理 `127.0.0.1:7897`，直连仍被 403）：`scripts/measure_cache_affinity.py`，fresh lane key `minicc-measurement-2026-11-17-a`，prefix = 同一 14 行中文规则段（~5.7k tokens），Responses 流式，prompt_cache_key 显式传入。实测三回合：
+
+| 回合 | input | cached_tokens | 命中 |
+| --- | --- | --- | --- |
+| req 1（冷 · 全新 lane） | 5731 | 4224 | **73.7%** |
+| req 2（同前缀，同 lane） | 5735 | 4224 | **73.7%** |
+| req 3（暖 · 同前缀 + 同 lane） | 5737 | 5504 | **95.9%** |
+
+**结论**：与 2026-11-16 首测同一区间（冷 73.7% → 暖 95.9%）——两天、同模型、全新 lane 复现。`4224` 是 content-addressed 的共享前缀块；日 lane key 门控其余部分；prefix 本身不变即两层稳定。**「非流」误解在此 lane 上同样不存在**：Responses 流式两回合之后 cached_tokens 全程可见。
+
+**工程收尾**：`scripts/measure_cache_affinity.py` 现在自动从 gitignored `.env` 继承 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`（仅当 shell 未预置）——不再要求 shell 预置代理，dry-run 继续零网络、零输出 key。

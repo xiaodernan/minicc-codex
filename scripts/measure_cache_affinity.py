@@ -22,7 +22,7 @@ import os
 import sys
 from pathlib import Path
 
-LANE = "minicc-measurement-2026-11-16-a"
+LANE = "minicc-measurement-2026-11-17-a"
 RULE = (
     "你是一个在代码仓库里工作的智能体。先观察，后动手。"
     "每次变更必须最小：只改必须改的文件，不引入多余依赖，不改变未要求的行为。"
@@ -50,12 +50,18 @@ def _load_settings() -> tuple[str | None, str, str]:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, _, v = line.partition("=")
-            if k.strip() == "MINICC_API_KEY" and v.strip():
-                key = v.strip()
-            elif k.strip() == "MINICC_BASE_URL" and v.strip():
-                base = v.strip()
-            elif k.strip() == "MINICC_MODEL" and v.strip():
-                model = v.strip()
+            k, v = k.strip(), v.strip()
+            if k == "MINICC_API_KEY" and v:
+                key = v
+            elif k == "MINICC_BASE_URL" and v:
+                base = v
+            elif k == "MINICC_MODEL" and v:
+                model = v
+            elif k in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY") and v and k not in os.environ:
+                # gateway geo-blocks direct egress; honor the local proxy from .env
+                os.environ[k] = v
+            elif k == "NO_PROXY" and v and "NO_PROXY" not in os.environ:
+                os.environ["NO_PROXY"] = v
     return key, base or "https://wkapi.pro/v1", model or "gpt-6-sol"
 
 
