@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T00:24:44.720Z",
+  "generated_at": "2026-11-16T00:42:27.597Z",
   "branch": "main",
-  "head": "402d1e5",
-  "total_commits": 1698,
+  "head": "f6227d9",
+  "total_commits": 1700,
   "recent_commits": [
+    {
+      "short": "f6227d9",
+      "at": "2026-11-16T08:41:57+08:00",
+      "subject": "M8-T1063 follow-through: broad-silent gate - 3 'except Exception' handlers in ci_health.py silently returned without reason; noqa BLE001 with honest why (errors"
+    },
+    {
+      "short": "184ceee",
+      "at": "2026-11-16T00:24:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "402d1e5",
       "at": "2026-11-16T08:17:32+08:00",
@@ -19,22 +29,12 @@
       "short": "4ea0058",
       "at": "2026-11-16T08:02:59+08:00",
       "subject": "M8-T1062: admin mainline health tile - new /api/ci_status (GitHub REST: actions/runs?branch=main + pulls + issues with PR-dedupe), 5-min LRU/Redis cache, live=T"
-    },
-    {
-      "short": "1974569",
-      "at": "2026-11-15T23:16:09Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "733078c",
-      "at": "2026-11-16T07:15:49+08:00",
-      "subject": "M8-T1059: dockyard stake XI 'The Long Haul' (2000 commits live from digest; currently 1692=85%, locked honest with progress bar) + stale welcome chips refreshed"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 374,
+  "roadmap_batches": 375,
   "changelog_entries": 1,
-  "roadmap_lines": 53711,
+  "roadmap_lines": 53720,
   "tracked_files": 1082,
   "test_files": 715,
   "almanac_chapters": 28,
