@@ -53972,3 +53972,14 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **onboarding / Manual Atlas 行 / README**：seventy-two coordinates / thirty-nine chapters；README 彩蛋以 The Great Basin 领衔。
 - **验证**：`almanac_smoke` 39 chapters 双语 / `atlas_smoke` 72-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins；Claim gates 及 Doc pointers 照过。
 - **数字来源（全部实测）**：工树 29→7；12 纯 EOL-noise `git worktree remove --force`；unique content 工树 `wt353/wt379/wt470/wt478par/wt519pre/wt529/wt537` 全救援（059c5c0/033e26f/44517cc/800369c/e179505/89f159d/6674b9b）；6 大脏工树先救援（plane715 `f59dca55` / minicc-dev-4ba3 `7988dc4d` / plane195 `7ca47cfc` / plane196 `6b93a90b` / plane_sdist `e9a8dac` / t544-plane `2b7803bd`）；4 个删除分支先 `merge-base --is-ancestor` 验祖；远程分支未擅删；`.arm527/` scratch 保留 untracked。
+## 批次 1069 · M8-T1084: 手册年鉴陈述数字漂移修正 + 资产陈帐清理
+
+### 目的
+
+全仓 `git ls-files` 数字复核暴露：`web/src/panels/manual.js` 里年鉴条目停在 34 卷 / Ch.XXXV 叙事，Parity gate 没验它；同时跟踪列表里挂着磁盘已删除的陈旧 hashed 资产。
+
+### 做了什么
+
+- manual.js 中英文双分支同步到 39 卷 / 卷三十八《归墟》/ Ch.XXXVIII Great Basin；完整溯源贴入新文。
+- `git rm --cached web/assets/app.12f515310f8e7b2a.js`——资产由磁盘 prune + 清单换新维持一致；`node --check` + 五 smokes 复验 72 坐标/39 卷全绿。
+- 全仓数字复核（`git ls-files`）留为日常步骤；历史卷里的老数字按冻结规矩不回改。
