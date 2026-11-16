@@ -30,6 +30,7 @@ export const CHAPTERS = [
   { id: "arch", roman: "十三", romanEn: "13", title: "Full Stack", titleZh: "前后端全景架构" },
   { id: "stategraph", roman: "十四", romanEn: "14", title: "StateGraph", titleZh: "状态图" },
   { id: "cache", roman: "十五", romanEn: "15", title: "Cache Affinity", titleZh: "冷热亲和" },
+  { id: "sandbox", roman: "十六", romanEn: "16", title: "Sandbox & Safety", titleZh: "沙盒与安全" },
 ];
 
 function zhStart() {
@@ -110,7 +111,7 @@ function zhModules() {
       <li><strong>船厂 · Dockyard</strong> — 侧边栏「船厂」：把你自己的真实旅程做成展厅——「航海日志」六格全部来自真实任务与 git 元数据（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率，数据直接读 /api/digest、/api/metrics、/api/worldpulse）；「灯塔 · 十一座里程碑」照真实指标逐格解锁（起航 / 领主 1,000 提交 / 卷典者十七卷 / 万点繁星 / 守夜人 80% 亲和率等），未达成的只显示真实进度，不放演示徽章。</li>
       <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：四十四卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷四十三《神谕》——本仓库配置中的模型现场撰写、只凭 /api/digest 上的数字落笔，每一卷数字都翻开同一页可复核），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>管理员 · Admin</strong> — 侧边栏「管理」：密码 123 研一道共享门（非登录，只对本地自己人可见）；stats（任务数 / 完成 / 中断 / 缓存亲和率 / 审计行 / 会话数）+ 七日事件 Canvas（requestAnimationFrame 真绘制）+ 最小二乘线性预测（明文标注：这是估计，不是承诺）+ 中断原因自动分桶（这个仓库全部 3 次中断全部是服务重启）+ 顶部工具真实使用直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%，全部从 /api/admin/summary 真实读数，零虚构）；点 4 下之后就能看见所有数字。</li>
-      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、77 个真实坐标——18 面板 + 44 年鉴卫星 + 15 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
+      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、78 个真实坐标——18 面板 + 44 年鉴卫星 + 16 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -130,7 +131,7 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in forty-four chapters (the newest, Chapter XLIII “The Great Basin” — the week a repo laid twenty-nine worktrees on the bench and walked away with seven, every unique fragment anchored on a rescue branch; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, seventy-seven real coordinates — 18 panes + 44 almanac satellites + 15 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, seventy-eight real coordinates — 18 panes + 44 almanac satellites + 16 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -421,6 +422,24 @@ function enCloud() {
   `;
 }
 
+function zhSandbox() {
+  return `
+    <p class="manual-lede">小册子最后一章：你有一位不信任 Agent 的朋友——他可以，任何人都可以。可是当模型在 workspaces 里横冲直撞，“沙盒”就是你的邻居请你吃饭时穿的围裙：不当证牌，防止锅烧着厨房。</p>
+    <p><strong>本章做什么</strong></p>
+    <ol class="manual-list">
+      <li><strong>SANDBOX_MODE</strong> — 三个合法值：<code>host</code>（直接在本地跑，默认）、<code>docker</code>（强制 Docker 隔离）、<code>auto</code>（有 Docker 就用 Docker，没有就退回 host，而不是拒服务）。如果 Docker 配成 docker 但机器上没有 Docker——这是第四种答复：<code>backend=unavailable</code>，ToolResult 原样标记 <code>sandbox_unavailable</code>，<strong>这是诚实的拒绝，而不是悄悄退 host</strong>。</li>
+      <li><strong>Docker 的护城河（每一条都是真实配置，不是隐喻）</strong> — <code>--network none</code>（无网络）、<code>--cap-drop ALL</code>（撤掉所有 capabilities）、<code>--security-opt no-new-privileges</code>（不能获得新特权）、<code>--pids-limit 256</code>（最多 256 个 pid）、<code>--memory 512m</code>（约 512MB，保证 pytest/compileall 能跑起来同时不会失控）、<code>--read-only</code>（只读根文件系统）、<code>--tmpfs /tmp</code>（/tmp 走 tmpfs）、<code>-v <workspace>:/workspace:rw</code>（工作区可写，因为 Agent 要干活）。Linux 上还会加 <code>--user</code> 切到非 root（Windows/macOS 不加，因为 Docker Desktop 会拒）。</li>
+      <li><strong>合适的语气</strong> — “火爆”不是一个 bug，是边界声明：这份配置本身就是声明。Agent 在它被编译时知道自己在限制里工作——而你知道它能改你的磁盘只到工作区为止，不改根。</li>
+      <li><strong>MINICC_SANDBOX=host 时</strong> — 每个 bash/python 都在你的进程里、你的身份下、真实的系统调用上跑。承诺 = 你对这些调用完全负责，Agent 只是另一个 CLI 客户端。</li>
+      <li><strong>MINICC_SANDBOX_IMAGE</strong> — 换个 base：默认 <code>python:3.11-slim</code>。换之前确认你的 toolchain 仍在里面，否则你等最久的不是构建，而是为什么一直 exit 127。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的边界</strong>
+      <p>沙盒覆盖的是“执行时影响”，不是“参数泄露”，更不是“网络响应体解释”。模型仍然能读工作区里任何文本，包括你的 <code>.env</code>（它按读取优先级找，但这不是拒读）。<code>--network none</code> 挡住网络，但挡不住模型把 key 写到 workspace 里面被你自己复制到外网。沙盒是你挡住 Agent 崩溃的工具，不是你挡住自己好奇心的工具。</p>
+    </div>
+  `;
+}
+
 function zhCacheAffinity() {
   return `
     <p class="manual-lede">「亲和」是这套系统里最便宜、也最难的一类缓存：它不在你的机器上，它在网关里。每一次请求都携带 prefix 的字节指纹——同一 workspace 的系统提示 byte-stable，指纹就一致，网关就命中；prefix 差一个字节，整段前缀从头再付。</p>
@@ -451,6 +470,24 @@ function zhStateGraph() {
       <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
     </div>
     <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
+  `;
+}
+
+function enSandbox() {
+  return `
+    <p class="manual-lede">A chapter for the friend who does not trust the agent yet — nobody has to, and that is healthy. When a model walks into your workspace with its hands swinging, the sandbox is the apron on the wall: not a certificate you frame, but the thing that keeps the kitchen from catching fire.</p>
+    <p><strong>What this chapter covers</strong></p>
+    <ol class="manual-list">
+      <li><strong>SANDBOX_MODE</strong> — three legal values: <code>host</code> (run on the local machine, the default), <code>docker</code> (force Docker isolation), <code>auto</code> (use Docker if it is available, otherwise fall back to host — never silently refuse). And a fourth honest answer exists: <code>backend=unavailable</code> when Docker is configured but the machine is not able to run it. That answer is <code>ToolResult(status="error", security_tags=["sandbox_unavailable"])</code>, exactly as the code emits. Not a quiet host fallback; an honest refusal.</li>
+      <li><strong>The Docker moat — every rule is a real configuration, not a metaphor</strong> — <code>--network none</code> (no network), <code>--cap-drop ALL</code> (every capability dropped), <code>--security-opt no-new-privileges</code>, <code>--pids-limit 256</code> (256 pids max), <code>--memory 512m</code> (~512 MB — enough for pytest/compileall, not enough for you to notice your RAM disappear), <code>--read-only</code> (read-only root filesystem), <code>--tmpfs /tmp</code> (tmpfs-mounted /tmp), <code>-v &lt;workspace&gt;:/workspace:rw</code> (the workspace stays writable, because the agent has work edit to). On Linux it also drops <code>--user</code> to non-root (skipped on Windows/macOS because Docker Desktop refuses).</li>
+      <li><strong>The right mental model</strong> — the configuration itself is the contract. The agent was compiled inside a box; you know your files are yours; you know the blast radius stops at the workspace boundary.</li>
+      <li><strong>MINICC_SANDBOX=host</strong> — every bash/python call runs in your process, with your identity, on real syscalls of the real host. The promise to keep: you own those calls; the agent is just another CLI client.</li>
+      <li><strong>MINICC_SANDBOX_IMAGE</strong> — swap the base image; default is <code>python:3.11-slim</code>. Before swapping, make sure your toolchain still lives inside it, otherwise you spend the wait on why exit 127 keeps happening.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest limits</strong>
+      <p>Sandbox covers execution side effects, not prompt-supplied secrets, and not the way a model narrates what it saw. The model can still read anything readable in the workspace, including your <code>.env</code> (the resolution path finds it whether you like it or not). <code>--network none</code> blocks the wire — it cannot block the model from writing a key into a file you later copy elsewhere. The sandbox contains a swerving agent; it does not contain your own curiosity.</p>
+    </div>
   `;
 }
 
@@ -549,6 +586,7 @@ const BODIES = {
   arch: { zh: zhArch, en: enArch },
   stategraph: { zh: zhStateGraph, en: enStateGraph },
   cache: { zh: zhCacheAffinity, en: enCacheAffinity },
+  sandbox: { zh: zhSandbox, en: enSandbox },
 };
 
 function chapterMarkup(chapter) {

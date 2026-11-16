@@ -54087,3 +54087,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **Atlas 76 → 77 coordinates**；welcome chips 77（i18n.js CRLF 309/0）。
 - **验证**：`almanac_smoke` 44 chapters 双语（正文严格原文 + 严格审计）/ `atlas_smoke` 77 / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
 - `.env` 保持 gitignored；prompt 绝不携带 sk- 片段，回复绝不回显 key；`.env` 内 proxy 走 Clash Verge 7897。
+## 批次 1078 · M8-T1093: 说明书第十六章「沙盒与安全 / Sandbox & Safety」—— Atlas 78
+
+### 目的
+
+总指令第三项要求“操作系统、数据结构与算法分析”的深度落到产品里。minicc/sandbox.py 恰是这一项的公开门面 —— 把它摊开写进说明书第十六章。
+
+### 做了什么
+
+- **`web/src/panels/manual.js`**：新增 `zhSandbox`/`enSandbox` + CHAPTERS+BODIES 注册（Chapter 16 · 十六 · 沙盒与安全）；Atlas 行 77→78 / 15→16 manual satellites。
+- **Atlas 77 → 78 coordinates**：manual satellites 15→16；`atlas_smoke` 78；placeholders 77→78；welcome chips 78（i18n.js CRLF 309/0）。
+- **onboarding / Manual Atlas 行 / README**：`thirteen islands, seventy-eight real coordinates` / `sixteen manual chapters`；README 彩蛋以 Sandbox & Safety 领衔。
+- **验证**：`manual_smoke` 16 chapters 全双语 / `atlas_smoke` 78-coordinate / `parity` / `almanac_smoke` 44 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
+- **告示**：不改 gate；手册世代 15→16 随行 Atlas 卫星同一步；无密钥入库。
