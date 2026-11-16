@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T13:19:34.126Z",
+  "generated_at": "2026-11-16T13:35:08.964Z",
   "branch": "main",
-  "head": "afac0eb",
-  "total_commits": 1754,
+  "head": "c26e65a",
+  "total_commits": 1756,
   "recent_commits": [
+    {
+      "short": "c26e65a",
+      "at": "2026-11-16T21:33:53+08:00",
+      "subject": "M8-T1091: Atlas island #13 'The Cartographer' - new island in REGIONS/ISLAND_ORDER/ISLAND_LORE (x=310,y=230, tint gold, no overlap - full pairwise boundary chec"
+    },
+    {
+      "short": "7307890",
+      "at": "2026-11-16T13:19:34Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "afac0eb",
       "at": "2026-11-16T21:18:57+08:00",
@@ -19,22 +29,12 @@
       "short": "57acaf2",
       "at": "2026-11-16T21:05:32+08:00",
       "subject": "M8-T1089: almanac Ch.XLI 'The Arithmetic' - this epoch compiled into one chapter (5,701 passed / 12 skipped / 59,070 cumulative load-requests across two waves, "
-    },
-    {
-      "short": "7426808",
-      "at": "2026-11-16T12:54:41Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9506224",
-      "at": "2026-11-16T20:54:05+08:00",
-      "subject": "M8-T1088: almanac Ch.XL 'The Quota' - the isolated Redis token-bucket night written into the museum (three 120-concurrent bursts at /api/changes: wall 1.72s/0.2"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 402,
+  "roadmap_batches": 403,
   "changelog_entries": 1,
-  "roadmap_lines": 54063,
+  "roadmap_lines": 54076,
   "tracked_files": 1085,
   "test_files": 716,
   "almanac_chapters": 43,
