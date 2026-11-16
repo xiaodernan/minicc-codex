@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T07:31:27.893Z",
+  "generated_at": "2026-11-16T07:38:06.473Z",
   "branch": "main",
-  "head": "04bf0cd",
-  "total_commits": 1720,
+  "head": "f6cd7bf",
+  "total_commits": 1722,
   "recent_commits": [
+    {
+      "short": "f6cd7bf",
+      "at": "2026-11-16T15:37:19+08:00",
+      "subject": "M8-T1075: 128-way load wave measured against fake-provider 127.0.0.1:8899 (warm prefetch, read-only paths): c=24x15s n=1045/route 0 errors; c=64x15s n=2175/rout"
+    },
+    {
+      "short": "f615896",
+      "at": "2026-11-16T07:31:28Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "04bf0cd",
       "at": "2026-11-16T15:30:54+08:00",
@@ -19,22 +29,12 @@
       "short": "fd6ae80",
       "at": "2026-11-16T06:39:41Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b24e0da",
-      "at": "2026-11-16T14:38:49+08:00",
-      "subject": "M8-T1072: StateGraph manual chapter 14 (titleZh 状态图) + Atlas 65->66 (manual satellites 13->14); new API (api.aizzz.xyz/v1 gpt-6.1-terra) measured from this regi"
-    },
-    {
-      "short": "90c660e",
-      "at": "2026-11-16T05:22:25Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 386,
+  "roadmap_batches": 387,
   "changelog_entries": 1,
-  "roadmap_lines": 53850,
+  "roadmap_lines": 53865,
   "tracked_files": 1083,
   "test_files": 716,
   "almanac_chapters": 35,
