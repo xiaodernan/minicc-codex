@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T08:41:06.109Z",
+  "generated_at": "2026-11-16T09:36:55.315Z",
   "branch": "main",
-  "head": "7d6b79e",
-  "total_commits": 1726,
+  "head": "5c17efd",
+  "total_commits": 1728,
   "recent_commits": [
+    {
+      "short": "5c17efd",
+      "at": "2026-11-16T17:36:22+08:00",
+      "subject": "M8-T1078: TTL-cliff probe on new lane (api.aizzz.xyz/v1 gpt-6.1-terra via Clash Verge 127.0.0.1:7897) - identical prefix + lane key A/B/C over ~16.7 min silence"
+    },
+    {
+      "short": "1554a73",
+      "at": "2026-11-16T08:41:06Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7d6b79e",
       "at": "2026-11-16T16:39:58+08:00",
@@ -19,22 +29,12 @@
       "short": "0fe6b44",
       "at": "2026-11-16T15:50:05+08:00",
       "subject": "M8-T1076: almanac Ch.XXXV 'The Unscathed' - the 2026-11-16 pressure night written into the museum (three waves c=24/64/128 read-only, cumulative 33,600 requests"
-    },
-    {
-      "short": "e8283d9",
-      "at": "2026-11-16T07:38:06Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f6cd7bf",
-      "at": "2026-11-16T15:37:19+08:00",
-      "subject": "M8-T1075: 128-way load wave measured against fake-provider 127.0.0.1:8899 (warm prefetch, read-only paths): c=24x15s n=1045/route 0 errors; c=64x15s n=2175/rout"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 389,
+  "roadmap_batches": 390,
   "changelog_entries": 1,
-  "roadmap_lines": 53893,
+  "roadmap_lines": 53905,
   "tracked_files": 1083,
   "test_files": 716,
   "almanac_chapters": 36,
