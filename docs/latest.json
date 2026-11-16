@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T16:34:05.566Z",
+  "generated_at": "2026-11-16T16:50:06.571Z",
   "branch": "main",
-  "head": "d89f5d0",
-  "total_commits": 1772,
+  "head": "460c5cb",
+  "total_commits": 1774,
   "recent_commits": [
+    {
+      "short": "460c5cb",
+      "at": "2026-11-17T00:48:53+08:00",
+      "subject": "M8-T1098: manual Ch.19 'The CI Wall' - ten gates named honestly, doc gates explained from real reds on this very repo; Atlas 81->82 (manual satellites 18->19); "
+    },
+    {
+      "short": "b7288b8",
+      "at": "2026-11-16T16:34:05Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d89f5d0",
       "at": "2026-11-17T00:33:10+08:00",
@@ -19,22 +29,12 @@
       "short": "e00d5b3",
       "at": "2026-11-17T00:20:02+08:00",
       "subject": "docs: fix almanac smoke pointer in CHANGELOG - tests/almanac_smoke.mjs (was trailing space slug that flagged doc_pointers)"
-    },
-    {
-      "short": "a516210",
-      "at": "2026-11-16T16:19:29Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b627fa1",
-      "at": "2026-11-17T00:17:01+08:00",
-      "subject": "M8-T1096: almanac Ch.XLIV 'The Sleepless' - digest spans end-to-end through the session (1,767 commits, 44->45 volumes, 79->80 coordinates, 1096 tracked files /"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 409,
+  "roadmap_batches": 410,
   "changelog_entries": 1,
-  "roadmap_lines": 54156,
+  "roadmap_lines": 54168,
   "tracked_files": 1098,
   "test_files": 716,
   "almanac_chapters": 45,
