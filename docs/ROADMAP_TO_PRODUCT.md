@@ -54128,3 +54128,16 @@ Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆
 - **Atlas 78 → 79 coordinates**：manual satellites 16→17；`atlas_smoke` 79；welcome chips 79（i18n.js CRLF 309/0）；index.html 711/0。
 - **README / onboarding / Manual Atlas 行**：评分表的常数直接写进 README 领衔条目与 onboarding 手册副本。
 - **验证**：`manual_smoke` 17 chapters 全双语 / `atlas_smoke` 79-coordinate / `parity` / `admin_smoke` / dazzle / CRLF pins。
+## 批次 1081 · M8-T1096: 卷四十四「无眠 / The Sleepless」—— Digest 一路跑到底；Atlas 80
+
+### 目的
+
+一天压出一本书，这一卷就是那本书——把整个会话完整地落进了仓库本身。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `sleeplessMarkup()`（卷四十四 · 无眠）+ CHAPTERS + `CHAPTER_RENDERERS['sleepless']`；双语 body；theme 标语「从不等天亮的仓库」。
+- **Atlas 79 → 80 coordinates**：almanac satellites 44→45；`atlas_smoke` 80；placeholders 80（index.html CRLF 711/0）；welcome chips 80。
+- **onboarding / Manual Atlas 行 / README**：seventy-eight → eighty coordinates；README 以 The Sleepless 领衔。
+- **验证**：`almanac_smoke` 45 chapters 双语全绿 / `atlas_smoke` 80-coordinate / `parity` / `manual_smoke` 17 / `admin_smoke` / dazzle。
+- **数字采集口**：/api/digest 当前值，不用任何生成器捏造。

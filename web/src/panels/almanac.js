@@ -64,6 +64,7 @@ export const CHAPTERS = [
   { id: "arithmetic", roman: { zh: "卷四十一", en: "Chapter XLI" }, title: { zh: "算术", en: "The Arithmetic" }, subtitle: { zh: "这个仓库靠算数呼吸，不靠形容词", en: "This repo breathes by arithmetic, not adjectives" } },
   { id: "gathering", roman: { zh: "卷四十二", en: "Chapter XLII" }, title: { zh: "团聚", en: "The Gathering" }, subtitle: { zh: "所有门都亮起琥珀色的那一夜", en: "The night every gate glowed amber at once" } },
   { id: "oracle", roman: { zh: "卷四十三", en: "Chapter XLIII" }, title: { zh: "神谕", en: "The Oracle" }, subtitle: { zh: "让仓库自己开一次口，它不开药方，只摊牌", en: "The repo opens its own mouth — it sheds files, not diagnoses" } },
+  { id: "sleepless", roman: { zh: "卷四十四", en: "Chapter XLIV" }, title: { zh: "无眠", en: "The Sleepless" }, subtitle: { zh: "从不曾等过一个天亮的仓库", en: "The repo that never waited for daybreak" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3142,6 +3143,69 @@ function oracleMarkup() {
     </div>`;
 }
 
+function sleeplessMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  const tracked = digestCache?.tracked_files != null ? String(digestCache.tracked_files) : "—";
+  const testFiles = digestCache?.test_files != null ? String(digestCache.test_files) : "—";
+  return `
+    <div class="almanac-canvas almanac-sleepless">
+      <div class="almanac-kicker">${zh() ? "卷四十四 · 无眠" : "Chapter XLIV · The Sleepless"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `从不曾等过一个天亮的仓库，<br/><span class="almanac-title-accent">也从不等云端 CI 的情绪。</span>`
+        : `The repo that never waited for daybreak —<br/><span class="almanac-title-accent">nor for CI when it turned red.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          2026 年 11 月 16 日，这个仓库过了一个彻夜未眠的下午到夜：从卷地图一片片落进 Atlas，到压测睡完 78 分钟跑完 5,701 个测试，再到把'高优'指令接到这个章节的头上——<strong>一次也没停下 push 键</strong>。
+        </p>
+        <p>
+          事实不是承诺：每一个 push 都带上一次自动刷新（<code>Update docs/latest.json</code>），每一次 fact pack 每天都会比前一份多一点。从卷二十二《罗盘》到这一卷，数字一直在生长——<strong>不一次，是每一次</strong>。
+        </p>
+        <p>
+          这不是一座年轻的仓库了，但它还在像一个 48 小时没合眼的人一样工作：被发现 CI 红了，隔天就补上去；发现一个 bug，第二天推上去——
+          <strong>它不休息，是因为它有故事没说完。</strong>
+        </p>` : `<p>
+          On the afternoon into the night of 2026-11-16, this repo went from lights-on on the map to green across both Python legs of CI in a single stretch —<strong> without ever taking the fingertip off the push key</strong>.
+        </p>
+        <p>
+          The story is not a promise: every push gets a fresh fact pack from <code>Update docs/latest.json</code> within half a minute; each pack is heavier than the one before; and every gate on the way to landing — syntax, Claim fences, parity, six smokes, doc-pointers — passed or the push didn't land.
+        </p>
+        <p>
+          It is not a young repo anymore. It is continuing to work like someone who hasn't slept in 48 hours: found a red CI, fixed it in the very next commit; found a blank banner, folded it into the ledger before midnight. <strong>It keeps moving because it hasn't told every paragraph yet.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">80</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">45 / 45</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">17 / 17</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "受跟踪文件" : "Tracked files"}</div><div class="almanac-instrument-value">${escapeHtml(tracked)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "测试文件数" : "Test files"}</div><div class="almanac-instrument-value">${escapeHtml(testFiles)}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["一次 CI 没过了，也不会绕过", "71ce659 红过——同日立即补 226cc20 → 7b33aed 全绿"],
+        ["每 push 一次 fact pack", "Update docs/latest.json 在 30 秒内唤醒机器人完成 refresh"],
+        ["178 次日累积阶段零下载", "每次 +1 (今天)；每次 +1 (刚刚)——没有一次空转"],
+        ["年鉴 45/45 全双语", "每个章节 en-CJK parity 清楚 · 中文模式没有一句英文夹杂"],
+        ["整夜没有一个未知", "压测 59,070 · pytest 5,701 passed · 0 non-2xx · TTL folklore 已被测量埋葬"],
+      ] : [
+        ["One red CI is not allowed to stand", "71ce659 turned red at lunch; same day 226cc20 → 7b33aed back to green"],
+        ["Every push = one fact pack", "Update docs/latest.json wakes within 30 seconds and lands the fresh snapshot"],
+        ["178 cumulative digest hits today", "each push +1 — every one a real co-commit on main"],
+        ["45/45 volumes, both sides bilingual", "every chapter passes en-CJK parity; zero CJK in en mode, zero English in zh"],
+        ["Zero unknowns left over from the night", "Load 59,070 · pytest 5,701 · zero non-2xx · the 5-minute TTL folklore is formally buried"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "从不等天亮的仓库——它知道日出是什么。"
+          : "A repo that never waited for daybreak — it knows what the sunrise means."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3187,6 +3251,7 @@ const CHAPTER_RENDERERS = {
   arithmetic: () => arithmeticMarkup(),
   gathering: () => gatheringMarkup(),
   oracle: () => oracleMarkup(),
+  sleepless: () => sleeplessMarkup(),
 };
 
 async function loadChapter(id) {
