@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T11:18:00.667Z",
+  "generated_at": "2026-11-16T11:37:04.928Z",
   "branch": "main",
-  "head": "a85557b",
-  "total_commits": 1736,
+  "head": "d4ec384",
+  "total_commits": 1738,
   "recent_commits": [
+    {
+      "short": "d4ec384",
+      "at": "2026-11-16T19:36:25+08:00",
+      "subject": "M8-T1083: almanac Ch.XXXVIII 'The Great Basin' - the branch/worktree consolidation written into the museum (evidence-first: 29 worktrees enumerated, 19 detached"
+    },
+    {
+      "short": "db1faca",
+      "at": "2026-11-16T11:18:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a85557b",
       "at": "2026-11-16T19:17:23+08:00",
@@ -19,25 +29,15 @@
       "short": "9255fb1",
       "at": "2026-11-16T18:49:24+08:00",
       "subject": "M8-T1081: almanac Ch.XXXVII 'The Negative Space' - the M8-T1080 coach-chip overlap fix written into the museum (fixed bottom-right inspector caption collision m"
-    },
-    {
-      "short": "fe4db58",
-      "at": "2026-11-16T10:23:52Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "dc5691c",
-      "at": "2026-11-16T18:23:17+08:00",
-      "subject": "M8-T1080: visual overlap fix - .tour-offer coach chip no longer covers inspector bottom caption (was right:22px/bottom:22px over 'READY' unsaved-changes caption"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 394,
+  "roadmap_batches": 395,
   "changelog_entries": 1,
-  "roadmap_lines": 53962,
+  "roadmap_lines": 53975,
   "tracked_files": 1084,
   "test_files": 716,
-  "almanac_chapters": 38,
+  "almanac_chapters": 39,
   "module_count": 14,
   "feature_surface": [
     "workbench",
