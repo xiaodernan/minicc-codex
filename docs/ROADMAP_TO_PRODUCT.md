@@ -53708,3 +53708,12 @@ Arcade Playwright suites 红了一阵——admin/en_cjk 两条 smoke 都重走 g
 - `minicc/ci_health.py` — `fetch_ci_health()` 内部分 3 个 `_runs/_prs/_issues` worker，`concurrent.futures.ThreadPoolExecutor(max_workers=3)`；返回后 unions `errors`；缓存命中率不受影响。
 - `web/src/panels/admin.js` — `/api/ci_status` 改为 `ciPromise.then(...)`，summary 渲染收尾之后才触发，tile 异常一律 `.catch(() => null)`，best-effort。
 - **零 API 变更、零 i18n 改动**（keys 已有）；`admin_smoke / en_cjk / almanac / manual / atlas` 全绿。
+## 批次 1048 - M8-T1063 follow-through: 广静 handler 门禁再绿
+
+### 目的
+
+full-pytest 收到 5,687 全绿、唯一一红：M8-T1063 的并发 `_runs/_prs/_issues` 三处 `except Exception` 只 silent Return 无注释——门禁要求每条 broad-silent handler 说明其边界。补齐 noqa 全部 Pin 上 `noqa: BLE001 - <why>`。
+
+### 做了什么
+
+- `minicc/ci_health.py` — 三处 handler 行尾注释点明：其结果通过 `own_errors` 列表诚实回放给 Admin tile（`live=false + errors`），静默捕获从来不是为了吞错。.

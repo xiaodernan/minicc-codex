@@ -73,14 +73,14 @@ def fetch_ci_health(*, force_refresh: bool = False) -> dict[str, Any]:
         try:
             payload = _get_json(_RUNS_URL)
             return payload.get("workflow_runs", []) if isinstance(payload, dict) else [], None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - recorded honestly in own_errors, never swallowed
             return [], f"runs: {type(exc).__name__}"
 
     def _prs():
         try:
             prs = _get_json(_PRS_URL)
             return (len(prs) if isinstance(prs, list) else None), None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - recorded honestly in own_errors, never swallowed
             return None, f"prs: {type(exc).__name__}"
 
     def _issues():
@@ -89,7 +89,7 @@ def fetch_ci_health(*, force_refresh: bool = False) -> dict[str, Any]:
             if isinstance(issues, list):
                 return len([i for i in issues if isinstance(i, dict) and "pull_request" not in i]), None
             return None, None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - recorded honestly in own_errors, never swallowed
             return None, f"issues: {type(exc).__name__}"
 
     with _cf.ThreadPoolExecutor(max_workers=3) as pool:
