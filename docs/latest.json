@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T12:06:57.012Z",
+  "generated_at": "2026-11-16T12:20:46.146Z",
   "branch": "main",
-  "head": "ad3c749",
-  "total_commits": 1742,
+  "head": "2e5ee4b",
+  "total_commits": 1744,
   "recent_commits": [
+    {
+      "short": "2e5ee4b",
+      "at": "2026-11-16T20:20:08+08:00",
+      "subject": "M8-T1085: almanac Ch.XXXIX 'The Blackout Drill' - the full-suite marathon written into the museum (4680s local run: 5701 passed / 12 skipped / 3 red: 1 real (7 "
+    },
+    {
+      "short": "62c1065",
+      "at": "2026-11-16T12:06:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ad3c749",
       "at": "2026-11-16T20:06:35+08:00",
@@ -19,25 +29,15 @@
       "short": "5b66689",
       "at": "2026-11-16T19:55:33+08:00",
       "subject": "M8-T1084: Manual Almanac line stale-count fix (manual.js zh+en were frozen at '34 vols / Ch.XXXV The New Coast' & 'thirty-six chapters' - now 39/Ch.XXXVIII The "
-    },
-    {
-      "short": "40495f6",
-      "at": "2026-11-16T11:37:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d4ec384",
-      "at": "2026-11-16T19:36:25+08:00",
-      "subject": "M8-T1083: almanac Ch.XXXVIII 'The Great Basin' - the branch/worktree consolidation written into the museum (evidence-first: 29 worktrees enumerated, 19 detached"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 396,
+  "roadmap_batches": 397,
   "changelog_entries": 1,
-  "roadmap_lines": 53986,
+  "roadmap_lines": 53999,
   "tracked_files": 1084,
   "test_files": 716,
-  "almanac_chapters": 39,
+  "almanac_chapters": 40,
   "module_count": 14,
   "feature_surface": [
     "workbench",
