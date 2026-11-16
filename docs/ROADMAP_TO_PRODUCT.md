@@ -53763,3 +53763,14 @@ Mega-spec §九：「模拟真实用户的行为：真实用户会怎么操作�
 ### 做了什么
 
 - **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `tide`（卷三十 · 潮汐 / Chapter XXX）；`tideMarkup()`；仪器：Atlas 62 / volumes 31 / Dazzle 行走双语 / live ceil milestone / commits live；CHAPTER_RENDERERS 登记。Manual 最新卷改卷三十；almanac_smoke 31 chapters；Atlas 62-coordinate contract；welcome chip 62；Manual/onboarding/README 全量指针同步；i18n.js CRLF re-pin 保住 309/0。
+## 批次 1053 - M8-T1068: 年鉴第三十一卷「灯下 / The Lamplighter」
+
+### 目的
+
+这一夜，Windows runner 连续 4-5 轮饥饿后终于连下两盘 full-cycle（claim checkers 30/30、Playwright 两版都绿）。世界又熬出了一轮——每一位巡视被自己的记录牵着走，1708 次提交；每一位仍然觉得自己还得开灯。这个卷就是这一夜里每盏灯做过的事的汇总。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `lamplighter`（卷三十一 · 灯下 / Chapter XXXI · The Lamplighter）；仪器：commits live 1708 / tasks live / 12 recent / Atlas 63 / volumes 32·32 bilingual / manual 13·13 / Dazzle en+zh / Windows 2× 全绿；CHAPTER_RENDERERS 登记。gate-list 端严 claim checkers / impact floor / loader registry / palette one-home 的真问题，而非 slog。
+- **Manual 最新卷改卷三十一**；Almanac smoke 32 chapters bilingual；Atlas 63-coordinate contract；welcome chips 63；i18n.js CRLF 309/0 保持不动。
+- **en-CJK gate 闭环**——steward 那一夜教给我们的老教训保留：en 侧叙事含「claim checkers」「Dazzle」这一类可被 diff 察觉的非 CJK 中英混写——零溶混。en-CJK 与 parity 全绿。

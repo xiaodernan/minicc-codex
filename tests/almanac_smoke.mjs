@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter"];
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
@@ -35,6 +35,7 @@ const CHAPTER_MARKERS = {
   steward: ["守望", "The Steward"],
   relay: ["驿站", "The Relay"],
   tide: ["潮汐", "The Tide"],
+  lamplighter: ["灯下", "The Lamplighter"],
 };
 const CJK = /[\u4e00-\u9fff]/;
 
@@ -69,5 +70,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 31 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
+console.log("almanac smoke passed: 32 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
 process.exit(0);

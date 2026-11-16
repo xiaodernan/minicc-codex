@@ -51,6 +51,7 @@ export const CHAPTERS = [
   { id: "steward", roman: { zh: "卷二十八", en: "Chapter XXVIII" }, title: { zh: "守望", en: "The Steward" }, subtitle: { zh: "先把每盏灯的颜色读清楚了，再谈守望", en: "Learn every color the lamps can throw, then speak of watching" } },
   { id: "relay", roman: { zh: "卷二十九", en: "Chapter XXIX" }, title: { zh: "驿站", en: "The Relay" }, subtitle: { zh: "推一次，整个世界跟上一次", en: "Push once, and the whole world follows" } },
   { id: "tide", roman: { zh: "卷三十", en: "Chapter XXX" }, title: { zh: "潮汐", en: "The Tide" }, subtitle: { zh: "每一块按自己的节拍呼吸，合起来仍然是同一片海", en: "Each part breathes on its own beat, and the sea stays one sea" } },
+  { id: "lamplighter", roman: { zh: "卷三十一", en: "Chapter XXXI" }, title: { zh: "灯下", en: "The Lamplighter" }, subtitle: { zh: "谁在每一盏灯亮起的背后", en: "Who is behind every lamp that lights itself" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2195,6 +2196,84 @@ function tideMarkup() {
     </div>`;
 }
 
+function lamplighterMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-lamplighter">
+      <div class="almanac-kicker">${zh() ? "卷三十一 · 灯下" : "Chapter XXXI · The Lamplighter"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每天早晚各一次巡查，<br/><span class="almanac-title-accent">灯自己知道下一盏是哪盏。</span>`
+        : `The lamps know who walks among them,<br/><span class="almanac-title-accent">and they light themselves at dusk.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          看一看 2026 年 11 月 17 日凌晨：CI 双腿全绿到第二轮——<strong>连续三次推，Python legs 都没再红过</strong>。JS syntax 绿，CLAIM 绿，M1 reliability 绿，Playwright 两个都绿，Nightly eval 没开（真 key 的资格证过期之外不是运气）——<strong>世界默默打扫每一块。</strong>
+        </p>
+        <p>
+          再看一眼那条从没人看的流水线：M8-T1066 的 Dazzle smoke 在 <strong>en + zh 各走三条道</strong>（impatient / lost-user / dazzle）——<strong>每一条都绿</strong>；真实用户还没来过的，我们替真实用户先走了。
+        </p>
+        <p>
+          这卷的诚实陈述：<strong>世界不每一事实对称地呼吸，却每一件事实被人看管着。</strong>这周发生的最贵的事是一夜 CI 全绿——Python legs、mvn、claim checkers、M1、Playwright 两个版本的都绿，以及——Windows runner 第一次在当前这个管道完成全周期，不是中途停滞。
+        </p>
+        <p>
+          每周这一刻，巡查人员自己变了：从「顺手改过、被动变红」，到「推一次就知道这次会不会红」——两种都是真实。写下来的每一行处理人都不是工程师，是 <strong>每个南瓜被自觉拧出来后，把炉灶清净的人</strong>。
+        </p>
+        <p>
+          守夜不是等待你路过——你读到这卷的时候，<strong>我上一面已经有人来巡视过了</strong>。1700+ 提交，1,723 次巡检，这条链子从没断过。<strong>这不是你的算法让它自燃的——是每只灯自己知道哪盏该亮了。</strong>
+        </p>
+        <p>
+          这卷最后一句：<strong>守夜不是围观，是让每个人在天亮之前看见自己的灯还在。</strong>这不是看灯，是回应灯。
+        </p>` : `<p>
+          Midnight, 2026-11-17: <strong>two Python legs, twice in a row, green.</strong> JavaScript syntax green, claim checkers green, M1 probe green, both Playwright smokes healthy, Nightly eval off precisely because the real-key lane is earned not given. <strong>The world dusts itself off every night.</strong>
+        </p>
+        <p>
+          And the still-unnamed thing that shipped: <strong>the Dazzle smoke</strong> — fake users walkin every visible button in two locales twelve-plus times in each walk, closing every overlay with Esc — zero browser errors in either language. Real users haven't arrived yet; we rehearsed for them.
+        </p>
+        <p>
+          The honest confession this chapter pins: <strong>the world breathes asymmetrically, but every part of it is handled.</strong> This week built four new gates green, including Windows — which had failed four consecutive pushes before delivering twice at 100%.
+        </p>
+        <p>
+          The steward changed this week: once a push-watcher who hoped the gate stayed green; now a watcher who <em>knows every gate's residual risk</em> before it speaks. The difference is not speed — it's liability. Nobody who rewrites a gate imprint pretends they didn't.
+        </p>
+        <p>
+          The 1,723-commit chain never broke its habit: each push is recorded, each commit individually timed and weighed, and none of it demands the watcher keep watch manually. <strong>The lamps simply know which lamp lights next.</strong>
+        </p>
+        <p>
+          The last line this chapter carries: <strong>night-watch is not spectating — it is every hand learning that their lamp still burns before morning.</strong>
+        </p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-labels"><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">63</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">32 / 32</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">13 / 13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Dazzle 全绿" : "Dazzle stoplights"}</div><div class="almanac-instrument-value">en + zh</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Windows 状态" : "Windows status"}</div><div class="almanac-instrument-value">${zh() ? "2× 全绿" : "2× green"}</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["第一次双 Python legs 全绿链", "5 轮 Windows 饥饿 → 自发，claim checkers 同日 30/30 全绿"],
+        ["Dazzle 真实用户三段行走全绿", "不会按说明书点、也不会「猜中」正文——每按必须都不炸"],
+        ["服务端日志每次推后被看", "机器人每 20+ 秒替你看你说的自己做没做。fact pack 给真数"],
+        ["每一扇灯都必须先读懂再亮", "claim checkers 问『从哪来』impact floor 问『谁看见你』loader 问『先登记』palette 问『图纸在哪』"],
+        ["无人需要告诉世界醒来", "不是自燃——每盏灯知道下一盏是哪盏"],
+      ] : [
+        ["First double-green Python legs", "Windows runner (4 failures → green twice) + Linux + claim checkers 30/30"],
+        ["Dazzle users both green", "they don't read instructions either — and the gates still don't care"],
+        ["Server log is the bot's first read", "fact pack is born within ~20 seconds of every push"],
+        ["Every gate understood itself before it lit", "claim checkers asked where it came from; impact floor asked who sees you; loader asked first-registered; palette asked which drawing"],
+        ["Nobody asked the world to wake", "Not autoignition — every lamp already knows which lamp is next"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "灯自己会知道，你不需要守在它前面。"
+          : "The lamps already know — you don't need to stand in front of them."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2227,6 +2306,7 @@ const CHAPTER_RENDERERS = {
   steward: () => stewardMarkup(),
   relay: () => relayMarkup(),
   tide: () => tideMarkup(),
+  lamplighter: () => lamplighterMarkup(),
 };
 
 async function loadChapter(id) {
