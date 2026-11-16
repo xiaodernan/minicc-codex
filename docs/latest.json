@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T17:17:12.833Z",
+  "generated_at": "2026-11-16T17:24:44.444Z",
   "branch": "main",
-  "head": "ba032a7",
-  "total_commits": 1778,
+  "head": "a69e4d8",
+  "total_commits": 1780,
   "recent_commits": [
+    {
+      "short": "a69e4d8",
+      "at": "2026-11-17T01:24:08+08:00",
+      "subject": "M8-T1101: new-lane 2026-11-17 cache affinity re-measured live (fresh lane key, Clash proxy): cold 73.7% (5731/4224) -> warm 95.9% (5737/5504), same band as 2026"
+    },
+    {
+      "short": "304db83",
+      "at": "2026-11-16T17:17:13Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ba032a7",
       "at": "2026-11-17T01:16:38+08:00",
@@ -19,22 +29,12 @@
       "short": "80e6a83",
       "at": "2026-11-17T01:07:16+08:00",
       "subject": "M8-T1099: almanac Ch.XLV 'The Threshold' - the CI failures that actually fired (ORACLE_DRAFT INDEX gap + hash-tagged bundle in ROADMAP) closed by one push, hone"
-    },
-    {
-      "short": "6fca197",
-      "at": "2026-11-16T16:50:06Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "460c5cb",
-      "at": "2026-11-17T00:48:53+08:00",
-      "subject": "M8-T1098: manual Ch.19 'The CI Wall' - ten gates named honestly, doc gates explained from real reds on this very repo; Atlas 81->82 (manual satellites 18->19); "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 411,
+  "roadmap_batches": 412,
   "changelog_entries": 1,
-  "roadmap_lines": 54180,
+  "roadmap_lines": 54192,
   "tracked_files": 1098,
   "test_files": 716,
   "almanac_chapters": 46,
