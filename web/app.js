@@ -805,6 +805,10 @@
       "admin.recommendations": "\u57FA\u4E8E\u771F\u5B9E\u6570\u636E\u7684\u4F18\u5316\u5EFA\u8BAE",
       "admin.recent": "\u6700\u8FD1\u4EFB\u52A1 \xB7 \u771F\u5B9E\u5217\u8868",
       "admin.toolUsage": "\u5E38\u7528\u5DE5\u5177\u5206\u5E03 \xB7 \u771F\u5B9E\u4E8B\u4EF6",
+      "admin.briefKicker": "\u5DE5\u4F5C\u533A\u7B80\u62A5 \xB7 \u7531\u6A21\u578B\u73B0\u626B",
+      "admin.briefPending": "\u6B63\u5728\u8BFB\u53D6\u5B9E\u6D4B\u5FEB\u7167\u2026",
+      "admin.briefRefresh": "\u91CD\u65B0\u751F\u6210\u7B80\u62A5",
+      "admin.briefOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u5199\u4E0D\u4E86\u7B80\u62A5\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.toolUsageUnit": "\u6B21\u8C03\u7528",
       "admin.forecastLabel": "\u9884\u6D4B",
       "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
@@ -1583,6 +1587,10 @@
       "admin.recommendations": "Recommendations from real data",
       "admin.recent": "Recent tasks",
       "admin.toolUsage": "Top tool calls \xB7 real events",
+      "admin.briefKicker": "Workspace brief \xB7 read live by the model",
+      "admin.briefPending": "Reading the measured snapshot\u2026",
+      "admin.briefRefresh": "Refresh the brief",
+      "admin.briefOutage": "The model is unreachable \u2014 the panel cannot write the brief. That is the only honest sentence.",
       "admin.toolUsageUnit": "calls",
       "admin.forecastLabel": "Forecast",
       "admin.forecastFading": "cooling off from the peak",
@@ -7773,6 +7781,37 @@
         } catch {
         }
       });
+      function renderBrief(brief, refreshed) {
+        const bodyEl = $("#adminBriefBody");
+        const usageEl = $("#adminBriefUsage");
+        const byEl = $("#adminBriefModel");
+        if (byEl && brief && brief.model) byEl.textContent = brief.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
+        if (!brief || !brief.live) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.briefOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = brief?.error ? `error: ${String(brief.error).slice(0, 140)}` : "";
+          return;
+        }
+        const text = zh8() ? brief.zh : brief.en;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? brief.en : brief.zh))}</p>`;
+        if (usageEl) {
+          const u = brief.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 \u5DF2\u91CD\u65B0\u751F\u6210" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 regenerated" : ""}`;
+        }
+      }
+      const briefRefresh = $("#adminBriefRefresh");
+      if (briefRefresh) {
+        briefRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminBriefBody");
+          const usageEl = $("#adminBriefUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.briefPending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-brief?fresh=1", {}, 3e4).catch(() => null).then((brief) => renderBrief(brief, true));
+        });
+      }
+      const briefPromise = requestJson("/api/oracle-brief", {}, 3e4).catch(() => null);
+      briefPromise.then((brief) => renderBrief(brief, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {

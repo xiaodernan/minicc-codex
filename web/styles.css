@@ -5721,6 +5721,15 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-ci-dot small { color: var(--quiet); display: block; font: 9.5px "DM Mono", monospace; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-ci-dot strong { color: var(--text); display: block; font: 700 10.5px Manrope, sans-serif; }
 @media (max-width: 700px) { .admin-ci-wrap { flex-direction: column; align-items: flex-start; } .admin-ci-chips { align-items: flex-start; flex-direction: row; } }
+.admin-brief { border-color: color-mix(in srgb, var(--periwinkle) 35%, var(--line)); margin-top: 12px; }
+.admin-brief-by { color: var(--quiet); font: 10px "DM Mono", monospace; margin-left: 8px; }
+.admin-brief-refresh { background: transparent; border: 1px solid var(--line); border-radius: 999px; color: var(--quiet); cursor: pointer; margin-left: auto; padding: 4px; transition: color .18s ease, border-color .18s ease; }
+.admin-brief-refresh:hover { color: var(--periwinkle); border-color: var(--periwinkle); }
+.admin-brief-refresh i { width: 13px; height: 13px; }
+.admin-brief-body { margin: 10px 0 8px; min-height: 30px; }
+.admin-brief-pending { color: var(--quiet); font-size: 12px; margin: 0; }
+.admin-brief-text { color: var(--text); font-size: 13px; line-height: 1.7; margin: 0; }
+.admin-brief-usage { border-top: 1px dashed var(--line); color: var(--quiet); font: 10px "DM Mono", monospace; letter-spacing: .05em; margin: 0; padding-top: 8px; }
 /* ============================================================
    StateGraph · stage-axis explorer panel (M8-T1094)
    ============================================================ */

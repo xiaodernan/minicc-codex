@@ -601,6 +601,20 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - the admin tile must never 500
                 self._json({"live": False, "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-brief":
+            # The model on duty for this workspace: reads the measured fact pack,
+            # writes a two-part zh+en brief. ?fresh=1 bypasses the 10-minute memo.
+            # Never raises; the panel shows the outage when the wire is down.
+            try:
+                from .oracle_brief import build_workspace_brief
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_workspace_brief(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "zh": "", "en": "",
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/admin/summary":
             # M8-T1014: the admin panel's single read — built from real
             # workspace data, never raises; returns honest empty dict on breakage.

@@ -54304,3 +54304,16 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Atlas 87 → 88 coordinates**：almanac satellites 50→51；`atlas_smoke` 88；`index.html` 711/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量计数 51 Halls、88 坐标、年鉴（51 卷）；README 加 The Surge 领衔。
 - **验证**：`almanac_smoke` 51 chapters 双语 / `atlas_smoke` 88-coordinate / manual_smoke 19 / stategraph_smoke / parity en zero CJK / dazzle en+zh / admin。
+## 批次 1096 · M8-T1119: 工作区简报上线——模型被接进管理员面板（LLM 深度嵌入）
+
+### 目的
+
+模型不再只在年鉴里亮一次脸——它被接进整体能力。
+
+### 做了什么
+
+- **`minicc/oracle_brief.py`**（新）：`build_workspace_brief()` — snapshot（digest/stats/summary 的实测事实）→ 模型（`prompt_cache_key` 稳定、JSON 契约、zh+en ≤3 句）→ 10 分钟 memo；`force_refresh=True` 走新一轮。
+- **GET `/api/oracle-brief`**：永远 200；断网 `live:false` + error 类型；`?fresh=1` 绕过缓存。
+- **Admin 面板「工作区简报 · 由模型现扫」tile**：异步加载、refresh、token 账公示；byline 显示真实模型名；断网则如实一句。
+- **真 lane 实测**：prompt 4,789 · cached 4,224 · 模型准确复述 1,809 commits / 1088 tracked / 718 tests / 71.1% affinity；救出一个 HEAD 映射 bug（模型误报 HEAD 缺失 → 修为 `head_short`）。
+- **测试**：`tests/test_oracle_brief.py`（6）· `test_http_surface.py`（route B 覆盖）· `route_coverage` 100% · admin_smoke 新增 brief 断言。

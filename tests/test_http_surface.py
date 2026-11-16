@@ -907,6 +907,24 @@ def test_get_stategraph_reports_the_live_workflow(live: _LiveServer) -> None:
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_get_oracle_brief_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1119: the model-written brief is entered by the HTTP suite too.
+    # The fake provider cannot answer it (60s timeout), so the route is
+    # stubbed at the seam — exactly like the /api/rag/query test.
+    import minicc.oracle_brief as ob_mod
+
+    monkeypatch.setattr(ob_mod, "build_workspace_brief", lambda **kwargs: {
+        "live": False, "zh": "", "en": "",
+        "error": "model-unavailable: TimeoutError",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-brief", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "error" in payload
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
 def test_get_mcp_surfaces_malformed_config_as_error_not_500(tmp_path: Path) -> None:
     # M8-T138 (M5-4 recheck): the service loads .minicc/mcp.json at
     # construction (web.py _set_current_mcp), so a broken file must be

@@ -538,6 +538,12 @@
             <ol class="admin-ci-dots" id="adminCiDots" aria-label="last three runs"></ol>
           </section>
 
+        <section class="admin-card admin-brief" aria-label="workspace brief">
+            <div class="admin-card-kicker"><i data-lucide="sparkles"></i><span data-i18n="admin.briefKicker">工作区简报 · 由模型现扫</span><span class="admin-brief-by" id="adminBriefModel"></span><button class="admin-brief-refresh" id="adminBriefRefresh" type="button" aria-label="refresh brief" data-i18n-aria="admin.briefRefresh"><i data-lucide="refresh-cw"></i></button></div>
+            <div class="admin-brief-body" id="adminBriefBody"><p class="admin-brief-pending" data-i18n="admin.briefPending">正在读取实测快照…</p></div>
+            <p class="admin-brief-usage" id="adminBriefUsage"></p>
+        </section>
+
           <div class="admin-duo">
             <section class="admin-card" aria-label="tool usage">
               <div class="admin-card-kicker"><i data-lucide="wrench"></i><span data-i18n="admin.toolUsage">常用工具分布 · 真实事件</span></div>

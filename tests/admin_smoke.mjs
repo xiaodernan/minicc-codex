@@ -61,6 +61,33 @@ async function checkMode(locale, expectCjk) {
   assert.ok(totals.recent >= 1, "recent tasks must render at least one");
   assert.ok(totals.canvas > 0, "trend canvas must be drawn");
 
+  // workspace brief: either the live model wrote something, or the honest outage line —
+  // but never an empty or ambiguous tile. The dummy provider cannot answer, so the
+  // honest expectation on CI is the unavailable line.
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminBriefBody");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return text.length > 0 && !text.includes("正在读取") && !text.includes("Reading the");
+  }, null, { timeout: 45000 });
+  const briefText = await page.locator("#adminBriefBody").innerText();
+  assert.ok(briefText.trim().length > 0, "brief tile must carry either a live brief or the honest outage line");
+  const briefOutage = await page.evaluate(() => {
+    const el = document.querySelector("#adminBriefBody");
+    return el ? (el.innerText || "").trim() : "";
+  });
+  assert.ok(
+    /缓存|主线|main|模型|分支|Outage|unreachable|model|记录|记录|审计|cache|task|提交/i.test(briefOutage) || briefOutage.length >= 12,
+    "brief text should be substantive or the honest outage sentence",
+  );
+  const briefUsage = await page.locator("#adminBriefUsage").innerText();
+  // when the model answered, the usage footer must carry the token accounting;
+  // when the wire is down the footer carries the error instead
+  assert.ok(
+    /prompt|error/i.test(briefUsage) || briefUsage.trim().length === 0,
+    "usage footer must carry token accounting or an error, never a fabricated number",
+  );
+
   // zh/en expectations
   if (expectCjk) {
     assert.ok(/[\u4e00-\u9fff]/.test(await page.locator(".admin-tagline").innerText()), "zh mode must render CJK tagline");

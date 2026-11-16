@@ -182,6 +182,42 @@ export async function openAdmin() {
     } catch { /* the tile is best-effort; the panel never depends on it */ }
     });
 
+    // Live workspace brief — the model on duty for this workspace:
+    // fire-and-forget, like the CI tile. The unlock never waits on it.
+    function renderBrief(brief, refreshed) {
+      const bodyEl = $("#adminBriefBody");
+      const usageEl = $("#adminBriefUsage");
+      const byEl = $("#adminBriefModel");
+      if (byEl && brief && brief.model) byEl.textContent = brief.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现扫" : "read live by the model";
+      if (!brief || !brief.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.briefOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = brief?.error ? `error: ${String(brief.error).slice(0, 140)}` : "";
+        return;
+      }
+      const text = zh() ? brief.zh : brief.en;
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(text || (zh() ? brief.en : brief.zh))}</p>`;
+      if (usageEl) {
+        const u = brief.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · 已重新生成" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · regenerated" : ""}`;
+      }
+    }
+    const briefRefresh = $("#adminBriefRefresh");
+    if (briefRefresh) {
+      briefRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminBriefBody");
+        const usageEl = $("#adminBriefUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.briefPending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-brief?fresh=1", {}, 30000).catch(() => null).then((brief) => renderBrief(brief, true));
+      });
+    }
+    const briefPromise = requestJson("/api/oracle-brief", {}, 30000).catch(() => null);
+    briefPromise.then((brief) => renderBrief(brief, false));
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");
