@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-15T23:16:09.115Z",
+  "generated_at": "2026-11-16T00:03:51.005Z",
   "branch": "main",
-  "head": "733078c",
-  "total_commits": 1694,
+  "head": "4ea0058",
+  "total_commits": 1696,
   "recent_commits": [
+    {
+      "short": "4ea0058",
+      "at": "2026-11-16T08:02:59+08:00",
+      "subject": "M8-T1062: admin mainline health tile - new /api/ci_status (GitHub REST: actions/runs?branch=main + pulls + issues with PR-dedupe), 5-min LRU/Redis cache, live=T"
+    },
+    {
+      "short": "1974569",
+      "at": "2026-11-15T23:16:09Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "733078c",
       "at": "2026-11-16T07:15:49+08:00",
@@ -19,25 +29,15 @@
       "short": "1da25af",
       "at": "2026-11-16T06:47:06+08:00",
       "subject": "M8-T1058: stardust milestone copy switched to live math ({n}/{total}, ceil(x0.25/0.5/0.75/1.0) interpolated at render-time; 52-era stale literals removed) + alm"
-    },
-    {
-      "short": "5b02ea3",
-      "at": "2026-11-15T22:13:41Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c849512",
-      "at": "2026-11-16T06:13:10+08:00",
-      "subject": "M8-T1057: ci-leg red fix - loader gate caught the unregistered exec_module in M8-T1056's test (registered before execute, finally pop); ubuntu 5686 green + load"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 371,
+  "roadmap_batches": 373,
   "changelog_entries": 1,
-  "roadmap_lines": 53673,
-  "tracked_files": 1080,
-  "test_files": 714,
-  "almanac_chapters": 27,
+  "roadmap_lines": 53700,
+  "tracked_files": 1082,
+  "test_files": 715,
+  "almanac_chapters": 28,
   "module_count": 14,
   "feature_surface": [
     "workbench",
