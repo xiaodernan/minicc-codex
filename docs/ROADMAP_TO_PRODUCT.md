@@ -53847,3 +53847,18 @@ Ch.XXXI 把两腿全绿钉进了博物馆，Ch.XXXII 钉 Next — 这一次不�
 - **验证**：`almanac_smoke` 35 chapters 双语全绿（zh 模式 卷三十四 正文含 relay 中文 403 原文，en 模式一律英文；en-CJK parity 全绿）/ `atlas_smoke` 67-coordinate / `manual_smoke` 14 / `admin_smoke` / `dazzle` / `parity` / CRLF pins 711/0 + 309/0。
 - **诚实坑**：卷三十四 EN 分支最初原样引用 relay 中文 403 原文——parity gate 首战即拦；已改写为英文引文，zh 分支保留中文原文（两边各自语言、各自成立）。
 - **告示**：本批不改任何 gate；atlas 65→66→67 的 bookkeeping 全部随行同步；无密钥入库（`.env` gitignored）。
+## 批次 1060 · M8-T1075: 128-way 压测夜——33,600 次请求，0 非 2xx
+
+### 目的
+
+M8-T979 落地了 backlog=128 + single-flight TTL + boot prefetch，但从未在同一时间、同一实例上被一次性打满。堆积三波递增的满负荷——测、记、不编故事。
+
+### 做了什么
+
+- 实测目标：127.0.0.1:8899（`MINICC_FAKE_PROVIDER=1`，fresh process，prefetch 已暖）。只打只读端点（health/metrics/digest/stats/roadmap/workspace）。
+- Wave 1 c=24×15s：每路 n=1045，0 错误。
+- Wave 2 c=64×15s：每路 n=2175，0 错误。
+- Wave 3 c=128×12s：每路 n=2380；累计 14,280；0 错误；p50=5.4–6.07ms（五路）；/api/metrics p50=569ms（新瓶颈，诚实记录）；/api/workspace p99=1.42s。
+- 累计 **33,600 请求，0 非 2xx，0 连接失败**。
+- `docs/LOAD_TESTING.md` 新增 M8-T1075 小节（含诚实 caveat：loopback、fake upstream、只读、无 SLA 声明）；历史冻结章节不改。
+- 不改任何 gate / 不改代码；仅文档。待 CI 对 head 04bf0cd 的结果：若红，优先修 CI。

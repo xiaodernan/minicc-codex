@@ -51,7 +51,7 @@
 
 - [PERFORMANCE.md](PERFORMANCE.md) —— 实测过的性能改进与资源治理决策（import 时间、SQLite JSON1 过滤、impact BFS、网关 Redis 缓存、前端对比度门与内容寻址产物）；未经复测的不默认完成。
 - [CACHE_AFFINITY_MATRIX.md](CACHE_AFFINITY_MATRIX.md) —— wkapi.pro · gpt-6-sol（冻结）+ 2026-11-16 迁入 `api.aizzz.xyz · gpt-6.1-terra（经 Clash Verge 混合端口 · 直连 403 地理封锁）` 的 prompt_cache_key 亲和实测矩阵（Responses 流/非流报告 cached_tokens；chat/completions 流式不上报、带 key 后上报）——为什么「命中率显示低」是上报面产物而不是缓存失效。
-- [LOAD_TESTING.md](LOAD_TESTING.md) —— `scripts/load-test.mjs` 高并发只读端点压力测试的诚实实录（修前 /api/stats p50=43.9s、修后 c=8 p50=3.8s；10 路并发冷磁盘 walk 7.55s；仍属本机诊断而非 SLA）。
+- [LOAD_TESTING.md](LOAD_TESTING.md) —— `scripts/load-test.mjs` 高并发只读端点压力测试的诚实实录（修前 /api/stats p50=43.9s、修后 c=8 p50=3.8s；10 路并发冷磁盘 walk 7.55s；2026-11-16 M8-T1075：c=24/64/128 三波累计 33,600 请求 0 非 2xx；仍属本机诊断而非 SLA）。
 
 ## 阅读路径建议
 

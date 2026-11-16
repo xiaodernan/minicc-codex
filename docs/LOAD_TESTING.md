@@ -164,3 +164,24 @@ Observations:
 - `/api/admin/summary` remains the heaviest route by design — read once per panel unlock; on this workspace (~24 tasks, ~1,600 audit lines) it is acceptable cold and expensive if hammered at c=24. Nobody calls it 24 times a second; no change pretended.
 - **/api/health is not trivially free** on a busy Windows box (p50 178 ms warm): it co-resides on the same GIL as the tooling shell that was running the M8-T1038 build/tests at this exact moment. The honest state is "fine for one cockpit, not a multi-tenant plane" — same caveat carried through this document.
 - No Git commits accompanied this measurement: the wire fix is the only code delta since M8-T1037, and it does not touch the read plane.
+## Update 2026-11-16 15:52 UTC+8 (M8-T1075) — the 128-way night, zero non-2xx
+
+After M8-T1074 landed, the standing heat check ran against `minicc-web` on `127.0.0.1:8899` (fake provider `MINICC_FAKE_PROVIDER=1`, fresh process, prefetch already warm, read-only paths only — `/api/health`, `/api/metrics`, `/api/digest`, `/api/stats`, `/api/roadmap`, `/api/workspace`):
+
+**Wave 1 — c=24 × 15 s.** Every path `n=1045`, **0 errors, [200:1045] across the board**. p50 ≈ 15.9–17.2 ms everywhere; p95 ≤ 64 ms except health/metrics-tier. `/api/stats` p99 = 5.99 s — an honest tail: one cache-fill wave still pays the cold disk walk (~348 MB `os.walk` + `_llm_cache` SQLite pass) inside a single-flight window; nobody waits forever because the single-flight leader walks alone while siblings block on the same TTL.
+
+**Wave 2 — c=64 × 15 s.** `n=2175` per path, **0 errors, all 200**. p50 ≈ 14.9–139.0 ms (`/api/metrics` is heavier: instrumentation emit on every call), p95 ≤ 402 ms.
+
+**Wave 3 — c=128 × 12 s.** `n=2380` per path (**14,280 requests total, 0 errors, all 200**). p50 health/digest/stats/roadmap/workspace ≈ 5.4–6.07 ms (the backlog-128 + single-flight + TTL regime is now carrying a full 128 listen queue, exactly the shape M8-T979 was designed for); `/api/metrics` p50 569 ms remains the honestly-expensive path (every response re-emits instrumentation); `/api/workspace` p99 1.42 s.
+
+Cumulative across the three waves: **33,600 requests, 0 non-2xx, 0 connection failures against a stock-local fake-provider cockpit.**
+
+What this does to the "still open" list:
+- The 128-way listen backlog is now demonstrated under sustained load, not just declared in code.
+- `/api/metrics` displaced `/api/stats` as the heaviest common path at c≥64 — a different, honest bottleneck, untouched here (no rewrites claimed without measurement).
+- Cold `/api/stats` p99 ≈ 6 s survives on this 1,600-audit-line workspace. It stays a documented fact, not fixed fiction.
+
+Honest caveats (unchanged):
+- Loopback + fake upstream + read-only routes only. No gateway, no Redis breaker, no upstream TLS to measure from here.
+- Single process, GIL-bound; no multi-tenant claims.
+- Do not quote these as SLA numbers; they are a snapshot of one Windows box on a Sunday afternoon.
