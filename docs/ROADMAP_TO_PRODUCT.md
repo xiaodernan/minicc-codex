@@ -54116,3 +54116,15 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **Ch.14 横向阅读链接**：手册 StateGraph 章 zh/en 均加一行「See it in person / 亲眼看一下」。
 - **验证**：almanac / atlas / manual / parity / admin / dazzle 全绿；CRLF pins 711/0 + 309/0。
 - **告示**：Atlas 78 不变；手册世代仍为 16；en-CJK 零泄漏；parity gate 见档。
+## 批次 1080 · M8-T1095: 说明书第十七章「并行子智能体 / Parallel Subagents」—— Atlas 79
+
+### 目的
+
+Manual 第 14 章是 fanout 的人格面板；第 17 章是硬件——直接拆开 orchestration 与 graph，把常量变成散文。
+
+### 做了什么
+
+- **`web/src/panels/manual.js`**：新增 `zhFanout`/`enFanout` + BODIES 注册（Chapter 17 · 十七 · 并行子智能体）；Atlas 行 78→79 / 16→17 manual satellites。
+- **Atlas 78 → 79 coordinates**：manual satellites 16→17；`atlas_smoke` 79；welcome chips 79（i18n.js CRLF 309/0）；index.html 711/0。
+- **README / onboarding / Manual Atlas 行**：评分表的常数直接写进 README 领衔条目与 onboarding 手册副本。
+- **验证**：`manual_smoke` 17 chapters 全双语 / `atlas_smoke` 79-coordinate / `parity` / `admin_smoke` / dazzle / CRLF pins。

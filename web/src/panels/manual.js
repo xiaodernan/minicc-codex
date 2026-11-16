@@ -31,6 +31,7 @@ export const CHAPTERS = [
   { id: "stategraph", roman: "十四", romanEn: "14", title: "StateGraph", titleZh: "状态图" },
   { id: "cache", roman: "十五", romanEn: "15", title: "Cache Affinity", titleZh: "冷热亲和" },
   { id: "sandbox", roman: "十六", romanEn: "16", title: "Sandbox & Safety", titleZh: "沙盒与安全" },
+  { id: "fanout", roman: "十七", romanEn: "17", title: "Parallel Subagents", titleZh: "并行子智能体" },
 ];
 
 function zhStart() {
@@ -111,7 +112,7 @@ function zhModules() {
       <li><strong>船厂 · Dockyard</strong> — 侧边栏「船厂」：把你自己的真实旅程做成展厅——「航海日志」六格全部来自真实任务与 git 元数据（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率，数据直接读 /api/digest、/api/metrics、/api/worldpulse）；「灯塔 · 十一座里程碑」照真实指标逐格解锁（起航 / 领主 1,000 提交 / 卷典者十七卷 / 万点繁星 / 守夜人 80% 亲和率等），未达成的只显示真实进度，不放演示徽章。</li>
       <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：四十四卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷四十三《神谕》——本仓库配置中的模型现场撰写、只凭 /api/digest 上的数字落笔，每一卷数字都翻开同一页可复核），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>管理员 · Admin</strong> — 侧边栏「管理」：密码 123 研一道共享门（非登录，只对本地自己人可见）；stats（任务数 / 完成 / 中断 / 缓存亲和率 / 审计行 / 会话数）+ 七日事件 Canvas（requestAnimationFrame 真绘制）+ 最小二乘线性预测（明文标注：这是估计，不是承诺）+ 中断原因自动分桶（这个仓库全部 3 次中断全部是服务重启）+ 顶部工具真实使用直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%，全部从 /api/admin/summary 真实读数，零虚构）；点 4 下之后就能看见所有数字。</li>
-      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、78 个真实坐标——18 面板 + 44 年鉴卫星 + 16 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
+      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、79 个真实坐标——18 面板 + 44 年鉴卫星 + 17 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -131,7 +132,7 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in forty-four chapters (the newest, Chapter XLIII “The Great Basin” — the week a repo laid twenty-nine worktrees on the bench and walked away with seven, every unique fragment anchored on a rescue branch; every previous chapter still plays), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, seventy-eight real coordinates — 18 panes + 44 almanac satellites + 16 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, seventy-nine real coordinates — 18 panes + 44 almanac satellites + 17 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -422,6 +423,26 @@ function enCloud() {
   `;
 }
 
+function zhFanout() {
+  return `
+    <p class="manual-lede">「并行子智能体」是你习惯了之后再回来看，才会说：啊，原来这个不是玄学，是纯评分表。 — 见 minicc/agent/orchestration.py。</p>
+    <ol class="manual-list">
+      <li><strong>核心常量</strong> — <code>AUTO_FANOUT_THRESHOLD = 4</code>（打分多少才派扇出）· <code>AUTO_FANOUT_MAX_CHILDREN = 3</code>（一次最多派多少子任务）。score 从 0 起算，没达到 4 不派，达到后 ≥ 7 或 explicit 就是满 3 个子任务，否则 2 个。</li>
+      <li><strong>评分项一：文本长度</strong> — ≥ 260 字 +2；≥ 150 字 +1。150/260 是 P50/P75 的大致分界不是随意猜测。</li>
+      <li><strong>评分项二：连续目标 connector</strong> — 正则带 word boundary：<code>and</code> / <code>also</code> / <code>additionally</code> / <code>then</code> / <code>after</code>；≥ 3 个 +2；≥ 1 +1。早期 substring 会让 <code>understanding</code> 触发 <code>and</code>（单次+1 但攒够很恐怖），M8-T290 把这层洗掉了。</li>
+      <li><strong>评分项三：意图维度 DIMENSION_PATTERNS</strong> — 五组正则：<code>inspection</code>（检视/review/analy[sz]...）· <code>implementation</code>（实现/implement/build/fix/add/...）· <code>verification</code>（验证/test/verify/benchmark/...）· <code>research</code>（调研/search/web/docs）· <code>presentation</code>（前端/页面/design/landing）。≥ 4 种 +3，≥ 3 种 +2，≥ 2 种 +1。</li>
+      <li><strong>评分项四：文件引用数</strong> — <code>_FILE_RE</code> 抽取 path-like tokens（<code>.py/.ts/.json/.md</code> ...）≥ 3 +2，≥ 1 +1。加上用户明说“parallel/并行/multi-agent/subagent”那一类，就让 score 至少到 4。</li>
+      <li><strong>opt-out</strong> — “just answer / just respond / 只是回答 …”直接返回 0，用户最不耐烦时就不调度。</li>
+      <li><strong>扇出之后会真正走到 execute_dag</strong> — <code>minicc/agent/graph.py::execute_dag</code>，真实 DAG，只读节点先行（readonly / review / merge）并行，write 节点在最后（单线程）。ledger 里每个节点都有自己独立的 timeout bucket（node_budget_from）。</li>
+      <li><strong>失败如何被保持住</strong> — M8-T296：子任务跳过/超限写 BudgetExceeded，结果还是会带全部成功节点的 token/latency 回填，<code>aggregate_dag_tokens</code> 一次合上去——父任务能看到真实花费，不会流失。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的事</strong>
+      <p>评分全系统都是可调参数，写在源代码里，数值来源是仓库里每个任务的真实跑动后测得。你看到的每一条加减都对应落档的 git commit。哪一个子代理不是并行跑的都能从 <code>minicc/web.py</code> 的 <code>/api/audit</code> 自己复核——不做炫技，只做账本。</p>
+    </div>
+  `;
+}
+
 function zhSandbox() {
   return `
     <p class="manual-lede">小册子最后一章：你有一位不信任 Agent 的朋友——他可以，任何人都可以。可是当模型在 workspaces 里横冲直撞，“沙盒”就是你的邻居请你吃饭时穿的围裙：不当证牌，防止锅烧着厨房。</p>
@@ -470,6 +491,26 @@ function zhStateGraph() {
       <div><strong>固定三个模板</strong><span><code>inspect_summarize</code>：扫一遍 → 写总结。<code>inspect_implement_verify</code>：检 → 写 → 验 → 总结。<code>parallel_inspect</code>：N 个只读扫描并发至 merge 汇聚 → 再进 implement / verify / summarize 管线。同一份白名单，没有任何一份能轻易绕过。</span></div>
     </div>
     <p class="manual-footnote">这不是 LangGraph 的山寨——它是 minicc 专用的仪表轴。真想看别的（durable execution、checkpointing、human-in-the-loop、Send( fanout)、Send==send）请直接读 <code>docs/AGENT_LLM_ROADMAP.md</code> 里的可观测编排层小节；真正落地就在 <code>minicc/agent/graph.py</code>。——三件事的本质是一样的：让每次流转都能被看见。</p>
+  `;
+}
+
+function enFanout() {
+  return `
+    <p class="manual-lede">Fanout is not magic, it's a scorecard — literally eight constants and a few regexes in <code>minicc/agent/orchestration.py</code>.</p>
+    <ol class="manual-list">
+      <li><strong>Core constants</strong> — <code>AUTO_FANOUT_THRESHOLD = 4</code> (the score fan-out requires) · <code>AUTO_FANOUT_MAX_CHILDREN = 3</code> (the cap on parallel children). Score starts at 0; below 4 we fan out nothing. At 4+, a score of ≥ 7 or an explicit callout unlocks 3 children, otherwise 2.</li>
+      <li><strong>Signal 1 — message length</strong> — ≥ 260 chars scores +2; ≥ 150 chars scores +1. P50/P75 length thresholds, not a guess.</li>
+      <li><strong>Signal 2 — connectors</strong> — word-boundary regexes (<code>and</code> / <code>also</code> / <code>additionally</code> / <code>then</code> / <code>after</code>) catch multi-goal requests. ≥ 3 fires +2; any fires +1. <code>understanding</code> no longer raises the score after M8-T290 cleaned up bare-substring matches.</li>
+      <li><strong>Signal 3 — intent dimensions</strong> — <code>DIMENSION_PATTERNS</code> maps five names to matching regexes: <code>inspection</code> (review/analy[sz]...) · <code>implementation</code> (implement/build/fix/add/migrat...) · <code>verification</code> (test/verify/benchmark/validat...) · <code>research</code> (search/web/docs) · <code>presentation</code> (frontend/design/landing...). ≥ 4 distinct → +3; ≥ 3 → +2; ≥ 2 → +1.</li>
+      <li><strong>Signal 4 — file mentions</strong> — <code>_FILE_RE</code> extracts path-like tokens (<code>.py/.ts/.json/.md</code> …). ≥ 3 → +2; ≥ 1 → +1.</li>
+      <li><strong>Explicit opt-in</strong> — "just answer / just respond …" short-circuits to 0. Asking for "parallel / multi-agent / subagent" lifts score to at least the threshold.</li>
+      <li><strong>Fan-out actually lands in execute_dag</strong> — <code>minicc/agent/graph.py::execute_dag</code>. Nodes of kind <code>readonly</code>/<code>review</code>/<code>merge</code> run in parallel waves ≤ 4 concurrent; the write node runs alone at the end. Each child picks up a sub-<code>Budget</code> (derive <code>node_budget_from</code>), its own timeout bucket, its own token counter.</li>
+      <li><strong>Budget failure is honest</strong> — M8-T296: child hits <code>BudgetExceeded</code>, DAG returns <code>partial</code> with all the tokens every successful sibling honestly spent. <code>aggregate_dag_tokens</code> rolls them into the parent's accounting, never lost.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>Honest limits</strong>
+      <p>Every "should I fan out?" decision in this repo is a deterministic function of the request string. Nothing here calls a model to plan parallelism — so it can't fail silently or drift. Verifiable in the source itself, reproducible with one line of Python: <code>from minicc.agent.orchestration import assess_complexity; assess_complexity("...").snapshot()</code>.</p>
+    </div>
   `;
 }
 
@@ -588,6 +629,7 @@ const BODIES = {
   stategraph: { zh: zhStateGraph, en: enStateGraph },
   cache: { zh: zhCacheAffinity, en: enCacheAffinity },
   sandbox: { zh: zhSandbox, en: enSandbox },
+  fanout: { zh: zhFanout, en: enFanout },
 };
 
 function chapterMarkup(chapter) {

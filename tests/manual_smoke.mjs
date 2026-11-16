@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapterIds = ["start", "workbench", "modules", "keys", "arcade", "trouble", "limits", "vault", "philosophy", "askdocs", "load", "cloud", "arch", "stategraph", "cache", "sandbox"];
+const chapterIds = ["start", "workbench", "modules", "keys", "arcade", "trouble", "limits", "vault", "philosophy", "askdocs", "load", "cloud", "arch", "stategraph", "cache", "sandbox", "fanout"];
 const CJK = /[一-鿿]/;
 
 const browser = await chromium.launch({ headless: true });
@@ -39,4 +39,4 @@ await checkMode("zh", true);
 await checkMode("en", false);
 await browser.close();
 assert.equal(errors.length, 0, JSON.stringify(errors, null, 2));
-console.log("manual smoke passed: 16 chapters render fully bilingual, no mixed-language prose");
+console.log("manual smoke passed: 17 chapters render fully bilingual, no mixed-language prose");
