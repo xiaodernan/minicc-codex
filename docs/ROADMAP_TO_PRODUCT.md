@@ -53890,3 +53890,15 @@ M8-T1075 的三波满负荷 33,600 次请求、0 非 2xx——这意味着一本
 - **数字来源（全部实测/冻结记录，不杜撰）**：wkapi.pro 2026-11-15 98.3% / 96.0%；新 lane 2026-11-16（Clash Verge 7897）73.7% → 95.9%；cache_keeper 220s（60–900）；TTL ≈ 5min；chat/completions 不回传 cached_tokens——measured_usage 三键；stream=true/temp=0 固定方法学。
 - **验证**：`manual_smoke` 15 chapters 全双语 / `atlas_smoke` 69-coordinate / `parity` / `almanac_smoke` 36 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
 - **告示**：不改 gate；说明书世代 14→15 陪随 Atlas 卫星同步；无密钥入库。
+## 批次 1063 · M8-T1078: TTL 悬崖深探——≥16 分钟沉默，prefix 亲和纹丝不动
+
+### 目的
+
+M8-T1077 说明书把 5 分钟的 "prefix TTL 目测" 写进了影响圈。今天的问题只有一个：**那堵崖到底存在不存在？**——用同一条 lane、同一个 prefix、同一个 key，直接走一遍。
+
+### 做了什么
+
+- `minicc-ttl-probe-2026-11-16-a` 对 6 行中文 prefix 字节级复读（4500-token 级），三轮测量：A（warm）92.6%、B（~7min 沉默）92.6%、C（~16min 沉默）92.6%——悬崖未被观察到。cached 始终=4224（与 5731 字节前缀采样同一共享块）。
+- 诚实解读：不能排除更长（例如 ≥30min）才掉崖；5min TTL 经验来自 wkapi.pro/gpt-6-sol；本 lane 可能存在网关级全局共享前缀。
+- **不改代码默认值**：`cache_keeper` 220s / 60–900 clamp / `MINICC_CACHE_KEEPER` env opt-out 维持；本次只修正文档认知，不动生产姿态。
+- `docs/CACHE_AFFINITY_MATRIX.md` 新增 M8-T1078 小节；INDEX.md 无需更新（不动既有条目结构）。
