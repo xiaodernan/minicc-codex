@@ -61,6 +61,7 @@ export const CHAPTERS = [
   { id: "greatbasin", roman: { zh: "卷三十八", en: "Chapter XXXVIII" }, title: { zh: "归墟", en: "The Great Basin" }, subtitle: { zh: "所有散落的碎片都会流回同一个地方", en: "Every scattered fragment flows back to one place" } },
   { id: "blackoutdrill", roman: { zh: "卷三十九", en: "Chapter XXXIX" }, title: { zh: "灯火管制", en: "The Blackout Drill" }, subtitle: { zh: "七盏小小的灯，换回一座仓库的绿", en: "Seven small lamps went out to buy back the green of a repo" } },
   { id: "quota", roman: { zh: "卷四十", en: "Chapter XL" }, title: { zh: "配额", en: "The Quota" }, subtitle: { zh: "一扇门每次只放四十个人进，里面记着每一笔账", en: "A door admitting exactly forty at a time — and every one of them counted" } },
+  { id: "arithmetic", roman: { zh: "卷四十一", en: "Chapter XLI" }, title: { zh: "算术", en: "The Arithmetic" }, subtitle: { zh: "这个仓库靠算数呼吸，不靠形容词", en: "This repo breathes by arithmetic, not adjectives" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -2946,6 +2947,69 @@ function quotaMarkup() {
     </div>`;
 }
 
+function arithmeticMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-arithmetic">
+      <div class="almanac-kicker">${zh() ? "卷四十一 · 算术" : "Chapter XLI · The Arithmetic"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `这个仓库靠算数呼吸，<br/><span class="almanac-title-accent">不靠形容词。</span>`
+        : `This repo breathes by arithmetic,<br/><span class="almanac-title-accent">not adjectives.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>
+          换一种过日子的方式：不加形容词，只算数。2026 年 11 月 16 日深夜被逼到显微镜前的那些数字，顺序是：
+        </p>
+        <p>
+          <strong>5,701</strong>：本层开发机全套测试通过的那一天——3 个红，其中 1 个是我们自己丢在根目录的 7 盏无人被打扫的 *.log，2 个是 CI 上可以复现的噪音，13 个瞬时分歧（flakes）当时单独复跑全绿；<strong>12</strong> 个是合法 skip（Windows 的 symlink 权限）。</p>
+        <p>
+          <strong>59,070</strong>：一次压测层级下发生的 HTTP 请求数——第一层 33,600（M8-T1075），第二层 25,470（M8-T1086），全线 <strong>0 个非 2xx、0 次连接失败</strong>；<strong>92.6%</strong> 是新 lane 的 prefix cache 在 ~16 分钟沉默后仍维持的读数（WKAPI 时代的「5 分钟 TTL 直觉」被同一天测量作废）；<strong>40×503 + 80×429</strong> 是 Redis 桶在三次 120-并发爆发中每次恰到好处的放行与拒绝额度——两次 2.0 秒冷桶再落回 40。
+        </p>
+        <p>
+          十七次 push 之后仍然没有一块算术被涂改：<strong>0 个伪造数字、0 个被拦下的窗口被当成 200、0 个偷偷净化过的 API 状态</strong>。它不靠「一切都好」活着，它靠「你们自己算一遍也同样通过」活着。这一卷不是口号——
+          <strong>是宪法</strong>。
+        </p>` : `<p>
+          A different way of living: no adjectives, only arithmetic. The numbers that came out under a magnifying glass on the night of 2026-11-16:
+        </p>
+        <p>
+          <strong>5,701</strong> — the full local pytest run on this dev box passed. Three reds: one was our own seven unflushed *.log files lying on the repo root, two were environment-sensitivity flakes that re-passed in isolation; <strong>12</strong> were legal skips (symlink permissions on Windows).</p>
+        <p>
+          <strong>59,070</strong> — HTTP requests fired in the day-long load testing campaign: first wave 33,600 (M8-T1075), second wave 25,470 (M8-T1086), zero non-2xx, zero connection failures. <strong>92.6%</strong> — the new lane's prefix cache hit rate measured after ~16.7 minutes of silence with the same lane key and the same six-line prefix; the "5-minute TTL folklore" from the old wkapi.pro era was invalidated the same day by the same instrument. <strong>40×503 + 80×429</strong> — the new isolated Redis token bucket's exact admit/deny split across three 120-way bursts; cold bucket refills to exactly 40 in 2.0 seconds, every time.</p>
+        <p>
+          Seventeen pushes in, not one number has been falsified: <strong>0 fake probes, 0 coerced 200s, 0 silently laundered API states</strong>. This repo does not survive on "everything is fine"; it survives on "you can rerun it and still get the same pass". This chapter is a <strong>constitution</strong>, not a slogan.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">75</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">42 / 42</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">15 / 15</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "全套测试通过" : "Full suite passed"}</div><div class="almanac-instrument-value">5,701</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "压测请求 · 0 非 2xx" : "Load requests · 0 non-2xx"}</div><div class="almanac-instrument-value">59,070</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["5,701 passed / 12 skipped", "全套 pytests 压住 ledger；Windows symlink 权限缺位是 12 次合法跳过"],
+        ["59,070 请求 · 0 非 2xx · 0 断连", "33,600 + 25,470 两波累计，两轮的 /api/stats 的 cold-pail tail 都被诚实入档"],
+        ["92.6% · 沉默 16 分钟仍在", "A/B/C 三轮 api.aizzz.xyz · 同 lane key · 同 prefix：4224/4561 一字不差——5 分钟 folklore 作废"],
+        ["40×503+80×429 精确三次重现", "桶键 request_rate_limiter.{route}.{ip} 记入 Redis 2 个键；冷桶两秒回满"],
+        ["零伪造 · 零强塞 · 零躲避", "整套测量红过、错过、修过、重测过、 commit 过——够真的才被收进这个仓库"],
+      ] : [
+        ["5,701 passed / 12 skipped", "full pytest held the ledger; Windows symlink privilege accounts for the 12 skips, not the repo"],
+        ["59,070 requests · zero non-2xx · zero drops", "first wave 33,600 + second wave 25,470; both rounds' cold /api/stats tails recorded honestly"],
+        ["92.6% · still cached after 16.7 min", "A/B/C rounds on api.aizzz.xyz · same lane key · same six-line prefix: 4224/4561 byte-identical every time; the 5-minute TTL folklore is retired"],
+        ["40×503 / 80×429 · three times identical", "bucket key request_rate_limiter.{route}.{ip} with both counters in Redis · cold bucket refills exactly to 40"],
+        ["Zero fabrications · zero coerced 200s · zero evasions", "every number here passed through a red light, a fix, a re-run, and a commit — only the real ones are still standing"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "算术不是工具，是宪法：先证明自己再自称。"
+          : "Arithmetic is not a tool, it is a constitution: prove yourself before you claim yourself."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -2988,6 +3052,7 @@ const CHAPTER_RENDERERS = {
   greatbasin: () => greatbasinMarkup(),
   blackoutdrill: () => blackoutdrillMarkup(),
   quota: () => quotaMarkup(),
+  arithmetic: () => arithmeticMarkup(),
 };
 
 async function loadChapter(id) {

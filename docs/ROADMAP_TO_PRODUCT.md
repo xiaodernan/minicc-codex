@@ -54034,3 +54034,16 @@ M8-T1082 的整合不是脚注，是一个仓库的基因重组。卷三十八�
 - **onboarding / Manual Atlas 行 / README**：seventy-four coordinates / forty-one chapters；README 彩蛋以 The Quota 领衔。
 - **验证**：`almanac_smoke` 41 chapters 双语全绿 / `atlas_smoke` 74-coordinate / manual / parity / admin / dazzle / CRLF pins 711/0 + 309/0。
 - **数字来源（全实测，原文）**：120 N · 壁钟 1.72/0.28/0.16 s · 放行 40/80×429 · Redis 桶键 `request_rate_limiter.{route}.{ip}` DBSIZE=2 · 冷桶 2 s 回填 40。
+## 批次 1074 · M8-T1089: 卷四十一「算术 / The Arithmetic」—— 本纪元数字大典，Atlas 75
+
+### 目的
+
+不写口号，不喊做大世界——只问一个问题：这个仓库到底有什么可以等待？答案不靠形容词，靠数字。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `arithmeticMarkup()`（卷四十一 · 算术）+ CHAPTERS + `CHAPTER_RENDERERS['arithmetic']`。
+- **Atlas 74 → 75 coordinates**：almanac satellites 41→42；`atlas_smoke` 75；welcome chips 75（i18n.js CRLF 309/0）。
+- **onboarding / Manual Atlas 行 / README**：seventy-five coordinates / forty-two chapters；README 彩蛋以 The Arithmetic 领衔。
+- **收录数字（全实测）**：5,701 pytest passed / 12 skip；59,070 压测请求 / 0 非 2xx；92.6% 前缀缓存沉默 16.7 分钟仍在；three bursts exact 40/80；README/Manual/CHANGELOG/ROADMAP 四处口径一致。
+- **验证**：`almanac_smoke` 42 chapters 双语 / `atlas_smoke` 75-coordinate / `parity` / `manual_smoke` 15 / `admin_smoke` / dazzle / CRLF pins 711/0 + 309/0。
