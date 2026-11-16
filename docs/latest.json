@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T15:50:50.496Z",
+  "generated_at": "2026-11-16T16:19:29.440Z",
   "branch": "main",
-  "head": "7b33aed",
-  "total_commits": 1766,
+  "head": "b627fa1",
+  "total_commits": 1768,
   "recent_commits": [
+    {
+      "short": "b627fa1",
+      "at": "2026-11-17T00:17:01+08:00",
+      "subject": "M8-T1096: almanac Ch.XLIV 'The Sleepless' - digest spans end-to-end through the session (1,767 commits, 44->45 volumes, 79->80 coordinates, 1096 tracked files /"
+    },
+    {
+      "short": "9a8a0f1",
+      "at": "2026-11-16T15:50:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7b33aed",
       "at": "2026-11-16T23:48:17+08:00",
@@ -19,25 +29,15 @@
       "short": "226cc20",
       "at": "2026-11-16T23:31:11+08:00",
       "subject": "M8-T1094 followthrough: fix the two CI red flags from head 71ce659 (docs/INDEX.md missed ORACLE_DRAFT.md and my prior ROADMAP line carried the retired pruned bu"
-    },
-    {
-      "short": "5335f72",
-      "at": "2026-11-16T15:27:34Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d6adb01",
-      "at": "2026-11-16T23:23:15+08:00",
-      "subject": "M8-T1094: StateGraph panel goes live in the workbench - web/src/panels/stategraph.js reproduces build_coding_workflow() (7 nodes, 8 edges, repair loop); i18n 'O"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 407,
+  "roadmap_batches": 408,
   "changelog_entries": 1,
-  "roadmap_lines": 54131,
-  "tracked_files": 1096,
+  "roadmap_lines": 54144,
+  "tracked_files": 1098,
   "test_files": 716,
-  "almanac_chapters": 44,
+  "almanac_chapters": 45,
   "module_count": 14,
   "feature_surface": [
     "workbench",
