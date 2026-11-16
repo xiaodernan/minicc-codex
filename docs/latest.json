@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T22:19:11.900Z",
+  "generated_at": "2026-11-16T22:55:55.139Z",
   "branch": "main",
-  "head": "94158a2",
-  "total_commits": 1808,
+  "head": "b41f310",
+  "total_commits": 1810,
   "recent_commits": [
+    {
+      "short": "b41f310",
+      "at": "2026-11-17T06:55:00+08:00",
+      "subject": "M8-T1119: the model goes on duty for the workspace - live 'workspace brief' tile in the admin panel (minicc/oracle_brief.py reads the measured fact pack, the mo"
+    },
+    {
+      "short": "2581752",
+      "at": "2026-11-16T22:19:12Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "94158a2",
       "at": "2026-11-17T06:18:41+08:00",
@@ -19,24 +29,14 @@
       "short": "0eb9208",
       "at": "2026-11-17T06:13:23+08:00",
       "subject": "M8-T1117: almanac Ch.L 'The Surge' - the textbook profile-then-rewrite of /api/stats (cProfile 87% in _disk_bytes; scandir stack; byte-identical ledger; /api/st"
-    },
-    {
-      "short": "fb946cc",
-      "at": "2026-11-16T21:56:12Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "468a8f3",
-      "at": "2026-11-17T05:55:30+08:00",
-      "subject": "M8-T1116: /api/stats cold path 12.9s -> p50 9.5ms - os.walk+Path.stat replaced with scandir stack walker (byte-identical 372.8 MB/8738 files; cold walk 2.97s->0"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 422,
+  "roadmap_batches": 423,
   "changelog_entries": 1,
-  "roadmap_lines": 54307,
-  "tracked_files": 1088,
-  "test_files": 718,
+  "roadmap_lines": 54320,
+  "tracked_files": 1090,
+  "test_files": 719,
   "almanac_chapters": 51,
   "module_count": 14,
   "feature_surface": [
