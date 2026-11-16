@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T01:21:16.243Z",
+  "generated_at": "2026-11-16T02:01:49.025Z",
   "branch": "main",
-  "head": "245c476",
-  "total_commits": 1702,
+  "head": "1afca76",
+  "total_commits": 1704,
   "recent_commits": [
+    {
+      "short": "1afca76",
+      "at": "2026-11-16T10:01:13+08:00",
+      "subject": "M8-T1065: almanac Ch.XXIX 'The Relay' - the story of the bot that re-pins fact pack on every push (M8-T84), 61 coordinates flywheel, 30 volumes bilingual; /api/"
+    },
+    {
+      "short": "8011d97",
+      "at": "2026-11-16T01:21:16Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "245c476",
       "at": "2026-11-16T09:20:41+08:00",
@@ -19,25 +29,15 @@
       "short": "f6227d9",
       "at": "2026-11-16T08:41:57+08:00",
       "subject": "M8-T1063 follow-through: broad-silent gate - 3 'except Exception' handlers in ci_health.py silently returned without reason; noqa BLE001 with honest why (errors"
-    },
-    {
-      "short": "184ceee",
-      "at": "2026-11-16T00:24:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "402d1e5",
-      "at": "2026-11-16T08:17:32+08:00",
-      "subject": "M8-T1063: real-world CI-leg red - admin unlock's new /api/ci_status made 3 sequential GitHub round trips (<=24s on a starved runner); now 3-way fanout in one Th"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 376,
+  "roadmap_batches": 377,
   "changelog_entries": 1,
-  "roadmap_lines": 53731,
+  "roadmap_lines": 53743,
   "tracked_files": 1082,
   "test_files": 715,
-  "almanac_chapters": 29,
+  "almanac_chapters": 30,
   "module_count": 14,
   "feature_surface": [
     "workbench",
