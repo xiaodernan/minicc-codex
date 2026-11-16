@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T09:48:54.636Z",
+  "generated_at": "2026-11-16T10:23:52.071Z",
   "branch": "main",
-  "head": "7c59ec2",
-  "total_commits": 1730,
+  "head": "dc5691c",
+  "total_commits": 1732,
   "recent_commits": [
+    {
+      "short": "dc5691c",
+      "at": "2026-11-16T18:23:17+08:00",
+      "subject": "M8-T1080: visual overlap fix - .tour-offer coach chip no longer covers inspector bottom caption (was right:22px/bottom:22px over 'READY' unsaved-changes caption"
+    },
+    {
+      "short": "4d52ba6",
+      "at": "2026-11-16T09:48:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7c59ec2",
       "at": "2026-11-16T17:45:30+08:00",
@@ -19,22 +29,12 @@
       "short": "5c17efd",
       "at": "2026-11-16T17:36:22+08:00",
       "subject": "M8-T1078: TTL-cliff probe on new lane (api.aizzz.xyz/v1 gpt-6.1-terra via Clash Verge 127.0.0.1:7897) - identical prefix + lane key A/B/C over ~16.7 min silence"
-    },
-    {
-      "short": "1554a73",
-      "at": "2026-11-16T08:41:06Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7d6b79e",
-      "at": "2026-11-16T16:39:58+08:00",
-      "subject": "M8-T1077: manual Ch.15 'Cache Affinity / 冷热亲和' - real measurements & mechanisms (wkapi.pro 2026-11-15 warm 98.3% / 5504-5735=96.0%; new lane 2026-11-16 via loca"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 391,
+  "roadmap_batches": 392,
   "changelog_entries": 1,
-  "roadmap_lines": 53919,
+  "roadmap_lines": 53932,
   "tracked_files": 1083,
   "test_files": 716,
   "almanac_chapters": 37,
