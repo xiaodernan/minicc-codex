@@ -53774,3 +53774,15 @@ Mega-spec §九：「模拟真实用户的行为：真实用户会怎么操作�
 - **`web/src/panels/almanac.js`** — `CHAPTERS` 新增 `lamplighter`（卷三十一 · 灯下 / Chapter XXXI · The Lamplighter）；仪器：commits live 1708 / tasks live / 12 recent / Atlas 63 / volumes 32·32 bilingual / manual 13·13 / Dazzle en+zh / Windows 2× 全绿；CHAPTER_RENDERERS 登记。gate-list 端严 claim checkers / impact floor / loader registry / palette one-home 的真问题，而非 slog。
 - **Manual 最新卷改卷三十一**；Almanac smoke 32 chapters bilingual；Atlas 63-coordinate contract；welcome chips 63；i18n.js CRLF 309/0 保持不动。
 - **en-CJK gate 闭环**——steward 那一夜教给我们的老教训保留：en 侧叙事含「claim checkers」「Dazzle」这一类可被 diff 察觉的非 CJK 中英混写——零溶混。en-CJK 与 parity 全绿。
+## 批次 1054 - M8-T1069: §五 视觉小屏侧栏压缩——不重屏、不挤鼠标
+
+### 目的
+
+Mega-spec §五 重发：「修复前端的不合理之处：字体的变形、歪曲、重叠、扭曲，实体块的失重互相重叠、挤压」——1366×768 肉眼检查发现左侧 sidebar 下端被切（profile 已被淹没、Arcade 不可见）。
+
+### 做了什么
+
+- 五个视口实测（1080×900 / 1366×768 / 1440×900 / 1536×864 / 768×750）：1366×768 / 768×750 下 profile / Pulse / Arcade 被截去贴近一半；诚实 measure 输出 worktree 内 overflow=54px 剩余；1440×900/1536×864 正常。
+- **`.thread-list` 被改为 `flex: 1 1 0%`**（本来 `1 1 auto`）→ 让位给 sidebar-bottom；同时 `min-height: 156 → 64 → 56`。
+- **`.nav-item` height（in `@media (max-height: 900px)`）26 → 24**（每行省 2px × 12 说明书条目 = 24px）。
+- **`@media (max-height: 790px)`** 新增：隐藏 `.streak-chip`（h ≈ 28px） → 侧栏再节约。.

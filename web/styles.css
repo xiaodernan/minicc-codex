@@ -311,7 +311,7 @@ button { color: inherit; }
 .nav-item.arcade-nav { display: none; }
 :root[data-arcade="1"] .nav-item.arcade-nav { display: flex; }
 .section-label { align-items: center; color: var(--quiet); display: flex; font-size: 12px; font-weight: 700; justify-content: space-between; letter-spacing: .7px; margin: 20px 8px 7px; text-transform: uppercase; }
-.thread-list { display: grid; flex: 1 1 auto; gap: 3px; min-height: 156px; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; align-content: start; }
+.thread-list { display: grid; flex: 1 1 0%; gap: 3px; min-height: 64px; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; align-content: start; }
 .thread-list::-webkit-scrollbar { width: 6px; }
 .thread-list::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 6px; }
 .thread-empty { border: 1px dashed var(--line); border-radius: 6px; color: var(--quiet); font-size: 12px; padding: 13px 9px; text-align: center; }
@@ -5355,16 +5355,17 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .brand-mark { width: 26px; height: 26px; min-width: 26px; font-size: 9px; }
   .new-task-button { height: 26px; margin: 2px 0 4px; }
   .sidebar-search { height: 25px; margin: 5px 2px 5px; }
-  .nav-item { height: 26px; padding: 0 6px; font-size: 11px; gap: 8px; }
+  .nav-item { height: 24px; padding: 0 6px; font-size: 11px; gap: 8px; }
   .sidebar-nav { gap: 0; }
   .section-label { margin: 6px 8px 3px; font-size: 9.5px; }
-  .thread-list { min-height: 84px; }
+  .thread-list { min-height: 56px; }
   .thread-item { min-height: 42px; }
   .thread-copy strong { font-size: 11.5px; }
   .thread-copy small, .section-label, .workspace-mini-copy span { font-size: 10px; }
   .secondary-nav .nav-item { height: 36px; }
   .sidebar-bottom { gap: 5px; padding-top: 6px; }
   .streak-chip { padding: 3px 10px; margin: 4px 0 0; }
+  @media (max-height: 790px) { .streak-chip { display: none; } .sidebar-bottom { padding-top: 2px; gap: 2px; } }
   .running-light { padding: 3px 8px; height: auto; min-height: 22px; }
   .workspace-mini { padding: 0 4px; min-height: 30px; }
   .profile-row { padding: 3px 6px; }
