@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T17:08:28.431Z",
+  "generated_at": "2026-11-16T17:17:12.833Z",
   "branch": "main",
-  "head": "80e6a83",
-  "total_commits": 1776,
+  "head": "ba032a7",
+  "total_commits": 1778,
   "recent_commits": [
+    {
+      "short": "ba032a7",
+      "at": "2026-11-17T01:16:38+08:00",
+      "subject": "M8-T1100: manual Ch.19 count corrected to measured 5,701 passed / 12 skipped (README claims must be reproducible; my own 5,149 was stale from an earlier window)"
+    },
+    {
+      "short": "a3264e2",
+      "at": "2026-11-16T17:08:28Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "80e6a83",
       "at": "2026-11-17T01:07:16+08:00",
@@ -19,16 +29,6 @@
       "short": "460c5cb",
       "at": "2026-11-17T00:48:53+08:00",
       "subject": "M8-T1098: manual Ch.19 'The CI Wall' - ten gates named honestly, doc gates explained from real reds on this very repo; Atlas 81->82 (manual satellites 18->19); "
-    },
-    {
-      "short": "b7288b8",
-      "at": "2026-11-16T16:34:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d89f5d0",
-      "at": "2026-11-17T00:33:10+08:00",
-      "subject": "M8-T1097: manual Ch.18 'Evidence & Gates' - the repo's 'constitution' chapter (test_readme_capability_claims / test_doc_pointers / test_tracked_evidence_census "
     }
   ],
   "first_commit_at": "2026-08-24",
