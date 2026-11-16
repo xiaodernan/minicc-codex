@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T16:50:06.571Z",
+  "generated_at": "2026-11-16T17:08:28.431Z",
   "branch": "main",
-  "head": "460c5cb",
-  "total_commits": 1774,
+  "head": "80e6a83",
+  "total_commits": 1776,
   "recent_commits": [
+    {
+      "short": "80e6a83",
+      "at": "2026-11-17T01:07:16+08:00",
+      "subject": "M8-T1099: almanac Ch.XLV 'The Threshold' - the CI failures that actually fired (ORACLE_DRAFT INDEX gap + hash-tagged bundle in ROADMAP) closed by one push, hone"
+    },
+    {
+      "short": "6fca197",
+      "at": "2026-11-16T16:50:06Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "460c5cb",
       "at": "2026-11-17T00:48:53+08:00",
@@ -19,25 +29,15 @@
       "short": "d89f5d0",
       "at": "2026-11-17T00:33:10+08:00",
       "subject": "M8-T1097: manual Ch.18 'Evidence & Gates' - the repo's 'constitution' chapter (test_readme_capability_claims / test_doc_pointers / test_tracked_evidence_census "
-    },
-    {
-      "short": "ef35cb4",
-      "at": "2026-11-16T16:22:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e00d5b3",
-      "at": "2026-11-17T00:20:02+08:00",
-      "subject": "docs: fix almanac smoke pointer in CHANGELOG - tests/almanac_smoke.mjs (was trailing space slug that flagged doc_pointers)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 410,
+  "roadmap_batches": 411,
   "changelog_entries": 1,
-  "roadmap_lines": 54168,
+  "roadmap_lines": 54180,
   "tracked_files": 1098,
   "test_files": 716,
-  "almanac_chapters": 45,
+  "almanac_chapters": 46,
   "module_count": 14,
   "feature_surface": [
     "workbench",
