@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T03:20:45.180Z",
+  "generated_at": "2026-11-16T04:04:27.490Z",
   "branch": "main",
-  "head": "9f7a36f",
-  "total_commits": 1709,
+  "head": "17043c2",
+  "total_commits": 1711,
   "recent_commits": [
+    {
+      "short": "17043c2",
+      "at": "2026-11-16T12:03:43+08:00",
+      "subject": "M8-T1069: sec.5 visual fix - sidebar overflow at short viewports: .thread-list now flex:1 1 0%/min-height 56 (yields to bottom), .nav-item height 26->24 in max-"
+    },
+    {
+      "short": "02c8de2",
+      "at": "2026-11-16T03:20:45Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9f7a36f",
       "at": "2026-11-16T11:19:59+08:00",
@@ -19,22 +29,12 @@
       "short": "1ce5a97",
       "at": "2026-11-16T10:47:29+08:00",
       "subject": "M8-T1067: almanac Ch.XXX 'The Tide' - asymmetric-beat narrative (almanac fastest / manual slowest / fresh parallel growth), 62 coordinates flywheel, 31 volumes "
-    },
-    {
-      "short": "ee9e733",
-      "at": "2026-11-16T10:40:05+08:00",
-      "subject": "M8-T1066: dazzle - real user behavior in CI: impatient (open and bounce within a second), lost-user (all 12+ nav destinations, 500ms each, Esc-bounce) and dazzl"
-    },
-    {
-      "short": "86c95a6",
-      "at": "2026-11-16T02:01:49Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 380,
+  "roadmap_batches": 381,
   "changelog_entries": 1,
-  "roadmap_lines": 53777,
+  "roadmap_lines": 53789,
   "tracked_files": 1083,
   "test_files": 716,
   "almanac_chapters": 32,
