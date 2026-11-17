@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T14:40:20.930Z",
+  "generated_at": "2026-11-17T14:51:08.386Z",
   "branch": "main",
-  "head": "882b365",
-  "total_commits": 1875,
+  "head": "8687742",
+  "total_commits": 1877,
   "recent_commits": [
+    {
+      "short": "8687742",
+      "at": "2026-11-17T22:50:36+08:00",
+      "subject": "M8-T1180: the gateway budget is visible on the admin panel - new /api/admin/ratelimit reads ratelimit.stats() (limit/window/local LRU windows/decisions allowed_"
+    },
+    {
+      "short": "9e908c5",
+      "at": "2026-11-17T14:40:21Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "882b365",
       "at": "2026-11-17T22:39:58+08:00",
@@ -19,23 +29,13 @@
       "short": "2d4c546",
       "at": "2026-11-17T22:30:21+08:00",
       "subject": "M8-T1178: every gateway-calling oracle route is behind the shared token bucket - oracle-brief/diagnosis/retrospective/review/plan/ci-diagnosis/audit-story and p"
-    },
-    {
-      "short": "97510dc",
-      "at": "2026-11-17T14:27:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ee3a27e",
-      "at": "2026-11-17T22:26:20+08:00",
-      "subject": "M8-T1177: read-pressure probe finds the CPU storm in /api/audit - 400 concurrent-ish reads: c=32 p50 10,008ms with 253/384 timeouts, c=64 224/384; root cause: a"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 451,
+  "roadmap_batches": 452,
   "changelog_entries": 1,
-  "roadmap_lines": 54799,
-  "tracked_files": 1118,
+  "roadmap_lines": 54815,
+  "tracked_files": 1119,
   "test_files": 735,
   "almanac_chapters": 56,
   "module_count": 14,
