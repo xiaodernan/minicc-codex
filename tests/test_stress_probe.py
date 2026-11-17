@@ -11,6 +11,7 @@ It never opens the user's port 8765; every counter below is created here.
 from __future__ import annotations
 
 import socket
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -27,6 +28,10 @@ def _load():
     spec = importlib.util.spec_from_file_location("scripts.stress_probe", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # scripts/ is not a package; the legacy dataclass under the module body
+    # resolves its string annotations through sys.modules, so register before
+    # executing (the M8-T543 rule this room enforces).
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 

@@ -54905,3 +54905,23 @@ M8-T1180 加的瓷贴有一条 "/api/admin/ratelimit" 专用路线。自审核�
 
 - 不收编 `tests/_*.py`；
 - 不追溯修改 M8-T1181 / M8-T1186 相关的既有提交（不改写 main 历史）。
+## 批次 1130 · M8-T1188: CI 红灯复盘——模块先注册，再执行
+
+### 事实
+
+`01a32347` 的 CI（run 44121169738）：Claim checkers 绿、Playwright 双腿绿、JavaScript 绿、Service plane 绿；**Python tests (ubuntu-latest) 红**，失败腿：
+
+```
+tests/test_a_module_is_registered_before_a_loader_executes_it.py
+    executes module without registering it in sys.modules
+```
+
+`tests/test_stress_probe.py` 自己的 `_load()` 先 `exec_module`，后注册——违反门内三条腿之一的第一腿。
+
+### 修法
+
+`_load()` 与其余 12 个 loader 对齐：`sys.modules[spec.name] = module` → 再 `exec_module`。不绕开 M8-T543 判例门（该门是本仓的红线，不是本批次要绕的对象）。`tests/test_stress_probe.py` 与门卫文件同绿（`pytest -W error`）。
+
+### 不声称
+
+- 不动 M8-T543 判例逻辑；另外 12 个同形 loader 本来已注册（无回归）。
