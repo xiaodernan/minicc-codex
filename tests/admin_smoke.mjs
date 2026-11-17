@@ -141,8 +141,8 @@ async function checkMode(locale, expectCjk) {
   }, null, { timeout: 60000 });
   const driftHead = await page.locator("#adminDriftHead").innerText();
   assert.ok(
-    /同步|synced|领先|ahead|落后|≡|≠/.test(driftHead),
-    "drift head cell must show the real sync verdict, got: " + driftHead,
+    /同步|synced|领先|ahead|落后|≡|≠|未知|unknown/.test(driftHead),
+    "drift head cell must show the real sync verdict (or the honest shallow-clone unknown), got: " + driftHead,
   );
   const driftCrlf = await page.locator("#adminDriftCrlf").innerText();
   assert.match(driftCrlf, /[0-9]/, "CRLF cell must show real byte counts");

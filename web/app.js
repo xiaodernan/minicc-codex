@@ -8074,10 +8074,15 @@
           if (metaEl) metaEl.textContent = drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "";
           return;
         }
-        const ahead = Number(drift.commits_ahead ?? -1);
-        headEl.textContent = zh8() ? drift.in_sync ? `${drift.head_live} \xB7 \u540C\u6B65\uFF08\u4E8B\u5B9E\u5305\u9886\u5148 ${ahead} \u4E2A\uFF09` : `${drift.head_live} \xB7 \u9886\u5148\u4E8B\u5B9E\u5305 ${ahead} \u4E2A\uFF08fact ${drift.fact_pack?.head}\uFF09` : drift.in_sync ? `${drift.head_live} \xB7 synced (pack +${ahead})` : `${drift.head_live} \xB7 ${ahead} ahead of fact pack (${drift.fact_pack?.head})`;
-        headEl.classList.toggle("ok", Boolean(drift.in_sync));
-        headEl.classList.toggle("bad", !drift.in_sync);
+        const aheadRaw = drift.commits_ahead;
+        const verdict = aheadRaw == null ? zh8() ? "\u672A\u77E5\uFF08\u6D45\u514B\u9686\uFF09" : "unknown (shallow clone)" : zh8() ? drift.in_sync ? `${drift.head_live} \xB7 \u540C\u6B65\uFF08\u4E8B\u5B9E\u5305\u9886\u5148 ${aheadRaw} \u4E2A\uFF09` : `${drift.head_live} \xB7 \u9886\u5148\u4E8B\u5B9E\u5305 ${aheadRaw} \u4E2A\uFF08fact ${drift.fact_pack?.head}\uFF09` : drift.in_sync ? `${drift.head_live} \xB7 synced (pack +${aheadRaw})` : `${drift.head_live} \xB7 ${aheadRaw} ahead of fact pack (${drift.fact_pack?.head})`;
+        headEl.textContent = aheadRaw == null ? `${drift.head_live} \xB7 ${verdict}` : verdict;
+        if (aheadRaw == null) {
+          headEl.classList.remove("ok", "bad");
+        } else {
+          headEl.classList.toggle("ok", Boolean(drift.in_sync));
+          headEl.classList.toggle("bad", !drift.in_sync);
+        }
         const idx = drift.crlf_pins?.index_html;
         const i18n = drift.crlf_pins?.i18n_js;
         crlfEl.textContent = drift.crlf_ok ? `\u2713 ${idx?.crlf}/0 \xB7 ${i18n?.crlf}/0` : `\u2717 ${idx?.crlf}/${idx?.lf_only} \xB7 ${i18n?.crlf}/${i18n?.lf_only}`;

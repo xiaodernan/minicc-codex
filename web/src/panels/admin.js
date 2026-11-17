@@ -197,16 +197,22 @@ export async function openAdmin() {
         if (metaEl) metaEl.textContent = drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "";
         return;
       }
-      const ahead = Number(drift.commits_ahead ?? -1);
-      headEl.textContent = zh()
-        ? (drift.in_sync
-          ? `${drift.head_live} · 同步（事实包领先 ${ahead} 个）`
-          : `${drift.head_live} · 领先事实包 ${ahead} 个（fact ${drift.fact_pack?.head}）`)
-        : (drift.in_sync
-          ? `${drift.head_live} · synced (pack +${ahead})`
-          : `${drift.head_live} · ${ahead} ahead of fact pack (${drift.fact_pack?.head})`);
-      headEl.classList.toggle("ok", Boolean(drift.in_sync));
-      headEl.classList.toggle("bad", !drift.in_sync);
+      const aheadRaw = drift.commits_ahead;
+      const verdict = aheadRaw == null ? (zh() ? "未知（浅克隆）" : "unknown (shallow clone)")
+        : zh()
+          ? (drift.in_sync
+            ? `${drift.head_live} · 同步（事实包领先 ${aheadRaw} 个）`
+            : `${drift.head_live} · 领先事实包 ${aheadRaw} 个（fact ${drift.fact_pack?.head}）`)
+          : (drift.in_sync
+            ? `${drift.head_live} · synced (pack +${aheadRaw})`
+            : `${drift.head_live} · ${aheadRaw} ahead of fact pack (${drift.fact_pack?.head})`);
+      headEl.textContent = aheadRaw == null ? `${drift.head_live} · ${verdict}` : verdict;
+      if (aheadRaw == null) {
+        headEl.classList.remove("ok", "bad");
+      } else {
+        headEl.classList.toggle("ok", Boolean(drift.in_sync));
+        headEl.classList.toggle("bad", !drift.in_sync);
+      }
       const idx = drift.crlf_pins?.index_html;
       const i18n = drift.crlf_pins?.i18n_js;
       crlfEl.textContent = drift.crlf_ok

@@ -600,3 +600,11 @@
 
   **诚实边界**：此刻 main 的最新一次 CI（`0846924`）处于 `in_progress`——本端点没有调用模型（零 token），也没有归因任何失败；94647ce 的 CI failure 仍被记下（原因：drift doc_pointers 的 60s 白等 + 顺带暴露的 UTC 线格式和 TimeoutExpired）——**不掩盖红，也不为红虚构新绿**。本批不做 `gh` 断言的代替者：失败真实存在时归因六族，**不构成修复建议**，修不过 CI 的门永远不算修好。
 - **滚轮方向——可选反转，默认跟随系统（M8-T1167 / 批次 1114）**：用户点名「鼠标滚轮方向做反了：往上滑看下面、往下滑看上面」，要求「往上滑往上看、往下滑往下看」。量到的真相：本应用没有任何一行代码反转滚轮——5,000+ 行查过的 scroll 全是原生 `overflow-y:auto` 容器，方向由 OS 说了算（设置页那句「网页不再接管滚轮」就是这么写出来的）；唯一的自定义 wheel 是 Atlas 缩放，符号标准。**能修的是 app 侧的一件事**：如果用户的系统/鼠标派发的 wheel delta sign 与他们的手感不一致，仅靠 OS 设置改不了应用对其判读的体验——所以**设置 → 工作台 → 鼠标滚轮** 新增「跟随系统 / 反转滚轮」双选项开关（默认跟随系统）：开启后本应用内所有滚动容器的滚轮方向整体反转、可逆、本机记住（`minicc-wheel-invert` localStorage），Atlas/Arcade 画布自己的 wheel 契约不受影响（它们不可滚，捕获不碰）；改完即时生效并弹 toast 提示；en_cjk/settings 全双语对仗。**诚实边界**：Windows 本机默认配置下滚轮本来就是标准方向——「反转」是**为手感开关而设**，不是宣称之前 app 反转了；app 从来没有反转过任何东西，OS/鼠标方向与 app 手感不符时，用户自己选择开反转即可。
+- **CI 再红不是没修好——是浅克隆的诚实测绘修正（M8-T1168 / 批次 1115）**：`8a3c387` / `94647ce` / `c0325fa` / `c8b069d` / `2c64970` 的 CI 失败同一种指纹，全在 **Playwright admin smoke** `#adminDriftHead` 60s 超时。本地每次复现都绿。**二分代价**：克隆 `file:///...` 的 `--depth=1` 仓库，`git rev-list --count 8a3c387..HEAD` —— 该提交对象不在克隆里，返回 exit 128，`check=True` 抛 CalledProcessError，被 `except Exception` 吞成 `live=False`，面板显示 `—`，smoke 烧 60 秒放弃。CI 的 `web-smoke` job 就是 actions/checkout@v4 默认的 fetch-depth=1；pytest job 用的深度是 0（那是 M8-T561 的教训）——之前六次红全是这个。修复（M8-T1168）：
+
+  1. `_pack_head_visible()`：先 `git cat-file -e <pack_head>^{commit}` 判定对象是否在本克隆；不在 → `commits_ahead=None`、`in_sync=None`（**不是红，是浅克隆里装不下的问题**），渲染“未知（浅克隆）/ unknown (shallow clone)”，既不是 ✓ 也不是 ✗。
+  2. `_commits_ahead` 不再 `check=True` 抛异常——任何 git 失败（visibility/timeout/network）都退化成 `None`，而非让整个 drift 返回 live=False。
+  3. `admin.js`：`commits_ahead == null` 时 head 格显示 `{head} · 未知（浅克隆）`/`unknown (shallow clone)`，既不 ✓ 也不 ✗；文档明说这不是红。
+  4. `admin_smoke` 断言容忍 `未知|unknown` 作为合法 verdict，`—`（em-dash）仍被禁止。
+
+  **验证**：`--depth=1` 克隆 `minicc` 后，`build_workspace_drift` 返回 `live=True head_live=… commits_ahead=null in_sync=null crlf_ok=true`（而不是旧版 `live=False RuntimeError: git rev-list … exit 128`）——复现 → 修 → 复验全程、两份副本对照。**不声称**：立刻就绿（CI 必须从头跑一遍才能盖章）；也不声称“从此 CI 永不红”。

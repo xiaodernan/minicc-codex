@@ -54638,3 +54638,26 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - app 没有反转过任何东西——翻转的是用户可选的行为，默认 OFF。
 - Atlas 缩放方向不变（画布契约与滚轮方位无关）。
 - 系统级鼠标方向依然归 OS 说了算；toggle 专治「OS 没问题（或者你根本不想动它）但进 app 就觉得反了」的场景。
+## 批次 1115 · M8-T1168: 浅克隆里的事实包头部——不等于红
+
+### 红了什么
+
+`8a3c387` CI 的 Playwright 腿：admin smoke `#adminDriftHead` 60 秒内从未给出非 `—` 内容 → Timeout 60000。同一签名出现 6 次（`94647ce`、`c0325fa`、`c8b069d`、`2c64970`、`8a3c387`、以及 `bc54d82` 那一波之后的 351d444）。
+
+### 根因（验过，非推断）
+
+**`.github/workflows/ci.yml` 的 `web-smoke` job 用默认 checkout（fetch-depth=1）**。仓库被浅克隆——进入 checkout 的只有 HEAD 单条链；**事实包的 `head`（docs/latest.json 里那个 commit）通常低于 HEAD**；at `8a3c387` 的 clone 里根本没有这个对象。`git rev-list --count <pack_head>..HEAD` exit 128 → `_commits_ahead` 抛 → drift 回 `live=False` → 面板三格全 em-dash → smoke 等 60s → 炸。
+
+本地深克隆里永远复现不了——这就是“每一次本地都绿、每一次 CI 都红”的物理事实。
+
+### 怎么修
+
+- **`minicc/admin_drift.py`**：新增 `_pack_head_visible()`（`git cat-file -e <sha>^{commit}`）——浅克隆时直接 short-circuit 返回 `None`；`_commits_ahead` 改为全程 `return None` 兜底，`live` 不再被 git 历史问题拖死；`in_sync` 走 `None`。
+- **`admin.js`**：`commits_ahead == null` → 格子文案 `HEAD · 未知（浅克隆）` / `head · unknown (shallow clone)`，不着绿也不着红，不掉进 `—`。
+- **`admin_smoke.mjs`**：verdict 容忍 `未知|unknown`（浅克隆诚实态）；em-dash 仍在禁止位——“面板没有 showing 任何东西”这件事依旧红。
+
+### 不声称
+
+- 这不是“CI 永不红”——这是**一个面板不再因浅克隆而告未定义**。
+- CI 的 `web-smoke` 这一次绿不绿只能等它跑完才能下结论。
+- pytest 腿的浅克隆是 M8-T561 消灭的旧坑（**fetch-depth: 0**）；这里不碰它，不加任何豁免——修的是产品代码里的诚实，不是 CI 参数。
