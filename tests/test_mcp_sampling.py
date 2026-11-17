@@ -41,30 +41,21 @@ def _write_mcp_json(workspace: Path, servers: dict[str, Any]) -> Path:
 
 def test_sampling_fields_parse_from_mcp_json(tmp_path: Path) -> None:
     _write_mcp_json(tmp_path, {
-        "helper": {"command": "node", "args": ["srv.js"], "sampling_enabled": True,
-                   "sampling_models": ["gpt-6.1-terra"]},
+        "helper": {"command": "node", "args": ["srv.js"], "sampling_enabled": True},
     })
     configs = load_mcp_config(tmp_path)
     assert configs[0].sampling_enabled is True
-    assert configs[0].sampling_models == ("gpt-6.1-terra",)
 
 
 def test_sampling_defaults_to_off(tmp_path: Path) -> None:
     _write_mcp_json(tmp_path, {"helper": {"command": "node"}})
     configs = load_mcp_config(tmp_path)
     assert configs[0].sampling_enabled is False
-    assert configs[0].sampling_models == ()
 
 
 def test_sampling_enabled_requires_a_json_bool(tmp_path: Path) -> None:
     # A string "true" is exactly the read_only trap (M8-T238): truthy str, not JSON bool.
     _write_mcp_json(tmp_path, {"helper": {"command": "node", "sampling_enabled": "true"}})
-    with pytest.raises(McpError):
-        load_mcp_config(tmp_path)
-
-
-def test_sampling_models_requires_a_string_list(tmp_path: Path) -> None:
-    _write_mcp_json(tmp_path, {"helper": {"command": "node", "sampling_models": "gpt"}})
     with pytest.raises(McpError):
         load_mcp_config(tmp_path)
 

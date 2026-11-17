@@ -19,7 +19,7 @@ from pathlib import Path
 
 from minicc.mcp import RECOGNIZED_KEYS, McpServerConfig, load_mcp_config
 
-_EXPECTED = {"command", "url", "args", "env", "headers", "read_only"}
+_EXPECTED = {"command", "url", "args", "env", "headers", "read_only", "sampling_enabled"}  # sampling_enabled: M12
 
 
 def test_recognized_keys_matches_dataclass_fields():

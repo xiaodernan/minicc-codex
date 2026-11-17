@@ -25,22 +25,22 @@ REPO = Path(__file__).resolve().parents[1]
 TESTS = REPO / "tests"
 
 #: The citation form: a path with a code suffix, a colon, and the first line
-#: of the cited run.  ``minicc/web.py:1838``/``:2344`` (a bare ``:NNN`` tail)
+#: of the cited run.  ``minicc/web.py:1852``/``:2358`` (a bare ``:NNN`` tail)
 #: is not a second citation -- it inherits the path.
 CITATION = re.compile(r"([A-Za-z0-9_./-]+\.(?:py|md|mjs|js|ts|tsx|json|ya?ml))[:：](\d+)")
 
 #: (path, line, token) for the citations this batch re-aimed.  Each token is
 #: the thing the sentence says is there; all are matched case-sensitively.
 REPAIRED = (
-    ("minicc/mcp.py", 52, "class McpError"),
-    ("minicc/mcp.py", 69, "Fold every character"),
-    ("minicc/mcp.py", 730, "Mcp-Session-Id"),
-    ("minicc/agent/verifier.py", 62, "def passed"),
-    ("minicc/agent/completion.py", 23, "classify_provider_failure"),
-    ("minicc/agent/completion.py", 371, "text = re.sub"),
-    ("minicc/agent/completion.py", 423, "完成评估与最新客观验证结果冲突"),
-    ("minicc/task_manager.py", 995, "dict(self.result)"),
-    ("minicc/web.py", 1838, "record_text(8000)"),
+    ("minicc/mcp.py", 53, "class McpError"),
+    ("minicc/mcp.py", 70, "Fold every character"),
+    ("minicc/mcp.py", 1140, "_unique_tool_name"),
+    ("minicc/agent/verifier.py", 63, "def passed"),
+    ("minicc/agent/completion.py", 24, "classify_provider_failure"),
+    ("minicc/agent/completion.py", 372, "text = re.sub"),
+    ("minicc/agent/completion.py", 424, "完成评估与最新客观验证结果冲突"),
+    ("minicc/task_manager.py", 996, "dict(self.result)"),
+    ("minicc/web.py", 1852, "record_text(8000)"),
     ("tests/test_mcp_http.py", 134, "load_mcp_config(tmp_path)"),
 )
 

@@ -93,7 +93,7 @@ def _call_scopes() -> tuple[
       home, because it builds its fixtures with ``measured_usage(…)`` at import time
       (measured in batch 514 - that was the probe's bug, not the product's);
     - edges are keyed by **symbol**, not by file. The file-granularity shortcut was
-      tried and is wrong by three: ``minicc/agent/completion.py:23`` imports
+      tried and is wrong by three: ``minicc/agent/completion.py:24`` imports
       ``classify_provider_failure``, ``minicc/benchmarks.py:31`` imports
       ``fake_provider_active`` and ``minicc/task_worker.py:35`` imports two
       *constants* from ``agent.protocol`` - all three sit in files that reach the

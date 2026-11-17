@@ -200,7 +200,6 @@ class McpServerConfig:
     # evaluated. It still goes through SamplingGuard (rate, token ceiling,
     # model allowlist, audit).
     sampling_enabled: bool = False
-    sampling_models: tuple[str, ...] = ()
 
     @property
     def transport(self) -> str:
@@ -298,9 +297,6 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
         env = value.get("env", {})
         headers = value.get("headers", {})
         sampling_enabled = _config_flag(value, str(name), "sampling_enabled")
-        sampling_models_raw = value.get("sampling_models", [])
-        if not isinstance(sampling_models_raw, list) or not all(isinstance(item, str) for item in sampling_models_raw):
-            raise McpError(f"MCP server {name!r} 的 sampling_models 非法（必须是 JSON 字符串数组）")
         if not isinstance(args, list) or not all(isinstance(item, str) for item in args):
             raise McpError(f"MCP server {name!r} 的 args 非法")
         if not isinstance(env, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
@@ -316,7 +312,6 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
             url,
             dict(headers),
             sampling_enabled,
-            tuple(item.strip() for item in sampling_models_raw if item.strip()),
         )
         _report_keys_this_transport_never_reads(config, value)
         configs.append(config)
@@ -502,7 +497,7 @@ class McpStdioClient:
 
     #: What ``load_mcp_config`` and ``McpManager`` consult for this transport.
     TRANSPORT = "stdio"
-    CONFIG_KEYS_READ = ("command", "args", "env", "sampling_enabled", "sampling_models")
+    CONFIG_KEYS_READ = ("command", "args", "env", "sampling_enabled")
 
     #: Environment variables MCP server children are allowed to inherit.
     #: Everything else (LLM api_key, web bearer token, etc.) is scrubbed so
@@ -652,7 +647,7 @@ class McpStdioClient:
         Otherwise the request is refused; a silent gap would look like a hang.
         """
         params = message.get("params") if isinstance(message.get("params"), dict) else {}
-        if not getattr(self.config, "sampling_enabled", False):
+        if not self.config.sampling_enabled:
             self._respond(msg_id, error={"code": ERROR_METHOD_NOT_FOUND, "message": "Sampling is not enabled for this server"})
             return
         handler = self._sampling_handler
@@ -1113,12 +1108,13 @@ class McpManager:
                     )
                 client: Any = handler[0](config, self.workspace)
                 # M12: inject the sampling handler when this server declared
-                # sampling_enabled and a provider factory was wired. Without a
-                # factory the handler stays None and the client answers that
-                # sampling is not configured - visible, not silent.
+                # sampling_enabled and a provider factory was wired. The client
+                # that answers sampling/createMessage is the one that owns the
+                # stdio pipe; the HTTP client never sees server-initiated
+                # requests, so the duck-type check here is the transport switch.
                 if (
-                    config.transport == "stdio"
-                    and getattr(config, "sampling_enabled", False)
+                    hasattr(client, "_sampling_handler")
+                    and config.sampling_enabled
                     and self.sampling_provider_factory is not None
                 ):
                     client._sampling_handler = (

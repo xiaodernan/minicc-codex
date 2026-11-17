@@ -54528,3 +54528,22 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - `/view` 历史里的旧存文案不追溯改写。
 - `web/styles.css` 曾短暂 stat-dirty（不影响内容，已恢复一致）。
 - CI 这一刻仍在跑；不把它写成绿。
+## 批次 1109 · M8-T1134: 年鉴第五十四章「并账 / The Reckoning」—— Atlas 91
+
+### 目的
+
+把“仓库被从头到尾完整盘点”这件事写成一卷——模型的第三卷自编章。本批零产品字节改动。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `thereckoningMarkup()` + CHAPTERS「卷五十四 · 并账」；instruments grid Atlas 91 / Volumes 54/54 / pushes today 71（`git log --since=2026-11-17` 实测）；CHAPTER_RENDERERS 注册。
+- **Atlas 90 → 91 coordinates**；Almanac **54/54**；`atlas_smoke` 91 / `almanac_smoke` 54 双语。
+- **`docs/CHAPTER_DRAFT.md`**：本卷由模型现役写出，archive 入库；`prompt_cache_key=minicc-chapter-liv-the-reckoning-01`；cached_tokens=4,224（第八次现身）。
+- **全量 pytest 首轮 22 红 → 真三红已修**：audit.py PERMISSIONS_NAME 经 tr() 下传；stream_retry pre-stream 句迁到 i18n 家（门改绑 cli_io.py）；wide-face 读者平行面加入 + 地板上调。
+- **en-CJK 门确定性修复**：`#sessionTitle`/`#sessionSubtitle` 豁免为用户数据；smoke 3/3。
+
+### 不声称
+
+- 首轮 22 红中的其余 19 条未在本批确认归因（跑测时树正在被连续编辑）；**新全量正在跑**，红了再修，修了再算。
+- CI 两腿这一刻仍在跑；不把它写成绿。
+- Atlas 的帐：91 = 18 面板 + 54 年鉴卫星 + 19 说明书卫星。

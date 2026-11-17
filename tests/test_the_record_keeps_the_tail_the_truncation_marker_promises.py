@@ -10,7 +10,7 @@ Measured on the main tree before this batch (read-only probes, in-process + AST 
 Three coupled failures, all of them a number copied instead of read:
 
 1. ``tests/test_mcp_stdio.py:140`` asserted ``len(result.output) <= 6000`` on the one
-   field ``_content_to_tool_result`` (``minicc/mcp.py:120``) never fills, so it was true
+   field ``_content_to_tool_result`` (``minicc/mcp.py:121``) never fills, so it was true
    for a server answer of any length; ``:141``/``:142`` and
    ``tests/test_background_shell.py:373`` bounded the same budget with hand-typed
    2000/4000/7000, and ``HEAD_CHARS``/``TAIL_CHARS`` had no mention anywhere in
@@ -19,10 +19,10 @@ Three coupled failures, all of them a number copied instead of read:
    ``render()`` itself produces - and ``/expand`` (``minicc/main.py:154``) prints
    exactly the stored string. What the operator reads still said
    「保留头 2000 + 尾 4000 字符」 while holding 3951 of those tail characters.
-3. ``minicc/web.py:1838``/``:2344`` clip at 8000, which only stays honest while the
+3. ``minicc/web.py:1852``/``:2358`` clip at 8000, which only stays honest while the
    summary is under ~1962 chars. The MCP summary is ``f"MCP {server}/{tool}"`` and the
    tool name comes from the server's own ``tools/list``: ``_unique_tool_name`` caps the
-   *registry* name at ``minicc/mcp.py:730``, the summary at ``minicc/mcp.py:69`` never
+   *registry* name at ``minicc/mcp.py:1140``, the summary at ``minicc/mcp.py:70`` never
    passes through it.
 
 The fix is ``ToolResult.record_text(ceiling)``: the ceiling governs the raw ``output``
@@ -274,7 +274,7 @@ def test_a_server_chosen_name_cannot_push_the_tail_past_the_clip() -> None:
     assert ceilings, f"no ceiling is passed to record_text() anywhere under {MINICC} - the record surfaces never routed through it"
     ceiling = min(ceilings)
     # The summary is f"MCP {server}/{tool}" and the tool name is whatever the server's
-    # tools/list returned; nothing caps its length (mcp.py:69 vs mcp.py:730).
+    # tools/list returned; nothing caps its length (mcp.py:70 vs mcp.py:1140).
     result = _budget_full("MCP srv/" + "n" * (ceiling - 600))
     composed = result.render()
     assert len(composed) > ceiling, f"fixture too short to test the shipped ceiling {ceiling} (composed {len(composed)})"

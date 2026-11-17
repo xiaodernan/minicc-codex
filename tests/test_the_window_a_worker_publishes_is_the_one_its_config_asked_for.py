@@ -14,7 +14,7 @@ leg3 run_worker(task_event_limit=32) -> stored row has event_limit/stream_limit/
 
 so one config produced two histories (500 on the thread face, 200 on the process
 face), and the row the process face wrote declared neither the window it applied
-nor the events behind it - which left the restore path (task_manager.py:995-996,
+nor the events behind it - which left the restore path (task_manager.py:996-997,
 :1019) announcing a 768-event window and `events_truncated = 0` for a row that a
 constant had just cut to 200.
 """
