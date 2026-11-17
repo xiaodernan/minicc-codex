@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from collections import deque
 import threading
 import time
 import uuid
@@ -3344,6 +3343,8 @@ class AgentService:
         # c>=32 (measured: 253/384 transport errors at c=32). One pass now
         # keeps only a bounded deque of the tail; redaction and level
         # derivation happen on the kept rows only.
+        from collections import deque
+
         tail: deque[tuple[dict[str, Any], str]] = deque(maxlen=cap_n)
         total_matches = 0
         for line in lines:

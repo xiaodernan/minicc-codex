@@ -54845,3 +54845,27 @@ M8-T1178 把所有模型花钱路由都进了闸——但闸门的计数器（�
 
 - 不在 CI 里跑压力探针（数字是机器相关的；CI 没有 8765 站点可撞）。
 - 不加入 EXEMPT：豁免列表是本门最后的逃生门，本批没有用它。
+## 批次 1127 · M8-T1184: CI 红灯复盘——1852 行的一句 citation 抓住了我
+
+### 事实
+
+`bdf3abcb` 的 CI（run 44110089827，Claim checkers 绿、Playwright 绿、JavaScript 绿）上 **Python tests (ubuntu-latest) 红**：
+
+```
+AssertionError: a re-aimed citation has drifted again:
+minicc/web.py:1852 no longer contains 'record_text(8000)': '"summary": result.summary,'
+```
+
+### 根因
+
+M8-T1177（/api/audit CPU 风暴修复）顺带给 `web.py` 顶部加了一行 `from collections import deque`，+1 行，1852 行 `record_text(8000)` 被挤到 1853。`test_a_line_a_test_docstring_cites_can_be_read.py` 的 REPAIRED 名册把 `record_text(8000)` 钉在 1852 行——这一个字面引用就够红一次。
+
+### 修法与原则
+
+**不**抬线指针、不改两篇存证文档串（`test_the_raw_record_…` / `test_the_record_keeps_…`，各自含 `web.py:1852` 的历史实测记录——数字不能倒退改写历史）。把 `from collections import deque` 移进 `audit_export` 函数内部——一行多余的顶层代码抹掉，行号 1852 / 2358 都回到原坐标。
+
+`citation gate` 6/6 green；`audit` 101 条回归绿。**以后给这类「历史实测锚定在固定行号」的文件加代码只在函数内部动。**
+
+### 不声称
+
+- Windows leg 在本批修复时还没出结论；ubuntu 上门禁已绿（本文件修复后在 ubuntu 上重新判定）。

@@ -635,3 +635,6 @@
 
   **顺带**：M8-T1180 里被我的 `git add -A` 扫进 main 的半成品 scratch（`_admin_ratelimit_frontend.py`）已由 M8-T1181 立即移除（不改写历史、不删共享 helper）。
 - **CI 红灯复盘 #2：impact floor 逮住「没人能注意到 change 的模块」（M8-T1183 / 批次 1126）**：`cf93bb6b` 的 CI 里 `Claim checkers` 挂（Windows+Ubuntu 腿当时还在跑）——根因是 `scripts/stress_probe.py` 进树不经受影响的测试：契约是 floor 门——每个 `minicc/` 模块、每个 `scripts/*.py` 都必须被至少一个测试文件「能注意到」。本批新增 `tests/test_stress_probe.py`（3 条腿：p-tile 百分位 + 对活服务器跑 120 次请求的真实百分位/直方图/错误分列 + 死服务器上 `main()` 诚实返回 2），以 `SCRIPT_REF` 硬编码的 `scripts/stress_probe.py` 字面量上门。`impacted_tests.py --check` 本地 exit 0。**诚实流**：这类门只认「测试文件确实把模块纳入观察」，绝不靠 EXEMPT 列表人工豁免。
+- **CI 红灯复盘 #3：一次多余的顶层 import 让全文件行号漂移（M8-T1184 / 批次 1127）**：`Python tests (ubuntu-latest)`（run 44110089827）红在 `test_a_line_a_test_docstring_cites_can_be_read.py::test_the_repaired_citations_still_name_what_the_sentence_claims`——REPAIRED 名册断言 `minicc/web.py:1852` 仍含 `record_text(8000)`。根因是 M8-T1177（压测分诊）给 `web.py` 顶部加了 `from collections import deque`（+1 行），把全文件所有引用钉住的行号全部 +1。**修法不是改名册、也不是改两个存证文档串（那是历史实测记录，数值不能贫富倒置）**，而是把 `deque` 导入移进函数内部——净行移位回到 0，1852/2358 都原样成立。`impact floor`（上一个红例）保持绿；`tests/test_a_line_a_test_docstring_cites_can_be_read.py` 6/6 green。
+
+  **教训**：在一份「历史实测记录锚定在固定行号」的仓库里，任何顶层新增（哪怕一个 import）都是一次全行号地震——以后改这类文件只能在函数内部动。
