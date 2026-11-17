@@ -5725,6 +5725,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-drift { border-color: color-mix(in srgb, var(--periwinkle) 35%, var(--line)); margin-top: 12px; }
 .admin-cidx { border-color: color-mix(in srgb, var(--coral) 42%, var(--line)); margin-top: 12px; }
 .admin-audit { border-color: color-mix(in srgb, var(--amber) 42%, var(--line)); margin-top: 12px; }
+.admin-ratelimit { border-color: color-mix(in srgb, var(--mint) 42%, var(--line)); margin-top: 12px; }
 .admin-drift-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0 8px; }
 @media (max-width: 640px) { .admin-drift-grid { grid-template-columns: minmax(0, 1fr); } }
 .admin-drift-cell { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--line) 14%, transparent); }
@@ -5804,3 +5805,8 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .stategraph-routing-cost { padding: 1px 7px; border-radius: 99px; font-size: 10px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); color: var(--amber); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 /* Hide the first-visit coach chip when an immersive panel modal is open (overlays must not be claimed by fixed-bottom elements) */
 body:has(.immersive-modal.show) .tour-offer { display: none; }
+.admin-ratelimit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.admin-ratelimit-list li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px solid var(--line); padding: 6px 2px; }
+.admin-ratelimit-list li:last-child { border-bottom: 0; }
+.admin-ratelimit-list strong { color: var(--muted); font-weight: 600; }
+.admin-ratelimit-list span { font-family: var(--font-mono); color: var(--text); }

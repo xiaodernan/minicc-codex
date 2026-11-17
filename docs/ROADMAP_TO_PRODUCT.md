@@ -54796,3 +54796,19 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - 不禁止未来「Deliberate override」：若之后有服务需要覆写 shared key，本门会要求同架离 shared（刻意可见的动作），这是特性不是缺陷。
 - 不解析 Spring 的 `${VAR:nested}` 中有 `{` 的嵌套默认（内层 key 由各自窗口单独核对）。
 - Java 侧不顺手重建上下文——对，门是纯文本/YAML 工具，两条腿皆静态，确定性可重复。
+## 批次 1124 · M8-T1180: 网关预算进入管理面板——看门人被看见
+
+### 目的
+
+M8-T1178 把所有模型花钱路由都进了闸——但闸门的计数器（允许/拒绝/降级/本地窗口）只有代码知道。管理员页面说自己「检测、分析、观察」型：从审计行到 token 到现在又加一环——**共享闸尺到底剩多少、拒了谁、Redis 断没断**。
+
+### 做了什么
+
+- **`webserver.py`**：`/api/admin/ratelimit` → `ratelimit.stats()`（纯内存计数器，不碰模型、不碰 Redis——一个 dict 一次 threading.Lock）；例外→诚实 error payload，面板不 500。
+- **`admin.js`**：`renderRatelimit` 五行读数（每客户端/每窗口 limit、放行（redis/local 分列）、拒绝、降级放行、本地窗口占用）+ refresh button；**`i18n.js`**：`admin.ratelimit*` 四键 zh/en 对；**index.html** 卡（远端 769 行，CRLF 锁住）；**styles.css** 新增 `.admin-ratelimit-list`；mint 边框 `.admin-ratelimit`。
+- **门禁**：`tests/test_http_surface.py` 两腿（常对 / 计数器爆炸→error），路由总数 39→**40**。
+
+### 不声称
+
+- 不做 per-route 预算/限额分析（那是下一批的事：常用管理面板路径各用了多少预算）。
+- 不把 admin 换成令牌鉴权——这一页在客户端 123 放行即开（单纯客户端锁，服务器随现状）。

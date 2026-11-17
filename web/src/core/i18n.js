@@ -154,6 +154,8 @@ export const I18N = {
     "admin.auditKicker": "审计实语 · 值守读者", "admin.auditPending": "正在读审计记录…",
     "admin.ciDxRefresh": "重新归因 CI 红灯", "admin.ciDxOutage": "值守守门人暂时不可用——先看下方“mainline health”里的真实记录。",
     "admin.auditRefresh": "重新读审计故事", "admin.auditOutage": "值守读者暂时不可用——先看审计导出的原始记录。",
+    "admin.ratelimitKicker": "网关预算 · 共享闸门", "admin.ratelimitPending": "正在读共享闸尺…",
+    "admin.ratelimitRefresh": "刷新网关预算", "admin.ratelimitOutage": "闸门计数暂时不可读——闸本身 fail-open 照常放行，账本照记。",
 "admin.driftKicker": "漂移哨兵 · 仓库自证", "admin.driftHead": "事实包 ≡ HEAD", "admin.driftCrlf": "CRLF 钉",
     "admin.driftDocs": "doc_pointers", "admin.driftRefresh": "重新核验漂移哨兵",
 
@@ -311,6 +313,8 @@ export const I18N = {
     "admin.auditKicker": "Audit story · on-duty reader", "admin.auditPending": "Reading the audit trail…",
     "admin.ciDxRefresh": "Re-attribute the CI red", "admin.ciDxOutage": "The on-duty gatekeeper is unavailable — check the real recorded runs in “mainline health” below.",
     "admin.auditRefresh": "Re-read the audit story", "admin.auditOutage": "The on-duty reader is unavailable — check the raw audit trail first.",
+    "admin.ratelimitKicker": "Gateway budget · shared gate", "admin.ratelimitPending": "Reading the shared bucket…",
+    "admin.ratelimitRefresh": "Refresh the gateway budget", "admin.ratelimitOutage": "The gate counters are unreadable — the gate itself fails open and keeps counting.",
 "admin.driftKicker": "Drift sentinel · the repo proves itself", "admin.driftHead": "fact pack ≡ HEAD", "admin.driftCrlf": "CRLF pins",
     "admin.driftDocs": "doc_pointers", "admin.driftRefresh": "re-verify the drift sentinel",
 

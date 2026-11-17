@@ -496,6 +496,50 @@ export async function openAdmin() {
     }
     const auditPromise = requestJson("/api/oracle-audit-story", {}, 30000).catch(() => null);
     auditPromise.then((story) => renderAudit(story, false));
+    // Gateway budget — how close the shared 60s / 20-per-client token bucket is
+    // to refusing the panel's own model calls; reads what the gate keeps.
+    function renderRatelimit(stats, refreshed) {
+      const bodyEl = $("#adminRatelimitBody");
+      const usageEl = $("#adminRatelimitUsage");
+      if (!stats || stats.error) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.ratelimitOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = stats?.error ? `error: ${String(stats.error).slice(0, 140)}` : "";
+        return;
+      }
+      const allowedRedis = Number(stats?.decisions?.allowed_redis ?? 0);
+      const allowedLocal = Number(stats?.decisions?.allowed_local ?? 0);
+      const denied = Number(stats?.decisions?.denied ?? 0);
+      const degraded = Number(stats?.decisions?.degraded_open ?? 0);
+      const allowed = allowedRedis + allowedLocal;
+      const limit = Number(stats.limit ?? 20);
+      const windowS = Number(stats.window_seconds ?? 60);
+      if (bodyEl) {
+        bodyEl.innerHTML = `<ul class="admin-ratelimit-list">
+          <li><strong>${zh() ? "每客户端每窗口" : "Per client, per window"}</strong><span>${esc(`${limit} / ${windowS}s`)}</span></li>
+          <li><strong>${zh() ? "放行" : "Allowed"}</strong><span>${esc(`${allowed} (redis ${allowedRedis} · ${zh() ? "本地" : "local"} ${allowedLocal})`)}</span></li>
+          <li><strong>${zh() ? "拒绝" : "Denied"}</strong><span>${esc(String(denied))}</span></li>
+          <li><strong>${zh() ? "降级放行（Redis 断→照常服务并计数）" : "Degraded-open (Redis down → serve anyway, counted)"}</strong><span>${esc(String(degraded))}</span></li>
+          <li><strong>${zh() ? "本地窗口占用" : "Local windows held"}</strong><span>${esc(String(stats.remaining_local_windows ?? 0))}</span></li>
+        </ul>`;
+      }
+      if (usageEl) {
+        usageEl.textContent = zh()
+          ? `共享闸门 · Redis ${allowedRedis ? "在线" : "未配置/不可用"}${refreshed ? " · 已重读" : ""}`
+          : `Shared bucket · Redis ${allowedRedis ? "serving" : "unconfigured / unavailable"}${refreshed ? " · re-read" : ""}`;
+      }
+    }
+    const ratelimitRefresh = $("#adminRatelimitRefresh");
+    if (ratelimitRefresh) {
+      ratelimitRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminRatelimitBody");
+        const usageEl = $("#adminRatelimitUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.ratelimitPending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/admin/ratelimit", {}, 10000).catch(() => null).then((stats) => renderRatelimit(stats, true));
+      });
+    }
+    const ratelimitPromise = requestJson("/api/admin/ratelimit", {}, 10000).catch(() => null);
+    ratelimitPromise.then((stats) => renderRatelimit(stats, false));
 
 
     // tool usage — top 6 tools called by the local agent, counted from real events

@@ -1110,6 +1110,10 @@
       "admin.ciDxOutage": "\u503C\u5B88\u5B88\u95E8\u4EBA\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u4E0B\u65B9\u201Cmainline health\u201D\u91CC\u7684\u771F\u5B9E\u8BB0\u5F55\u3002",
       "admin.auditRefresh": "\u91CD\u65B0\u8BFB\u5BA1\u8BA1\u6545\u4E8B",
       "admin.auditOutage": "\u503C\u5B88\u8BFB\u8005\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u5BA1\u8BA1\u5BFC\u51FA\u7684\u539F\u59CB\u8BB0\u5F55\u3002",
+      "admin.ratelimitKicker": "\u7F51\u5173\u9884\u7B97 \xB7 \u5171\u4EAB\u95F8\u95E8",
+      "admin.ratelimitPending": "\u6B63\u5728\u8BFB\u5171\u4EAB\u95F8\u5C3A\u2026",
+      "admin.ratelimitRefresh": "\u5237\u65B0\u7F51\u5173\u9884\u7B97",
+      "admin.ratelimitOutage": "\u95F8\u95E8\u8BA1\u6570\u6682\u65F6\u4E0D\u53EF\u8BFB\u2014\u2014\u95F8\u672C\u8EAB fail-open \u7167\u5E38\u653E\u884C\uFF0C\u8D26\u672C\u7167\u8BB0\u3002",
       "admin.driftKicker": "\u6F02\u79FB\u54E8\u5175 \xB7 \u4ED3\u5E93\u81EA\u8BC1",
       "admin.driftHead": "\u4E8B\u5B9E\u5305 \u2261 HEAD",
       "admin.driftCrlf": "CRLF \u9489",
@@ -1924,6 +1928,10 @@
       "admin.ciDxOutage": "The on-duty gatekeeper is unavailable \u2014 check the real recorded runs in \u201Cmainline health\u201D below.",
       "admin.auditRefresh": "Re-read the audit story",
       "admin.auditOutage": "The on-duty reader is unavailable \u2014 check the raw audit trail first.",
+      "admin.ratelimitKicker": "Gateway budget \xB7 shared gate",
+      "admin.ratelimitPending": "Reading the shared bucket\u2026",
+      "admin.ratelimitRefresh": "Refresh the gateway budget",
+      "admin.ratelimitOutage": "The gate counters are unreadable \u2014 the gate itself fails open and keeps counting.",
       "admin.driftKicker": "Drift sentinel \xB7 the repo proves itself",
       "admin.driftHead": "fact pack \u2261 HEAD",
       "admin.driftCrlf": "CRLF pins",
@@ -8387,6 +8395,46 @@
       }
       const auditPromise = requestJson("/api/oracle-audit-story", {}, 3e4).catch(() => null);
       auditPromise.then((story) => renderAudit(story, false));
+      function renderRatelimit(stats, refreshed) {
+        const bodyEl = $("#adminRatelimitBody");
+        const usageEl = $("#adminRatelimitUsage");
+        if (!stats || stats.error) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ratelimitOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = stats?.error ? `error: ${String(stats.error).slice(0, 140)}` : "";
+          return;
+        }
+        const allowedRedis = Number(stats?.decisions?.allowed_redis ?? 0);
+        const allowedLocal = Number(stats?.decisions?.allowed_local ?? 0);
+        const denied = Number(stats?.decisions?.denied ?? 0);
+        const degraded = Number(stats?.decisions?.degraded_open ?? 0);
+        const allowed = allowedRedis + allowedLocal;
+        const limit = Number(stats.limit ?? 20);
+        const windowS = Number(stats.window_seconds ?? 60);
+        if (bodyEl) {
+          bodyEl.innerHTML = `<ul class="admin-ratelimit-list">
+          <li><strong>${zh8() ? "\u6BCF\u5BA2\u6237\u7AEF\u6BCF\u7A97\u53E3" : "Per client, per window"}</strong><span>${esc2(`${limit} / ${windowS}s`)}</span></li>
+          <li><strong>${zh8() ? "\u653E\u884C" : "Allowed"}</strong><span>${esc2(`${allowed} (redis ${allowedRedis} \xB7 ${zh8() ? "\u672C\u5730" : "local"} ${allowedLocal})`)}</span></li>
+          <li><strong>${zh8() ? "\u62D2\u7EDD" : "Denied"}</strong><span>${esc2(String(denied))}</span></li>
+          <li><strong>${zh8() ? "\u964D\u7EA7\u653E\u884C\uFF08Redis \u65AD\u2192\u7167\u5E38\u670D\u52A1\u5E76\u8BA1\u6570\uFF09" : "Degraded-open (Redis down \u2192 serve anyway, counted)"}</strong><span>${esc2(String(degraded))}</span></li>
+          <li><strong>${zh8() ? "\u672C\u5730\u7A97\u53E3\u5360\u7528" : "Local windows held"}</strong><span>${esc2(String(stats.remaining_local_windows ?? 0))}</span></li>
+        </ul>`;
+        }
+        if (usageEl) {
+          usageEl.textContent = zh8() ? `\u5171\u4EAB\u95F8\u95E8 \xB7 Redis ${allowedRedis ? "\u5728\u7EBF" : "\u672A\u914D\u7F6E/\u4E0D\u53EF\u7528"}${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `Shared bucket \xB7 Redis ${allowedRedis ? "serving" : "unconfigured / unavailable"}${refreshed ? " \xB7 re-read" : ""}`;
+        }
+      }
+      const ratelimitRefresh = $("#adminRatelimitRefresh");
+      if (ratelimitRefresh) {
+        ratelimitRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminRatelimitBody");
+          const usageEl = $("#adminRatelimitUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ratelimitPending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/admin/ratelimit", {}, 1e4).catch(() => null).then((stats) => renderRatelimit(stats, true));
+        });
+      }
+      const ratelimitPromise = requestJson("/api/admin/ratelimit", {}, 1e4).catch(() => null);
+      ratelimitPromise.then((stats) => renderRatelimit(stats, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {
