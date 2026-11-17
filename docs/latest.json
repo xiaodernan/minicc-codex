@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T21:29:15.615Z",
+  "generated_at": "2026-11-17T21:30:24.222Z",
   "branch": "main",
-  "head": "e7cf79d",
-  "total_commits": 1914,
+  "head": "f128793",
+  "total_commits": 1916,
   "recent_commits": [
+    {
+      "short": "f128793",
+      "at": "2026-11-18T05:30:04+08:00",
+      "subject": "docs(ledger): the M8-T1198 blueprint cited a not-yet-existing path (minicc/benchcfg.py) - removed; blueprint references only modules that exist today"
+    },
+    {
+      "short": "592c13f",
+      "at": "2026-11-17T21:29:15Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e7cf79d",
       "at": "2026-11-18T05:28:39+08:00",
@@ -19,16 +29,6 @@
       "short": "53923a7",
       "at": "2026-11-18T04:56:27+08:00",
       "subject": "M8-T1197 (cleanup after M8-T1196): two honest incidents - (A) the strategist tile shipped as a dead shell (untranslated keys, no renderer, no fetch): repaired b"
-    },
-    {
-      "short": "dce5201",
-      "at": "2026-11-17T20:26:27Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "59a7bbf",
-      "at": "2026-11-18T04:26:00+08:00",
-      "subject": "M8-T1196 (on-duty strategist tile): model reads the same merged snapshot and writes the three next deep moves with a concrete acceptance check each - new /api/o"
     }
   ],
   "first_commit_at": "2026-08-24",
