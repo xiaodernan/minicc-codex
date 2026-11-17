@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T00:51:25.566Z",
+  "generated_at": "2026-11-17T01:12:42.430Z",
   "branch": "main",
-  "head": "7fcf7f8",
-  "total_commits": 1820,
+  "head": "e9ea037",
+  "total_commits": 1822,
   "recent_commits": [
+    {
+      "short": "e9ea037",
+      "at": "2026-11-17T09:12:06+08:00",
+      "subject": "M8-T1125: the model closes the completion loop - post-completion retrospective tile in admin (audit record in, bilingual zh/en plausibility judgment out; ?fresh"
+    },
+    {
+      "short": "2d9f01f",
+      "at": "2026-11-17T00:51:25Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7fcf7f8",
       "at": "2026-11-17T08:50:39+08:00",
@@ -19,24 +29,14 @@
       "short": "f6174d7",
       "at": "2026-11-17T08:27:02+08:00",
       "subject": "M8-T1123: the model reviews this repo's own diff - 'LLM Review' tile in admin (HEAD~1..HEAD diff in, bilingual review out; ?fresh=1; 10-min memo; honest live:fa"
-    },
-    {
-      "short": "ec59858",
-      "at": "2026-11-17T00:03:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3c385b3",
-      "at": "2026-11-17T08:03:21+08:00",
-      "subject": "M8-T1122: the model plans this workspace's next moves - 'first three moves' tile in admin (snapshot -> priority-ordered three moves each with an acceptance chec"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 428,
+  "roadmap_batches": 429,
   "changelog_entries": 1,
-  "roadmap_lines": 54384,
-  "tracked_files": 1098,
-  "test_files": 722,
+  "roadmap_lines": 54396,
+  "tracked_files": 1100,
+  "test_files": 723,
   "almanac_chapters": 52,
   "module_count": 14,
   "feature_surface": [
