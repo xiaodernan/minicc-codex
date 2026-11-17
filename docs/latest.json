@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T16:57:21.236Z",
+  "generated_at": "2026-11-17T17:17:48.863Z",
   "branch": "main",
-  "head": "9248069",
-  "total_commits": 1896,
+  "head": "3757d3b",
+  "total_commits": 1898,
   "recent_commits": [
+    {
+      "short": "3757d3b",
+      "at": "2026-11-18T01:17:23+08:00",
+      "subject": "M8-T1190 (CI red #6): liveness read-back - join(timeout=) without an is_alive() read-back may time out silently; stress probe's cleanup now asserts the daemon a"
+    },
+    {
+      "short": "d7f2acf",
+      "at": "2026-11-17T16:57:21Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9248069",
       "at": "2026-11-18T00:56:59+08:00",
@@ -19,22 +29,12 @@
       "short": "78b2fa6",
       "at": "2026-11-18T00:26:10+08:00",
       "subject": "M8-T1188 (CI red #4): ubuntu leg failed on the M8-T543 rule - tests/test_stress_probe.py executed spec.loader.exec_module(module) without first registering the "
-    },
-    {
-      "short": "f3efb1e",
-      "at": "2026-11-17T16:02:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "01a3234",
-      "at": "2026-11-18T00:02:07+08:00",
-      "subject": "docs(roadmap): my own M8-T1181/M8-T1186 references in batch 1129 were dangling IDs - no ROADMAP batch carries those task IDs; cited as the actual fix commits (3"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 459,
+  "roadmap_batches": 460,
   "changelog_entries": 1,
-  "roadmap_lines": 54952,
+  "roadmap_lines": 54972,
   "tracked_files": 1120,
   "test_files": 737,
   "almanac_chapters": 56,
