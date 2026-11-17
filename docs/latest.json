@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T15:48:45.462Z",
+  "generated_at": "2026-11-17T16:02:54.121Z",
   "branch": "main",
-  "head": "0187e45",
-  "total_commits": 1889,
+  "head": "01a3234",
+  "total_commits": 1892,
   "recent_commits": [
+    {
+      "short": "01a3234",
+      "at": "2026-11-18T00:02:07+08:00",
+      "subject": "docs(roadmap): my own M8-T1181/M8-T1186 references in batch 1129 were dangling IDs - no ROADMAP batch carries those task IDs; cited as the actual fix commits (3"
+    },
+    {
+      "short": "c7d0bb1",
+      "at": "2026-11-17T23:55:57+08:00",
+      "subject": "docs(INDEX): the Ledger chapter's relationship to its draft archive stated precisely - two post-generation mechanical revisions named (Atlas/ volumes number syn"
+    },
+    {
+      "short": "3a69d4d",
+      "at": "2026-11-17T15:48:45Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0187e45",
       "at": "2026-11-17T23:48:07+08:00",
@@ -14,21 +29,6 @@
       "short": "5dd62fb",
       "at": "2026-11-17T23:47:13+08:00",
       "subject": "M8-T1186: scratch ledger draft _ledger_1185.py slipped in via add-A again (first-draft Chinese with nonsense phrasing, superseded by the b-script) - removed imm"
-    },
-    {
-      "short": "929ea08",
-      "at": "2026-11-17T15:47:09Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "27da725",
-      "at": "2026-11-17T23:46:49+08:00",
-      "subject": "M8-T1185 (one home for the budget tile): M8-T1180's dedicated /api/admin/ratelimit was a second wire to a fact /api/admin/summary already carried since M8-T1014"
-    },
-    {
-      "short": "2fdb5f7",
-      "at": "2026-11-17T15:31:46Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
