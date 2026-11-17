@@ -54661,3 +54661,26 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - 这不是“CI 永不红”——这是**一个面板不再因浅克隆而告未定义**。
 - CI 的 `web-smoke` 这一次绿不绿只能等它跑完才能下结论。
 - pytest 腿的浅克隆是 M8-T561 消灭的旧坑（**fetch-depth: 0**）；这里不碰它，不加任何豁免——修的是产品代码里的诚实，不是 CI 参数。
+## 批次 1116 · M8-T1169 / M8-T1170: i18n en 表补齐 + web 资产重建
+
+### 红了什么
+
+- `051b0e9` CI 的 JavaScript syntax 腿红：`tests/frontend_i18n_dict_one_home_smoke.mjs` 断言 “missing from en: scroll.invert, scroll.invertHint, scroll.natural”；`node scripts/build-web.mjs --check` 断言 `web/app.js is stale`。
+- `7e16fb9` CI 的 Playwright web smoke 腿红：`#adminDriftHead` 在 60 秒内未变成非 `—` 内容——`git rev-list` 在浅克隆上 exit 128，`live=False`，漂移哨兵全表 em-dash。
+
+### 为什么上一批绿了
+
+- en 表缺三键：我当时只凭 `frontend_i18n_dict_one_home_smoke`（没跑过）以为绿——它当时 zh/en 都没有这三键，门永远不红，是个**假绿**。提交只查了 `en_cjk_smoke`（CJK 泄漏），完全没验 en 的 parity。
+- 浅克隆砖红：CI 用的 actions/checkout@v4 默认 fetch-depth=1，事实包的 head 不在克隆里；`_commits_ahead` 用 `check=True` 直接抛 `RuntimeError`，漂移哨兵回 `live=False`，#adminDriftHead 永远是 `—`。
+
+### 怎么修
+
+- **`web/src/core/i18n.js`**：en 表补 `scroll.natural` / `scroll.invert` / `scroll.invertHint`；zh/en 各自查 1 处。CRLF 不破坏 Pins（i18n.js 现在是 **318/0**）。
+- **`web/asset-manifest.json` + `web/assets/app.6148618a8db2e025.js`**：重建，通 `node scripts/build-web.mjs --check`。
+- **`minicc/admin_drift.py` + `admin.js` + `admin_smoke.mjs`**：已在 M8-T1168 里修掉了浅克隆红（cat-file probe，`commits_ahead=None`）——这一批 1169/1170 不再重写那段。
+
+### 不声称
+
+- 这次没有给 js-check 加新门——加的是**提交之前跑 `frontend_i18n_dict_one_home_smoke`**（它已经是仓库里有的东西）；不是"从此 i18n 不红"。
+- 不声称“推送不 CI”——但这里的推送每次都经过两条**被抓的红**才到了绿。
+- `docs/latest.json` 的 `head` 仍然是 `7e16fb9`——`Update docs/latest.json` 工作流只在 docs/ 改过时才触发；本次提交不动文档，不跑。
