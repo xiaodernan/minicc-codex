@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T14:59:00.786Z",
+  "generated_at": "2026-11-17T15:04:27.843Z",
   "branch": "main",
-  "head": "cf93bb6",
-  "total_commits": 1880,
+  "head": "bdf3abc",
+  "total_commits": 1882,
   "recent_commits": [
+    {
+      "short": "bdf3abc",
+      "at": "2026-11-17T23:04:07+08:00",
+      "subject": "M8-T1183: CI claim-checker 'impact floor' red on cf93bb6b - modules no test reaches: scripts.stress_probe; new tests/test_stress_probe.py (3 legs: percentile ma"
+    },
+    {
+      "short": "724ed0e",
+      "at": "2026-11-17T14:59:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "cf93bb6",
       "at": "2026-11-17T22:57:56+08:00",
@@ -19,24 +29,14 @@
       "short": "344ba8d",
       "at": "2026-11-17T22:50:51+08:00",
       "subject": "M8-T1181: scratch file _admin_ratelimit_frontend.py slipped in via add-A in M8-T1180 (half-broken superseded i18n pass; the i18n rework landed through _i18n_rat"
-    },
-    {
-      "short": "8687742",
-      "at": "2026-11-17T22:50:36+08:00",
-      "subject": "M8-T1180: the gateway budget is visible on the admin panel - new /api/admin/ratelimit reads ratelimit.stats() (limit/window/local LRU windows/decisions allowed_"
-    },
-    {
-      "short": "9e908c5",
-      "at": "2026-11-17T14:40:21Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 453,
+  "roadmap_batches": 454,
   "changelog_entries": 1,
-  "roadmap_lines": 54832,
-  "tracked_files": 1119,
-  "test_files": 736,
+  "roadmap_lines": 54848,
+  "tracked_files": 1120,
+  "test_files": 737,
   "almanac_chapters": 56,
   "module_count": 14,
   "feature_surface": [
