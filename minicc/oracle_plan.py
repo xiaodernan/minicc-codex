@@ -14,7 +14,7 @@ from typing import Any
 
 from .admin import build_summary
 from .config import load_config
-from .oracle_common import call_model, cached_zh_en, error_payload, memo_read, memo_write
+from .oracle_common import call_model, error_payload, memo_read, memo_write
 from .stats import gather
 
 _CACHE_KEY = "oracle-plan:v1"

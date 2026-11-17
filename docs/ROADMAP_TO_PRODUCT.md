@@ -54371,3 +54371,13 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Admin tile「代码评审 · 值守评审师」**：rose 边框 scan-search icon；refresh；token 账。
 - **真 lane 实测**：prompt 5,357 · cached 4,224；模型准确复述提交本质并指出 head 元数据不一致。
 - **测试**：`test_oracle_review.py`（3）；route_coverage 35/35 GET + 14/14 POST B；admin_smoke 新增；claim gates 69/69；CRLF 729→735（pure CRLF）。
+## 批次 1100 · M8-T1124: M8-T1116 修订——scandir 版失效，gate-compliant walker 住 2.02s
+
+### 目的
+
+M8-T1116 的 scandir walker 违反了本仓库 `test_resource_hygiene.py` 的第 1 条（`minicc/`/`scripts/` 永不直接调 `os.scandir`——包在 `with` 里也不行）—诚实记账而不是举证推翻。
+
+### 做了什么
+
+- `minicc/stats.py::_disk_bytes`：改为 `os.walk` + `os.stat(os.path.join)`；同 372,806,669 字节 / 8,738 files；冷走查 **2.02s**（取代不可降级的 0.57s 数字）。
+- `minicc/oracle_common.py::measured_usage` 改为调下游 home（`llm/usage.py::measured_usage`）；`minicc/oracle_plan.py` / `minicc/stategraph_payload.py` 清理 2 处死 import。

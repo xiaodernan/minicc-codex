@@ -11,6 +11,7 @@ import hashlib
 import json
 from typing import Any
 
+from .llm.usage import measured_usage as _measured_usage
 from .llm.usage import token_count
 from .redis_cache import default_cache
 
@@ -39,17 +40,21 @@ def parse_json_object(text: str) -> Any:
 
 
 def measured_usage(usage_obj: Any) -> dict[str, Any]:
-    """Token counts as the gateway surfaced them — absence stays absent."""
-    usage = {
-        "prompt_tokens": token_count(getattr(usage_obj, "prompt_tokens", 0), 0) or 0,
-        "completion_tokens": token_count(getattr(usage_obj, "completion_tokens", 0), 0) or 0,
-        "total_tokens": token_count(getattr(usage_obj, "total_tokens", None), None),
-    }
+    """Token counts as the gateway surfaced them — absence stays absent.
+
+    The shape itself lives in minicc/llm/usage.py; this only reads the gateway's
+    wire object against that home (cached_tokens rides as a fourth key when the
+    gateway actually reported it, never fabricated).
+    """
+    pt = token_count(getattr(usage_obj, "prompt_tokens", 0), 0) or 0
+    ct = token_count(getattr(usage_obj, "completion_tokens", 0), 0) or 0
+    tt = token_count(getattr(usage_obj, "total_tokens", None), None)
+    record = _measured_usage(pt, ct, tt)
     details = getattr(usage_obj, "prompt_tokens_details", None)
     cached = getattr(details, "cached_tokens", None) if details is not None else None
     if cached is not None:
-        usage["cached_tokens"] = token_count(cached, 0) or 0
-    return usage
+        record["cached_tokens"] = token_count(cached, 0) or 0
+    return record
 
 
 def call_model(*, config: Any, prompt: str, max_tokens: int = 280, temperature: float = 0.2) -> dict[str, Any]:

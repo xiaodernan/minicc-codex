@@ -27,7 +27,6 @@ from .config import (
     STAGE_INSPECT,
     STAGE_PLANNING,
     STAGE_REPAIR,
-    STAGE_REVIEW,
     STAGE_VERIFY,
 )
 
