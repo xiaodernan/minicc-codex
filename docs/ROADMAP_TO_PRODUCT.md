@@ -54713,3 +54713,20 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 
 - 本批不改其他环境变量的传播（只动 `*_proxy` 八个拼写）。
 - 本批不改 CI——CI 依然是 fake provider，模拟环境里没有“Clash”这回事。
+## 批次 1119 · M8-T1175: 会开口的账本——年鉴第 56 卷，Atlas 93
+
+### 目的
+
+上一批（M8-T1174）证明了「代理注入」能把模型真正通电；这一批把那一天让模型自己写进年鉴，并把本章登记到所有被 Atlas 坐标锁住的位置。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：`CHAPTERS` 登记 `theledger`（卷五十六 · 会开口的账本 / Chapter LVI · The Ledger That Speaks）；新增 `LEDGER_ZH` / `LEDGER_EN` 常量（en 侧零 CJK —— 中文网关拒绝语、人名、产品名全部改写为罗马化/英译，en_cjk 与 almanac_smoke 双绿）；`CHAPTER_RENDERERS` 登记 `theledger`。
+- **Atlas 92 → 93**：`index.html` 的 `atlasCharted / atlasShardsCount`（2 处 `/ 92<` → `/ 93<`）；`onboarding.js`（13 座岛屿、93 个坐标——18 面板 + 56 卷年鉴卫星 + 19 说明书卫星）；`manual.js`；`i18n.js` chip（`93 个真实坐标随便点` / `93 real coordinates to tap`）；`README.md`（56 卷 + 最新卷描述）；`docs/INDEX.md`（CHAPTER_DRAFT 存档条目更新为 Ch.LVI）。
+- **门禁**：`almanac_smoke` 55 → 56；`atlas_smoke` 92 → 93；`en_cjk_smoke`、`admin_smoke`、`stategraph_smoke`、`dazzle_smoke`、`manual_smoke` 全绿；`npm run build:web` 绿。
+- **模型原文存证**：`docs/CHAPTER_DRAFT.md` 更新为 Ch.LVI 存档（gpt-6.1-terra，prompt 4,985 · completion 1,011 · cached_tokens=4,224）。
+
+### 不声称
+
+- 本章不声称覆盖窗口外任何事实；`CHAPTER_DRAFT.md` 仍是 transient 存证，不构成产品断言。
+- 本批不修章节外的门禁/文档；只做本章与 Atlas 坐标的一致性闭环。

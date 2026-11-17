@@ -75,6 +75,7 @@ export const CHAPTERS = [
   { id: "twelfthlight", roman: { zh: "卷五十二", en: "Chapter LII" }, title: { zh: "第十二家灯", en: "The Twelfth Light" }, subtitle: { zh: "model 和 CI 一起灭了灯又点亮了一盏", en: "the model and CI both lost a light, then lit one together" } },
   { id: "thereckoning", roman: { zh: "卷五十四", en: "Chapter LIV" }, title: { zh: "并账", en: "The Reckoning" }, subtitle: { zh: "每一条分支都被审过了——没有漏掉的", en: "every branch was audited — nothing was skipped" } },
   { id: "thealarm", roman: { zh: "卷五十五", en: "Chapter LV" }, title: { zh: "警钟", en: "The Alarm" }, subtitle: { zh: "三次 CI 红灯，同一夜里，全被摁灭", en: "three CI reds in one night — all three extinguished" } },
+  { id: "theledger", roman: { zh: "卷五十六", en: "Chapter LVI" }, title: { zh: "会开口的账本", en: "The Ledger That Speaks" }, subtitle: { zh: "模型终于听懂了这个仓库刚才做了什么", en: "the model finally understood what this repository just did" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3771,6 +3772,47 @@ function thealarmMarkup() {
     </div>`;
 }
 
+function theledgerMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const LEDGER_ZH = "<p>《会开口的账本》记下：这一天，<code>.env</code> 带着 <code>HTTPS_PROXY=http://127.0.0.1:7897</code> 进了仓库，<code>load_config()</code> 却一直没有把它注入 <code>os.environ</code>。此前，aizzz.xyz 的连接一次次原样收到网关的拒绝：“本站不对您所在的国家及地区进行商业服务”。补上代理注入后，重建终于完成：首次模型通电。实测记录为 <code>cached_tokens=4,224</code>，prompt 7,230、completion 299；一条 prompt 得到了一段双语审计故事。</p><p>管理面板由此新增「审计实语 · 值守读者 / Audit story · on-duty reader」。模型读取 <code>.minicc/audit.jsonl</code> 最近 64 行；账本共有 1617 条真实记录。输出分三拍：发生了什么，只讲 action 和 path；一个值得留意的反常或重复；下一步先看哪里。prompt 明令不得讲窗口外的事，也不得虚构文件名。</p><p>记录也保留这一天的自我纠错：最初的 prompt 判词有误，把 <code>window_to</code> 是否成立系于 JSON 可解析性；全空白窗口因此触发 <code>JSONDecodeError</code>。修订后，白窗口不调用模型，闲话息为零 token。临时逐字对齐的个人展示页也记在账上：identity 卡全绿，列有赵欣曈、南方科技大学本科、香港中文大学硕士、计科双学位、物理竞赛铜牌及江西一等奖二等奖、法狗狗公司实习与隐盾 yindun.fagougou.com。</p><p>本卷所列快照与账目还包括：Atlas 93 坐标、年鉴 56 卷、全仓库 1,865 commits、444 批、926 个测试文件（测出）/ 734 test files，以及 <code>.minicc</code> 的 1617 行审计。这不是模型出红又修绿的戏，而是仓库终于开口，说出自己刚才做了什么。诚实的限度：故事只覆盖窗口内的记录；窗口以外的事实、意图与文件名，都不在这份存证的断言范围内。</p>";
+  const LEDGER_EN = "<p>The Ledger That Speaks records the missing link: <code>.env</code> entered the repository carrying <code>HTTPS_PROXY=http://127.0.0.1:7897</code>, but <code>load_config()</code> had never injected it into <code>os.environ</code>. Until then, connections to aizzz.xyz were returned with a Chinese-language regional refusal. After proxy injection, the system was rebuilt and the model powered on for the first time. The observed run recorded <code>cached_tokens=4,224</code>, prompt 7,230, completion 299; one prompt returned a bilingual audit story.</p><p>The management panel gained an “Audit story · on-duty reader” tile. The model reads the latest 64 lines of <code>.minicc/audit.jsonl</code>, drawn from 1617 real records, and produces three beats: what happened, limited to action and path; a notable anomaly or repetition; and where to look next. Its prompt forbids narration beyond the window and invented filenames.</p><p>The ledger also preserves its own correction. An earlier prompt verdict incorrectly made <code>window_to</code> depend on JSON being parseable; an entirely blank window therefore raised <code>JSONDecodeError</code>. After the correction, a blank window does not call the model: idle chatter costs zero tokens. A temporary, word-for-word alignment of the personal display page is also recorded: the identity card was all green, listing Zhao Xintong, undergraduate study at Southern University of Science and Technology, a master’s at The Chinese University of Hong Kong, a computer science double degree, a physics competition bronze medal plus Jiangxi first and second prizes, an internship at FaGouGou, and Yindun (yindun.fagougou.com).</p><p>The supplied snapshot and ledger also list Atlas 93 coordinates, 56 yearbook volumes, 1,865 repository commits, 444 batches, 926 test files (measured) / 734 test files, and 1617 audit lines in <code>.minicc</code>. This is not a story of the model turning red and then green; it is the repository finally speaking about what it just did. Honest limit: the story covers only records inside the window. It makes no claim about events, intent, or filenames beyond that evidence.</p>";
+
+  return `
+    <div class="almanac-canvas almanac-theledger">
+      <div class="almanac-kicker">${zh() ? "卷五十六 · 会开口的账本" : "Chapter LVI · The Ledger That Speaks"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `一个仓库，` + `<br/><span class="almanac-title-accent">学会了说话。</span>`
+        : `One repository,` + `<br/><span class="almanac-title-accent">finally speaking.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH : LEDGER_EN}
+
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">93</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">56 / 56</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "审计条目(真)" : "Audit lines (live)"}</div><div class="almanac-instrument-value">1617</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["代理注入终于补上", "`.env` 带 `HTTPS_PROXY=http://127.0.0.1:7897` 进了仓库，`load_config()` 却从没把它写回 `os.environ`—— aizzz.xyz 一次又一次返回“本站不对您所在的国家及地区进行商业服务”。补了注入之后，第一次模型通电，`cached_tokens=4,224`"],
+        ["审计实语 · 值守读者", "管理面板新增卡片，模型读 `audit.jsonl` 最近 64 行写三拍故事：发生了什么 → 一个值得留意的反常或重复 → 下一步先看哪里"],
+        ["白窗口 = 零 token", "全空白窗口不调用模型，闲话息为零；prompt 明令不得讲窗口外的事，不得虚构文件名——窗外的事实、意图与文件名全不在存证断言范围内"],
+        ["这一卷 model 自己编的", "prompt_cache_key stable; cached_tokens=4,224——共享前缀第十次现身"],
+      ] : [
+        ["the proxy link finally closed", "`.env` carried `HTTPS_PROXY=http://127.0.0.1:7897` but `load_config()` never wrote it back into `os.environ` — every call to aizzz.xyz came back with the same regional refusal — after the injection: first live model call, `cached_tokens=4,224`"],
+        ["Audit story · on-duty reader", "new card in the admin panel: the model reads the latest 64 audit lines and writes three beats — what happened → one anomaly or repetition to notice → where to look next"],
+        ["blank window = zero tokens", "an all-blank window does not call the model at all; the prompt forbids narration beyond the window and invented filenames — everything outside the window stays outside the ledger's claim"],
+        ["Cha.LVI written by the model", "prompt_cache_key stable; cached_tokens=4,224 — the shared prefix serves its tenth call"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "账本会开口——前提是它还没被死过。"
+          : "The ledger speaks — only when it was never allowed to die."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3827,6 +3869,7 @@ const CHAPTER_RENDERERS = {
   twelfthlight: () => twelfthlightMarkup(),
   thereckoning: () => thereckoningMarkup(),
   thealarm: () => thealarmMarkup(),
+  theledger: () => theledgerMarkup(),
 };
 
 async function loadChapter(id) {
