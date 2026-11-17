@@ -55119,3 +55119,62 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 - 不声称首次解锁就是秒开——首次 cold-cost 由 fact 证实（9.32s + 5.33s，只付一次）；
 - 不假装 admin 面板已有门捕获这种“壳空壳壳”——本批无此门、也无意借此批造轮子；
 - 不声称任何一道既有冒烟红过——每一条绿都是真实的。
+## 批次 1140 · M8-T1198: 计划残集——只读评估读数时序 + 证据门远程执行
+
+### 背景
+
+`docs/SERVICE_PLANE_PLAN.md` 的「四、再往后可以做什么」里还留着两项无人落地：
+
+1. **评估读数的只读服务**：把 `--suite v2` 的结果变成可查询的时间序列。
+2. **证据门的远程执行**：同一套 checker 在 CI 与服务里读同一份语料。
+
+本批**不写代码**——minicc-cloud 已有的“读才读、写才写、一处一家”门禁对新模块同样生效；写一条能跑通的代码就必须连带 smoke + gates + CI Java 门禁同步触发，没有完整闭环就不能出货。把两件事写成下面可直接执行的工单，留作下一批的第一个可执行方向。
+
+### 工单 A：只读评估读数时序服务
+
+**目标**：暴露 `GET /api/bench-history?suite=v2&kind=throughput&window=last-30d`，返回聚合的时间序列 JSON，给 admin 面板直接吃。
+
+**现有可复用件（全部已就位）**：
+
+- `minicc/bench_tasks.py`：已有 `--suite v2` 入口；
+- `minicc/oracle_retrospective.py`：`.minicc/audit.jsonl` 的 64-行尾窗口模式（与本方案同形状）；
+- `minicc/stats.py::gather`：service 级 memoized 装载（30s，不会按秒走全仓库）；
+- `minicc-cloud-insights`（8087）：read-only aggregate summary + `/api/insights/fleet`；同样只读姿态、同样“capped scan”原则。
+
+**建议方案**：
+
+- 新增 `minicc/benchcfg.py` 作为“一处一家”家：`suite_v2` 配置 + `bench.jsonl`（JSONL 评测单测/真测的单次执行摘要，按 `\n` 分隔）；
+- writer 侧：`bench_tasks.py --suite v2` 跑完时追加一行到 `workspace/.minicc/bench.jsonl`（同一次 run 不重复 append）；
+  **write path locked behind permission**：只有被授权 `allow_changes` 的任务才 append——评测不是“写盘行为”，不应该问用户鼓励写；
+- 只读路由：`GET /api/bench-history` 递归读 `bench.jsonl`：`limit=200` 防超额、滤 `suite=v2`、聚合到 `{mean, p50, p95, samples_by_day, last_run_sec_ago, sample_count}`；
+- 错误形态：`503 + {"present": false, "reason": "…路径…"}`——与 insights 服务一致；文件缺失时 `present:false` 而不是 500；
+- 缓存：service 级 memoized 10 s，与 digest/stats 一致（复用 `self._memo_http(...)`）；
+- admin tile：并列 sketch、刷新、显示 `count / mean / p95` 三项数字 + `last run sec ago`；**零模型调用**（数字就是数字，不告诉模型分析它）。
+
+### 工单 B：证据门的远程执行
+
+**目标**：让“证据门”能在一个发行版里**在线跑一份真实记录**——同一条 CI 红例可以在 GitHub 里见到、在 admin 里点“复盘”时再跑一遍得到同款结论。
+
+**现有可复用件**：
+
+- `tests/_silence_reason_shared.py`：沉默不等于没问题门禁的共享 helper；
+- `scripts/impacted_tests.py`：根据当次提交算受影响测试列表；
+- GitHub API 通过 `Authorization: Bearer <GITHUB_TOKEN>` 可以读取任意 branch 上的 `{sha, ref, head}`；
+- `minicc/oracle_ci_diagnosis.py`：已有“重读 GitHub 上的真实 run”模式，与本工单同形态的“只读 GitHub + 挖事实”姿态。
+
+**建议方案**：
+
+- 新增 Java 模块 `minicc-cloud-evidence`：把任一次 GitHub run 的日志流存进 `evidence.jsonl`（含 `head_sha / workflow_name / job_name / step_name / started_at / logs_tail_20_lines`）；
+- HTTP 只读接口 `GET /api/evidence?run_id=…`：
+  - 如果 `run_id` 是 GitHub run 的 ID → 回填一次（memo 10 min）；
+  - 如果是 `?latest=1` → 返回最新一次 completion（绿/红都可以）；
+  - 超时来自 `config-repo/application.yml`（沿用已有 `minicc.cloud.gateway.*` 的一家血缘）；
+- admin 端新 tile「证据 / Evidence」：显示最近一次红/绿、`job`、点击展开到 `logs_tail`。
+  事实层只显示事实，不写“原因分析”模型调用——**verdict 是布尔值+时间+run 标识符，不是叙事**；
+- 零新权限：evidence 缓存的目的是把“看得见的 CI”搬到 admin 可以看的地方，**不做任何变更操作**。
+
+### 本批不声称可以声明什么
+
+- 不声称这两条工单已经落地——它们现在只是蓝图；
+- 不声称下一批就是这两个方向——以后谁做看哪条火先起来；
+- 不声称 admin tile 新增这两条就等于“模型又说了一大段话”——它们是可验证客观数据型 tile，模型不参与，避免和 oracle tile 混语。
