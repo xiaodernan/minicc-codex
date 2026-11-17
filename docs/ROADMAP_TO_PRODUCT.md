@@ -54381,3 +54381,15 @@ M8-T1116 的 scandir walker 违反了本仓库 `test_resource_hygiene.py` 的第
 
 - `minicc/stats.py::_disk_bytes`：改为 `os.walk` + `os.stat(os.path.join)`；同 372,806,669 字节 / 8,738 files；冷走查 **2.02s**（取代不可降级的 0.57s 数字）。
 - `minicc/oracle_common.py::measured_usage` 改为调下游 home（`llm/usage.py::measured_usage`）；`minicc/oracle_plan.py` / `minicc/stategraph_payload.py` 清理 2 处死 import。
+## 批次 1101 · M8-T1125: 值守复核员 · 第六条 model line——“事后复核” tile
+
+### 目的
+
+补全“智能流转”闭环：声称完成 → 完成判定 → 完成后复核——闭环的最后一环。
+
+### 做了什么
+
+- **`minicc/oracle_retrospective.py`**（新）：`build_workspace_retrospective()`——直读实测事实包（recent_tasks + interrupt_causes + streak + cache_hit_rate）；定位完成任务 N001/N002；模型写 zh+en 四句；contract：引用数字、最坏理由、验收方式。
+- **GET `/api/oracle-retrospective`**：永远 200（stub-seam tested）。
+- **Admin tile**：第六 model tile（history · refresh）。
+- **测试**：**4/4**（snapshot 没有敏感数据——不见 diff/home/env；memo 二回合免调用；真实 endpoint 被 http_surface 路由封闭）；route_coverage 36/36 GET + 14/14 POST B；CRLF pins 723→741 pure CRLF；smoke 新增 i18n-fallback guard。

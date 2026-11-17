@@ -907,6 +907,23 @@ def test_get_stategraph_reports_the_live_workflow(live: _LiveServer) -> None:
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_get_oracle_retrospective_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1125: the retrospective route is entered by the HTTP suite too —
+    # same seam-stub pattern as the other model-duty tests.
+    import minicc.oracle_retrospective as ot_mod
+
+    monkeypatch.setattr(ot_mod, "build_workspace_retrospective", lambda **kwargs: {
+        "live": False, "zh": "", "en": "",
+        "error": "model-unavailable: TimeoutError",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-retrospective", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "error" in payload
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
 def test_get_oracle_review_never_500s(live: _LiveServer, monkeypatch) -> None:
     # M8-T1123: the review route is entered by the HTTP suite too —
     # seam stubbed exactly like the other model-duty tests.

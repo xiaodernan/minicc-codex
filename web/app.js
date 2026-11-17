@@ -821,6 +821,10 @@
       "admin.reviewPending": "\u6B63\u5728\u8BFB\u672C\u4ED3\u5E93\u6700\u65B0\u63D0\u4EA4\u7684\u5B9E\u51B5 diff\u2026",
       "admin.reviewRefresh": "\u91CD\u65B0\u751F\u6210\u8BC4\u5BA1",
       "admin.reviewOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u8BC4\u5BA1\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
+      "admin.retrospectiveKicker": "\u4E8B\u540E\u590D\u6838 \xB7 \u503C\u5B88\u590D\u6838\u5458",
+      "admin.retrospectivePending": "\u6B63\u5728\u8BFB\u6700\u8FD1\u4E00\u4E2A\u58F0\u79F0\u5B8C\u6210\u7684\u4EFB\u52A1\u2026",
+      "admin.retrospectiveRefresh": "\u91CD\u65B0\u751F\u6210\u590D\u6838",
+      "admin.retrospectiveOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u590D\u6838\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.toolUsageUnit": "\u6B21\u8C03\u7528",
       "admin.forecastLabel": "\u9884\u6D4B",
       "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
@@ -1615,6 +1619,10 @@
       "admin.reviewPending": "Reading the live diff of this repo\u2019s newest commit\u2026",
       "admin.reviewRefresh": "Refresh the review",
       "admin.reviewOutage": "The model is unreachable \u2014 the panel cannot write the review. That is the only honest sentence.",
+      "admin.retrospectiveKicker": "Retrospective \xB7 on-duty reviewer",
+      "admin.retrospectivePending": "Reading the record of the last task that declared itself completed\u2026",
+      "admin.retrospectiveRefresh": "Refresh the retrospective",
+      "admin.retrospectiveOutage": "The model is unreachable \u2014 the panel cannot write the retrospective. That is the only honest sentence.",
       "admin.toolUsageUnit": "calls",
       "admin.forecastLabel": "Forecast",
       "admin.forecastFading": "cooling off from the peak",
@@ -7977,6 +7985,37 @@
       }
       const reviewPromise = requestJson("/api/oracle-review", {}, 3e4).catch(() => null);
       reviewPromise.then((review) => renderReview(review, false));
+      function renderRetrospective(retrospective, refreshed) {
+        const bodyEl = $("#adminRetrospectiveBody");
+        const usageEl = $("#adminRetrospectiveUsage");
+        const byEl = $("#adminRetrospectiveModel");
+        if (byEl && retrospective && retrospective.model) byEl.textContent = retrospective.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
+        if (!retrospective || !retrospective.live) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.retrospectiveOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = retrospective?.error ? `error: ${String(retrospective.error).slice(0, 140)}` : "";
+          return;
+        }
+        const text = zh8() ? retrospective.zh : retrospective.en;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? retrospective.en : retrospective.zh))}</p>`;
+        if (usageEl) {
+          const u = retrospective.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 \u5DF2\u91CD\u65B0\u751F\u6210" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 regenerated" : ""}`;
+        }
+      }
+      const retrospectiveRefresh = $("#adminRetrospectiveRefresh");
+      if (retrospectiveRefresh) {
+        retrospectiveRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminRetrospectiveBody");
+          const usageEl = $("#adminRetrospectiveUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.retrospectivePending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-retrospective?fresh=1", {}, 3e4).catch(() => null).then((retrospective) => renderRetrospective(retrospective, true));
+        });
+      }
+      const retrospectivePromise = requestJson("/api/oracle-retrospective", {}, 3e4).catch(() => null);
+      retrospectivePromise.then((retrospective) => renderRetrospective(retrospective, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {

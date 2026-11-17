@@ -122,6 +122,16 @@ async function checkMode(locale, expectCjk) {
     "review usage footer must carry token accounting or an error, never a fabricated number",
   );
 
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminRetrospectiveBody");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return text.length > 0 && !text.includes("正在读") && !text.includes("Reading the") && !/^admin\./.test(text);
+  }, null, { timeout: 45000 });
+  const retrospectiveText = await page.locator("#adminRetrospectiveBody").innerText();
+  assert.ok(retrospectiveText.trim().length > 0, "retrospective tile must carry either a live retrospective or the honest outage line");
+  assert.ok(!/^admin\./.test(retrospectiveText.trim()), "retrospective body must never read as an unresolved i18n key");
+
   const briefUsage = await page.locator("#adminBriefUsage").innerText();
   // when the model answered, the usage footer must carry the token accounting;
   // when the wire is down the footer carries the error instead

@@ -324,6 +324,41 @@ export async function openAdmin() {
     const reviewPromise = requestJson("/api/oracle-review", {}, 30000).catch(() => null);
     reviewPromise.then((review) => renderReview(review, false));
 
+    // The retrospective — judge the plausibility of the last "completed" task.
+    function renderRetrospective(retrospective, refreshed) {
+      const bodyEl = $("#adminRetrospectiveBody");
+      const usageEl = $("#adminRetrospectiveUsage");
+      const byEl = $("#adminRetrospectiveModel");
+      if (byEl && retrospective && retrospective.model) byEl.textContent = retrospective.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现扫" : "read live by the model";
+      if (!retrospective || !retrospective.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.retrospectiveOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = retrospective?.error ? `error: ${String(retrospective.error).slice(0, 140)}` : "";
+        return;
+      }
+      const text = zh() ? retrospective.zh : retrospective.en;
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(text || (zh() ? retrospective.en : retrospective.zh))}</p>`;
+      if (usageEl) {
+        const u = retrospective.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · 已重新生成" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · regenerated" : ""}`;
+      }
+    }
+    const retrospectiveRefresh = $("#adminRetrospectiveRefresh");
+    if (retrospectiveRefresh) {
+      retrospectiveRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminRetrospectiveBody");
+        const usageEl = $("#adminRetrospectiveUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.retrospectivePending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-retrospective?fresh=1", {}, 30000).catch(() => null).then((retrospective) => renderRetrospective(retrospective, true));
+      });
+    }
+    const retrospectivePromise = requestJson("/api/oracle-retrospective", {}, 30000).catch(() => null);
+    retrospectivePromise.then((retrospective) => renderRetrospective(retrospective, false));
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");
