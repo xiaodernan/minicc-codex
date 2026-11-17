@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T15:47:09.046Z",
+  "generated_at": "2026-11-17T15:48:45.462Z",
   "branch": "main",
-  "head": "27da725",
-  "total_commits": 1886,
+  "head": "0187e45",
+  "total_commits": 1889,
   "recent_commits": [
+    {
+      "short": "0187e45",
+      "at": "2026-11-17T23:48:07+08:00",
+      "subject": "M8-T1187: /_*.py anchored in .gitignore - today's root scratch leaks (M8-T1181, M8-T1186) were both add-A sweeps of transient helper scripts; from now on the re"
+    },
+    {
+      "short": "5dd62fb",
+      "at": "2026-11-17T23:47:13+08:00",
+      "subject": "M8-T1186: scratch ledger draft _ledger_1185.py slipped in via add-A again (first-draft Chinese with nonsense phrasing, superseded by the b-script) - removed imm"
+    },
+    {
+      "short": "929ea08",
+      "at": "2026-11-17T15:47:09Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "27da725",
       "at": "2026-11-17T23:46:49+08:00",
@@ -14,28 +29,13 @@
       "short": "2fdb5f7",
       "at": "2026-11-17T15:31:46Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e09dcb7",
-      "at": "2026-11-17T23:31:26+08:00",
-      "subject": "M8-T1184 (CI red #3): ubuntu 're-aimed citation drifted' - REPAIRED roster pins record_text(8000) at web.py:1852; the M8-T1177 top-level deque import shifted ev"
-    },
-    {
-      "short": "8db8ead",
-      "at": "2026-11-17T15:04:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "bdf3abc",
-      "at": "2026-11-17T23:04:07+08:00",
-      "subject": "M8-T1183: CI claim-checker 'impact floor' red on cf93bb6b - modules no test reaches: scripts.stress_probe; new tests/test_stress_probe.py (3 legs: percentile ma"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 456,
+  "roadmap_batches": 457,
   "changelog_entries": 1,
-  "roadmap_lines": 54889,
-  "tracked_files": 1121,
+  "roadmap_lines": 54908,
+  "tracked_files": 1120,
   "test_files": 737,
   "almanac_chapters": 56,
   "module_count": 14,
