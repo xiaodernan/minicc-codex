@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T19:13:24.723Z",
+  "generated_at": "2026-11-17T19:49:44.191Z",
   "branch": "main",
-  "head": "7d10d53",
-  "total_commits": 1906,
+  "head": "9330b04",
+  "total_commits": 1908,
   "recent_commits": [
+    {
+      "short": "9330b04",
+      "at": "2026-11-18T03:49:08+08:00",
+      "subject": "M8-T1195 (RAG citations): the [n] refs the model emits now get cross-checked against the retrieved set - chunks carry real start/end line ranges (BM25 docs beco"
+    },
+    {
+      "short": "742bb1f",
+      "at": "2026-11-17T19:13:25Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7d10d53",
       "at": "2026-11-18T03:12:47+08:00",
@@ -19,24 +29,14 @@
       "short": "1d4b542",
       "at": "2026-11-18T02:38:43+08:00",
       "subject": "M8-T1193: almanac Ch.LVII 'The Green Line / 绿线' - the model chronicled last night's real CI firefightign night (bdf3abcb impact floor -> 01a32347 dangling SHA r"
-    },
-    {
-      "short": "4031dc3",
-      "at": "2026-11-17T18:19:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3239e1e",
-      "at": "2026-11-18T02:19:21+08:00",
-      "subject": "M8-T1192 (abuse probe): credential-stuffing / forged-token hammering measured for real - scripts/stress_auth_probe.py spawns a required-auth instance (0.0.0.0+t"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 464,
+  "roadmap_batches": 465,
   "changelog_entries": 1,
-  "roadmap_lines": 55063,
-  "tracked_files": 1122,
-  "test_files": 738,
+  "roadmap_lines": 55081,
+  "tracked_files": 1123,
+  "test_files": 739,
   "almanac_chapters": 57,
   "module_count": 14,
   "feature_surface": [
