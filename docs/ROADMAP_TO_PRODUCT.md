@@ -54730,3 +54730,15 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 
 - 本章不声称覆盖窗口外任何事实；`CHAPTER_DRAFT.md` 仍是 transient 存证，不构成产品断言。
 - 本批不修章节外的门禁/文档；只做本章与 Atlas 坐标的一致性闭环。
+## 批次 1120 · M8-T1176: CI 红灯复盘——一处一 home 的两道门
+
+`24c0d92` CI（run 44091341271）Windows/Ubuntu 双腿双挂，失败用例两条：
+
+- **filename one-home**：`minicc/oracle_audit_story.py` 新增的 "audit.jsonl" 字面量与 `minicc/internal_paths.py` 的 `AUDIT_NAME` 重复——"one home" 的含义（AST CONSTANT 扫描 `minicc/**/*.py`，`audit.jsonl` 只能出现在 `internal_paths.py`）。修复：import `AUDIT_NAME`，不再自造字面量。
+- **palette one-home**：`.admin-audit { border-color: ... var(--gold) ... }` 读了调色板里不存在的 `--gold`（JS/CSS 变量存在性门禁）。修复：改为 declared 的 `--amber`。
+
+两条修复在本地以 `pytest -q -W error` 双绿；`web/styles.css` 与对应内容寻址 CSS 资产同步重建。
+
+### 不声称
+
+- 不修 `18c22376` 历史（force-push main 不做）；其红例与本批一致，修复自本提交生效。

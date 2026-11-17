@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .internal_paths import AUDIT_NAME
 from .oracle_common import call_model, cached_zh_en, error_payload, memo_read, memo_write
 
 _CACHE_KEY = "oracle-audit-story:v1"
@@ -33,7 +34,7 @@ _SLICE_BYTES = 24000
 
 
 def _slice(workspace: Path) -> dict[str, Any] | None:
-    path = workspace / ".minicc" / "audit.jsonl"
+    path = workspace / ".minicc" / AUDIT_NAME
     if not path.is_file():
         return None
     try:
