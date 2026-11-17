@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T00:27:53.064Z",
+  "generated_at": "2026-11-17T00:51:25.566Z",
   "branch": "main",
-  "head": "f6174d7",
-  "total_commits": 1818,
+  "head": "7fcf7f8",
+  "total_commits": 1820,
   "recent_commits": [
+    {
+      "short": "7fcf7f8",
+      "at": "2026-11-17T08:50:39+08:00",
+      "subject": "M8-T1124: M8-T1116 correction - the scandir walker broke the resource-hygiene gate (minicc/ never calls os.scandir, even under with); replaced with os.walk+os.s"
+    },
+    {
+      "short": "300bb1e",
+      "at": "2026-11-17T00:27:53Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f6174d7",
       "at": "2026-11-17T08:27:02+08:00",
@@ -19,22 +29,12 @@
       "short": "3c385b3",
       "at": "2026-11-17T08:03:21+08:00",
       "subject": "M8-T1122: the model plans this workspace's next moves - 'first three moves' tile in admin (snapshot -> priority-ordered three moves each with an acceptance chec"
-    },
-    {
-      "short": "01a5e67",
-      "at": "2026-11-16T23:41:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "bd2e413",
-      "at": "2026-11-17T07:41:18+08:00",
-      "subject": "M8-T1121: the model writes its own chapter - almanac Ch.LII 'The Live Current / 通电' (live-lane draft archived in docs/CHAPTER_DRAFT.md: prompt 5,013, cached_tok"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 427,
+  "roadmap_batches": 428,
   "changelog_entries": 1,
-  "roadmap_lines": 54374,
+  "roadmap_lines": 54384,
   "tracked_files": 1098,
   "test_files": 722,
   "almanac_chapters": 52,
