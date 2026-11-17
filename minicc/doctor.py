@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from minicc.internal_paths import AUDIT_NAME, PERMISSIONS_NAME, TOKEN_FILE_NAME
+from minicc.cli_io import tr
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ def check_python_version(_workspace: Path) -> DoctorCheck:
         "python_version",
         "ok" if ok else "fatal",
         f"python {major}.{minor}.{micro}",
-        f"升级到 python>=3.11 (当前: {major}.{minor}.{micro})" if not ok else None,
+        tr("doctor_python", major=major, minor=minor, micro=micro) if not ok else None,
     )
 
 
@@ -87,7 +88,7 @@ def check_minicc_compiles(_workspace: Path) -> DoctorCheck:
             "module_compiles",
             "fatal",
             f"{len(failed)} modules failed py_compile: {', '.join(failed[:5])}",
-            "重装 wheel 或 `pip install -e .`",
+            tr("doctor_reinstall"),
         )
     return DoctorCheck("module_compiles", "ok", f"{compiled} modules compiled")
 
@@ -102,7 +103,7 @@ def check_minicc_dir_writable(workspace: Path) -> DoctorCheck:
                 "minicc_dir_writable",
                 "fatal",
                 f"cannot create {state}: {exc}",
-                "检查目录的写权限",
+                tr("doctor_write"),
             )
     probe = state / ".doctor-probe"
     try:
@@ -113,7 +114,7 @@ def check_minicc_dir_writable(workspace: Path) -> DoctorCheck:
             "minicc_dir_writable",
             "fatal",
             f"workspace .minicc/ is not writable: {exc}",
-            "检查 .minicc/ 的所有者与权限",
+            tr("doctor_owner"),
         )
     return DoctorCheck("minicc_dir_writable", "ok", ".minicc/ writable")
 

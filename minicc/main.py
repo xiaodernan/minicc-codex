@@ -204,80 +204,79 @@ def minicc_version() -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicc",
-        description="一个工作区受限、支持工具调用的 Claude Code/Codex 风格 coding agent",
+        description=tr("arg_description"),
     )
-    parser.add_argument("prompt", nargs="*", help="一次性任务；不传则进入交互模式")
-    parser.add_argument("--workspace", type=Path, default=Path.cwd(), help="工作区目录，默认当前目录")
-    parser.add_argument("--base-url", help="OpenAI 兼容接口地址")
-    parser.add_argument("--api-key", help="接口密钥；也可通过 MINICC_API_KEY 设置")
-    parser.add_argument("--model", help="模型名")
-    parser.add_argument("--reasoning-effort", choices=tuple(sorted(REASONING_EFFORTS)), help="推理强度")
-    parser.add_argument("--tool-mode", choices=tuple(sorted(TOOL_MODES)), help="工具调用模式")
-    parser.add_argument("--output-style", help="输出风格：preset（concise/explanatory）或自定义文字；覆盖配置与环境变量")
-    parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
-    parser.add_argument("--max-turns", type=int, help="显式设置硬轮数预算（默认不限）")
-    parser.add_argument("--timeout", type=float, help="单次 provider 调用超时秒数")
-    parser.add_argument("--context-window", type=int, help="上下文窗口 token 数")
-    parser.add_argument("--soft-max-tokens", type=int, help="软 token 预算（触发收尾，不硬中断）")
-    parser.add_argument("--max-concurrent-tasks", type=int, help="并发任务上限 (1-64)")
-    parser.add_argument("--sandbox", choices=tuple(sorted(SANDBOX_MODES)), help="命令执行沙箱模式")
-    parser.add_argument("--provider-type", choices=tuple(sorted(PROVIDER_TYPES)), help="provider 协议类型")
-    parser.add_argument("--fallback-models", help="逗号分隔的降级模型列表")
-    parser.add_argument("--task-executor", choices=tuple(sorted(TASK_EXECUTORS)), help="任务执行器")
-    parser.add_argument("--auto-resume", action="store_true", help="web 启动时自动重排中断任务")
-    parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
+    parser.add_argument("prompt", nargs="*", help=tr("arg_prompt"))
+    parser.add_argument("--workspace", type=Path, default=Path.cwd(), help=tr("arg_workspace"))
+    parser.add_argument("--base-url", help=tr("arg_base_url"))
+    parser.add_argument("--api-key", help=tr("arg_api_key"))
+    parser.add_argument("--model", help=tr("arg_model"))
+    parser.add_argument("--reasoning-effort", choices=tuple(sorted(REASONING_EFFORTS)), help=tr("arg_reasoning_effort"))
+    parser.add_argument("--tool-mode", choices=tuple(sorted(TOOL_MODES)), help=tr("arg_tool_mode"))
+    parser.add_argument("--output-style", help=tr("arg_output_style"))
+    parser.add_argument("--compact-threshold", type=int, help=tr("arg_compact_threshold"))
+    parser.add_argument("--max-turns", type=int, help=tr("arg_max_turns"))
+    parser.add_argument("--timeout", type=float, help=tr("arg_timeout"))
+    parser.add_argument("--context-window", type=int, help=tr("arg_context_window"))
+    parser.add_argument("--soft-max-tokens", type=int, help=tr("arg_soft_max_tokens"))
+    parser.add_argument("--max-concurrent-tasks", type=int, help=tr("arg_max_concurrent_tasks"))
+    parser.add_argument("--sandbox", choices=tuple(sorted(SANDBOX_MODES)), help=tr("arg_sandbox"))
+    parser.add_argument("--provider-type", choices=tuple(sorted(PROVIDER_TYPES)), help=tr("arg_provider_type"))
+    parser.add_argument("--fallback-models", help=tr("arg_fallback_models"))
+    parser.add_argument("--task-executor", choices=tuple(sorted(TASK_EXECUTORS)), help=tr("arg_task_executor"))
+    parser.add_argument("--auto-resume", action="store_true", help=tr("arg_auto_resume"))
+    parser.add_argument("--yolo", action="store_true", help=tr("arg_yolo"))
     parser.add_argument(
         "--allow-network",
         action="store_true",
-        help="允许本会话的联网工具（web_search / webfetch）",
+        help=tr("arg_allow_network"),
     )
     parser.add_argument(
         "--permission-mode",
         choices=tuple(sorted(PERMISSION_MODES)),
         default="default",
-        help="权限模式：plan 只读规划；acceptEdits 自动接受文件写入（命令仍需确认）；yolo 全部放行",
+        help=tr("arg_permission_mode"),
     )
     parser.add_argument(
         "--subagent-writable",
         action="store_true",
-        help="允许 task 子代理在已授权写入的会话里委派写文件（acceptEdits）或写+命令（yolo）；"
-        "默认/plan 模式下子代理保持只读（M6-T1）",
+        help=tr("arg_subagent_writable"),
     )
-    parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
-    parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /collapse 切回折叠")
-    parser.add_argument("--resume", action="store_true", help="恢复上次保存的会话")
+    parser.add_argument("--no-stream", action="store_true", help=tr("arg_no_stream"))
+    parser.add_argument("--verbose-tools", action="store_true", help=tr("arg_verbose_tools"))
+    parser.add_argument("--resume", action="store_true", help=tr("arg_resume"))
     parser.add_argument(
         "--list-sessions",
         action="store_true",
-        help="列出已保存的会话与 fork 分支后退出（配合 --session-id <名称> --resume 恢复）",
+        help=tr("arg_list_sessions"),
     )
     parser.add_argument(
         "--fork-from",
         metavar="MESSAGE",
-        help="从 --session-id 会话的某条消息分叉出新会话后退出：消息序号（保留条数，system=1）或消息 id（m-…）",
+        help=tr("arg_fork_from"),
     )
-    parser.add_argument("--new-session-id", metavar="NAME", help="--fork-from 生成的新会话名（可选，默认自动命名）")
-    parser.add_argument("--session-id", default="latest", help="会话名称，默认 latest")
-    parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
-    parser.add_argument("--setup", action="store_true", help="创建 .minicc/ 骨架（permissions.json + web_token.json）并退出")
-    parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
-    parser.add_argument("--doctor-strict", action="store_true", help="同 --doctor，但 warning 也按 fatal 处理（CI 风险守门）")
-    parser.add_argument("--stats", action="store_true", help="只读打印工作区现状清单（不调网络、不跑模型）")
-    parser.add_argument("--digest", action="store_true", help="只读打印工作区的仓库考古学读数：分支 / 提交 / 首次提交 / 批次手稿（不调网络、不跑模型）")
+    parser.add_argument("--new-session-id", metavar="NAME", help=tr("arg_new_session_id"))
+    parser.add_argument("--session-id", default="latest", help=tr("arg_session_id"))
+    parser.add_argument("--print-config", action="store_true", help=tr("arg_print_config"))
+    parser.add_argument("--setup", action="store_true", help=tr("arg_setup"))
+    parser.add_argument("--doctor", action="store_true", help=tr("arg_doctor"))
+    parser.add_argument("--doctor-strict", action="store_true", help=tr("arg_doctor_strict"))
+    parser.add_argument("--stats", action="store_true", help=tr("arg_stats"))
+    parser.add_argument("--digest", action="store_true", help=tr("arg_digest"))
     parser.add_argument(
         "--capabilities",
         action="store_true",
-        help="打印注册表里的工具能力清单（JSON）并退出（不调网络、不跑模型）",
+        help=tr("arg_capabilities"),
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="与 --doctor / --doctor-strict / --stats / --capabilities 搭配：输出机器可读 JSON",
+        help=tr("arg_json"),
     )
     parser.add_argument(
         "--version",
         action="store_true",
-        help="打印版本并退出；与 --json 搭配输出 {\"name\": \"minicc\", \"version\": ...}",
+        help=tr("arg_version"),
     )
     return parser
 

@@ -8,7 +8,7 @@ the repository's own sources to see which keys are actually reached.
 
 These gates make the tables answer for each other and pin the formatter
 ``tr`` relies on. The read-count ratchet only ever shrinks: it records the
-keys nobody wires today (34 at the time this landed), and any commit that
+keys nobody wires yet (33 at part 1, 32 at part 2), and any commit that
 wires one shrinks it — deleting that same affordance fails here.
 """
 
@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 #: Keys nobody reads yet. Every batch that wires one in shrinks this set;
 #: deleting a key shrinks it too. Never add to it.
 UNREAD_KEYS_BASELINE = frozenset({
-    "absolute_path", "denied_exec", "denied_write", "branch_invalid",
+    "absolute_path", "branch_invalid", "denied_exec", "denied_write",
     "fork_invalid_point", "fork_max_keep", "fork_min_keep", "git_failed",
     "invalid_args", "mcp_config_error", "mcp_no_provider", "mcp_sampling_denied",
     "mcp_sampling_failed", "mcp_server_failed", "memory_list_empty",

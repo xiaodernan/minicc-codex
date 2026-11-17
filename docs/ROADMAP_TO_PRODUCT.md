@@ -54477,3 +54477,24 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - 上述剩余部分登记为 **M8-T1131（CLI 双语化 第 2/2 段）**：engine 面 43 处接线 + argparse help 双语 + doctor/commands；完成后 CLI 才算全量双语。
 - `UNREAD_KEYS_BASELINE` 是刻意写下的「还没接的账」，不是完成声明。
 - CI 这一刻仍在跑；不把它写成绿。
+## 批次 1106 · M8-T1131: CLI 双语化 第 2/2 段 — `--help` 面、授权理由、doctor/commands 全部入表
+
+### 做了什么
+
+- **cli_io.py 消息表 75 → 148 键**（两表逐键对仗，仍是同一 `tr`/降级契约）。
+- **main.py argparse**：parser `description` + 39 条 `help=` 全部改 `tr("arg_*")`；`MINICC_LOCALE=en_us minicc --help` 实测逐选项英文（含 description 行）。
+- **audit.py**：`AuthorizationDecision.reason` 的 25 条中文裁决理由全部接入（`audit_*` 键）——这是用户权限提示下看到的每个字。
+- **doctor.py**：升级 python/unit/重装 wheel/检查目录写权限/检查 .minicc/ 所有者四条建议接入。
+- **commands.py**：`reason_text`（编码读不出来/操作系统不给读）、命令文件损坏的整句提示、技能列表抬头、技能文件目录行接入。
+
+### 守门
+
+- zh_cn 输出逐字节不变（所有新键的 zh 文案逐字照抄原字符串，相关既有断言全绿：main/slash_commands/permission_modes/audit_authorization/doctor/commands 邻域 122+110 条）。
+- `test_cli_i18n.py`：ratchet 32 键（engine 面，列账清晰），表 148/148 对仗；baseline 三腿全绿。
+- `--help` 实测：en_us 输出英文，zh_cn 默认输出中文。
+
+### 诚实边界（不声称）
+
+- `task_manager.py` 等引擎内联文案（约 120 处双引号中文：预算/取消/校验等面向工程师排障与模型的消息）**未接**——登记为 **M8-T1132**：engine 面接线 + registry/fs 工具面错误文案 + 剩下的 32 个 ratchet 键归零。
+- 本批没有动任何通道输出之外的行为：表与 import 之外全是 tr() 调用替换（zh_cn 输出逐字节与接线前一致）。
+- CI 这一刻仍在跑；不把它写成绿。

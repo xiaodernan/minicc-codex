@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
+from .cli_io import tr
 from .internal_paths import PERMISSIONS_NAME
 from .permissions import PERMISSION_RULE_VERDICT_ALLOW, PERMISSION_RULE_VERDICT_DENY, load_permission_rules, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
@@ -165,7 +166,7 @@ def policy_evaluation_error(workspace: Path | str | None) -> str:
     try:
         _rules, error = load_permission_rules(Path(workspace))
     except OSError as exc:
-        return f"{PERMISSIONS_NAME} 读不出来: {exc}"
+        return tr("audit_perm_unreadable", exc=exc)
     return error
 
 
@@ -278,8 +279,8 @@ def path_rule_refusal_reason(workspace: Path | str | None, tool: str) -> str:
     """
     error = policy_evaluation_error(workspace)
     if error:
-        return f"permissions.json 读不出来，先拒绝此操作 ({tool}): {error}"
-    return f"permissions.json deny 规则拒绝了此操作 ({tool})"
+        return tr("audit_perm_deny_tool", tool=tool, error=error)
+    return tr("audit_perm_deny_rule", tool=tool)
 
 
 #: M8-T338: the tools whose own target can be the **whole workspace** - the
@@ -482,7 +483,7 @@ def normalize_permission_mode(value: object) -> str:
     raw = str(value or "default").strip().lower()
     mode = _PERMISSION_MODE_ALIASES.get(raw)
     if mode is None:
-        raise ValueError(f"permission_mode 非法: {value!r} (default|plan|acceptEdits|yolo)")
+        raise ValueError(tr("audit_perm_invalid", value=value))
     return mode
 
 
@@ -714,7 +715,7 @@ def authorize_tool(
             return AuthorizationDecision(
                 False,
                 risk or "unknown",
-                f"permissions.json 读不出来，先拒绝此操作（{policy_error}）",
+                tr("audit_policy_unreadable", policy_error=policy_error),
                 AUTHORIZATION_PERMISSION_POLICY_UNREADABLE,
             )
         verdict = match_rules(rules, tool, arguments)
@@ -722,14 +723,14 @@ def authorize_tool(
             return AuthorizationDecision(
                 False,
                 risk or "unknown",
-                "permissions.json deny 规则拒绝",
+                tr("audit_deny_rule"),
                 AUTHORIZATION_PERMISSION_RULE_DENY,
             )
         if verdict == PERMISSION_RULE_VERDICT_ALLOW:
             return AuthorizationDecision(
                 True,
                 risk or "unknown",
-                "permissions.json allow 规则放行",
+                tr("audit_allow_rule"),
                 AUTHORIZATION_PERMISSION_RULE_ALLOW,
             )
     mode = normalize_permission_mode(permission_mode)
@@ -750,7 +751,7 @@ def authorize_tool(
             return AuthorizationDecision(
                 True,
                 denied.risk,
-                "本会话 allowlist 已放行",
+                tr("audit_session_allow"),
                 AUTHORIZATION_SESSION_ALLOWLIST,
             )
         return denied
@@ -759,52 +760,52 @@ def authorize_tool(
         denied = AuthorizationDecision(
             False,
             risk or "unknown",
-            "git_stage/git_commit 只能由人类在会话中授权；yolo / allow_changes / acceptEdits 都不放行",
+            tr("audit_git_reconly"),
             AUTHORIZATION_HUMAN_ONLY_TOOL,
         )
         return _allowlist_override(denied)
     if mode == "yolo":
         if risk == RISK_READONLY or tool in NETWORK_TOOL_NAMES:
-            return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", AUTHORIZATION_TASK_YOLO)
-        return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", AUTHORIZATION_TASK_YOLO)
+            return AuthorizationDecision(True, risk or "unknown", tr("audit_yolo_readonly"), AUTHORIZATION_TASK_YOLO)
+        return AuthorizationDecision(True, risk or "unknown", tr("audit_yolo_writes"), AUTHORIZATION_TASK_YOLO)
     if network_tool and risk == RISK_READONLY:
         if allow_network:
-            return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", AUTHORIZATION_TASK_NETWORK)
+            return AuthorizationDecision(True, "network_readonly", tr("audit_task_network_readonly"), AUTHORIZATION_TASK_NETWORK)
         return _allowlist_override(
-            AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
+            AuthorizationDecision(False, "network_readonly", tr("audit_task_network_missing"), AUTHORIZATION_MISSING_TASK_NETWORK)
         )
     if risk == RISK_READONLY:
-        return AuthorizationDecision(True, "readonly", "只读工具已允许", AUTHORIZATION_DEFAULT_READONLY)
+        return AuthorizationDecision(True, "readonly", tr("audit_default_readonly"), AUTHORIZATION_DEFAULT_READONLY)
     if risk == RISK_WRITE:
         if mode == "plan":
-            return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", AUTHORIZATION_PLAN_MODE_WRITE)
+            return AuthorizationDecision(False, "write", tr("audit_plan_mode_write"), AUTHORIZATION_PLAN_MODE_WRITE)
         if network_tool and not allow_network:
             return _allowlist_override(
-                AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", AUTHORIZATION_MISSING_TASK_NETWORK)
+                AuthorizationDecision(False, "write", tr("audit_network_needs_task"), AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if mode == "acceptEdits" or allow_changes:
-            return AuthorizationDecision(True, "write", "本任务已明确授权写入", AUTHORIZATION_TASK_WRITE)
+            return AuthorizationDecision(True, "write", tr("audit_task_write"), AUTHORIZATION_TASK_WRITE)
         return _allowlist_override(
-            AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_WRITE)
+            AuthorizationDecision(False, "write", tr("audit_task_write_missing"), AUTHORIZATION_MISSING_TASK_WRITE)
         )
     if risk == RISK_EXEC:
         if mode == "plan":
-            return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", AUTHORIZATION_PLAN_MODE_EXEC)
+            return AuthorizationDecision(False, "exec", tr("audit_plan_mode_exec"), AUTHORIZATION_PLAN_MODE_EXEC)
         command = arguments.get("command", "")
         if command_uses_network(command) or network_tool:
             if allow_changes and allow_network:
-                return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", AUTHORIZATION_TASK_NETWORK)
+                return AuthorizationDecision(True, "network_exec", tr("audit_task_network_exec"), AUTHORIZATION_TASK_NETWORK)
             return _allowlist_override(
-                AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
+                AuthorizationDecision(False, "network_exec", tr("audit_task_network_exec_missing"), AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if tool == TOOL_NAME_BASH and is_readonly_command(str(command)):
-            return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", AUTHORIZATION_SAFE_VERIFICATION)
+            return AuthorizationDecision(True, "readonly_exec", tr("audit_safe_verification"), AUTHORIZATION_SAFE_VERIFICATION)
         if allow_changes:
-            return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", AUTHORIZATION_TASK_EXEC)
+            return AuthorizationDecision(True, "exec", tr("audit_task_exec"), AUTHORIZATION_TASK_EXEC)
         return _allowlist_override(
-            AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_EXEC)
+            AuthorizationDecision(False, "exec", tr("audit_task_exec_missing"), AUTHORIZATION_MISSING_TASK_EXEC)
         )
-    return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", AUTHORIZATION_UNKNOWN_RISK)
+    return AuthorizationDecision(False, "unknown", tr("audit_unknown_risk"), AUTHORIZATION_UNKNOWN_RISK)
 
 
 @dataclass(frozen=True)

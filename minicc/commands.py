@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .cli_io import tr
+
 COMMANDS_DIR_NAME = "commands"
 SKILLS_DIR_NAME = "skills"
 MAX_COMMAND_BODY_CHARS = 16_000
@@ -143,7 +145,7 @@ class CommandFileFailure:
     def reason_text(self) -> str:
         """The one wording of the reason - a listing and a refusal must not
         invent two of their own."""
-        return "编码读不出来" if self.reason == READ_UNDECODABLE else "操作系统不给读"
+        return tr("commands_undecodable") if self.reason == READ_UNDECODABLE else tr("commands_os_unreadable")
 
     def to_public_dict(self) -> dict[str, Any]:
         # Same face as SlashCommand.to_public_dict: a listing shows that the
@@ -260,9 +262,8 @@ def slash_command_read_refusal(
         if failure.name != head:
             continue
         return (
-            f"自定义命令 /{head} 的定义文件在 {failure.scope} 级存在，但{failure.reason_text}"
-            f"（{failure.path}：{failure.detail}）。这条输入不会作为普通消息发给模型——"
-            "请先修好这个文件（存成 UTF-8，或释放占用它的进程）。"
+            tr("commands_file_broken", head=head, scope=failure.scope,
+               reason_text=failure.reason_text, path=failure.path, detail=failure.detail)
         )
     return ""
 
@@ -345,9 +346,9 @@ def skills_prompt_block(workspace: Path) -> str:
         return ""
     lines = [f"- {skill.name}: {skill.description}" for skill in skills]
     return (
-        "\n\n可用技能（仅列出名称与说明，正文不常驻上下文；需要时先用 read_file 读取对应 SKILL.md）：\n"
+        "\n\n" + tr("commands_skills_header") + "\n"
         + "\n".join(lines)
-        + f"\n技能文件目录：{Path(workspace) / '.minicc' / SKILLS_DIR_NAME}"
+        + "\n" + tr("commands_skills_dir", path=Path(workspace) / ".minicc" / SKILLS_DIR_NAME)
     )
 
 
