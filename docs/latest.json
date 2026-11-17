@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T17:42:51.078Z",
+  "generated_at": "2026-11-17T18:19:53.911Z",
   "branch": "main",
-  "head": "e358d37",
-  "total_commits": 1900,
+  "head": "3239e1e",
+  "total_commits": 1902,
   "recent_commits": [
+    {
+      "short": "3239e1e",
+      "at": "2026-11-18T02:19:21+08:00",
+      "subject": "M8-T1192 (abuse probe): credential-stuffing / forged-token hammering measured for real - scripts/stress_auth_probe.py spawns a required-auth instance (0.0.0.0+t"
+    },
+    {
+      "short": "e78ec3e",
+      "at": "2026-11-17T17:42:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e358d37",
       "at": "2026-11-18T01:42:28+08:00",
@@ -19,24 +29,14 @@
       "short": "3757d3b",
       "at": "2026-11-18T01:17:23+08:00",
       "subject": "M8-T1190 (CI red #6): liveness read-back - join(timeout=) without an is_alive() read-back may time out silently; stress probe's cleanup now asserts the daemon a"
-    },
-    {
-      "short": "d7f2acf",
-      "at": "2026-11-17T16:57:21Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9248069",
-      "at": "2026-11-18T00:56:59+08:00",
-      "subject": "M8-T1189 (CI red #5, en_cjk parity): the gateway's Chinese refusal leaked into en mode - oracle_common.error_payload now ASCII-only 'kind: ExceptionType' with f"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 461,
+  "roadmap_batches": 462,
   "changelog_entries": 1,
-  "roadmap_lines": 54994,
-  "tracked_files": 1120,
-  "test_files": 737,
+  "roadmap_lines": 55016,
+  "tracked_files": 1122,
+  "test_files": 738,
   "almanac_chapters": 56,
   "module_count": 14,
   "feature_surface": [
