@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T08:41:36.041Z",
+  "generated_at": "2026-11-17T09:28:58.781Z",
   "branch": "main",
-  "head": "1cf493b",
-  "total_commits": 1854,
+  "head": "7e16fb9",
+  "total_commits": 1856,
   "recent_commits": [
+    {
+      "short": "7e16fb9",
+      "at": "2026-11-17T17:28:37+08:00",
+      "subject": "M8-T1168: a shallow clone is honest 'unknown', not 'broken' - the CI web-smoke job uses actions/checkout@v4 default fetch-depth=1; the fact-pack head lands outs"
+    },
+    {
+      "short": "690d8d8",
+      "at": "2026-11-17T08:41:36Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1cf493b",
       "at": "2026-11-17T16:41:06+08:00",
@@ -19,22 +29,12 @@
       "short": "8a3c387",
       "at": "2026-11-17T16:13:54+08:00",
       "subject": "M8-T1166: the model attributes this repository's mainline red - /api/oracle-ci-diagnosis reads the same GitHub REST wire the admin CI tile shows (latest + last-"
-    },
-    {
-      "short": "91a06c7",
-      "at": "2026-11-17T07:48:35Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0846924",
-      "at": "2026-11-17T15:47:41+08:00",
-      "subject": "M8-T1165: the drift sentinel must not block the cheap checks on the expensive one - first CI red (94647ce) was the admin smoke waiting 60s for a cell that sat b"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 442,
+  "roadmap_batches": 443,
   "changelog_entries": 1,
-  "roadmap_lines": 54641,
+  "roadmap_lines": 54664,
   "tracked_files": 1122,
   "test_files": 734,
   "almanac_chapters": 55,
