@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T11:23:13.708Z",
+  "generated_at": "2026-11-17T12:24:29.368Z",
   "branch": "main",
-  "head": "cbc8c05",
-  "total_commits": 1860,
+  "head": "f3bce75",
+  "total_commits": 1862,
   "recent_commits": [
+    {
+      "short": "f3bce75",
+      "at": "2026-11-17T20:23:25+08:00",
+      "subject": "M8-T1171: the ledger itself quoted a content-addressed bundle name - the very gate the docs claim to document caught it; name the stable web/app.js, web/game.js"
+    },
+    {
+      "short": "1b0b8f2",
+      "at": "2026-11-17T11:23:14Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "cbc8c05",
       "at": "2026-11-17T19:22:36+08:00",
@@ -19,16 +29,6 @@
       "short": "051b0e9",
       "at": "2026-11-17T18:05:17+08:00",
       "subject": "M8-T1169: the en table finally carries scroll.natural/scroll.invert/scroll.invertHint - the previous batch's en-key insertion never landed in the committed file"
-    },
-    {
-      "short": "0db28d6",
-      "at": "2026-11-17T09:28:59Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7e16fb9",
-      "at": "2026-11-17T17:28:37+08:00",
-      "subject": "M8-T1168: a shallow clone is honest 'unknown', not 'broken' - the CI web-smoke job uses actions/checkout@v4 default fetch-depth=1; the fact-pack head lands outs"
     }
   ],
   "first_commit_at": "2026-08-24",
