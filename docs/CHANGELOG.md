@@ -592,3 +592,10 @@
   验证：本地 admin_smoke 通过；drift 端点热响应实测 0.23s；force-refresh 实测 13.5s（沙箱负载波动）；rc=0 正确落进 memo；route_coverage 不变。CRLF pins index.html 751/0、i18n.js 313/0。
 
   **诚实边界**：94647ce 的 CI 记作失败；原因如上；M8-T1164（Ch.LV）这一笔的 CI 这一刻仍在 in progress/queued——本次修复落地的这一笔也得从头跑两条腿，不预写绿。
+- **CI 红灯归因 · 模型上岗——`/api/oracle-ci-diagnosis`（M8-T1166 / 批次 1113）**：大模型能力深度嵌入这一批次的主轴，落点选在“仓库主线红 → 人判断下一步”这条状态流上。此前 `gh` 的红灯需要人眼逐行读 log；现在管理面板「CI 红灯归因 · 值守守门人」（新卡片，`admin-cidx`，置于 retrospective 与 drift 之间）把 **GitHub REST 真实数据**（和 `/api/ci_status` 同一份 wire：latest + recent 3 runs）喂给模型，由它指出**最可能的失败族**（双语化引文没跟着移动 / one-home 字面量被搬走 / 围栏尺子函数名改名/名册宽面/CRLF 钉/`subprocess` 未捕 `TimeoutExpired`/冒烟白等后台检查六族）——**只指不断言**；没有把握时模型必须说“无法从这六类里判定”，不许编造。
+
+  **三个零 token 判词**：wire unreachable → `live=False/wire-down`；最新运行 completed 且 conclusion≠failure → `no-current-failure`（模型不调用、零成本，payload 明说）；最新运行 `status!=completed` → `pending`（“诊断一个还没发生的红没有意义”，模型不调用）。只有真失败才付 token。
+
+  本批模块：`minicc/oracle_ci_diagnosis.py`（module 7/unit 测：失败→模型归因 + 提示词只含 wire 事实 + 六族上限 + 反虚构子句、green/pending/wire-down 零 token、缓存往返一次、模型炸→live=False 不抛）、`/api/oracle-ci-diagnosis` 路由（37→**38 GET**）、`web/index.html` CRLF 钉新增卡片（757/0）、`web/styles.css` 新班名、`admin.js` `renderCiDx` 接线（渲染时按 `verdict` 分别打印 `no-current-failure` 的零成本文案与归因文案）、`i18n.js` 四个 `admin.ciDx*` 键（双语，i18n.js CRLF 317/0）；`test_http_surface` 增 `test_get_oracle_ci_diagnosis_never_500s`（两 leg：GET + ?fresh=1）；`route_coverage` **38/38 GET · 14/14 POST**；HTTP 套件 107 ✓；unit 7/7；admin/en_cjk/almanac/atlas/dazzle smoke 全绿。
+
+  **诚实边界**：此刻 main 的最新一次 CI（`0846924`）处于 `in_progress`——本端点没有调用模型（零 token），也没有归因任何失败；94647ce 的 CI failure 仍被记下（原因：drift doc_pointers 的 60s 白等 + 顺带暴露的 UTC 线格式和 TimeoutExpired）——**不掩盖红，也不为红虚构新绿**。本批不做 `gh` 断言的代替者：失败真实存在时归因六族，**不构成修复建议**，修不过 CI 的门永远不算修好。

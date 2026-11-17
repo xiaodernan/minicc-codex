@@ -409,6 +409,46 @@ export async function openAdmin() {
     const retrospectivePromise = requestJson("/api/oracle-retrospective", {}, 30000).catch(() => null);
     retrospectivePromise.then((retrospective) => renderRetrospective(retrospective, false));
 
+    // CI red attribution — the model reads the real GitHub wire and says which
+    // failure family the latest mainline red belongs to, or honestly says there is none.
+    function renderCiDx(cidx, refreshed) {
+      const bodyEl = $("#adminCiDxBody");
+      const usageEl = $("#adminCiDxUsage");
+      const byEl = $("#adminCiDxModel");
+      if (byEl && cidx && cidx.model) byEl.textContent = cidx.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现判" : "read live by the model";
+      if (!cidx || !cidx.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.ciDxOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = cidx?.error ? `error: ${String(cidx.error).slice(0, 140)}` : "";
+        return;
+      }
+      const text = zh() ? cidx.zh : cidx.en;
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(text || (zh() ? cidx.en : cidx.zh))}</p>`;
+      if (usageEl) {
+        if (cidx.verdict === "no-current-failure") {
+          usageEl.textContent = zh() ? "当前 main 绿 · 0 tokens · 模型未被调用" : "main is green · 0 tokens · model not called";
+        } else {
+          const u = cidx.usage || {};
+          const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+          usageEl.textContent = zh()
+            ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · 已重新生成" : ""}`
+            : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · regenerated" : ""}`;
+        }
+      }
+    }
+    const ciDxRefresh = $("#adminCiDxRefresh");
+    if (ciDxRefresh) {
+      ciDxRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminCiDxBody");
+        const usageEl = $("#adminCiDxUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.ciDxPending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-ci-diagnosis?fresh=1", {}, 30000).catch(() => null).then((cidx) => renderCiDx(cidx, true));
+      });
+    }
+    const ciDxPromise = requestJson("/api/oracle-ci-diagnosis", {}, 30000).catch(() => null);
+    ciDxPromise.then((cidx) => renderCiDx(cidx, false));
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");

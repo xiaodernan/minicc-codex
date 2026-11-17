@@ -54599,3 +54599,22 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 
 - `94647ce` 的 CI 结论 = **failure**（如上，已修）；修复落地的这一笔 CI 这一刻仍在 pending/queued——不写绿。
 - 三项格子性质不变：git/HEAD、CRLF 字节、doc_pointers rc——全部来自真实子进程/真实字节，只是贵的那一项不再是便宜格子的排队理由。
+## 批次 1113 · M8-T1166: CI 红灯归因——大模型上岗判断失败族
+
+### 为什么做
+
+“大模型能力深度嵌入项目整体能力”的主轴，落在一处此前完全由人扛的状态流：**main 红了 → 人读 log → 人归因**。本仓库的红此前全部由 Windows + Ubuntu 两腿完整抓住，每次都被修——现在给人一次带模型归因的机会，而不是给机会撞同样的错。
+
+### 做了什么
+
+- **新端点 `GET /api/oracle-ci-diagnosis`**：数据源 = `minicc/ci_health.py` 的 GitHub REST wire（同一个被 admin CI tile 暴露的事实集）。**最新运行未完成** → `pending`（不花 token）。**最新运行 completed 且非 failure** → `no-current-failure`（不花 token）。**wire 不可达** → `live=False, wire-down`。**真红** → 调模型（`prompt_cache_key=minicc-oracle-ci-diagnosis-01`，max_tokens=420, temp=0.15），提示词明确：只允许从六个真实失败族里选、不许编造、没有把握就说“无法从这六类里判定”。
+- **管理面板新增卡片** `admin-cidx`（retrospective 与 drift 之间）：「CI 红灯归因 · 值守守门人」/ On-duty gatekeeper；有 `qwen-refresh` 按钮，`?fresh=1` 直通核验；`no-current-failure`/`pending` 时打印零 token 的诚实提示；有失败时打印 zh/en 归因与缓存计数（`cached_tokens`）。
+- **单测 7/7**：失败→归因、prompt 只含 wire 事实、六族上限与反虚构子句、green/pending/wire-down 三零 token 路径（forbidden client 证明）、memo 命中一次、模型炸→live=False。
+- **HTTP 腿**：`test_http_surface::test_get_oracle_ci_diagnosis_never_500s`（GET + ?fresh=1 两条）。
+- **CRLF pins 不变**：index.html 757/0、i18n.js 317/0；`route_coverage` 37→**38 GET**，100/100。
+
+### 不声称
+
+- **本次没有调用模型**——最新 CI 仍 `in_progress`（0846924），所以任何对失败的归因都不会出现；归因只有在真红出现时才产生，且六族上限不越界。
+- 归因**不是修复**；CI 门红 = 红，直到某次 push 让两条腿全绿。
+- 新卡片不新增 smoke 断言；既有 admin_smoke/en_cjk/almanac 等全部按原样全绿。

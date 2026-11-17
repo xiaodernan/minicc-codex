@@ -601,6 +601,20 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - the admin tile must never 500
                 self._json({"live": False, "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-ci-diagnosis":
+            # M8-T1166: the model reads the real GitHub wire (same data the
+            # /api/ci_status tile shows) and attributes the latest mainline
+            # red, or honestly says there is none (no model call). Never raises.
+            try:
+                from .oracle_ci_diagnosis import build_ci_diagnosis
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_ci_diagnosis(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "zh": "", "en": "",
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-retrospective":
             # The model as completion-assurance: reads the audit record of the
             # most recent "completed" task and judges its plausibility.

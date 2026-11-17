@@ -150,7 +150,9 @@ export const I18N = {
     "session.emptyChip2": "跑测试并报告：哪挂了、为什么",
     "session.emptyChip3": "审查 git diff，指出回归风险",
     "session.emptyChip4": "打开说明书，十三章全翻到", "session.emptyChip5": "打开世界地图——92 个真实坐标随便点",
-    "admin.driftKicker": "漂移哨兵 · 仓库自证", "admin.driftHead": "事实包 ≡ HEAD", "admin.driftCrlf": "CRLF 钉",
+    "admin.ciDxKicker": "CI 红灯归因 · 值守守门人", "admin.ciDxPending": "正在读取 GitHub 真实运行记录…",
+    "admin.ciDxRefresh": "重新归因 CI 红灯", "admin.ciDxOutage": "值守守门人暂时不可用——先看下方“mainline health”里的真实记录。",
+"admin.driftKicker": "漂移哨兵 · 仓库自证", "admin.driftHead": "事实包 ≡ HEAD", "admin.driftCrlf": "CRLF 钉",
     "admin.driftDocs": "doc_pointers", "admin.driftRefresh": "重新核验漂移哨兵",
 
   },
@@ -302,7 +304,9 @@ export const I18N = {
     "session.emptyChip2": "Run the test suite and report failures",
     "session.emptyChip3": "Review the diff and flag regressions",
     "session.emptyChip4": "Open the manual — all thirteen chapters", "session.emptyChip5": "Open the world map — 92 real coordinates to tap",
-    "admin.driftKicker": "Drift sentinel · the repo proves itself", "admin.driftHead": "fact pack ≡ HEAD", "admin.driftCrlf": "CRLF pins",
+    "admin.ciDxKicker": "CI red attribution · on-duty gatekeeper", "admin.ciDxPending": "Reading the real GitHub runs…",
+    "admin.ciDxRefresh": "Re-attribute the CI red", "admin.ciDxOutage": "The on-duty gatekeeper is unavailable — check the real recorded runs in “mainline health” below.",
+"admin.driftKicker": "Drift sentinel · the repo proves itself", "admin.driftHead": "fact pack ≡ HEAD", "admin.driftCrlf": "CRLF pins",
     "admin.driftDocs": "doc_pointers", "admin.driftRefresh": "re-verify the drift sentinel",
 
   },

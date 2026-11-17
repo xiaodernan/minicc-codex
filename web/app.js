@@ -1057,6 +1057,10 @@
       "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669",
       "session.emptyChip4": "\u6253\u5F00\u8BF4\u660E\u4E66\uFF0C\u5341\u4E09\u7AE0\u5168\u7FFB\u5230",
       "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201492 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9",
+      "admin.ciDxKicker": "CI \u7EA2\u706F\u5F52\u56E0 \xB7 \u503C\u5B88\u5B88\u95E8\u4EBA",
+      "admin.ciDxPending": "\u6B63\u5728\u8BFB\u53D6 GitHub \u771F\u5B9E\u8FD0\u884C\u8BB0\u5F55\u2026",
+      "admin.ciDxRefresh": "\u91CD\u65B0\u5F52\u56E0 CI \u7EA2\u706F",
+      "admin.ciDxOutage": "\u503C\u5B88\u5B88\u95E8\u4EBA\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u4E0B\u65B9\u201Cmainline health\u201D\u91CC\u7684\u771F\u5B9E\u8BB0\u5F55\u3002",
       "admin.driftKicker": "\u6F02\u79FB\u54E8\u5175 \xB7 \u4ED3\u5E93\u81EA\u8BC1",
       "admin.driftHead": "\u4E8B\u5B9E\u5305 \u2261 HEAD",
       "admin.driftCrlf": "CRLF \u9489",
@@ -1860,6 +1864,10 @@
       "session.emptyChip3": "Review the diff and flag regressions",
       "session.emptyChip4": "Open the manual \u2014 all thirteen chapters",
       "session.emptyChip5": "Open the world map \u2014 92 real coordinates to tap",
+      "admin.ciDxKicker": "CI red attribution \xB7 on-duty gatekeeper",
+      "admin.ciDxPending": "Reading the real GitHub runs\u2026",
+      "admin.ciDxRefresh": "Re-attribute the CI red",
+      "admin.ciDxOutage": "The on-duty gatekeeper is unavailable \u2014 check the real recorded runs in \u201Cmainline health\u201D below.",
       "admin.driftKicker": "Drift sentinel \xB7 the repo proves itself",
       "admin.driftHead": "fact pack \u2261 HEAD",
       "admin.driftCrlf": "CRLF pins",
@@ -8209,6 +8217,41 @@
       }
       const retrospectivePromise = requestJson("/api/oracle-retrospective", {}, 3e4).catch(() => null);
       retrospectivePromise.then((retrospective) => renderRetrospective(retrospective, false));
+      function renderCiDx(cidx, refreshed) {
+        const bodyEl = $("#adminCiDxBody");
+        const usageEl = $("#adminCiDxUsage");
+        const byEl = $("#adminCiDxModel");
+        if (byEl && cidx && cidx.model) byEl.textContent = cidx.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u5224" : "read live by the model";
+        if (!cidx || !cidx.live) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ciDxOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = cidx?.error ? `error: ${String(cidx.error).slice(0, 140)}` : "";
+          return;
+        }
+        const text = zh8() ? cidx.zh : cidx.en;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? cidx.en : cidx.zh))}</p>`;
+        if (usageEl) {
+          if (cidx.verdict === "no-current-failure") {
+            usageEl.textContent = zh8() ? "\u5F53\u524D main \u7EFF \xB7 0 tokens \xB7 \u6A21\u578B\u672A\u88AB\u8C03\u7528" : "main is green \xB7 0 tokens \xB7 model not called";
+          } else {
+            const u = cidx.usage || {};
+            const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+            usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 \u5DF2\u91CD\u65B0\u751F\u6210" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 regenerated" : ""}`;
+          }
+        }
+      }
+      const ciDxRefresh = $("#adminCiDxRefresh");
+      if (ciDxRefresh) {
+        ciDxRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminCiDxBody");
+          const usageEl = $("#adminCiDxUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ciDxPending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-ci-diagnosis?fresh=1", {}, 3e4).catch(() => null).then((cidx) => renderCiDx(cidx, true));
+        });
+      }
+      const ciDxPromise = requestJson("/api/oracle-ci-diagnosis", {}, 3e4).catch(() => null);
+      ciDxPromise.then((cidx) => renderCiDx(cidx, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {
