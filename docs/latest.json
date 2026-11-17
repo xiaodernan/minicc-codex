@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T21:30:24.222Z",
+  "generated_at": "2026-11-17T22:31:02.615Z",
   "branch": "main",
-  "head": "f128793",
-  "total_commits": 1916,
+  "head": "466f1a9",
+  "total_commits": 1918,
   "recent_commits": [
+    {
+      "short": "466f1a9",
+      "at": "2026-11-18T06:30:24+08:00",
+      "subject": "M8-T1199 (bench v2 history live): read-only /api/bench-history over .minicc/bench_history.jsonl - honest absent-state returns, mean_score/mean_elapsed_ms rollup"
+    },
+    {
+      "short": "6723fc8",
+      "at": "2026-11-17T21:30:24Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f128793",
       "at": "2026-11-18T05:30:04+08:00",
@@ -19,24 +29,14 @@
       "short": "e7cf79d",
       "at": "2026-11-18T05:28:39+08:00",
       "subject": "M8-T1198 (blueprint landed): write the two SERVICE_PLANE_PLAN.md leftovers as executable plans in ROADMAP_TO_PRODUCT.md - 'read-only bench history' (GET /api/be"
-    },
-    {
-      "short": "f15d48b",
-      "at": "2026-11-17T20:56:53Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "53923a7",
-      "at": "2026-11-18T04:56:27+08:00",
-      "subject": "M8-T1197 (cleanup after M8-T1196): two honest incidents - (A) the strategist tile shipped as a dead shell (untranslated keys, no renderer, no fetch): repaired b"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 468,
+  "roadmap_batches": 469,
   "changelog_entries": 1,
-  "roadmap_lines": 55181,
-  "tracked_files": 1125,
-  "test_files": 740,
+  "roadmap_lines": 55199,
+  "tracked_files": 1127,
+  "test_files": 741,
   "almanac_chapters": 57,
   "module_count": 14,
   "feature_surface": [
