@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T07:36:22.457Z",
+  "generated_at": "2026-11-17T07:48:35.648Z",
   "branch": "main",
-  "head": "2c64970",
-  "total_commits": 1848,
+  "head": "0846924",
+  "total_commits": 1850,
   "recent_commits": [
+    {
+      "short": "0846924",
+      "at": "2026-11-17T15:47:41+08:00",
+      "subject": "M8-T1165: the drift sentinel must not block the cheap checks on the expensive one - first CI red (94647ce) was the admin smoke waiting 60s for a cell that sat b"
+    },
+    {
+      "short": "e99f932",
+      "at": "2026-11-17T07:36:22Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "2c64970",
       "at": "2026-11-17T15:35:42+08:00",
@@ -19,22 +29,12 @@
       "short": "c8b069d",
       "at": "2026-11-17T14:31:17+08:00",
       "subject": "M8-T1162: drift sentinel's doc_pointers subprocess now catches TimeoutExpired (M8-T1161 red: subprocess.run(timeout=) without enclosing TimeoutExpired; returns "
-    },
-    {
-      "short": "c0325fa",
-      "at": "2026-11-17T14:02:14+08:00",
-      "subject": "M8-T1161: the seven CI reds from 351d444 fixed at the source - docstring citations re-aimed to current lines (_content_to_tool_result :120->:121, web.py clips :"
-    },
-    {
-      "short": "6ad5942",
-      "at": "2026-11-17T05:52:18Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 439,
+  "roadmap_batches": 440,
   "changelog_entries": 1,
-  "roadmap_lines": 54584,
+  "roadmap_lines": 54602,
   "tracked_files": 1114,
   "test_files": 733,
   "almanac_chapters": 55,
