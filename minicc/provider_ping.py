@@ -77,12 +77,44 @@ def fetch_provider_ping(*, force_refresh: bool = False) -> dict[str, Any]:
         if isinstance(cached, dict) and "elapsed_ms" in cached:
             return cached
 
+    # M8-T1182: .env never exports into os.environ (M8-T1174 exported only the
+    # proxy keys), so this doctor read raw env alone reported
+    # "MINICC_BASE_URL is not set" on a machine whose .env is perfectly healthy.
+    # Env still wins when explicitly set; otherwise the one home for config
+    # (load_config) is asked. Under MINICC_FAKE_PROVIDER=1 nothing is probed at
+    # all — deterministic offline tests, and zero network from the fake-provider
+    # smokes and CI.
     base_url = (os.environ.get("MINICC_BASE_URL") or "").strip()
     api_key = (os.environ.get("MINICC_API_KEY") or "").strip()
     model = (os.environ.get("MINICC_MODEL") or "").strip()
+    fake = bool(os.environ.get("MINICC_FAKE_PROVIDER"))
 
-    if not base_url:
-        payload: dict[str, Any] = {
+    if not fake and not base_url:
+        try:
+            from .config import load_config
+
+            cfg = load_config()
+            base_url = (getattr(cfg, "base_url", None) or "").strip()
+            api_key = (getattr(cfg, "api_key", None) or "").strip()
+            model = (getattr(cfg, "model", None) or "").strip()
+        except Exception:
+            # the resolver itself is broken; fall through to the honest not-set payload
+            pass
+
+    if fake:
+        payload = {
+            "configured": False,
+            "live": False,
+            "gateway": None,
+            "model": None,
+            "status": None,
+            "elapsed_ms": 0.0,
+            "error": "MINICC_FAKE_PROVIDER is set; provider ping skipped",
+            "probe": "GET /models",
+            "keeper": keeper_status(),
+        }
+    elif not base_url:
+        payload = {
             "configured": False,
             "live": False,
             "gateway": None,

@@ -54812,3 +54812,20 @@ M8-T1178 把所有模型花钱路由都进了闸——但闸门的计数器（�
 
 - 不做 per-route 预算/限额分析（那是下一批的事：常用管理面板路径各用了多少预算）。
 - 不把 admin 换成令牌鉴权——这一页在客户端 123 放行即开（单纯客户端锁，服务器随现状）。
+## 批次 1125 · M8-T1182: provider-ping 探针——医生永远看不见的通第一个 LED
+
+### 目的
+
+管理页面「上游回声」tile 从 M8-T997 起就是管理员个人检查「这个 Lane 通不通」的第一个 LED。审查发现它只读 `os.environ.MINICC_BASE_URL`——**仓库里没有任何一处把 `.env` 导出成环境变量**（M8-T1174 只回注代理键进 `os.environ`），对所有走 `.env` 的机器，这个 LED 永远是熄的——**医生看不见通第一个探针**却从未被人察觉。
+
+### 做了什么
+
+- **三段调用链**（`minicc/provider_ping.py`）：① `os.environ` 显式 env 依旧优先；② 否则 `load_config()` 兜底（`.env` 唯一真源家）；③ `MINICC_FAKE_PROVIDER=1` 下一律 skip——CI 与 smoke 100% 离线确定。
+- **实测**（事故后直接提交禁住一类 bug）：`live=true · api.aizzz.xyz · gpt-6.1-terra · HTTP 200 · 1337ms`，`GET /models` 零 token。
+- **新增门禁腿**：`tests/test_provider_ping_fallback.py` 4 腿。`http_surface` 98 条腿照旧绿。
+
+### 不声称
+
+- 不改 `.env` 的传播语义：本批依旧只让 `.env` 走 `load_config()`；代理回注仍只进 `os.environ` 的 8 个 proxy 拼写。
+- 不让探针改状态：`GET /models`、零 token、状态落缓存（10s TTL，`_CACHE_KEY="provider-ping:v1"`）。
+- 不修 night eval / nightly real-key 门禁（它仍是 CI 唯一真 key 跑道，比例 token 不在本批）。
