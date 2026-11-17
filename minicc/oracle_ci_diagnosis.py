@@ -77,7 +77,9 @@ def build_ci_diagnosis(*, config: Any | None = None, workspace: Path | None = No
     if not snapshot["live"]:
         return {
             "live": False,
-            "error": "github-wire-unavailable: 最近 3 条主线运行拿不到（GitHub REST 未应答或无权限）",
+            "error": "github-wire-unavailable: the three latest mainline runs are unreadable (GitHub REST did not answer or refused)",
+            "zh_error": "最近 3 条主线运行拿不到（GitHub REST 未应答或无权限）",
+            "en_error": "the three latest mainline runs are unreadable (GitHub REST did not answer or refused)",
             "verdict": "wire-down",
         }
 

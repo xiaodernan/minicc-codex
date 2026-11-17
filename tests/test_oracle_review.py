@@ -117,5 +117,5 @@ def test_broken_wire_returns_live_false(monkeypatch, git_workspace) -> None:
     monkeypatch.setattr("openai.OpenAI", _Broken)
     out = orev.build_workspace_review(workspace=git_workspace)
     assert out["live"] is False
-    assert "connection refused" in out["error"]
+    assert "connection refused" in out["detail"]
     assert out["zh"] == ""

@@ -195,7 +195,9 @@ export async function openAdmin() {
       if (stampEl) stampEl.textContent = drift && drift.generated_at ? String(drift.generated_at).replace("T", " ").replace("Z", " UTC") : "";
       if (!drift || !drift.live) {
         [headEl, crlfEl, docsEl].forEach((el) => { el.textContent = "—"; el.classList.remove("ok", "bad"); });
-        if (metaEl) metaEl.textContent = drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "";
+        if (metaEl) metaEl.textContent = zh()
+          ? (drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "")
+          : "the live drift wire is unreadable — see the log";
         return;
       }
       const aheadRaw = drift.commits_ahead;
@@ -426,7 +428,10 @@ export async function openAdmin() {
       else if (byEl) byEl.textContent = zh() ? "由模型现判" : "read live by the model";
       if (!cidx || !cidx.live) {
         if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.ciDxOutage"))}</p>`;
-        if (usageEl) usageEl.textContent = cidx?.error ? `error: ${String(cidx.error).slice(0, 140)}` : "";
+        if (usageEl) {
+          const line = zh() ? (cidx?.zh_error ?? cidx?.error) : (cidx?.en_error ?? cidx?.error);
+          usageEl.textContent = line ? String(line).slice(0, 160) : "";
+        }
         return;
       }
       const text = zh() ? cidx.zh : cidx.en;

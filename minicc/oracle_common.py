@@ -79,13 +79,20 @@ def call_model(*, config: Any, prompt: str, max_tokens: int = 280, temperature: 
 
 
 def error_payload(kind: str, exc: Exception, *, lists: bool = False) -> dict[str, Any]:
+    # M8-T1189: the admin panel echoes ``error`` verbatim on every oracle tile.
+    # Free prose from exceptions may carry CJK from upstream (the gateway's own
+    # refusal sentence is one) and would leak into the en-mode zero-CJK gate.
+    # ASCII-only ``error`` (kind + class name) + full text preserved in
+    # ``detail`` for the server log path — nothing is lost, nothing is shown
+    # to the panel but the shape of the outage.
     return {
         "live": False,
         "zh": [] if lists else "",
         "en": [] if lists else "",
         "model": None,
         "usage": None,
-        "error": f"{kind}: {type(exc).__name__}: {exc}",
+        "error": f"{kind}: {type(exc).__name__}",
+        "detail": f"{type(exc).__name__}: {exc}",
     }
 
 

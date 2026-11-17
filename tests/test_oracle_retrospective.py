@@ -120,7 +120,7 @@ def test_broken_wire_returns_live_false(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("openai.OpenAI", _Broken)
     out = ot.build_workspace_retrospective(config=_config(), workspace=tmp_path)
     assert out["live"] is False
-    assert "nope" in out["error"]
+    assert "nope" in out["detail"]
     assert out["zh"] == ""
 
 

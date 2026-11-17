@@ -135,7 +135,7 @@ def test_broken_model_returns_live_false_not_exception(monkeypatch, tmp_path) ->
     monkeypatch.setattr("openai.OpenAI", _Client)
     out = ob.build_workspace_brief(config=_config(), workspace=tmp_path)
     assert out["live"] is False
-    assert "connection refused" in out["error"]
+    assert "connection refused" in out["detail"]
     assert out["zh"] == ""
 
 

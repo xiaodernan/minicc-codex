@@ -54925,3 +54925,27 @@ tests/test_a_module_is_registered_before_a_loader_executes_it.py
 ### 不声称
 
 - 不动 M8-T543 判例逻辑；另外 12 个同形 loader 本来已注册（无回归）。
+## 批次 1131 · M8-T1189: en_cjk 逮住上游错误原文漏到英文面板
+
+### 事实
+
+`78b2fa6c` 的 CI（run 44125758266）上 **Playwright web smoke 红**，唯一失败腿：
+
+```
+[en-CJK parity FAILED]: github-wire-unavailable: 由于 3 次失败 GitHub REST 返回无权限
+```
+
+诊断两步：① `oracle_ci_diagnosis.py` 的 wire-down 分支把**中文**拒绝正文写进了 `error` —— EN 面直接曝 CJK；② `oracle_common.error_payload` 把 `str(exc)` 原样倒进 `error` —— 上游 aizzz 网关的拒绝原文就是中文，任何模型外层路径都可能在 EN 面曝汉字。
+
+### 修法（三段 + 1 条门禁腿）
+
+1. **`oracle_common.error_payload`**：`error` 变 ASCII-only（`f"{kind}: {type(exc).__name__}"`，例：`model-unavailable: PermissionDeniedError`），`str(exc)` 保留在 `detail` —— 零损失，面板只印 outage 形状。
+2. **`oracle_ci_diagnosis` wire-down**：`error` 改为英文原文 + 提供 `zh_error`/`en_error` 双语对。
+3. **前端**：admin.js outage 行按 `zh()` 从双语键取；`renderDrift` 的 outage 回退改为 en 英文整句。
+4. 测试：5 条原断言 `.error` → `.detail` 重瞄；新增 `test_cjk_from_exception_never_reaches_error`。
+
+### 不声称
+
+- 不改 `detail` 在服务器日志里的位置；不改载荷里其它字段语义。
+- 不动本地化英文面的其余路径；EN 零 CJK 裁决仍由 en_cjk 全面板走查（CI 裁决为最终依据）。
+- **CI bot 拿不到 GitHub REST 授权时，wire-down 文案必须 en-safe——本批门禁就锁这一条。**

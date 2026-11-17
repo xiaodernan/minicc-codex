@@ -8126,7 +8126,7 @@
             el.textContent = "\u2014";
             el.classList.remove("ok", "bad");
           });
-          if (metaEl) metaEl.textContent = drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "";
+          if (metaEl) metaEl.textContent = zh8() ? drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "" : "the live drift wire is unreadable \u2014 see the log";
           return;
         }
         const aheadRaw = drift.commits_ahead;
@@ -8330,7 +8330,10 @@
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u5224" : "read live by the model";
         if (!cidx || !cidx.live) {
           if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ciDxOutage"))}</p>`;
-          if (usageEl) usageEl.textContent = cidx?.error ? `error: ${String(cidx.error).slice(0, 140)}` : "";
+          if (usageEl) {
+            const line = zh8() ? cidx?.zh_error ?? cidx?.error : cidx?.en_error ?? cidx?.error;
+            usageEl.textContent = line ? String(line).slice(0, 160) : "";
+          }
           return;
         }
         const text = zh8() ? cidx.zh : cidx.en;

@@ -139,7 +139,7 @@ def test_broken_wire_returns_live_false_not_exception(monkeypatch, tmp_path) -> 
     monkeypatch.setattr("openai.OpenAI", _Client)
     out = od.build_workspace_diagnosis(config=_config(), workspace=tmp_path)
     assert out["live"] is False
-    assert "connection refused" in out["error"]
+    assert "connection refused" in out["detail"]
     assert out["zh"] == ""
 
 
@@ -191,3 +191,23 @@ def test_non_json_model_text_still_ships_as_a_diagnosis(monkeypatch, tmp_path) -
     out = od.build_workspace_diagnosis(config=_config(), workspace=tmp_path)
     assert out["live"] is True
     assert "重启导致中断" in out["zh"]
+
+
+def test_cjk_from_exception_never_reaches_error(monkeypatch, tmp_path) -> None:
+    # M8-T1189: en mode asserts zero CJK; an upstream refusal in Chinese must not leak.
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    raise RuntimeError("本站不对您所在的国家及地区进行商业服务")
+
+    monkeypatch.setattr("openai.OpenAI", _Client)
+    out = od.build_workspace_diagnosis(config=_config(), workspace=tmp_path, force_refresh=True)
+    assert out["live"] is False
+    assert "本站" not in out["error"]
+    assert "本站" in out["detail"]
+
