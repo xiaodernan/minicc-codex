@@ -164,7 +164,7 @@ workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网�
 - 证据门的远程执行：同一套 checker 在 CI 与服务里读同一份语料。
 - 多工作区并发：检查服务按工作区做缓存与配额，先量 P95 再谈并发度（进程预算与同命令合并已由 P7
   落地；剩下的是按工作区配额与 P95 实测）。
-- 服务面自己的「一个事实一个家」门：扫描 `application.yml` 与 `config-repo` 的重复键。
+- 服务面自己的「一个事实一个家」门：~~扫描 `application.yml` 与 `config-repo` 的重复键~~ **已落地，M8-T1179 / 批次 1123**：`ShippedConfigHomesAgreeTest`。三条腿：① 全部 shipped/config-repo YAML 在「拒绝重复键」模式下解析（M8-T822 类缺陷首次即被抓）；② 9 项 inline standalone fallback（gateway response-timeout / connect-timeout / max-request-bytes、inspector timeout-seconds、bridge retry knobs、tasks max-limit、insights 两项）与 config-repo 值逐字相等；③ 每个 config-repo dotted key 恰好属于一份配置文件（shared 与 name-specific 零重复）。`mvn -B test` 8/8 模块绿。
 
 ## 五、怎么运行
 

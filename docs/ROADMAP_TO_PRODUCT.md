@@ -54772,3 +54772,27 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - 不改 `/api/rag/query` 自身的 bucket 参数（60s/20）。
 - 不加 per-route 不同阈值：同一把尺子（怕双 10 门路记忆混乱）。
 - 不拒绝真 "并发 20/min 边界" 之外的请求——边界之内的 burst 一律放行。
+## 批次 1123 · M8-T1179: 服务面自己的「一个事实一个家」门
+
+### 目的
+
+`docs/SERVICE_PLANE_PLAN.md` 的「再往后可以做什么」列了一件至今没有工具兜底的事项：配置面自己的「一个事实一个家」扫描——`application.yml` 与 `config-repo` 之间的重复键与 fallback 漂移。配置面今天 —— 数字是人手对到一致的：
+
+- gateway `application.yml`：`response-timeout-seconds:40`（σ `s`）↔ config-repo `minicc-cloud-gateway.yml` 40；`connect-timeout-ms:2000` / `max-request-bytes:1048576`（standalone literals）↔ config-repo `application.yml`（shared）
+- inspector `application.yml`：`budget: ${minicc.cloud.inspector.timeout-seconds:30}s` ↔ shared 30；bridge retry knobs（3 / 150ms）↔ config-repo `minicc-cloud-inspector.yml`
+- tasks / insights 的 env 默认（100 / 10000 / 100000）↔ config-repo（service-specific files）
+
+### 做了什么
+
+- **新增 Java 门**：`minicc-cloud-gateway/src/test/java/.../ShippedConfigHomesAgreeTest.java`——三条腿、零 Spring context：
+  1. shipped 与 config-repo YAML 逐文件用 `SafeConstructor(LoaderOptions(allowDuplicateKeys=false))` 解析；任何重复键 → 直接 AssertionError 点名文件；
+  2. 正则 `\$\{(path):(default)}` 收集所有占位符：`minicc.cloud.*` 直接对；`MINICC_*` 经显式映射表（5 条，loop 黑名单哲学——绝不用启发式）；与 servedConfig（shared ⊕ name-specific 覆盖）逐字 `normalizeScalar` 相等；
+  3. dotted key → 拥有者文件列表；同 key >1 个文件即红；三条 `owners.contains` 证明门真的覆盖到（gateway response-timeout-seconds、inspector timeout-seconds、tasks max-limit）。
+- **全量再验**：`mvn -B test` 退出码 0；8/8 模块 SUCCESS（bridge 18.8s · registry 19.9s · config 32.8s · inspector 17.9s · tasks 10.7s · insights 11.8s · gateway 68s；gateway 59 例含本门 3 条；1 例活代测试 Skipped 属预期）。
+- **计划文档**：`docs/SERVICE_PLANE_PLAN.md` 对应事项标记已落地（仍是地图非账本）。
+
+### 不声称
+
+- 不禁止未来「Deliberate override」：若之后有服务需要覆写 shared key，本门会要求同架离 shared（刻意可见的动作），这是特性不是缺陷。
+- 不解析 Spring 的 `${VAR:nested}` 中有 `{` 的嵌套默认（内层 key 由各自窗口单独核对）。
+- Java 侧不顺手重建上下文——对，门是纯文本/YAML 工具，两条腿皆静态，确定性可重复。
