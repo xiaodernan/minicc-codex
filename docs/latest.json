@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T13:18:14.230Z",
+  "generated_at": "2026-11-17T13:49:40.774Z",
   "branch": "main",
-  "head": "24c0d92",
-  "total_commits": 1865,
+  "head": "18c2237",
+  "total_commits": 1867,
   "recent_commits": [
+    {
+      "short": "18c2237",
+      "at": "2026-11-17T21:48:42+08:00",
+      "subject": "M8-T1175: almanac Ch.LVI 'The Ledger That Speaks / The Ledger That Speaks' - the model finally read what this repository just did, chapter written live by gpt-6"
+    },
+    {
+      "short": "cb8e8fb",
+      "at": "2026-11-17T13:18:14Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "24c0d92",
       "at": "2026-11-17T21:17:37+08:00",
@@ -19,25 +29,15 @@
       "short": "3eae709",
       "at": "2026-11-17T12:24:29Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f3bce75",
-      "at": "2026-11-17T20:23:25+08:00",
-      "subject": "M8-T1171: the ledger itself quoted a content-addressed bundle name - the very gate the docs claim to document caught it; name the stable web/app.js, web/game.js"
-    },
-    {
-      "short": "1b0b8f2",
-      "at": "2026-11-17T11:23:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 446,
+  "roadmap_batches": 447,
   "changelog_entries": 1,
-  "roadmap_lines": 54716,
+  "roadmap_lines": 54733,
   "tracked_files": 1116,
   "test_files": 735,
-  "almanac_chapters": 55,
+  "almanac_chapters": 56,
   "module_count": 14,
   "feature_surface": [
     "workbench",
