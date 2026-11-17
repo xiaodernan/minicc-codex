@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-16T23:41:53.927Z",
+  "generated_at": "2026-11-17T00:03:55.691Z",
   "branch": "main",
-  "head": "bd2e413",
-  "total_commits": 1814,
+  "head": "3c385b3",
+  "total_commits": 1816,
   "recent_commits": [
+    {
+      "short": "3c385b3",
+      "at": "2026-11-17T08:03:21+08:00",
+      "subject": "M8-T1122: the model plans this workspace's next moves - 'first three moves' tile in admin (snapshot -> priority-ordered three moves each with an acceptance chec"
+    },
+    {
+      "short": "01a5e67",
+      "at": "2026-11-16T23:41:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "bd2e413",
       "at": "2026-11-17T07:41:18+08:00",
@@ -19,24 +29,14 @@
       "short": "a8b03b1",
       "at": "2026-11-17T07:17:12+08:00",
       "subject": "M8-T1120: the model goes on duty for triage - 'diagnosis' tile in admin (interrupt causes/streak/trend in, zh+en diagnosis out, honest JSON contract, shared ora"
-    },
-    {
-      "short": "17edbea",
-      "at": "2026-11-16T22:55:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b41f310",
-      "at": "2026-11-17T06:55:00+08:00",
-      "subject": "M8-T1119: the model goes on duty for the workspace - live 'workspace brief' tile in the admin panel (minicc/oracle_brief.py reads the measured fact pack, the mo"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 425,
+  "roadmap_batches": 426,
   "changelog_entries": 1,
-  "roadmap_lines": 54348,
-  "tracked_files": 1094,
-  "test_files": 720,
+  "roadmap_lines": 54361,
+  "tracked_files": 1096,
+  "test_files": 721,
   "almanac_chapters": 52,
   "module_count": 14,
   "feature_surface": [
