@@ -150,7 +150,7 @@ _MESSAGES = {
         "arg_json": "与 --doctor / --doctor-strict / --stats / --capabilities 搭配：输出机器可读 JSON",
         "arg_version": "打印版本并退出；与 --json 搭配输出 name/version JSON",
         # audit.py — authorization decision reasons
-        "audit_perm_unreadable": "permissions.json 读不出来: {exc}",
+        "audit_perm_unreadable": "{name} 读不出来: {exc}",
         "audit_perm_deny_tool": "permissions.json 读不出来，先拒绝此操作 ({tool}): {error}",
         "audit_perm_deny_rule": "permissions.json deny 规则拒绝了此操作 ({tool})",
         "audit_perm_invalid": "permission_mode 非法: {value!r} (default|plan|acceptEdits|yolo)",
@@ -409,7 +409,7 @@ _MESSAGES = {
         "arg_json": "Machine-readable JSON, paired with --doctor / --doctor-strict / --stats / --capabilities",
         "arg_version": "Print the version and exit; with --json outputs name/version JSON",
         # audit.py — authorization decision reasons
-        "audit_perm_unreadable": "Cannot read permissions.json: {exc}",
+        "audit_perm_unreadable": "Cannot read {name}: {exc}",
         "audit_perm_deny_tool": "Cannot read permissions.json; denying first ({tool}): {error}",
         "audit_perm_deny_rule": "permissions.json deny rule blocked this operation ({tool})",
         "audit_perm_invalid": "Invalid permission_mode: {value!r} (default|plan|acceptEdits|yolo)",

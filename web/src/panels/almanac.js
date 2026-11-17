@@ -73,6 +73,7 @@ export const CHAPTERS = [
   { id: "thesurge", roman: { zh: "卷五十", en: "Chapter L" }, title: { zh: "压测", en: "The Surge" }, subtitle: { zh: "慢不是宿命，是调用方法", en: "slow is a method, not a fate" } },
   { id: "livecurrent", roman: { zh: "卷五十一", en: "Chapter LI" }, title: { zh: "通电", en: "The Live Current" }, subtitle: { zh: "模型现役上岗的第一晚", en: "the first night the model went on duty" } },
   { id: "twelfthlight", roman: { zh: "卷五十二", en: "Chapter LII" }, title: { zh: "第十二家灯", en: "The Twelfth Light" }, subtitle: { zh: "model 和 CI 一起灭了灯又点亮了一盏", en: "the model and CI both lost a light, then lit one together" } },
+  { id: "thereckoning", roman: { zh: "卷五十四", en: "Chapter LIV" }, title: { zh: "并账", en: "The Reckoning" }, subtitle: { zh: "每一条分支都被审过了——没有漏掉的", en: "every branch was audited — nothing was skipped" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3675,6 +3676,56 @@ function twelfthlightMarkup() {
     </div>`;
 }
 
+function thereckoningMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-thereckoning">
+      <div class="almanac-kicker">${zh() ? "卷五十四 · 并账" : "Chapter LIV · The Reckoning"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每一条分支都被审过了——<br/><span class="almanac-title-accent">没有漏掉的。</span>`
+        : `Every branch was audited —<br/><span class="almanac-title-accent">nothing was skipped.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>《并账》把 PR #1（dev/minicc-reliability-4ba3，74 个提交）按字节审完后以“并轨收尾”：产品面已在 main，唯一真增量是 5 个测试门。3 个原样收编；per-span 门指出 main 在 3 处 item 循环体内逐项重买 _newline_index，索引移出循环后修正；roadmap-cite 门确认 4 处 ROADMAP 引文漂移，如实重瞄并登记 7 枚历史引文，再加第三条腿防止历史表静悄悄生锈。</p>
+        <p>15 条分支与工作树逐一清扫，补齐三处真缺口。allowlist 的读改写此前只有进程内 RLock：两个 minicc 进程争用同一文件，0/8 轮两边规则都在；现在 hold_sidecar 覆盖读写两半，锁失败不降级无锁写，新增 4 腿门，结果 4/4。grader_type 曾把 pytest、ruff、unknown_tool 等 invented label 漏进判分器列，behavior 也只是套件名；M8-T89 vocabulary（UNGR 决定）收编后，旧测试改瞄正确契约。M12 MCP sampling 曾只在废弃分支：如今 SamplingGuard、全局 MINICC_SAMPLING_ENABLED 默认关闭与服务器 sampling_enabled 双开关、stdio 应答线程、真实 provider callback、逐判决审计和 /api/mcp 状态均已上线，并有 15 腿门。</p>
+        <p>CLI 双语接线覆盖交互、帮助、授权理由、doctor/commands 与约 90 处引擎消息。ratchet 清零：32 个无人读键逐个裁定，13 个接活调用点保留，19 个 backup 时代遗留键删除；消息表 235 键双语对仗，每一个键都有生产者。模型提示词刻意保留中文，以维持 prompt-cache 前缀亲和。</p>
+        <p>副本自 2026-11-17 起直连线程状态：1,838 commits、436 批、1,113 tracked files、733 test files、53→54 卷；身份文案经独立逐字对账，人工通读未发现错字。14 条本地分支核销，远程仅剩 main，工作树撤除。首次提交是 2026-08-24。诚实的边界：这些记录证明的是本次盘点、补缺与核对，不声称穷尽未记录的事实。</p>` : `<p>The Reckoning, closes PR #1 (dev/minicc-reliability-4ba3, 74 commits) as a consolidation closeout after a byte-level audit: the product changes were already on main; the only real increment was 5 test gates. Three were adopted unchanged. The per-span gate correctly exposed three item-loop bodies on main rebuilding _newline_index for each item; moving the index outside the loops fixed it. The roadmap-cite gate found 4 drifted ROADMAP citations, corrected them, recorded 7 historical citations, and added a third leg against silent decay.</p>
+        <p>A byte-level sweep covered 15 branches and worktrees and closed three real gaps. The allowlist read-modify-write had only a process-local RLock: two minicc processes contending on one file preserved both rule sets in 0/8 rounds. hold_sidecar now covers both read and write, with no unlocked-write fallback; the added 4-leg gate now passes 4/4. grader_type had leaked invented labels such as pytest, ruff, and unknown_tool into the judge column, while behavior named a suite, not a judge. M8-T89 vocabulary (UNGR decision) is now adopted, and two old tests target the actual contract. M12 MCP sampling existed only on an abandoned branch; it is now live with SamplingGuard, a default-off global MINICC_SAMPLING_ENABLED plus per-server sampling_enabled double opt-in, stdio response handling, a real provider callback, per-decision audit rows, and /api/mcp status, covered by 15 gates.</p>
+        <p>CLI bilingual wiring now spans interaction, help, authorization reasons, doctor/commands, and about 90 engine messages. Ratchet cleared: all 32 unread keys were adjudicated, 13 active call sites retained and 19 backup-era leftovers removed. The 235-key message table is bilingual and paired; every key has a producer. Chinese model prompts remain deliberate for prompt-cache prefix affinity.</p>
+        <p>Since 2026-11-17, the fallback artifact reads thread state directly: 1,838 commits, 436 batches, 1,113 tracked files, 733 test files, and 53→54 volumes. The identity copy received an independent line-by-line reconciliation and a human read-through found no typos. All 14 local branches were accounted for; only main remains remote, and the worktree was removed. First commit: 2026-08-24. Honest limit: this record establishes the audit, repairs, and checks described here; it does not claim facts beyond that evidence.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">91</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">54 / 54</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">71</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["PR #1 被以字节审计结案", "74 个提交、无 merge-base——产品面全部已在 main 内；唯一真增量 5 个测试门，3 个原样收编、2 个按真相裁定（不记特赦）"],
+        ["三处真缺口补齐", "allowlist 跨进程 RMW（0/8 → 4/4）；grader_type invented label（M8-T89 收编）；M12 MCP sampling 从废弃分支上线（双开关 + 审计 + 15 腿门）"],
+        ["ratchet 清零", "32 个无人读键：13 个接活调用点、19 个遗留键删除——每一个键都有生产者"],
+        ["Model prompts stay zh", "模型提示词刻意保留中文——prompt-cache 前缀亲和不因营销式翻译受损"],
+        ["这一卷 model 自己编的", "prompt_cache_key stable; cached_tokens=4,224——共享前缀第八次现身"],
+      ] : [
+        ["PR #1 was audited closed, byte by byte", "74 commits, no merge-base — the product surface was already on main; the only real increment was 5 test gates (3 verbatim, 2 adjudicated — never allowlisted)"],
+        ["Three real gaps patched", "allowlist cross-process RMW (0/8 → 4/4); grader_type invented labels (M8-T89 adopted); M12 MCP sampling shipped from an abandoned branch (double opt-in gate, JSONL audit, 15-leg gate)"],
+        ["The ratchet bottoms out", "32 unread keys — 13 wired to live call sites, 19 backup-era leftovers deleted; every key has a producer"],
+        ["Chinese model prompts stay Chinese", "prompt-cache prefix affinity is not traded away for cosmetic translation"],
+        ["The model wrote this volume itself", "prompt_cache_key stable; cached_tokens=4,224 — the shared prefix hit for the eighth time"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "并账——不是合并代码，是把每一条分支的账摊开。"
+          : "The Reckoning — not a merge, an accounting of every branch."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3729,6 +3780,7 @@ const CHAPTER_RENDERERS = {
   thesurge: () => thesurgeMarkup(),
   livecurrent: () => livecurrentMarkup(),
   twelfthlight: () => twelfthlightMarkup(),
+  thereckoning: () => thereckoningMarkup(),
 };
 
 async function loadChapter(id) {

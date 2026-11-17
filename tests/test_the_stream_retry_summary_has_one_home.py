@@ -24,6 +24,7 @@ REPO = Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "minicc"
 HOME = "minicc/llm/base.py"
 REAL = "minicc/llm/openai_provider.py"
+I18N = "minicc/cli_io.py"
 FAKE = "minicc/llm/fake.py"
 PREFIX = "模型流中断，正在进行第"
 PRE_STREAM = "模型请求暂时失败"
@@ -121,7 +122,13 @@ def test_the_pre_stream_retry_is_a_different_fact() -> None:
         for path, lineno, text in _literal_strings()
         if text.startswith(PRE_STREAM)
     ]
-    assert len(offenders) == 1 and offenders[0].startswith(REAL + ":"), (
+    # The sentence lives in the i18n home (cli_io.py's engine_llm_retry); the
+    # real provider asks that home. Exactly one spelling, in the table.
+    assert len(offenders) == 1 and offenders[0].startswith(I18N + ":"), (
         "the pre-stream retry sentence is one fact with one site: "
         + ", ".join(offenders)
+    )
+    real = (REPO / REAL).read_text(encoding="utf-8")
+    assert 'tr("engine_llm_retry"' in real, (
+        "the real pre-stream retry sentence moved to the i18n home; the provider must ask it"
     )

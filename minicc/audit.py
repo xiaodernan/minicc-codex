@@ -166,7 +166,7 @@ def policy_evaluation_error(workspace: Path | str | None) -> str:
     try:
         _rules, error = load_permission_rules(Path(workspace))
     except OSError as exc:
-        return tr("audit_perm_unreadable", exc=exc)
+        return tr("audit_perm_unreadable", name=PERMISSIONS_NAME, exc=exc)
     return error
 
 

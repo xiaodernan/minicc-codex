@@ -41,11 +41,11 @@ ROSTER = REPO / "tests" / "fence_rosters" / "wide.txt"
 #: The roster as landed, re-derived for this tree: the document-reader census
 #: plus one mention-only pin.  It may only grow by a conscious edit; the
 #: floor keeps a truncated file from passing as complete.
-WIDE_FLOOR = 9
+WIDE_FLOOR = 10
 
 #: Readers found on the tree this gate landed on.  A floor, not a ledger:
 #: the walk below names any reader missing from the roster.
-READER_FLOOR = 8
+READER_FLOOR = 9
 
 #: One witness per admission reason, so a predicate that goes blind reds here
 #: before the census quietly empties.

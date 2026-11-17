@@ -10,6 +10,8 @@ const EXEMPT = [
   ".worktree-row strong", ".worktree-row small", ".worktree-form input", ".workspace-form input",
   ".archive-title", ".recent-title", ".archive-tag", ".journal-subject", ".dockyard-commit",
   ".commit-subject", ".pulse-archive-row", ".pulse-archive-row strong", ".pulse-timeline-node",
+  // the session heading is the user's own data (resume-latest title), not chrome
+  "#sessionTitle", "#sessionSubtitle",
   "#pulseIdentityPath",
 ].join(", ");
 
