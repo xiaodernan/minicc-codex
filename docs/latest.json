@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T16:02:54.121Z",
+  "generated_at": "2026-11-17T16:26:43.351Z",
   "branch": "main",
-  "head": "01a3234",
-  "total_commits": 1892,
+  "head": "78b2fa6",
+  "total_commits": 1894,
   "recent_commits": [
+    {
+      "short": "78b2fa6",
+      "at": "2026-11-18T00:26:10+08:00",
+      "subject": "M8-T1188 (CI red #4): ubuntu leg failed on the M8-T543 rule - tests/test_stress_probe.py executed spec.loader.exec_module(module) without first registering the "
+    },
+    {
+      "short": "f3efb1e",
+      "at": "2026-11-17T16:02:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "01a3234",
       "at": "2026-11-18T00:02:07+08:00",
@@ -19,22 +29,12 @@
       "short": "3a69d4d",
       "at": "2026-11-17T15:48:45Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0187e45",
-      "at": "2026-11-17T23:48:07+08:00",
-      "subject": "M8-T1187: /_*.py anchored in .gitignore - today's root scratch leaks (M8-T1181, M8-T1186) were both add-A sweeps of transient helper scripts; from now on the re"
-    },
-    {
-      "short": "5dd62fb",
-      "at": "2026-11-17T23:47:13+08:00",
-      "subject": "M8-T1186: scratch ledger draft _ledger_1185.py slipped in via add-A again (first-draft Chinese with nonsense phrasing, superseded by the b-script) - removed imm"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 457,
+  "roadmap_batches": 458,
   "changelog_entries": 1,
-  "roadmap_lines": 54908,
+  "roadmap_lines": 54928,
   "tracked_files": 1120,
   "test_files": 737,
   "almanac_chapters": 56,
