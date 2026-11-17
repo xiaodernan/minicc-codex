@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T15:31:46.670Z",
+  "generated_at": "2026-11-17T15:47:09.046Z",
   "branch": "main",
-  "head": "e09dcb7",
-  "total_commits": 1884,
+  "head": "27da725",
+  "total_commits": 1886,
   "recent_commits": [
+    {
+      "short": "27da725",
+      "at": "2026-11-17T23:46:49+08:00",
+      "subject": "M8-T1185 (one home for the budget tile): M8-T1180's dedicated /api/admin/ratelimit was a second wire to a fact /api/admin/summary already carried since M8-T1014"
+    },
+    {
+      "short": "2fdb5f7",
+      "at": "2026-11-17T15:31:46Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e09dcb7",
       "at": "2026-11-17T23:31:26+08:00",
@@ -19,23 +29,13 @@
       "short": "bdf3abc",
       "at": "2026-11-17T23:04:07+08:00",
       "subject": "M8-T1183: CI claim-checker 'impact floor' red on cf93bb6b - modules no test reaches: scripts.stress_probe; new tests/test_stress_probe.py (3 legs: percentile ma"
-    },
-    {
-      "short": "724ed0e",
-      "at": "2026-11-17T14:59:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "cf93bb6",
-      "at": "2026-11-17T22:57:56+08:00",
-      "subject": "M8-T1182 (+M8-T1181 note): the doctor panel's 'upstream echo' probe NEVER worked for .env-run machines - fetch_provider_ping read os.environ.MINICC_BASE_URL but"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 455,
+  "roadmap_batches": 456,
   "changelog_entries": 1,
-  "roadmap_lines": 54872,
-  "tracked_files": 1120,
+  "roadmap_lines": 54889,
+  "tracked_files": 1121,
   "test_files": 737,
   "almanac_chapters": 56,
   "module_count": 14,
