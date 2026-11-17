@@ -54890,7 +54890,7 @@ M8-T1180 加的瓷贴有一条 "/api/admin/ratelimit" 专用路线。自审核�
 
 ### 事实
 
-2026-11-17 两个根级 scratch 助手脚本被 `git add -A` 扫进 main（`_admin_ratelimit_frontend.py` 半成品 i18n 草稿、`_ledger_1185.py` 措辞损坏的账本第一稿）。两次都用立即删除 + 不重写历史解决（分别见 M8-T1181 / M8-T1186）。
+2026-11-17 两个根级 scratch 助手脚本被 `git add -A` 扫进 main（`_admin_ratelimit_frontend.py` 半成品 i18n 草稿、`_ledger_1185.py` 措辞损坏的账本第一稿）。两次都用立即删除 + 不重写历史解决（分别由提交 344ba8d9 / 5dd62fb6 解决，立即删除，不重写历史）。
 
 ### 修法
 
