@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T20:56:53.100Z",
+  "generated_at": "2026-11-17T21:29:15.615Z",
   "branch": "main",
-  "head": "53923a7",
-  "total_commits": 1912,
+  "head": "e7cf79d",
+  "total_commits": 1914,
   "recent_commits": [
+    {
+      "short": "e7cf79d",
+      "at": "2026-11-18T05:28:39+08:00",
+      "subject": "M8-T1198 (blueprint landed): write the two SERVICE_PLANE_PLAN.md leftovers as executable plans in ROADMAP_TO_PRODUCT.md - 'read-only bench history' (GET /api/be"
+    },
+    {
+      "short": "f15d48b",
+      "at": "2026-11-17T20:56:53Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "53923a7",
       "at": "2026-11-18T04:56:27+08:00",
@@ -19,22 +29,12 @@
       "short": "59a7bbf",
       "at": "2026-11-18T04:26:00+08:00",
       "subject": "M8-T1196 (on-duty strategist tile): model reads the same merged snapshot and writes the three next deep moves with a concrete acceptance check each - new /api/o"
-    },
-    {
-      "short": "5a47fc9",
-      "at": "2026-11-17T19:49:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9330b04",
-      "at": "2026-11-18T03:49:08+08:00",
-      "subject": "M8-T1195 (RAG citations): the [n] refs the model emits now get cross-checked against the retrieved set - chunks carry real start/end line ranges (BM25 docs beco"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 467,
+  "roadmap_batches": 468,
   "changelog_entries": 1,
-  "roadmap_lines": 55122,
+  "roadmap_lines": 55181,
   "tracked_files": 1125,
   "test_files": 740,
   "almanac_chapters": 57,
