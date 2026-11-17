@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T03:44:24.349Z",
+  "generated_at": "2026-11-17T03:55:39.696Z",
   "branch": "main",
-  "head": "39f2ffe",
-  "total_commits": 1829,
+  "head": "4c02fff",
+  "total_commits": 1831,
   "recent_commits": [
+    {
+      "short": "4c02fff",
+      "at": "2026-11-17T11:54:48+08:00",
+      "subject": "M8-T1130: bilingual CLI part 1 - the backup line's two-table cli_io lands in main with MINICC_LOCALE=zh_cn|en_us, tr() fallback never raises, and all 43 interac"
+    },
+    {
+      "short": "c86f910",
+      "at": "2026-11-17T03:44:24Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "39f2ffe",
       "at": "2026-11-17T11:43:55+08:00",
@@ -19,24 +29,14 @@
       "short": "9c54954",
       "at": "2026-11-17T11:18:12+08:00",
       "subject": "M8-T1128: the orphaned reliability branch's five gates land in main - three verbatim, two adjudicated against the truth (per-span census: three per-item _newlin"
-    },
-    {
-      "short": "fcecfb5",
-      "at": "2026-11-17T02:37:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "6330d84",
-      "at": "2026-11-17T10:36:33+08:00",
-      "subject": "M8-T1127: the model's second self-authored chapter - almanac Ch.LIII 'The Twelfth Light / 第十二家灯' (subprocess.run(timeout=) without TimeoutExpired handler in ora"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 432,
+  "roadmap_batches": 433,
   "changelog_entries": 1,
-  "roadmap_lines": 54465,
-  "tracked_files": 1109,
-  "test_files": 732,
+  "roadmap_lines": 54480,
+  "tracked_files": 1110,
+  "test_files": 733,
   "almanac_chapters": 53,
   "module_count": 14,
   "feature_surface": [
