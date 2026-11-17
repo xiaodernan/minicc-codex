@@ -1033,6 +1033,25 @@ def test_get_oracle_audit_story_never_500s(live: _LiveServer, monkeypatch) -> No
     assert fresh[0] == 200
 
 
+def test_get_oracle_recommendations_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1196: the recommendations route is entered by the HTTP suite too —
+    # the seam stub yields the honest failure payload, the route must still answer.
+    import minicc.oracle_recommendations as orc_mod
+
+    monkeypatch.setattr(orc_mod, "build_workspace_recommendations", lambda **kwargs: {
+        "live": False, "zh": [], "en": [],
+        "error": "model-unavailable: TimeoutError",
+        "verdict": "model-unavailable",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-recommendations", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "sk-" not in body.decode("utf-8", "replace")
+    fresh = _request(f"{live.url}/api/oracle-recommendations?fresh=1", method="GET")
+    assert fresh[0] == 200
+
+
 
 def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(live: _LiveServer, monkeypatch) -> None:
     # M8-T1178: every gateway-calling route is behind the shared token bucket;

@@ -608,6 +608,12 @@
             </section>
           </div>
 
+          <section class="admin-card admin-recommendations-model" aria-label="recommendations by the on-duty strategist">
+            <div class="admin-card-kicker"><i data-lucide="brain-circuit"></i><span data-i18n="admin.recommendationsKicker">下一步该干什么 · 值守军师</span><span class="admin-brief-by" id="adminRecommendationsModel"></span><button class="admin-brief-refresh" id="adminRecommendationsRefresh" type="button" aria-label="refresh recommendations" data-i18n-aria="admin.recommendationsRefresh"><i data-lucide="refresh-cw"></i></button></div>
+            <ul class="admin-plan-list" id="adminRecommendationsList"><li class="admin-plan-empty"><em class="admin-brief-pending" data-i18n="admin.recommendationsPending">正在读实测快照…</em></li></ul>
+            <p class="admin-brief-usage" id="adminRecommendationsUsage"></p>
+          </section>
+
           <section class="admin-card" aria-label="recent tasks">
             <div class="admin-card-kicker"><i data-lucide="list-checks"></i><span data-i18n="admin.recent">最近任务 · 真实列表</span></div>
             <ul class="admin-task-list" id="adminRecentTasks"></ul>

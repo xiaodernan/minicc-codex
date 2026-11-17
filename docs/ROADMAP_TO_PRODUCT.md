@@ -55078,3 +55078,21 @@ test_mutation_cells_react_to_the_code_they_name.py
 - 不改 `/api/rag/query` 的外形契约（`citation` 是新增字段，不删任何旧键）；
 - 不改 BM25 的相关性算法、分数或 token 化；
 - 不称「引用已被验证」——仅验证引用编号落在检索范围里；诚实的限制写进 `citation_report` 的 docstring。
+## 批次 1138 · M8-T1196: 值守军师——模型写三位最深的下一步
+
+### 目的
+
+§九 里「管理员页面要能……给出下一步应该采取的深度优化措施」——管理面板上已有 rule-based 三条（restart/weekend-fade/low-cache），但缺一份**把整个工作区的姿势一并纳入的模型读数**。本批补上。
+
+### 做了什么
+
+- **`minicc/oracle_recommendations.py`**（新增）：读 `stats.gather()`（LLM 缓存）+ `build_summary()`（tasks/trend_7d/tool_usage/interrupt_causes）同源快照；模型约束指令只引用快照数字、每条必须有一个可立即验证的验收标准、禁用无锚裸标签词；输出 zh/en 三项。
+- **零 token 两条线**：全零快照（无任务、无缓存、七日零事件）→ `verdict: no-signal`，不调模型；异常 → `live:false`，面板显示 outage。
+- **路由接线**：`GET /api/oracle-recommendations`（`?fresh=1` 绕过 10 分钟 memo）+ shared token bucket；管理牌侧新瓷贴；`admin.js` 的 `renderRecommendations` 双语；index.html 插入 `.admin-recommendations-model`（与原 recommendations 列表并列、ID 不冲突）；i18n 四键双语。
+- **门禁**：`tests/test_oracle_recommendations.py` 4 条腿（wire truth + 零信号零 token + 模型炸→live:false + memo 命中）+ HTTP never-500s 双腿；`route_coverage` **40/40**；`admin_smoke`、`en_cjk_smoke`、`dazzle_smoke` 全绿；CRLF 双钉 intact。
+
+### 不声称
+
+- 不删 rule-based 三条（并列：前者可证、后者可深）；
+- 不声称本批做病因诊断——这是「三条可执行的下一步，每条可验收」；
+- 不称该 tile 由任何算法「最优」——模型从合并快照里取三味。

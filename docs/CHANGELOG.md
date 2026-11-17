@@ -658,3 +658,4 @@
   **门禁**：新增 `tests/test_rag_citations.py` 5 条腿——verifier 三腿（纯有效 / 有效+幻像 [1][2][7] / 零引用）、`search()` 行锚实测（start≥1、end≥start）、整链 fake client 收获引用判决（`invalid=[9]`, `prompt_cache_hit_tokens=24`）。BM25 族 8 腿同绿。
 
   **诚实边界**：verifier 只验「被引的是不是检索里来的编号」；它不判定语义对错；coverage=null 与 ok=True 可共存（没引用≠错）。
+- **值守军师——模型由实测快照写下一步最值得做的事（M8-T1196 / 批次 1138）**：管理面板新增「下一步该干什么 · 值守军师 / What to do next · on-duty strategist」，模型读同样的合并诊断快照（任务计数/缓存命中/审计行数/7 日事件曲线/工具使用/中断归因），输出三条带可执行验收标准的下一步项（每项一个验收标准——命令/测试/一次性数字），双语对，temp=0.25。**零 token 判词**：没有任务、没有缓存测量、七日零事件 → `verdict: no-signal`，模型不调；模型炸 → `live:false`；路由在 shared token bucket 闸门下（`oracle-recommendations` 同一把尺）；route_coverage **40/40**。门禁 5 腿 + HTTP never-500s 双腿。

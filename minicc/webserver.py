@@ -702,6 +702,28 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-recommendations":
+            # M8-T1196: the model reads the merged diagnostic snapshot and
+            # writes three next-step deep moves, each with a concrete
+            # acceptance check. Zero model call when there is no signal.
+            # Never raises; the panel shows the outage honestly.
+            try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-recommendations")
+                if not allowed:
+                    self._json({"live": False, "zh": [], "en": [],
+                                "error": "rate limit exceeded; retry shortly",
+                                "rate_limited": True,
+                                "retry_after_seconds": int(rmeta.get("window_seconds", 60) or 60)})
+                    return
+                from .oracle_recommendations import build_workspace_recommendations
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_workspace_recommendations(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "zh": [], "en": [],
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-review":
             # The model as reviewer of this repo's own latest diff — real facts in,
             # bilingual review out; ?fresh=1 bypasses the memo; wire death honest.
