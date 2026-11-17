@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T22:54:44.773Z",
+  "generated_at": "2026-11-17T23:40:10.110Z",
   "branch": "main",
-  "head": "661bed2",
-  "total_commits": 1920,
+  "head": "8f7a095",
+  "total_commits": 1922,
   "recent_commits": [
+    {
+      "short": "8f7a095",
+      "at": "2026-11-18T07:39:20+08:00",
+      "subject": "M8-T1201 (bench v2 gets its first taste of data): ingest_report() translates benchmarks output into bench_history.jsonl rows - 1 suite_run summary + N per-task "
+    },
+    {
+      "short": "725ec43",
+      "at": "2026-11-17T22:54:45Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "661bed2",
       "at": "2026-11-18T06:54:23+08:00",
@@ -19,22 +29,12 @@
       "short": "466f1a9",
       "at": "2026-11-18T06:30:24+08:00",
       "subject": "M8-T1199 (bench v2 history live): read-only /api/bench-history over .minicc/bench_history.jsonl - honest absent-state returns, mean_score/mean_elapsed_ms rollup"
-    },
-    {
-      "short": "6723fc8",
-      "at": "2026-11-17T21:30:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f128793",
-      "at": "2026-11-18T05:30:04+08:00",
-      "subject": "docs(ledger): the M8-T1198 blueprint cited a not-yet-existing path (minicc/benchcfg.py) - removed; blueprint references only modules that exist today"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 470,
+  "roadmap_batches": 471,
   "changelog_entries": 1,
-  "roadmap_lines": 55213,
+  "roadmap_lines": 55231,
   "tracked_files": 1127,
   "test_files": 741,
   "almanac_chapters": 57,
