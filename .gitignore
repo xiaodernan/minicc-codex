@@ -24,3 +24,7 @@ coverage.xml
 # Commit messages are written to a file and removed right after the commit;
 # this keeps a stray one out of the tree (M8-T356 lesson).
 _commit_msg_*.txt
+# Root-only scratch scripts an assistant working session may leave behind
+# (M8-T1187 lesson: two of them leaked into main despite removals;
+# tests/_*.py shared helpers are untouched by this anchored pattern).
+/_*.py

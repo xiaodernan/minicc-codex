@@ -54886,3 +54886,22 @@ M8-T1180 加的瓷贴有一条 "/api/admin/ratelimit" 专用路线。自审核�
 
 - 不改闸门本体语义（尺寸 / fail-open / 后备后端 / 计数器键名均未动）；8 条网关路由仍原样进闸（M8-T1178 的仲裁未动）。
 - 不改解锁包的 15 秒 memo。
+## 批次 1129 · M8-T1187: /_*.py 入 .gitignore——用闸门替代一次记住
+
+### 事实
+
+2026-11-17 两个根级 scratch 助手脚本被 `git add -A` 扫进 main（`_admin_ratelimit_frontend.py` 半成品 i18n 草稿、`_ledger_1185.py` 措辞损坏的账本第一稿）。两次都用立即删除 + 不重写历史解决（分别见 M8-T1181 / M8-T1186）。
+
+### 修法
+
+`.gitignore` 根锚定 `/_*.py`：
+
+- 根级 `_foo.py` → 命中 `.gitignore:30:/_*.py`（`git check-ignore` 实证）；
+- `tests/_css_rules.py`（M8-T844 起共享 helper）→ 不命中；
+- `minicc/__init__.py` → 不命中；
+- `_commit_msg_*.txt` 原规则保留。
+
+### 不声称
+
+- 不收编 `tests/_*.py`；
+- 不追溯修改 M8-T1181 / M8-T1186 相关的既有提交（不改写 main 历史）。
