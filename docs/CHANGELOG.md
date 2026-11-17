@@ -667,3 +667,4 @@
 - **`/api/bench-history`**：webserver 路由，service-level 10s memo；永不 5xx，500→honest present:false 面板直接吃。
 - **管理面板**新 tile：「评估时序 · bench v2」——四行数字（样本数 / 均分 / 均耗时 / 被跳过行）+ 时间窗边界，零模型 tokens，整链 CI 文案内链；`.admin-benchrule` 卡，i18n 双语三键。
 - **门禁**：`tests/test_bench_history.py` 8 腿（missing / empty / append×read×mean / bad lines / limit / CLI / allow_changes 锁）；`test_http_surface.py` 补 never-500s 双腿 + bench-history 的 fresh 腿；`route_coverage` **41/41**。
+- **CI 红灯复盘 #9：新模块又撞了三扇门（M8-T1200 / 批次 1142）**：`Ubuntu-latest`（run …）红在三道项目级 gate——① `test_logging` "only CLI_IO writes stdout through print"——`bench_history.py` 在 `main()` 里直呼 `print` 三次；② `test_the_package_does_not_import_what_it_does_not_use`——顶层 `import os` 未被使用；③ `test_the_utc_wire_formats_have_one_home`——`_now()` 里写的 `time.strftime + time.gmtime + "%Y-%m-%dT%H:%M:%SZ"` 直接复制了 clock.py 的专属 `utc_stamp()`。修法：① 错全转 `cli_out`；② 删 `os`；③ 弃自制 `_now()`，改 import `.clock.utc_stamp`（包括 `__main__` 里也同样走这一家）。

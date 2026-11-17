@@ -55196,3 +55196,17 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 - bench.jsonl 目前没有内容——这是诚实的事实：面板首开只见 `present:false`，导引你去跑 `python -m minicc.bench_tasks --suite v2`（含 `--append` 落盘记录）；
 - 不声称本批建立 CI perf gate（该 gate 会在有数据之后自己自然到来）；
 - 不声称该读侧绝对优于 jq-like ——它只是给 admin 面板一种可消费的形态。
+## 批次 1142 · M8-T1200: CI 红灯复盘——又是时钟，又是 stdout
+
+`466f1a9f`（bench v2 历史）的 CI（run 44190776872）Ubuntu 红三条线，都是我自己的模块碰线：
+
+- **`test_logging`**：`bench_history.py::main` 写了 `print` 三次——本仓只允许 `cli_io.py` 输出 stdout；
+- **`test_the_package_does_not_import_what_it_does_not_use`**：顶层 `import os` 在模块里无任何引用；
+- **`test_the_utc_wire_formats_have_one_home`**：`_now()` 自抄 `%Y-%m-%dT%H:%M:%SZ`—— UTC 三件套（`strftime`/`gmtime`/格式串）都是 `minicc/clock.py` 独家拥有的家（`utc_stamp`），冒犯家属就是动家门。
+
+修法：① 所有 `print` → `cli_out(..., file=sys.stderr)` 或 `cli_out(json.dumps(...))`；② 删 `os`；③ 弃自制 `_now()`，`entry.setdefault("ts", utc_stamp())`。
+
+### 不声称
+
+- 不声称本轮 Windows 腿结论如何（Windows 还在 in_progress，runtime 差异以实际跑完为准）；
+- 不声称本批之后 minicc/ 里就再无 `strftime`-at-call-site 的泄露——已知只有这一家，本轮已在红灯上锁住。

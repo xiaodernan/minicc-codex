@@ -26,11 +26,12 @@ Contract
 from __future__ import annotations
 
 import json
-import os
 import sys
-import time
 from pathlib import Path
 from typing import Any
+
+from .cli_io import cli_out
+from .clock import utc_stamp
 
 _FILENAME = "bench_history.jsonl"
 _MAX_ENTRIES = 200
@@ -38,10 +39,6 @@ _MAX_ENTRIES = 200
 
 def _history_path(workspace: Path) -> Path:
     return Path(workspace) / ".minicc" / _FILENAME
-
-
-def _now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 def append_entry(
@@ -150,16 +147,16 @@ def main() -> int:
         try:
             entry = json.loads(raw)
         except json.JSONDecodeError as exc:
-            print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+            cli_out(f"{type(exc).__name__}: {exc}", file=sys.stderr)
             return 2
-        entry.setdefault("ts", _now())
+        entry.setdefault("ts", utc_stamp())
         out = append_entry(workspace, entry, allow_changes=args.allow_changes)
-        print(json.dumps(out, ensure_ascii=False))
+        cli_out(json.dumps(out, ensure_ascii=False))
         return 0 if out.get("recorded") else 1
 
     if args.show:
         out = read_history(workspace)
-        print(json.dumps(out, ensure_ascii=False, indent=2))
+        cli_out(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 
     parser.print_help()
