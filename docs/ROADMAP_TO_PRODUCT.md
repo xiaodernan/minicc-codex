@@ -55013,3 +55013,19 @@ AST 常量整查为空。`test_the_fake_provider_switch_has_one_home` 5/5 green�
 - 不声称抵御暴力迁移 token 搜索（token 熵 32 字节，本机场景不存在）；
 - 不声称此探针适合当企业安全审计——loopback 单次实测；数字随机器。
 - 不声称 http.server 解析层无漏洞（已知边界）；覆盖的是**授权**风暴路径。
+## 批次 1135 · M8-T1193: 绿线——年鉴第 57 卷
+
+### 目的
+
+把这次 CI 整夜真实救火的链路作为年鉴存证——没有一条红是模拟的，每一位"元凶"都被一条门精确点名，每一条门都对应一条修复提交，全部可复现。
+
+### 做了什么
+
+- **模型产出**：zh/en 双语 4 段各，内容全部来自真实事件：`bdf3abcb` impact floor 逼出 stress probe 的 3 条测试腿；`01a32347` 悬空引用 → SHA 引用；`78b2fa6c` M8-T543（`exec_module` 前必须先注册 `sys.modules`）；`3757d3b5a` 未读 `is_alive()`；`e358d37` 全绿。usage 实时记录：prompt 5,336 · completion 1,261 · cached_tokens=4,224（共享前缀**第十一次**现身）。
+- **零混写**：en 段 CJK 字符数为 0；首稿因 ASCII `"` 侵入 JSON 字符串而 JSONDecodeError——改用弯引号重发（同一 `prompt_cache_key`，前缀命中），改后一次性合法。
+- **机械登记**：almanac 57、Atlas 94、smoke 全绿；en_cjk / almanac / atlas / manual / dazzle / stategraph 全绿；CHAPTER_DRAFT.md 存档（两重机械修订：Atlas 94/57 同步、英文引语弯引号化——均在存证中明文记录）。
+
+### 不声称
+
+- 不声称章节覆盖了未验证的环境；
+- 不声称本卷是模型全自动链路的结果（叙事采样与渲染仍人工编排；检验全部自动裁决）。

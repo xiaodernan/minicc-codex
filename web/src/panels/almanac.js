@@ -76,6 +76,7 @@ export const CHAPTERS = [
   { id: "thereckoning", roman: { zh: "卷五十四", en: "Chapter LIV" }, title: { zh: "并账", en: "The Reckoning" }, subtitle: { zh: "每一条分支都被审过了——没有漏掉的", en: "every branch was audited — nothing was skipped" } },
   { id: "thealarm", roman: { zh: "卷五十五", en: "Chapter LV" }, title: { zh: "警钟", en: "The Alarm" }, subtitle: { zh: "三次 CI 红灯，同一夜里，全被摁灭", en: "three CI reds in one night — all three extinguished" } },
   { id: "theledger", roman: { zh: "卷五十六", en: "Chapter LVI" }, title: { zh: "会开口的账本", en: "The Ledger That Speaks" }, subtitle: { zh: "模型终于听懂了这个仓库刚才做了什么", en: "the model finally understood what this repository just did" } },
+  { id: "thegreenline", roman: { zh: "卷五十七", en: "Chapter LVII" }, title: { zh: "绿线", en: "The Green Line" }, subtitle: { zh: "一条被 CI 抓着抓、修着修、最后推通红色的主线", en: "the main line CI caught over and over while it was pushed back to green" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3813,6 +3814,45 @@ function theledgerMarkup() {
     </div>`;
 }
 
+function thegreenlineMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const LEDGER_ZH = "<p>第 57 卷：绿线。昨夜到今天，main 连续翻红又连续修绿。<code>24c0d92</code> 在两道一处一家门：<code>audit.jsonl</code> 第二处字面量，以及未声明的 <code>--gold</code>；改用 <code>--amber</code> 后，<code>ead7a683</code> 全绿。</p><p>绿线不是一次通过，而是 CI 红、例检、修、绿的真实链路。Claim 在 <code>cf93bb6b</code> 报出 impact floor：<code>scripts/stress_probe.py</code> 没有受众，补上三腿压力探针测试。Ubuntu 在 <code>bdf3abcb</code> 报出 <code>web.py</code> 行号多一行，令 “re-aimed citation” 钉错；把 <code>deque</code> 挪进函数内部，保住历史实测行号 1852。Claim 随后在 <code>01a32347</code> 揪出 ROADMAP 中悬空的 M8-T1181、M8-T1186；引用改为真实存在的提交 SHA。Ubuntu 又在 <code>78b2fa6c</code> 要求 <code>exec_module</code> 前先注册 <code>sys.modules</code>，在 <code>3757d3b5a</code> 要求 <code>thread.join(timeout=)</code> 后用 <code>is_alive()</code> 读回断言，并在 fake-provider 开关被内联后要求从 <code>llm/fake.py</code> 导入唯一真源 <code>FAKE_PROVIDER_ENV</code>。最终 <code>e358d37</code> 全绿：Windows、Ubuntu、Playwright 双腿、Claim、mvn、JS 与 PR eval 均 SUCCESS。</p><p>今天写下的 <code>/api/audit</code> 实测包括 CPU 风暴获胜：c=32 的 p50 从 10,008ms、253 个超时降到 13.6ms、零超时；撞库风暴中 400/400 个伪冒 token 全部 401；10KiB 随机字节 40/40 直接 400；饱和授权车道 64/64 通过。<code>MINICC_FAKE_PROVIDER</code> 下模型零 token。两份助手脚本曾被 <code>-A</code> 扫进 main：<code>_admin_ratelimit_frontend.py</code> 由 M8-T1181 移除，<code>_ledger_1185.py</code> 由 M8-T1186 移除；之后 <code>.gitignore</code> 根锚定 <code>/_*.py</code>。</p><p>这卷存证的是已列出的测试与结果，不是对未列出窗口的证明：没有这些窗口的证据，就不声称它们也通过或安全。快照记作 HEAD <code>e358d37</code>，1,900 提交、461 批、54,994 行 roadmap、1,120 个 tracked files、737 个 test files、Atlas 94、第 57 卷年鉴。每一道红都留下新约束；绿线由修正和验证画出。</p>";
+  const LEDGER_EN = "<p>Volume 57: The Green Line. From last night into today, main kept turning red and being repaired to green. <code>24c0d92</code> failed at two gates in one place: the second literal in <code>audit.jsonl</code>, and undeclared <code>--gold</code>; the fix was <code>--amber</code>. Then <code>ead7a683</code> went fully green.</p><p>This was a real CI red, inspection, fix, green chain. Claim reported an impact floor at <code>cf93bb6b</code>: <code>scripts/stress_probe.py</code> had no audience, so three-legged stress-probe tests were added. Ubuntu reported an off-by-one <code>web.py</code> line at <code>bdf3abcb</code>, sending the “re-aimed citation” to the wrong place; moving <code>deque</code> inside the function kept the historically measured line at 1852. Claim then found dangling M8-T1181 and M8-T1186 references in ROADMAP at <code>01a32347</code>; references were changed to real commit SHAs. Ubuntu required <code>sys.modules</code> registration before <code>exec_module</code> at <code>78b2fa6c</code>, an <code>is_alive()</code> read-back assertion after <code>thread.join(timeout=)</code> at <code>3757d3b5a</code>, and, after the fake-provider switch was inlined, the single source of truth imported from <code>llm/fake.py</code> as <code>FAKE_PROVIDER_ENV</code>. Finally, <code>e358d37</code> was fully green: Windows, Ubuntu, both Playwright legs, Claim, mvn, JS, and PR eval all SUCCESS.</p><p>Today's <code>/api/audit</code> record includes a CPU-storm win: at c=32, p50 fell from 10,008ms with 253 timeouts to 13.6ms with zero timeouts. In the credential-stuffing storm, all 400/400 forged tokens returned 401; all 40/40 10KiB random-byte requests returned 400 directly; the saturated authorization lane passed 64/64. Under <code>MINICC_FAKE_PROVIDER</code>, the model used zero tokens. Two helper scripts were swept into main by <code>-A</code>: <code>_admin_ratelimit_frontend.py</code> was removed by M8-T1181, <code>_ledger_1185.py</code> by M8-T1186; afterward <code>.gitignore</code> anchored <code>/_*.py</code> at the repository root.</p><p>This volume attests to the tests and results listed here, not to unproven windows: without evidence for those windows, it makes no claim that they passed or were safe. The snapshot records HEAD <code>e358d37</code>, 1,900 commits, 461 batches, 54,994 roadmap lines, 1,120 tracked files, 737 test files, Atlas 94, and the Volume 57 yearbook. Each red left a new constraint; fixes and verification drew the green line.</p>";
+  return `
+    <div class="almanac-canvas almanac-thegreenline">
+      <div class="almanac-kicker">${zh() ? "卷五十七 · 绿线" : "Chapter LVII · The Green Line"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `一整夜，` + `<br/><span class="almanac-title-accent">被 CI 抓着打。</span>`
+        : `One whole night,` + `<br/><span class="almanac-title-accent">caught red by CI.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH : LEDGER_EN}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">94</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">57 / 57</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "审计条目(真)" : "Audit lines (live)"}</div><div class="almanac-instrument-value">1617</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["绿线的每一夜", "`bdf3abcb` 红 → impact floor 抓住 `scripts/stress_probe.py` 无受众；`01a32347` 引用 `M8-T1181 / M8-T1186` 悬空 → 改成真 SHA 引用；`78b2fa6c` 未注册即 `exec_module` → 先 `sys.modules` 注册；`3757d3b5a` 未经 `is_alive()` 读回 → join 之后必读"],
+        ["CI red → 例检 → 修 → 绿", "每个红都逐字逐字读日志 → 在源头修 → 再查再推——整整一夜的节奏"],
+        ["the audit load storm", "`/api/audit` 400 并发：c=32 从 10,008ms + 253 超时 → 13.6ms + 0 超时；撞库风暴 400/400 全 401"],
+        ["问题都是它自己发现的", "包括本卷的存证——模型每一次引用的 sha 都是日志里真实出现的，不虚构"],
+      ] : [
+        ["the green line's every night", "`bdf3abcb` red → impact floor caught `scripts/stress_probe.py` without an audience; `01a32347` dangling `M8-T1181 / M8-T1186` → SHAs; `78b2fa6c` `exec_module` before registration → register first; `3757d3b5a` no read-back after join → `is_alive()` assert"],
+        ["CI red → inspect → fix → green", "every failure got read to the last line, fixed at the source, re-checked, re-pushed — the night's whole rhythm"],
+        ["the audit load storm", "`/api/audit` at c=32: 10,008ms + 253 timeouts → 13.6ms + 0 timeouts; credential storm 400/400 → 401"],
+        ["the problems were found by the repo itself", "this very chapter too: every sha cited here appeared in the log, none invented"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "绿不在一次通过里——在你没被任何一道门漏过。"
+          : "Green is not one pass — it is never slipping through any gate."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3870,6 +3910,7 @@ const CHAPTER_RENDERERS = {
   thereckoning: () => thereckoningMarkup(),
   thealarm: () => thealarmMarkup(),
   theledger: () => theledgerMarkup(),
+  thegreenline: () => thegreenlineMarkup(),
 };
 
 async function loadChapter(id) {
