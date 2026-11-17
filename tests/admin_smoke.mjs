@@ -94,6 +94,20 @@ async function checkMode(locale, expectCjk) {
     "diagnosis usage footer must carry token accounting or an error, never a fabricated number",
   );
 
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminPlanList");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return text.length > 0 && !text.includes("正在读") && !text.includes("Reading the");
+  }, null, { timeout: 45000 });
+  const planText = await page.locator("#adminPlanList").innerText();
+  assert.ok(planText.trim().length > 0, "plan tile must carry either three model-ordered moves or the honest outage line");
+  const planUsage = await page.locator("#adminPlanUsage").innerText();
+  assert.ok(
+    /prompt|error/i.test(planUsage) || planUsage.trim().length === 0,
+    "plan usage footer must carry token accounting or an error, never a fabricated number",
+  );
+
   const briefUsage = await page.locator("#adminBriefUsage").innerText();
   // when the model answered, the usage footer must carry the token accounting;
   // when the wire is down the footer carries the error instead

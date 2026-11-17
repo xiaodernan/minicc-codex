@@ -813,6 +813,10 @@
       "admin.diagnosisPending": "\u6B63\u5728\u8BFB\u5B9E\u6D4B\u8BCA\u65AD\u5FEB\u7167\u2026",
       "admin.diagnosisRefresh": "\u91CD\u65B0\u751F\u6210\u8BCA\u65AD",
       "admin.diagnosisOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u8BCA\u65AD\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
+      "admin.planKicker": "\u5148\u505A\u4E09\u4EF6\u4E8B \xB7 \u503C\u5B88\u89C4\u5212\u5E08",
+      "admin.planPending": "\u6B63\u5728\u8BFB\u5B9E\u6D4B\u5FEB\u7167\u5E76\u63A8\u6F14\u6700\u7D27\u8FEB\u4E09\u4EF6\u4E8B\u2026",
+      "admin.planRefresh": "\u91CD\u65B0\u751F\u6210\u89C4\u5212",
+      "admin.planOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u89C4\u5212\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.toolUsageUnit": "\u6B21\u8C03\u7528",
       "admin.forecastLabel": "\u9884\u6D4B",
       "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
@@ -1599,6 +1603,10 @@
       "admin.diagnosisPending": "Reading the measured diagnosis snapshot\u2026",
       "admin.diagnosisRefresh": "Refresh the diagnosis",
       "admin.diagnosisOutage": "The model is unreachable \u2014 the panel cannot write the diagnosis. That is the only honest sentence.",
+      "admin.planKicker": "First three moves \xB7 on-duty planner",
+      "admin.planPending": "Reading the measured snapshot and ordering the three most urgent moves\u2026",
+      "admin.planRefresh": "Refresh the plan",
+      "admin.planOutage": "The model is unreachable \u2014 the panel cannot write the plan. That is the only honest sentence.",
       "admin.toolUsageUnit": "calls",
       "admin.forecastLabel": "Forecast",
       "admin.forecastFading": "cooling off from the peak",
@@ -7898,6 +7906,38 @@
       }
       const diagnosisPromise = requestJson("/api/oracle-diagnosis", {}, 3e4).catch(() => null);
       diagnosisPromise.then((diagnosis) => renderDiagnosis(diagnosis, false));
+      function renderPlan(plan, refreshed) {
+        const listEl = $("#adminPlanList");
+        const usageEl = $("#adminPlanUsage");
+        const byEl = $("#adminPlanModel");
+        if (byEl && plan && plan.model) byEl.textContent = plan.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
+        if (!plan || !plan.live) {
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.planOutage"))}</em></li>`;
+          if (usageEl) usageEl.textContent = plan?.error ? `error: ${String(plan.error).slice(0, 140)}` : "";
+          return;
+        }
+        const items = zh8() ? plan.zh || [] : plan.en || [];
+        const list = items.length ? items : (zh8() ? plan.en : plan.zh) || [];
+        if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span></li>`).join("");
+        if (usageEl) {
+          const u = plan.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 \u5DF2\u91CD\u65B0\u751F\u6210" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 regenerated" : ""}`;
+        }
+      }
+      const planRefresh = $("#adminPlanRefresh");
+      if (planRefresh) {
+        planRefresh.addEventListener("click", () => {
+          const listEl = $("#adminPlanList");
+          const usageEl = $("#adminPlanUsage");
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.planPending"))}</em></li>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-plan?fresh=1", {}, 3e4).catch(() => null).then((plan) => renderPlan(plan, true));
+        });
+      }
+      const planPromise = requestJson("/api/oracle-plan", {}, 3e4).catch(() => null);
+      planPromise.then((plan) => renderPlan(plan, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {

@@ -54345,3 +54345,16 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Atlas 88 → 89 coordinates**：almanac satellites 51→52；`atlas_smoke` 89；`index.html` 717/0；`i18n.js` 309/0。
 - **onboarding / Manual / README**：Almanac 全量 52 Halls、89 坐标、年鉴（52 卷）；README 加 The Live Current 领衔。
 - **验证**：`almanac_smoke` 52 chapters 双语 / `atlas_smoke` 89-coordinate / manual_smoke 19 / stategraph_smoke / parity / admin / dazzle。
+## 批次 1099 · M8-T1122: 值守规划师 · 第三条 model 线——“先做三件事 · The First Three”
+
+### 目的
+
+模型从“记账的、诊断的”推进到“给事的”。
+
+### 做了什么
+
+- **`minicc/oracle_plan.py`**（新）：`build_workspace_plan()`——实测快照 → 优先级排序的三件事 + 每件验收方式；zh/en 双语；JSON 契约；10 分钟 memo；`force_refresh=True`。
+- **GET `/api/oracle-plan`**：`?fresh=1`；永远 200。
+- **Admin tile「先做三件事 · 值守规划师」**：amber 边框 list-ordered icon；refresh；token 账公示。
+- **真 lane 实测**：prompt 5,654 · cached 4,224 · 三条指令各带验收指标。
+- **测试**：`test_oracle_plan.py` 6/6；route_coverage 34/34 GET + 14/14 POST B；admin_smoke 新增断言；claim gates 69/69；CRLF pins 723→729（pure CRLF）。

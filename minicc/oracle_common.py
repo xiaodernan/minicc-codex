@@ -73,11 +73,11 @@ def call_model(*, config: Any, prompt: str, max_tokens: int = 280, temperature: 
     return {"text": text, "usage": usage, "model": model_name}
 
 
-def error_payload(kind: str, exc: Exception) -> dict[str, Any]:
+def error_payload(kind: str, exc: Exception, *, lists: bool = False) -> dict[str, Any]:
     return {
         "live": False,
-        "zh": "",
-        "en": "",
+        "zh": [] if lists else "",
+        "en": [] if lists else "",
         "model": None,
         "usage": None,
         "error": f"{kind}: {type(exc).__name__}: {exc}",

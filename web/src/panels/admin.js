@@ -253,6 +253,42 @@ export async function openAdmin() {
     const diagnosisPromise = requestJson("/api/oracle-diagnosis", {}, 30000).catch(() => null);
     diagnosisPromise.then((diagnosis) => renderDiagnosis(diagnosis, false));
 
+    // First three moves — the model orders the workspace's priorities.
+    function renderPlan(plan, refreshed) {
+      const listEl = $("#adminPlanList");
+      const usageEl = $("#adminPlanUsage");
+      const byEl = $("#adminPlanModel");
+      if (byEl && plan && plan.model) byEl.textContent = plan.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现扫" : "read live by the model";
+      if (!plan || !plan.live) {
+        if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc(t("admin.planOutage"))}</em></li>`;
+        if (usageEl) usageEl.textContent = plan?.error ? `error: ${String(plan.error).slice(0, 140)}` : "";
+        return;
+      }
+      const items = zh() ? (plan.zh || []) : (plan.en || []);
+      const list = items.length ? items : (zh() ? plan.en : plan.zh) || [];
+      if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span></li>`).join("");
+      if (usageEl) {
+        const u = plan.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · 已重新生成" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · regenerated" : ""}`;
+      }
+    }
+    const planRefresh = $("#adminPlanRefresh");
+    if (planRefresh) {
+      planRefresh.addEventListener("click", () => {
+        const listEl = $("#adminPlanList");
+        const usageEl = $("#adminPlanUsage");
+        if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc(t("admin.planPending"))}</em></li>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-plan?fresh=1", {}, 30000).catch(() => null).then((plan) => renderPlan(plan, true));
+      });
+    }
+    const planPromise = requestJson("/api/oracle-plan", {}, 30000).catch(() => null);
+    planPromise.then((plan) => renderPlan(plan, false));
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");

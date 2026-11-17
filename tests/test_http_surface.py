@@ -907,6 +907,23 @@ def test_get_stategraph_reports_the_live_workflow(live: _LiveServer) -> None:
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_get_oracle_plan_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1122: the forward planner route is entered by the HTTP suite too —
+    # same seam-stub pattern as the brief and diagnosis tests.
+    import minicc.oracle_plan as op_mod
+
+    monkeypatch.setattr(op_mod, "build_workspace_plan", lambda **kwargs: {
+        "live": False, "zh": [], "en": [],
+        "error": "model-unavailable: TimeoutError",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-plan", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "error" in payload
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
 def test_get_oracle_diagnosis_never_500s(live: _LiveServer, monkeypatch) -> None:
     # M8-T1120: the diagnosis route is entered by the HTTP suite too —
     # stubbed at the seam exactly like the brief test.

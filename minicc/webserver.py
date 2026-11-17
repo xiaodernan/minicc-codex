@@ -601,6 +601,20 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - the admin tile must never 500
                 self._json({"live": False, "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-plan":
+            # The model as forward planner: three moves this workspace should
+            # make next, ordered by urgency, each with an acceptance test.
+            # Never raises; the panel shows the outage when the wire is down.
+            try:
+                from .oracle_plan import build_workspace_plan
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_workspace_plan(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "zh": [], "en": [],
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-diagnosis":
             # The model on duty for triage: reads the interruption/streak/trend
             # evidence, writes a bilingual diagnosis. ?fresh=1 bypasses the memo.
