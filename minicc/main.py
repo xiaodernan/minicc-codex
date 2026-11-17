@@ -19,7 +19,7 @@ from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import PERMISSION_MODES, authorize_tool, effective_risk
-from .cli_io import cli_out
+from .cli_io import cli_out, tr
 from .internal_paths import AUDIT_NAME
 from .config import (
     MAX_TIMEOUT_SECONDS,
@@ -104,8 +104,8 @@ class CliView:
         self.compact_tools = False if verbose_tools else bool(saved.get("compact_tools", True))
         self.tool_history: list[dict[str, Any]] = list(saved.get("tool_history") or [])
         if announce_resume and self.last_item:
-            mode = "紧凑工具摘要" if self.compact_tools else "展开工具输出"
-            cli_out(f"[view] 已恢复到第 {self.last_item} 个输出项；当前为{mode}。输入 /view 查看阅读位置。")
+            mode = tr("compact_mode") if self.compact_tools else tr("expanded_mode")
+            cli_out(tr("view_restored", item=self.last_item, mode=mode))
 
     @staticmethod
     def _shorten(value: object, limit: int = 180) -> str:
@@ -122,7 +122,7 @@ class CliView:
             })
         except SessionError as exc:
             # A view checkpoint is helpful but must never interrupt the agent.
-            cli_out(f"[view] 阅读位置暂时无法保存：{exc}", file=sys.stderr)
+            cli_out(tr("view_save_failed", exc=exc), file=sys.stderr)
 
     def record_tool(self, call: ToolCall, result: ToolResult) -> None:
         self.last_item += 1
@@ -158,34 +158,34 @@ class CliView:
         mode = "compact" if self.compact_tools else "expanded"
         cli_out(f"[view] item={self.last_item} tool={self.last_tool} mode={mode} saved={self.session.path}")
         if self.tool_history:
-            cli_out("最近工具：")
+            cli_out(tr("recent_tools"))
             for item in self.tool_history[-8:]:
                 cli_out(f"  #{item.get('index', '?')} {item.get('tool', 'tool')} · {self._shorten(item.get('summary'))}")
         else:
-            cli_out("最近没有工具记录。")
+            cli_out(tr("no_tool_history"))
 
     def set_compact(self, value: bool) -> None:
         self.compact_tools = bool(value)
         self._save()
-        cli_out("工具输出已折叠。" if self.compact_tools else "工具输出已展开。")
+        cli_out(tr("tool_output_collapsed") if self.compact_tools else tr("tool_output_expanded"))
 
     def expand(self, raw_index: str = "") -> None:
         if not self.tool_history:
-            cli_out("没有可展开的工具记录。")
+            cli_out(tr("no_tool_to_expand"))
             return
         try:
             index = int(raw_index) if raw_index else int(self.tool_history[-1].get("index") or 0)
         except ValueError:
-            cli_out("用法：/expand [工具编号]")
+            cli_out(tr("expand_usage"))
             return
         item = next((entry for entry in self.tool_history if int(entry.get("index") or 0) == index), None)
         if item is None:
-            cli_out(f"未找到工具 #{index}；输入 /view 查看最近记录。")
+            cli_out(tr("tool_not_found", index=index))
             return
         cli_out(f"\n[tool {index}] {item.get('tool', 'tool')} · {item.get('summary', '')}")
         if item.get("command"):
             cli_out(f"command: {item['command']}")
-        cli_out(item.get("output") or "（该工具没有额外输出）")
+        cli_out(item.get("output") or tr("tool_no_output"))
 
     def reset(self) -> None:
         self.last_item = 0
@@ -425,17 +425,17 @@ def _permission_gate(
         if decision.allowed:
             return True
         if decision.authorization in {AUTHORIZATION_PLAN_MODE_WRITE, AUTHORIZATION_PLAN_MODE_EXEC, AUTHORIZATION_UNKNOWN_RISK}:
-            cli_out(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
+            cli_out(tr("denied_tool", tool=name, preview=_tool_preview(call), reason=decision.reason))
             return False
         if decision.authorization == AUTHORIZATION_MISSING_TASK_NETWORK:
-            cli_out(f"\n[minicc] 联网工具需要 --allow-network：{name} ({_tool_preview(call)})")
+            cli_out(tr("need_network", tool=name, preview=_tool_preview(call)))
             return False
         if risk not in AUTHORIZATION_RISKS:
-            cli_out(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
+            cli_out(tr("denied_tool", tool=name, preview=_tool_preview(call), reason=decision.reason))
             return False
-        cli_out(f"\n[minicc] 即将调用高风险工具 {name} ({_tool_preview(call)})")
+        cli_out(tr("high_risk_tool", tool=name, preview=_tool_preview(call)))
         try:
-            raw = input("允许此次操作？[y/N/a/A] ").strip()
+            raw = input(tr("allow_prompt")).strip()
         except EOFError:
             return False
         except KeyboardInterrupt:
@@ -444,7 +444,7 @@ def _permission_gate(
             # answer).  The interrupt used to escape the gate, so it ended
             # the whole turn instead of the one call the question was
             # about, and the agent lost the round it had already done.
-            cli_out("\n[minicc] 已拒绝（Ctrl-C）")
+            cli_out(tr("denied_ctrl_c"))
             return False
         # M2-T3: the case carries the meaning here, so the raw answer is kept:
         # ``a`` is "always allow THIS command/path" and ``A`` is "always allow
@@ -457,11 +457,9 @@ def _permission_gate(
             if workspace is not None and session_id:
                 try:
                     add_session_rule(workspace, session_id, tool=name)
-                    cli_out(
-                        f"[minicc] 已写入本会话 allowlist：{name} 的全部用法都将自动放行"
-                    )
+                    cli_out(tr("allowlist_written_tool", tool=name))
                 except AllowlistError as exc:
-                    cli_out(f"[minicc] allowlist 写入失败: {exc}")
+                    cli_out(tr("allowlist_failed", exc=exc))
             return True
         if answer in {"a", "always", "always allow"}:
             # "a" means "always allow THIS command/path", not
@@ -488,9 +486,9 @@ def _permission_gate(
                         # said it was.
                         kwargs["tool"] = name
                     add_session_rule(workspace, session_id, **kwargs)
-                    cli_out("[minicc] 已写入本会话 allowlist")
+                    cli_out(tr("allowlist_written"))
                 except AllowlistError as exc:
-                    cli_out(f"[minicc] allowlist 写入失败: {exc}")
+                    cli_out(tr("allowlist_failed", exc=exc))
             return True
         return answer in {"y", "yes", "是"}
 
@@ -600,11 +598,11 @@ async def _turn(
         fold_target["usage"] = {}
         fold_target["budget"] = None
     if writer is None or not writer.started or not writer.matches(result.answer):
-        cli_out(f"\nassistant> {result.answer}")
+        cli_out(tr("assistant_prefix") + f"{result.answer}")
     else:
         cli_out()
     if result.tokens_used.get("total_tokens"):
-        usage_line = f"[usage] total_tokens={result.tokens_used['total_tokens']}"
+        usage_line = tr("usage", tokens=result.tokens_used["total_tokens"])
         # M8-T878: surface prefix-cache counters so cache affinity is visible
         # in the terminal instead of only inside the structured log.
         hit = result.tokens_used.get("prompt_cache_hit_tokens")
@@ -625,11 +623,10 @@ async def _turn(
 
 # The single line /help prints. Every command the REPL dispatches below must
 # appear here — tests/test_slash_commands.py pins this against the README list.
-BUILTIN_HELP_LINE = (
-    "/help  /tools  /status  /view  "
-    "/compact (压缩上下文)  /collapse (折叠工具输出)  /expand [n]  "
-    "/clear  /cost  /doctor  /exit"
-)
+# The pinned artifact for tests/test_slash_commands.py: the zh_cn message
+# under the same name, kept as a module constant so the pin reads the table
+# without a call in the gate. The display path prints tr("help_line").
+BUILTIN_HELP_LINE = tr("help_line")
 
 
 async def _interactive(
@@ -648,7 +645,7 @@ async def _interactive(
     route: StageRoute | None = None,
     fold_target: dict[str, Any] | None = None,
 ) -> None:
-    cli_out("minicc 已启动。输入 /help 查看命令，输入 /exit 退出。")
+    cli_out(tr("starting"))
     while True:
         try:
             raw = input("\nminicc> ")
@@ -661,10 +658,10 @@ async def _interactive(
         if prompt in {"/exit", "/quit"}:
             return
         if prompt == "/help":
-            cli_out(BUILTIN_HELP_LINE)
+            cli_out(tr("help_line"))
             custom = discover_commands(workspace or Path.cwd())
             if custom:
-                cli_out("自定义命令：")
+                cli_out(tr("custom_commands"))
                 for command in custom:
                     hint = f" {command.argument_hint}" if command.argument_hint else ""
                     cli_out(f"  /{command.name}{hint} — {command.description} [{command.scope}]")
@@ -687,7 +684,7 @@ async def _interactive(
                 try:
                     status = channel_status()
                     plan_note = "已配置（主通道额度用尽时自动切换）" if status.get("plan_available") else "未配置"
-                    cli_out(f"通道: {status.get('active')}（套餐通道{plan_note}）")
+                    cli_out(tr("channel_plan_note", active=status.get("active"), plan_note=plan_note))
                     usage = status.get("usage") or {}
                     paid = usage.get("paid") or {}
                     plan = usage.get("plan") or {}
@@ -701,7 +698,7 @@ async def _interactive(
                     # `callable` branch above already means "this build has no channel status",
                     # and a failure that prints nothing is indistinguishable from it. The type is
                     # named and the message is not, because provider text can carry a URL.
-                    cli_out(f"通道状态不可用（{type(exc).__name__}）")
+                    cli_out(tr("channel_unavailable", type=type(exc).__name__))
             if session is not None:
                 cli_out(f"session={session.path}")
             continue
@@ -711,7 +708,7 @@ async def _interactive(
                 view.reset()
             if session is not None:
                 session.save(messages)
-            cli_out("会话上下文已清空。")
+            cli_out(tr("session_cleared"))
             continue
         if prompt == "/view":
             if view is not None:
@@ -729,15 +726,15 @@ async def _interactive(
                     if snapshots:
                         total_tokens = sum(s.get("tokens_used", {}).get("total_tokens", 0) for s in snapshots)
                         total_cost = sum(s.get("cost_usd", 0) or 0 for s in snapshots)
-                        cli_out(f"本会话累计: {len(snapshots)} 个任务快照")
-                        cli_out(f"  total_tokens: {total_tokens}")
-                        cli_out(f"  cost_usd: ${total_cost:.6f}" if total_cost > 0 else "  cost_usd: 无价格数据（模型未计价）")
+                        cli_out(tr("session_cost", count=len(snapshots)))
+                        cli_out(tr("session_tokens", tokens=total_tokens))
+                        cli_out(tr("session_cost_usd", cost=total_cost) if total_cost > 0 else tr("session_cost_none"))
                     else:
-                        cli_out("本会话暂无任务快照")
+                        cli_out(tr("no_snapshots"))
                 except Exception as exc:
-                    cli_out(f"读取快照失败: {exc}")
+                    cli_out(tr("snapshots_read_failed", exc=exc))
             else:
-                cli_out("非会话模式无累计成本")
+                cli_out(tr("session_cost_unavailable"))
             continue
         if prompt == "/compact":
             # M8-T368: /compact triggers actual context compaction (summarizes old turns
@@ -813,12 +810,12 @@ async def _interactive(
             # request stays in the history, exactly as the Web's cancelled
             # task keeps its own), and the REPL asks for the next prompt.
             cli_out()
-            cli_out("已中断本轮（Ctrl-C）。")
+            cli_out(tr("denied_ctrl_c_turn"))
             continue
 
 
 def _fatal(message: str) -> NoReturn:
-    cli_out(f"minicc: {message}", file=sys.stderr)
+    cli_out(tr("config_error", message=message), file=sys.stderr)
     raise SystemExit(2)
 
 
@@ -826,12 +823,12 @@ def _print_sessions(workspace: Path) -> int:
     """Render the session forest (one line per session; forks show lineage)."""
     sessions = list_sessions(workspace)
     if not sessions:
-        cli_out("（该工作区暂无保存的会话）")
+        cli_out(tr("no_saved_sessions"))
         return 0
     known = {item["session_id"] for item in sessions}
     for item in sessions:
         if item.get("error"):
-            cli_out(f"{item['session_id']:28} [错误] {item['error']}")
+            cli_out(f"{item['session_id']:28} {tr('error_tag')} {item['error']}")
             continue
         mark = ""
         lineage = item.get("forked_from")
@@ -860,8 +857,8 @@ def _warn_unrun_prompt(prompt: list[str], flag: str) -> None:
     text = " ".join(prompt).strip()
     if not text:
         return
-    cli_out(f"注意：{flag} 只操作会话文件，本次任务文本没有执行（{len(text)} 字）。")
-    cli_out("要执行它，请在目标分支上重新提交，例如 minicc --resume --session-id <分支名> <任务>")
+    cli_out(tr("prompt_not_run", flag=flag, len=len(text)))
+    cli_out(tr("resume_instruction"))
 
 
 def _capabilities(workspace: Path) -> dict[str, Any]:
@@ -967,8 +964,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         except SessionError as exc:
             _fatal(str(exc))
-        cli_out(f"已 fork：{source_store.session_id} -> {target_store.session_id}（{target_store.path.name}）")
-        cli_out(f"恢复该分支: minicc --resume --session-id {target_store.session_id}")
+        cli_out(tr("fork_created", source=source_store.session_id, target=target_store.session_id, name=target_store.path.name))
+        cli_out(tr("fork_resume", target=target_store.session_id))
         _warn_unrun_prompt(args.prompt, "--fork-from")
         return 0
 

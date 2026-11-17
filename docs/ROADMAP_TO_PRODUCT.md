@@ -54462,3 +54462,18 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - CLI 双语化**没有**做（52/64 键在 backup 线里就是死的）。
 - 本批 CI 这一刻仍在跑；不把它写成绿。
 - backup 分支与 rescue/* 分支的工作树保留在本机（未删除）；远端只关 PR #1 并删其分支 + 删除已并入 main 的两条 `m8-t537` 远端分支。
+## 批次 1105 · M8-T1130: CLI 双语化 第 1/2 段——双语基础设施收编 + main.py 交互面接线
+
+### 做了什么
+
+- **`minicc/cli_io.py`**：从 `cli_out()` 单函数扩展为完整的双语中枢——`_MESSAGES`（两张 75 键对仗的表）、`tr(key, **kwargs)`（缺键退 zh_cn → 原文；格式不匹配退原文不抛）、`get_locale/set_locale`、`MINICC_LOCALE` env（默认 zh_cn）。main.py 全部 43 处交互输出（欢迎语、/help 帮助行、权限提示、allowlist、usage、cost、fork/rewind、view 等）改由 `tr()` 出稿。
+- **`BUILTIN_HELP_LINE = tr("help_line")`**：help 行唯一真源改为消息表；`test_slash_commands.py` 对它钉命令名的腿照旧绿（zh 默认）。显示路径在 locale 切换时生效。
+- **新门 `tests/test_cli_i18n.py` 9 条腿**：两表逐键对仗（多一键/少一键都红）、逐键非空、默认 `zh_cn`、`set_locale` 只认已知值（大小写宽容、连字符近似拼法不误翻）、未知键退回原文、`tr` 不 raise（缺 kwargs / kwargs 键不匹配都不抛）、每条带 `{` 的消息必须是可格式化的、**ratchet**：33 个今天无人读的键冻结基线（只缩不涨）、baseline 不许藏已接线键。
+- **接的是 `backup/local-line-batches70-75` 的半成品**（52/64 键无人读的版本）——按本仓库现有消息增补补齐到 75 键，并与 main.py 真实接线对齐；不倒退回“写了翻译没人读”。
+
+### 绑定的诚实边界
+
+- 本批只覆盖 **main.py 交互面**。下列**未完成**：argparse `help=` 全部中文（`--help` 输出）、commands.py / doctor.py / setup.py 的用户面、`task_manager.py` / `tools/` / `audit.py` 等引擎与错误面的中文消息（`tool_error`/`unknown_tool` 等 33 个键）、`/view` 历史文件里存的旧文案。
+- 上述剩余部分登记为 **M8-T1131（CLI 双语化 第 2/2 段）**：engine 面 43 处接线 + argparse help 双语 + doctor/commands；完成后 CLI 才算全量双语。
+- `UNREAD_KEYS_BASELINE` 是刻意写下的「还没接的账」，不是完成声明。
+- CI 这一刻仍在跑；不把它写成绿。
