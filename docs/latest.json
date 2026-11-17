@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T00:03:55.691Z",
+  "generated_at": "2026-11-17T00:27:53.064Z",
   "branch": "main",
-  "head": "3c385b3",
-  "total_commits": 1816,
+  "head": "f6174d7",
+  "total_commits": 1818,
   "recent_commits": [
+    {
+      "short": "f6174d7",
+      "at": "2026-11-17T08:27:02+08:00",
+      "subject": "M8-T1123: the model reviews this repo's own diff - 'LLM Review' tile in admin (HEAD~1..HEAD diff in, bilingual review out; ?fresh=1; 10-min memo; honest live:fa"
+    },
+    {
+      "short": "ec59858",
+      "at": "2026-11-17T00:03:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3c385b3",
       "at": "2026-11-17T08:03:21+08:00",
@@ -19,24 +29,14 @@
       "short": "bd2e413",
       "at": "2026-11-17T07:41:18+08:00",
       "subject": "M8-T1121: the model writes its own chapter - almanac Ch.LII 'The Live Current / 通电' (live-lane draft archived in docs/CHAPTER_DRAFT.md: prompt 5,013, cached_tok"
-    },
-    {
-      "short": "04e0563",
-      "at": "2026-11-16T23:18:11Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a8b03b1",
-      "at": "2026-11-17T07:17:12+08:00",
-      "subject": "M8-T1120: the model goes on duty for triage - 'diagnosis' tile in admin (interrupt causes/streak/trend in, zh+en diagnosis out, honest JSON contract, shared ora"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 426,
+  "roadmap_batches": 427,
   "changelog_entries": 1,
-  "roadmap_lines": 54361,
-  "tracked_files": 1096,
-  "test_files": 721,
+  "roadmap_lines": 54374,
+  "tracked_files": 1098,
+  "test_files": 722,
   "almanac_chapters": 52,
   "module_count": 14,
   "feature_surface": [
