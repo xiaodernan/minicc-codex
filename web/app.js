@@ -817,6 +817,10 @@
       "admin.planPending": "\u6B63\u5728\u8BFB\u5B9E\u6D4B\u5FEB\u7167\u5E76\u63A8\u6F14\u6700\u7D27\u8FEB\u4E09\u4EF6\u4E8B\u2026",
       "admin.planRefresh": "\u91CD\u65B0\u751F\u6210\u89C4\u5212",
       "admin.planOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u89C4\u5212\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
+      "admin.reviewKicker": "\u4EE3\u7801\u8BC4\u5BA1 \xB7 \u503C\u5B88\u8BC4\u5BA1\u5E08",
+      "admin.reviewPending": "\u6B63\u5728\u8BFB\u672C\u4ED3\u5E93\u6700\u65B0\u63D0\u4EA4\u7684\u5B9E\u51B5 diff\u2026",
+      "admin.reviewRefresh": "\u91CD\u65B0\u751F\u6210\u8BC4\u5BA1",
+      "admin.reviewOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u4E0D\u5199\u8BC4\u5BA1\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.toolUsageUnit": "\u6B21\u8C03\u7528",
       "admin.forecastLabel": "\u9884\u6D4B",
       "admin.forecastFading": "\u4ECE\u5CF0\u503C\u56DE\u843D",
@@ -1607,6 +1611,10 @@
       "admin.planPending": "Reading the measured snapshot and ordering the three most urgent moves\u2026",
       "admin.planRefresh": "Refresh the plan",
       "admin.planOutage": "The model is unreachable \u2014 the panel cannot write the plan. That is the only honest sentence.",
+      "admin.reviewKicker": "Code review \xB7 on-duty reviewer",
+      "admin.reviewPending": "Reading the live diff of this repo\u2019s newest commit\u2026",
+      "admin.reviewRefresh": "Refresh the review",
+      "admin.reviewOutage": "The model is unreachable \u2014 the panel cannot write the review. That is the only honest sentence.",
       "admin.toolUsageUnit": "calls",
       "admin.forecastLabel": "Forecast",
       "admin.forecastFading": "cooling off from the peak",
@@ -7938,6 +7946,37 @@
       }
       const planPromise = requestJson("/api/oracle-plan", {}, 3e4).catch(() => null);
       planPromise.then((plan) => renderPlan(plan, false));
+      function renderReview(review, refreshed) {
+        const bodyEl = $("#adminReviewBody");
+        const usageEl = $("#adminReviewUsage");
+        const byEl = $("#adminReviewModel");
+        if (byEl && review && review.model) byEl.textContent = review.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
+        if (!review || !review.live) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.reviewOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = review?.error ? `error: ${String(review.error).slice(0, 140)}` : "";
+          return;
+        }
+        const text = zh8() ? review.zh : review.en;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? review.en : review.zh))}</p>`;
+        if (usageEl) {
+          const u = review.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 \u5DF2\u91CD\u65B0\u751F\u6210" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${refreshed ? " \xB7 regenerated" : ""}`;
+        }
+      }
+      const reviewRefresh = $("#adminReviewRefresh");
+      if (reviewRefresh) {
+        reviewRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminReviewBody");
+          const usageEl = $("#adminReviewUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.reviewPending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-review?fresh=1", {}, 3e4).catch(() => null).then((review) => renderReview(review, true));
+        });
+      }
+      const reviewPromise = requestJson("/api/oracle-review", {}, 3e4).catch(() => null);
+      reviewPromise.then((review) => renderReview(review, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {

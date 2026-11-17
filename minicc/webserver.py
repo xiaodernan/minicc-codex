@@ -601,6 +601,19 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - the admin tile must never 500
                 self._json({"live": False, "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-review":
+            # The model as reviewer of this repo's own latest diff — real facts in,
+            # bilingual review out; ?fresh=1 bypasses the memo; wire death honest.
+            try:
+                from .oracle_review import build_workspace_review
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_workspace_review(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "zh": "", "en": "",
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-plan":
             # The model as forward planner: three moves this workspace should
             # make next, ordered by urgency, each with an acceptance test.

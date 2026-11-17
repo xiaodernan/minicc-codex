@@ -5728,6 +5728,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-plan-item { align-items: baseline; background: color-mix(in srgb, var(--surface) 60%, transparent); border: 1px solid var(--line); border-radius: 8px; display: flex; gap: 10px; padding: 8px 10px; }
 .admin-plan-rank { color: var(--amber); flex: 0 0 auto; font: 750 13px "DM Mono", monospace; }
 .admin-plan-empty { border: 1px dashed var(--line); border-radius: 8px; color: var(--quiet); list-style: none; padding: 10px; }
+.admin-review { border-color: color-mix(in srgb, var(--rose) 35%, var(--line)); margin-top: 12px; }
 .admin-brief-by { color: var(--quiet); font: 10px "DM Mono", monospace; margin-left: 8px; }
 .admin-brief-refresh { background: transparent; border: 1px solid var(--line); border-radius: 999px; color: var(--quiet); cursor: pointer; margin-left: auto; padding: 4px; transition: color .18s ease, border-color .18s ease; }
 .admin-brief-refresh:hover { color: var(--periwinkle); border-color: var(--periwinkle); }

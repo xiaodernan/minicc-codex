@@ -289,6 +289,41 @@ export async function openAdmin() {
     const planPromise = requestJson("/api/oracle-plan", {}, 30000).catch(() => null);
     planPromise.then((plan) => renderPlan(plan, false));
 
+    // Live code review — model as reviewer of this repo's latest diff.
+    function renderReview(review, refreshed) {
+      const bodyEl = $("#adminReviewBody");
+      const usageEl = $("#adminReviewUsage");
+      const byEl = $("#adminReviewModel");
+      if (byEl && review && review.model) byEl.textContent = review.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现扫" : "read live by the model";
+      if (!review || !review.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.reviewOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = review?.error ? `error: ${String(review.error).slice(0, 140)}` : "";
+        return;
+      }
+      const text = zh() ? review.zh : review.en;
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(text || (zh() ? review.en : review.zh))}</p>`;
+      if (usageEl) {
+        const u = review.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · 已重新生成" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${refreshed ? " · regenerated" : ""}`;
+      }
+    }
+    const reviewRefresh = $("#adminReviewRefresh");
+    if (reviewRefresh) {
+      reviewRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminReviewBody");
+        const usageEl = $("#adminReviewUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.reviewPending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-review?fresh=1", {}, 30000).catch(() => null).then((review) => renderReview(review, true));
+      });
+    }
+    const reviewPromise = requestJson("/api/oracle-review", {}, 30000).catch(() => null);
+    reviewPromise.then((review) => renderReview(review, false));
+
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
     const toolList = $("#adminToolUsage");

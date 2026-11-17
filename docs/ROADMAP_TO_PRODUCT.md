@@ -54358,3 +54358,16 @@ Windows Python leg 报 `--periwinkle` 被读但无声明——StateGraph 面板�
 - **Admin tile「先做三件事 · 值守规划师」**：amber 边框 list-ordered icon；refresh；token 账公示。
 - **真 lane 实测**：prompt 5,654 · cached 4,224 · 三条指令各带验收指标。
 - **测试**：`test_oracle_plan.py` 6/6；route_coverage 34/34 GET + 14/14 POST B；admin_smoke 新增断言；claim gates 69/69；CRLF pins 723→729（pure CRLF）。
+## 批次 1100 · M8-T1123: 值守评审师 · 第四条 model line——“代码评审 · The LLM Review”
+
+### 目的
+
+模型进入第四个职位：评审本仓库自己刚提交的 diff——一切不装饰。
+
+### 做了什么
+
+- **`minicc/oracle_review.py`**（新）：`git diff HEAD~1..HEAD`（byte cap 30k）入 prompt；模型写 zh+en ≤5 句；①做了什么 ②最大风险/最值得复核一行 ③修正建议或“无需修改+理由”。
+- **GET `/api/oracle-review`**：`?fresh=1`；永远 200；`?fresh=1` 绕过 10 分钟 memo。
+- **Admin tile「代码评审 · 值守评审师」**：rose 边框 scan-search icon；refresh；token 账。
+- **真 lane 实测**：prompt 5,357 · cached 4,224；模型准确复述提交本质并指出 head 元数据不一致。
+- **测试**：`test_oracle_review.py`（3）；route_coverage 35/35 GET + 14/14 POST B；admin_smoke 新增；claim gates 69/69；CRLF 729→735（pure CRLF）。
