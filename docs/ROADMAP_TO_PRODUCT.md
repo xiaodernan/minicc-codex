@@ -54949,3 +54949,23 @@ tests/test_a_module_is_registered_before_a_loader_executes_it.py
 - 不改 `detail` 在服务器日志里的位置；不改载荷里其它字段语义。
 - 不动本地化英文面的其余路径；EN 零 CJK 裁决仍由 en_cjk 全面板走查（CI 裁决为最终依据）。
 - **CI bot 拿不到 GitHub REST 授权时，wire-down 文案必须 en-safe——本批门禁就锁这一条。**
+## 批次 1132 · M8-T1190: liveness 读回——`join` 不是终点
+
+### 事实
+
+`92480692` 的 CI（run 44131560763）：Claim checkers 绿、Playwright 双腿绿（En_cjk 修完通过）、JavaScript 绿、Service plane 绿；**Python tests (ubuntu-latest) 红**，失败腿：
+
+```
+test_join_liveness.py::test_every_thread_join_in_the_suite_is_followed_by_a_liveness_read
+    1 thread join(s) take a timeout and are never read back
+```
+
+`test_blind_wait.py` 的门禁要求：`thread.join(timeout=N)` 必须跟着 liveness 读回（is_alive），不然超时可能空转。我在 M8-T1121/M8-T1177 的 `tests/test_stress_probe.py` 里恰好命中。
+
+### 修法
+
+`thread.join(timeout=5)` 后 `assert not thread.is_alive()`。不绕开门，不删 gate，不改测试矩阵。
+
+### 不声称
+
+- 不放开或软化 liveness 判例；15 条本地 `-W error` 全绿（含门卫两个文件）。

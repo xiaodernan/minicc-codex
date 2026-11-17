@@ -79,6 +79,8 @@ def test_the_probe_heats_a_real_server_and_reports_honestly():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+        # the liveness read-back: a stuck daemon must fail the suite, never pass silently
+        assert not thread.is_alive()
 
 
 def test_the_probe_refuses_to_measure_a_dead_server(monkeypatch):
