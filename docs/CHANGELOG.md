@@ -653,3 +653,8 @@
 
   **诚实边界**：本卷有两处机械修订，已在存证中说明——① Atlas 93→94 与卷号 56→57（同步发布版本事实）；② 英语引语使用弯引号，封堵 ASCII `"` 破坏 JSON 解析（首稿因此失败一次；改同一 `prompt_cache_key` 重发，cached prefix 再命中 4,224 tokens）。章节存证仅列出已验证窗口；不声称未证明的环境或负载已被覆盖。
 - **CI 红灯复盘 #8：stress 探针的裸 except 也是「沉默处理器」（M8-T1194 / 批次 1136）**：`Python tests` 双腿双挂——失败的是三条同源门：★`test_broad_silent_handlers_state_a_reason.py`、★它的 mutation 对偶、★`test_mutation_cells_react_to_the_code_they_name.py`。罪犯：`scripts/stress_auth_probe.py` 里两个无说明 `except Exception`（child-boot 轮询、burst transport 兜底）——不是一声句号，是一座真正的沉默服务器（处理一件事但不说为什么）。修法一行一句理由：轮询时孩子还在启动，崩溃不是结论，耐心是结论；transport 异常对探针来说是“没收到答案”这一观测件，必须统计进 burst 的其余直方图而不是把它中止。三门齐绿（-W error）。`scripts/stress_auth_probe.py` 现在是唯一被审计的脚本：每一轮询、每次拒绝都署名。
+- **RAG 开始验引用——让引文自证其实（M8-T1195 / 批次 1137）**：`/api/rag/query` 此前丢给模型的检索源是「文件名 + 段内原文」，引文编号 `[n]` 没人核对——没人能发现模型编出一个检索里没有的文件名。本批三段：① `_chunk_markdown` 改为携带**真实起止行号**（按段落行区间分箱，`(src, chunk, start_line, end_line)` 4 元组），BM25 相应全改为 4 元组，`search()` 输出含 `start_line`/`end_line`；② 新增 `citation_report(answer_text, sources)`——`cited/valid/invalid/coverage` 四字段，`ok` 只当所有被引编号都落在检索范围；③ `answer()` 成功路径把 `citation` 并进 payload（含 `prompt_cache_hit_tokens` 真实计量，不伪造缓存命中率）。
+
+  **门禁**：新增 `tests/test_rag_citations.py` 5 条腿——verifier 三腿（纯有效 / 有效+幻像 [1][2][7] / 零引用）、`search()` 行锚实测（start≥1、end≥start）、整链 fake client 收获引用判决（`invalid=[9]`, `prompt_cache_hit_tokens=24`）。BM25 族 8 腿同绿。
+
+  **诚实边界**：verifier 只验「被引的是不是检索里来的编号」；它不判定语义对错；coverage=null 与 ok=True 可共存（没引用≠错）。

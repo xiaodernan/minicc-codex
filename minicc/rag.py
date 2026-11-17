@@ -54,31 +54,54 @@ def _tokens(text: str) -> list[str]:
     return tokens
 
 
-def _chunk_markdown(text: str, *, chunk_chars: int = 800) -> list[str]:
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    chunks: list[str] = []
-    buf = ""
-    for p in paragraphs:
-        if buf and len(buf) + len(p) + 2 > chunk_chars:
-            chunks.append(buf)
-            buf = p
-        else:
-            buf = f"{buf}\n\n{p}".strip()
+def _chunk_markdown(text: str, *, chunk_chars: int = 800) -> list[tuple[str, int, int]]:
+    # M8-T1195: chunks carry their real line ranges so a reader (or the jury
+    # downstream) can check a fact against the owning file, not against a
+    # filename with no anchor into it.
+    lines = text.splitlines()
+    paragraphs: list[tuple[int, int, str]] = []   # (start, end, text)
+    current: list[str] = []
+    current_start = 1
+    for index, raw in enumerate(lines, 1):
+        if raw.strip():
+            if not current:
+                current_start = index
+            current.append(raw)
+            continue
+        if current:
+            paragraphs.append((current_start, current_start + len(current) - 1, "\n".join(current).strip()))
+            current = []
+    if current:
+        paragraphs.append((current_start, current_start + len(current) - 1, "\n".join(current).strip()))
+
+    chunks: list[tuple[str, int, int]] = []
+    buf: list[str] = []
+    buf_spans: list[tuple[int, int]] = []
+    buf_len = 0
+    for start, end, paragraph in paragraphs:
+        projected = buf_len + (2 if buf else 0) + len(paragraph)
+        if buf and projected > chunk_chars:
+            chunks.append(("\n\n".join(buf), buf_spans[0][0], buf_spans[-1][1]))
+            buf, buf_spans, buf_len = [paragraph], [(start, end)], len(paragraph)
+            continue
+        buf.append(paragraph)
+        buf_spans.append((start, end))
+        buf_len = projected
     if buf:
-        chunks.append(buf)
+        chunks.append(("\n\n".join(buf), buf_spans[0][0], buf_spans[-1][1]))
     return chunks
 
 
-def _load_documents() -> list[tuple[str, str]]:
-    docs: list[tuple[str, str]] = []
+def _load_documents() -> list[tuple[str, str, int, int]]:
+    docs: list[tuple[str, str, int, int]] = []
     for file in sorted(_DOCS_DIR.glob("*.md")):
         try:
             text = file.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for chunk in _chunk_markdown(text):
+        for chunk, start, end in _chunk_markdown(text):
             if chunk.strip():
-                docs.append((file.name, chunk))
+                docs.append((file.name, chunk, start, end))
     for file in _ROOT_FILES:
         if not file.is_file():
             continue
@@ -86,9 +109,9 @@ def _load_documents() -> list[tuple[str, str]]:
             text = file.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for chunk in _chunk_markdown(text):
+        for chunk, start, end in _chunk_markdown(text):
             if chunk.strip():
-                docs.append((file.name, chunk))
+                docs.append((file.name, chunk, start, end))
     return docs
 
 
@@ -105,6 +128,29 @@ class _LazyIndex:
 def search(query: str, limit: int = 5) -> list[dict[str, Any]]:
     return _LazyIndex.get().search(query, limit=limit)
 
+
+import re as _re
+
+_CITATION_RE = _re.compile(r"\[(\d+)\]")
+
+def citation_report(answer_text: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+    """Cross-check the '[n]' references the model emitted against the retrieved sources.
+
+    Honest verdicts only: ``ok`` is true only when every cited index exists in the
+    retrieved set; `cited`/`invalid` list which ones, `coverage` is len(valid)/len(cited)
+    (None when nothing was cited). Nothing about the model's truthfulness is claimed
+    beyond that — we never judge whether a cited chunk supports a sentence.
+    """
+    cited = sorted({int(m.group(1)) for m in _CITATION_RE.finditer(answer_text)})
+    invalid = [n for n in cited if n < 1 or n > len(sources)]
+    valid = [n for n in cited if 1 <= n <= len(sources)]
+    return {
+        "ok": not invalid,
+        "cited": cited,
+        "valid": valid,
+        "invalid": invalid,
+        "coverage": round(len(valid) / len(cited), 3) if cited else None,
+    }
 
 def _prompt_cache_key(base_url: str, model: str, explicit: str = "") -> str:
     """Same affinity-key discipline as the provider: an explicit key wins,
@@ -204,6 +250,7 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             "base_url": base_url,
             "usage": usage,
             "sources": sources,
+            "citation": citation_report(text, sources),
         }
     except Exception as exc:  # noqa: BLE001 - surface the failure to the caller, not a stack trace
         return {
@@ -218,26 +265,29 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
 
 
 class BM25Index:
-    """Minimal Okapi BM25 over (source, chunk) pairs."""
+    """Minimal Okapi BM25 over (source, chunk, start_line, end_line) tuples."""
 
-    def __init__(self, docs: list[tuple[str, str]] | None = None) -> None:
+    def __init__(self, docs: list[tuple[str, str, int, int]] | None = None) -> None:
         self.k1 = 1.2
         self.b = 0.75
-        self.docs: list[tuple[str, str, list[str]]] = [(src, chunk, _tokens(chunk)) for src, chunk in (docs if docs is not None else _load_documents())]
+        self.docs: list[tuple[str, str, list[str], int, int]] = [
+            (src, chunk, _tokens(chunk), start, end)
+            for src, chunk, start, end in (docs if docs is not None else _load_documents())
+        ]
         self.N = len(self.docs)
         df: dict[str, int] = {}
-        for _, _, tokens in self.docs:
+        for _, _, tokens, _, _ in self.docs:
             for t in set(tokens):
                 df[t] = df.get(t, 0) + 1
         self.df = df
-        self.avgdl = sum(len(t) for _, _, t in self.docs) / self.N if self.N else 1.0
+        self.avgdl = sum(len(t) for _, _, t, _, _ in self.docs) / self.N if self.N else 1.0
 
     def search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         q_tokens = _tokens(query)
         if not q_tokens:
             return []
         scores: list[tuple[float, int]] = []
-        for idx, (src, chunk, tokens) in enumerate(self.docs):
+        for idx, (src, chunk, tokens, _start, _end) in enumerate(self.docs):
             tf: dict[str, int] = {}
             for t in tokens:
                 tf[t] = tf.get(t, 0) + 1
@@ -255,7 +305,8 @@ class BM25Index:
         scores.sort(key=lambda item: -item[0])
         results: list[dict[str, Any]] = []
         for score, idx in scores[:limit]:
-            src, chunk, _tokens_list = self.docs[idx]
+            src, chunk, _tokens_list, start, end = self.docs[idx]
             snippet = chunk if len(chunk) <= 400 else chunk[:400] + "…"
-            results.append({"source": src, "score": round(score, 4), "chunk": snippet})
+            results.append({"source": src, "score": round(score, 4),
+                            "chunk": snippet, "start_line": start, "end_line": end})
         return results

@@ -55060,3 +55060,21 @@ test_mutation_cells_react_to_the_code_they_name.py
 
 - 不声称压测探针的异常语义可替代 `stress_probe.py`：各自带上自己的审计脚本与门。
 - 不声称本轮门禁判断覆盖所有脚本——仅覆盖 `minicc/` 与 `scripts/` 下的沉默 broad-except。
+## 批次 1137 · M8-T1195: RAG 开始验引用——引出要知道来自哪里
+
+### 目的
+
+检索结果此前只给模型看「文件名 + 原文段落」——模型事后一个 `[3]` 引到的东西没人查；它可能是幻觉出的文件名、幻觉出的章节号、就是不存在的。
+
+### 做了什么
+
+- **真行锚**：`_chunk_markdown` 逐段落记 `(start_line, end_line)`；跨段分箱时整段区间合并；BM25 改为 4 元组；`search()` 输出 `start_line / end_line`。
+- **引用裁决器**：`citation_report(answer_text, sources)`——`[n]` regex 扫描 + `cited / valid / invalid / coverage`；`ok` 只当所有被引编号都落进检索范围；不判定语义对错。
+- **接入**：`answer()` 成功路径多一个 `citation:` 字段；`prompt_cache_hit_tokens` 如实保留。
+- **门禁**：`tests/test_rag_citations.py` 5 条腿；BM25 族原有测试不动形状、同绿。
+
+### 不声称
+
+- 不改 `/api/rag/query` 的外形契约（`citation` 是新增字段，不删任何旧键）；
+- 不改 BM25 的相关性算法、分数或 token 化；
+- 不称「引用已被验证」——仅验证引用编号落在检索范围里；诚实的限制写进 `citation_report` 的 docstring。

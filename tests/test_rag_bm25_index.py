@@ -19,7 +19,7 @@ def test_tokens_are_lowercased_alnum_splits() -> None:
 def test_index_loads_bundled_docs() -> None:
     docs = _load_documents()
     assert len(docs) > 500, docs
-    sources = {s for s, _ in docs}
+    sources = {s for s, _chunk, _start, _end in docs}
     assert "README.md" in sources or any("README" in s for s in sources)
 
 
