@@ -54869,3 +54869,20 @@ M8-T1177（/api/audit CPU 风暴修复）顺带给 `web.py` 顶部加了一行 `
 ### 不声称
 
 - Windows leg 在本批修复时还没出结论；ubuntu 上门禁已绿（本文件修复后在 ubuntu 上重新判定）。
+## 批次 1128 · M8-T1185: 网关预算归位——多余的第二张脸撤掉
+
+### 目的
+
+M8-T1180 加的瓷贴有一条 "/api/admin/ratelimit" 专用路线。自审核查：`minicc/admin.py::build_summary`（M8-T1014 起）本来就把 `ratelimit` 放进解锁载荷，`/api/admin/summary` 解锁时即携带——**同一件事开了两条 HTTP 线**。按本仓「一个事实一个家」的纪律，第二条撤掉。
+
+### 做了什么
+
+- **端点删除**（`minicc/webserver.py`），对应 never-500s 双腿一并撤回（`test_http_surface.py`，98→97 green）。
+- **瓷贴改吃解锁载荷**：`renderRatelimit(data?.ratelimit ?? null, false)` 挂进 `loadSummary()`——同一次 `/api/admin/summary` 旅程里渲染；专用刷新按钮撤掉（瓷器随解锁/重载同步最新闸值）；i18n 键 `admin.ratelimitRefresh` 撤回（zh/en）。
+- **门禁仍一遍全绿**：`frontend_i18n_dict_one_home` 815 键双边 + 259 t() 引用全解；`http_surface` 97 腿；CRLF 双文件 0 LF-only；en_cjk / admin / almanac / atlas / stategraph / dazzle 冒烟全绿；`summary` 实查取到 `{limit:20, window_seconds:60, decisions{allowed_local:24, allowed_redis:0, denied:0, degraded_open:0}, remaining_local_windows:8}`。
+- **不动闸**：60s/20 尺寸不变、fail-open 不变、Redis/LRU 后备不变、`ratelimit.stats()` 计数器不变；路由总数 39→40→39。
+
+### 不声称
+
+- 不改闸门本体语义（尺寸 / fail-open / 后备后端 / 计数器键名均未动）；8 条网关路由仍原样进闸（M8-T1178 的仲裁未动）。
+- 不改解锁包的 15 秒 memo。

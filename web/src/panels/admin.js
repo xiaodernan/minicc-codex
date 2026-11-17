@@ -77,6 +77,7 @@ export async function openAdmin() {
     set("adminSessions", totals.sessions != null ? compactCount(totals.sessions) : "—");
     const streak = data?.completion_streak;
     set("adminStreak", streak && typeof streak.current === "number" ? String(streak.current) : "—");
+    renderRatelimit(data?.ratelimit ?? null, false);
 
     const canvas = $("#adminTrendCanvas");
     if (canvas && trend.length) {
@@ -528,18 +529,6 @@ export async function openAdmin() {
           : `Shared bucket · Redis ${allowedRedis ? "serving" : "unconfigured / unavailable"}${refreshed ? " · re-read" : ""}`;
       }
     }
-    const ratelimitRefresh = $("#adminRatelimitRefresh");
-    if (ratelimitRefresh) {
-      ratelimitRefresh.addEventListener("click", () => {
-        const bodyEl = $("#adminRatelimitBody");
-        const usageEl = $("#adminRatelimitUsage");
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.ratelimitPending"))}</p>`;
-        if (usageEl) usageEl.textContent = "";
-        requestJson("/api/admin/ratelimit", {}, 10000).catch(() => null).then((stats) => renderRatelimit(stats, true));
-      });
-    }
-    const ratelimitPromise = requestJson("/api/admin/ratelimit", {}, 10000).catch(() => null);
-    ratelimitPromise.then((stats) => renderRatelimit(stats, false));
 
 
     // tool usage — top 6 tools called by the local agent, counted from real events

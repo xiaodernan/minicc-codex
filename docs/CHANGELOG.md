@@ -638,3 +638,6 @@
 - **CI 红灯复盘 #3：一次多余的顶层 import 让全文件行号漂移（M8-T1184 / 批次 1127）**：`Python tests (ubuntu-latest)`（run 44110089827）红在 `test_a_line_a_test_docstring_cites_can_be_read.py::test_the_repaired_citations_still_name_what_the_sentence_claims`——REPAIRED 名册断言 `minicc/web.py:1852` 仍含 `record_text(8000)`。根因是 M8-T1177（压测分诊）给 `web.py` 顶部加了 `from collections import deque`（+1 行），把全文件所有引用钉住的行号全部 +1。**修法不是改名册、也不是改两个存证文档串（那是历史实测记录，数值不能贫富倒置）**，而是把 `deque` 导入移进函数内部——净行移位回到 0，1852/2358 都原样成立。`impact floor`（上一个红例）保持绿；`tests/test_a_line_a_test_docstring_cites_can_be_read.py` 6/6 green。
 
   **教训**：在一份「历史实测记录锚定在固定行号」的仓库里，任何顶层新增（哪怕一个 import）都是一次全行号地震——以后改这类文件只能在函数内部动。
+- **一个事实一个家，再落一刀：网关预算收回到解锁包里（M8-T1185 / 批次 1128）**：M8-T1180 给管理面板加「网关预算」瓷贴，同时铺了一条专用 HTTP 路线 `/api/admin/ratelimit`；自审发现 `/api/admin/summary` 从 M8-T1014 起就把 `ratelimit` 嵌在 `build_summary` 里返回给解锁面板——同一件事开了第二张脸。按照本仓库「一个事实一个家」的一贯纪律，专用路线撤掉：`webserver.py` 删除该路由；`tests/test_http_surface.py` 该路由双腿一并撤回（98→97）；`admin.js` 的 `renderRatelimit` 改从 `loadSummary()` 已有的 `/api/admin/summary` 载荷取数（挂同一次总读取），专用刷新按钮删除，瓷贴随解锁/重载自然刷新，与其余 tile 家庭一致；`i18n.js` 撤回 `admin.ratelimitRefresh` 键（815 键双边齊 + 259 处 t() 引用全解）；`index.html` 撤回瓷贴刷新按钮。路由总数回到 **39**。
+
+  **诚实边界**：不改共享闸门任何语义（60s/20、fail-open、Redis/LRU 后备、`ratelimit.stats()` 计数器一律不动；8 条模型花钱路由仍进同一个闸）；不改解锁包的 15 秒 memo——预算计数与其余 tile 一同吃 memo。

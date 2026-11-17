@@ -819,18 +819,6 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                     "error": f"{type(exc).__name__}: {exc}",
                 }, 200)
             return
-        if path == "/api/admin/ratelimit":
-            # M8-T1180: the gateway token budget, exposed — the admin panel polls
-            # every model-calling oracle; now it can also see how close the shared
-            # 60s/20-per-client bucket is to refusing them. Read out the same
-            # counters the gate itself keeps. Never raises.
-            try:
-                from .ratelimit import stats as _rl_stats
-
-                self._json(_rl_stats())
-            except Exception as exc:  # noqa: BLE001 - the panel must never 500
-                self._json({"error": f"{type(exc).__name__}: {exc}"}, 200)
-            return
         if path == "/favicon.ico":
             self._serve_static("/favicon.svg")
             return

@@ -1112,7 +1112,6 @@
       "admin.auditOutage": "\u503C\u5B88\u8BFB\u8005\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u5BA1\u8BA1\u5BFC\u51FA\u7684\u539F\u59CB\u8BB0\u5F55\u3002",
       "admin.ratelimitKicker": "\u7F51\u5173\u9884\u7B97 \xB7 \u5171\u4EAB\u95F8\u95E8",
       "admin.ratelimitPending": "\u6B63\u5728\u8BFB\u5171\u4EAB\u95F8\u5C3A\u2026",
-      "admin.ratelimitRefresh": "\u5237\u65B0\u7F51\u5173\u9884\u7B97",
       "admin.ratelimitOutage": "\u95F8\u95E8\u8BA1\u6570\u6682\u65F6\u4E0D\u53EF\u8BFB\u2014\u2014\u95F8\u672C\u8EAB fail-open \u7167\u5E38\u653E\u884C\uFF0C\u8D26\u672C\u7167\u8BB0\u3002",
       "admin.driftKicker": "\u6F02\u79FB\u54E8\u5175 \xB7 \u4ED3\u5E93\u81EA\u8BC1",
       "admin.driftHead": "\u4E8B\u5B9E\u5305 \u2261 HEAD",
@@ -1930,7 +1929,6 @@
       "admin.auditOutage": "The on-duty reader is unavailable \u2014 check the raw audit trail first.",
       "admin.ratelimitKicker": "Gateway budget \xB7 shared gate",
       "admin.ratelimitPending": "Reading the shared bucket\u2026",
-      "admin.ratelimitRefresh": "Refresh the gateway budget",
       "admin.ratelimitOutage": "The gate counters are unreadable \u2014 the gate itself fails open and keeps counting.",
       "admin.driftKicker": "Drift sentinel \xB7 the repo proves itself",
       "admin.driftHead": "fact pack \u2261 HEAD",
@@ -8024,6 +8022,7 @@
       set("adminSessions", totals.sessions != null ? compactCount2(totals.sessions) : "\u2014");
       const streak = data?.completion_streak;
       set("adminStreak", streak && typeof streak.current === "number" ? String(streak.current) : "\u2014");
+      renderRatelimit(data?.ratelimit ?? null, false);
       const canvas = $("#adminTrendCanvas");
       if (canvas && trend.length) {
         const dpr = window.devicePixelRatio || 1;
@@ -8423,18 +8422,6 @@
           usageEl.textContent = zh8() ? `\u5171\u4EAB\u95F8\u95E8 \xB7 Redis ${allowedRedis ? "\u5728\u7EBF" : "\u672A\u914D\u7F6E/\u4E0D\u53EF\u7528"}${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `Shared bucket \xB7 Redis ${allowedRedis ? "serving" : "unconfigured / unavailable"}${refreshed ? " \xB7 re-read" : ""}`;
         }
       }
-      const ratelimitRefresh = $("#adminRatelimitRefresh");
-      if (ratelimitRefresh) {
-        ratelimitRefresh.addEventListener("click", () => {
-          const bodyEl = $("#adminRatelimitBody");
-          const usageEl = $("#adminRatelimitUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ratelimitPending"))}</p>`;
-          if (usageEl) usageEl.textContent = "";
-          requestJson("/api/admin/ratelimit", {}, 1e4).catch(() => null).then((stats) => renderRatelimit(stats, true));
-        });
-      }
-      const ratelimitPromise = requestJson("/api/admin/ratelimit", {}, 1e4).catch(() => null);
-      ratelimitPromise.then((stats) => renderRatelimit(stats, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {

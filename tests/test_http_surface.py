@@ -1033,26 +1033,6 @@ def test_get_oracle_audit_story_never_500s(live: _LiveServer, monkeypatch) -> No
     assert fresh[0] == 200
 
 
-def test_get_admin_ratelimit_never_500s(live: _LiveServer, monkeypatch) -> None:
-    # M8-T1180: the gateway-budget tile is on the admin unlock path; it must answer.
-    status, _, body = _request(f"{live.url}/api/admin/ratelimit", method="GET")
-    assert status == 200
-    payload = json.loads(body)
-    assert "decisions" in payload or "error" in payload
-    assert "sk-" not in body.decode("utf-8", "replace")
-
-    import minicc.ratelimit as rl_mod
-
-    def boom():
-        raise RuntimeError("counters exploded")
-
-    monkeypatch.setattr(rl_mod, "stats", boom)
-    status, _, body = _request(f"{live.url}/api/admin/ratelimit", method="GET")
-    assert status == 200
-    payload = json.loads(body)
-    assert "error" in payload
-    assert "sk-" not in body.decode("utf-8", "replace")
-
 
 def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(live: _LiveServer, monkeypatch) -> None:
     # M8-T1178: every gateway-calling route is behind the shared token bucket;
