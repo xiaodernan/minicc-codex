@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T17:17:48.863Z",
+  "generated_at": "2026-11-17T17:42:51.078Z",
   "branch": "main",
-  "head": "3757d3b",
-  "total_commits": 1898,
+  "head": "e358d37",
+  "total_commits": 1900,
   "recent_commits": [
+    {
+      "short": "e358d37",
+      "at": "2026-11-18T01:42:28+08:00",
+      "subject": "M8-T1191 (CI red #7, fake-provider switch one-home): ubuntu leg found provider_ping spelling MINICC_FAKE_PROVIDER inline - imported FAKE_PROVIDER_ENV/fake_provi"
+    },
+    {
+      "short": "1dcd5c0",
+      "at": "2026-11-17T17:17:49Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3757d3b",
       "at": "2026-11-18T01:17:23+08:00",
@@ -19,22 +29,12 @@
       "short": "9248069",
       "at": "2026-11-18T00:56:59+08:00",
       "subject": "M8-T1189 (CI red #5, en_cjk parity): the gateway's Chinese refusal leaked into en mode - oracle_common.error_payload now ASCII-only 'kind: ExceptionType' with f"
-    },
-    {
-      "short": "7f9d101",
-      "at": "2026-11-17T16:26:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "78b2fa6",
-      "at": "2026-11-18T00:26:10+08:00",
-      "subject": "M8-T1188 (CI red #4): ubuntu leg failed on the M8-T543 rule - tests/test_stress_probe.py executed spec.loader.exec_module(module) without first registering the "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 460,
+  "roadmap_batches": 461,
   "changelog_entries": 1,
-  "roadmap_lines": 54972,
+  "roadmap_lines": 54994,
   "tracked_files": 1120,
   "test_files": 737,
   "almanac_chapters": 56,
