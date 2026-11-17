@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T01:12:42.430Z",
+  "generated_at": "2026-11-17T02:37:27.800Z",
   "branch": "main",
-  "head": "e9ea037",
-  "total_commits": 1822,
+  "head": "6330d84",
+  "total_commits": 1825,
   "recent_commits": [
+    {
+      "short": "6330d84",
+      "at": "2026-11-17T10:36:33+08:00",
+      "subject": "M8-T1127: the model's second self-authored chapter - almanac Ch.LIII 'The Twelfth Light / 第十二家灯' (subprocess.run(timeout=) without TimeoutExpired handler in ora"
+    },
+    {
+      "short": "bc54d82",
+      "at": "2026-11-17T10:06:34+08:00",
+      "subject": "M8-T1126: fix oracle_review's subprocess.run - timeout=20 must be inside an except that names TimeoutExpired (subprocess_timeout_pairing gate); _git now catches"
+    },
+    {
+      "short": "7d15b07",
+      "at": "2026-11-17T01:12:42Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e9ea037",
       "at": "2026-11-17T09:12:06+08:00",
@@ -14,30 +29,15 @@
       "short": "2d9f01f",
       "at": "2026-11-17T00:51:25Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7fcf7f8",
-      "at": "2026-11-17T08:50:39+08:00",
-      "subject": "M8-T1124: M8-T1116 correction - the scandir walker broke the resource-hygiene gate (minicc/ never calls os.scandir, even under with); replaced with os.walk+os.s"
-    },
-    {
-      "short": "300bb1e",
-      "at": "2026-11-17T00:27:53Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f6174d7",
-      "at": "2026-11-17T08:27:02+08:00",
-      "subject": "M8-T1123: the model reviews this repo's own diff - 'LLM Review' tile in admin (HEAD~1..HEAD diff in, bilingual review out; ?fresh=1; 10-min memo; honest live:fa"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 429,
+  "roadmap_batches": 430,
   "changelog_entries": 1,
-  "roadmap_lines": 54396,
+  "roadmap_lines": 54409,
   "tracked_files": 1100,
   "test_files": 723,
-  "almanac_chapters": 52,
+  "almanac_chapters": 53,
   "module_count": 14,
   "feature_surface": [
     "workbench",
