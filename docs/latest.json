@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T05:26:04.086Z",
+  "generated_at": "2026-11-17T05:52:18.307Z",
   "branch": "main",
-  "head": "351d444",
-  "total_commits": 1841,
+  "head": "19ba5e1",
+  "total_commits": 1843,
   "recent_commits": [
+    {
+      "short": "19ba5e1",
+      "at": "2026-11-17T13:51:39+08:00",
+      "subject": "M8-T1160: the drift sentinel - first model-free admin tile; /api/admin/drift answers three measured questions; the CRLF pin gate is enforced live; admin_smoke a"
+    },
+    {
+      "short": "408538b",
+      "at": "2026-11-17T05:26:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "351d444",
       "at": "2026-11-17T13:25:39+08:00",
@@ -19,23 +29,13 @@
       "short": "27960ed",
       "at": "2026-11-17T13:16:37+08:00",
       "subject": "M8-T1134: the model's third self-authored chapter - almanac Ch.LIV 'The Reckoning / 并账' (the night the repo was byte-audited: PR #1 closed as superseded with fi"
-    },
-    {
-      "short": "01f8a90",
-      "at": "2026-11-17T04:33:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a6935ee",
-      "at": "2026-11-17T12:32:11+08:00",
-      "subject": "M8-T1133: the engine speaks two tongues - every user-visible engine string is wired to the two-table cli_io (stream progress/gateway fallback in openai_provider"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 437,
+  "roadmap_batches": 438,
   "changelog_entries": 1,
-  "roadmap_lines": 54550,
-  "tracked_files": 1113,
+  "roadmap_lines": 54565,
+  "tracked_files": 1114,
   "test_files": 733,
   "almanac_chapters": 54,
   "module_count": 14,
