@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T20:26:27.339Z",
+  "generated_at": "2026-11-17T20:56:53.100Z",
   "branch": "main",
-  "head": "59a7bbf",
-  "total_commits": 1910,
+  "head": "53923a7",
+  "total_commits": 1912,
   "recent_commits": [
+    {
+      "short": "53923a7",
+      "at": "2026-11-18T04:56:27+08:00",
+      "subject": "M8-T1197 (cleanup after M8-T1196): two honest incidents - (A) the strategist tile shipped as a dead shell (untranslated keys, no renderer, no fetch): repaired b"
+    },
+    {
+      "short": "dce5201",
+      "at": "2026-11-17T20:26:27Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "59a7bbf",
       "at": "2026-11-18T04:26:00+08:00",
@@ -19,22 +29,12 @@
       "short": "9330b04",
       "at": "2026-11-18T03:49:08+08:00",
       "subject": "M8-T1195 (RAG citations): the [n] refs the model emits now get cross-checked against the retrieved set - chunks carry real start/end line ranges (BM25 docs beco"
-    },
-    {
-      "short": "742bb1f",
-      "at": "2026-11-17T19:13:25Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7d10d53",
-      "at": "2026-11-18T03:12:47+08:00",
-      "subject": "M8-T1194 (CI red #8, silent handlers): Windows and Ubuntu denied on three same-family gates - scripts/stress_auth_probe.py had two nameless 'except Exception' ("
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 466,
+  "roadmap_batches": 467,
   "changelog_entries": 1,
-  "roadmap_lines": 55099,
+  "roadmap_lines": 55122,
   "tracked_files": 1125,
   "test_files": 740,
   "almanac_chapters": 57,
