@@ -99,6 +99,7 @@ from tenacity import (
 )
 
 from ..config import LLM_PROTOCOL_CHAT_COMPLETIONS, LLM_PROTOCOL_RESPONSES, LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
+from ..cli_io import tr
 from .base import LLMResponse, is_nameless_tool_name, tool_call, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
@@ -884,7 +885,7 @@ class OpenAICompatibleProvider:
                 status="error",
                 phase=PHASE_PLANNING,
                 code="provider_protocol_fallback",
-                summary="当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
+                summary=tr("engine_llm_responses_fallback"),
                 detail=protocol_fallback_detail(exc),
             ))
 
@@ -897,7 +898,7 @@ class OpenAICompatibleProvider:
                 status="error",
                 phase=PHASE_PLANNING,
                 code="provider_transport_fallback",
-                summary="Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
+                summary=tr("engine_llm_transport_fallback"),
                 detail=protocol_fallback_detail(exc),
             ))
 
@@ -1065,7 +1066,7 @@ class OpenAICompatibleProvider:
                             tool_progress["announced"] = True
                             self._emit_provider_progress(
                                 code="provider_tool_call_start",
-                                summary=f"正在生成工具调用 {tool_progress['tool']}" if tool_progress["tool"] else "正在生成工具调用",
+                                summary=tr("engine_llm_tool_forming", tool=tool_progress["tool"]) if tool_progress["tool"] else tr("engine_llm_tool_forming_generic"),
                                 detail={"tool": tool_progress["tool"]},
                                 )
                     elif event_type == "response.function_call_arguments.delta":
@@ -1077,14 +1078,14 @@ class OpenAICompatibleProvider:
                                 tool_progress["last"] = now
                                 self._emit_provider_progress(
                                     code="provider_tool_call_progress",
-                                    summary=f"工具参数流式生成中 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
+                                    summary=tr("engine_llm_params_forming", tool=tool_progress["tool"] or "?", chars=tool_progress["chars"]),
                                     detail={"tool": tool_progress["tool"], "chars": tool_progress["chars"]},
                                     )
                     elif event_type == "response.function_call_arguments.done":
                         if tool_progress["announced"] and tool_progress["chars"]:
                             self._emit_provider_progress(
                                 code="provider_tool_call_progress",
-                                summary=f"工具调用已成形 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
+                                summary=tr("engine_llm_tool_ready", tool=tool_progress["tool"] or "?", chars=tool_progress["chars"]),
                                 detail={"tool": tool_progress["tool"], "chars": tool_progress["chars"], "done": True},
                                 )
                     elif event_type in {
@@ -1099,7 +1100,7 @@ class OpenAICompatibleProvider:
                                 reasoning_progress["last"] = now
                                 self._emit_provider_progress(
                                     code="provider_reasoning_progress",
-                                    summary=f"推理进行中 · {reasoning_progress['chars']} 字符",
+                                    summary=tr("engine_llm_reasoning", chars=reasoning_progress["chars"]),
                                     detail={"chars": reasoning_progress["chars"]},
                                     )
                     elif event_type in {"response.completed", "response.incomplete", "response.failed"}:
@@ -1310,7 +1311,7 @@ class OpenAICompatibleProvider:
                 status="error",
                 phase=PHASE_PLANNING,
                 code="provider_request_retry",
-                summary=f"模型请求暂时失败，正在进行第 {retry_state.attempt_number + 1} 次尝试",
+                summary=tr("engine_llm_retry", attempt=retry_state.attempt_number + 1),
                 detail={
                     "attempt": retry_state.attempt_number + 1,
                     "retry_limit": self._max_retries + 1,
@@ -1411,7 +1412,7 @@ class OpenAICompatibleProvider:
                             reasoning_stream_last = now
                             self._emit_provider_progress(
                                 code="provider_reasoning_progress",
-                                summary=f"推理进行中 · {reasoning_stream_chars} 字符",
+                                summary=tr("engine_llm_reasoning", chars=reasoning_stream_chars),
                                 detail={"chars": reasoning_stream_chars},
                                 )
                     for tc in getattr(delta, "tool_calls", None) or ():
@@ -1429,7 +1430,7 @@ class OpenAICompatibleProvider:
                                     slot["name"] = incoming
                                     self._emit_provider_progress(
                                         code="provider_tool_call_start",
-                                        summary=f"正在生成工具调用 {incoming}",
+                                        summary=tr("engine_llm_tool_forming", tool=incoming),
                                         detail={"tool": incoming},
                                         )
                                 else:
@@ -1443,7 +1444,7 @@ class OpenAICompatibleProvider:
                                     tool_stream_last = now
                                     self._emit_provider_progress(
                                         code="provider_tool_call_progress",
-                                        summary=f"工具参数流式生成中 · {slot['name'] or '?'} · {tool_stream_chars} 字符",
+                                        summary=tr("engine_llm_params_forming", tool=slot["name"] or "?", chars=tool_stream_chars),
                                         detail={"tool": slot["name"], "chars": tool_stream_chars},
                                         )
 
@@ -1453,7 +1454,7 @@ class OpenAICompatibleProvider:
                     names = [str(slot.get("name") or "") for slot in tool_acc.values() if slot.get("name")]
                     self._emit_provider_progress(
                         code="provider_tool_call_progress",
-                        summary=f"工具调用已成形 · {', '.join(names) or '?'} · {tool_stream_chars} 字符",
+                        summary=tr("engine_llm_tool_ready", tool=", ".join(names) or "?", chars=tool_stream_chars),
                         detail={"tool": names[0] if len(names) == 1 else ",".join(names), "chars": tool_stream_chars, "done": True},
                         )
                 response = LLMResponse(

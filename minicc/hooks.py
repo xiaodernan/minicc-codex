@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .cli_io import tr
 from .logging_setup import get_logger
 from .tools.registry import redact_text
 
@@ -424,7 +425,7 @@ class HookRunner:
         except OSError as exc:
             entry.update(
                 decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
-                reason=f"hook 启动失败: {exc}",
+                reason=tr("engine_hooks_start_failed", exc=exc),
             )
             return entry
         try:
@@ -443,14 +444,14 @@ class HookRunner:
                 timed_out=True,
                 stdout=redact_text(_cap((stdout_raw or "").strip()))[0],
                 stderr=redact_text(_cap((stderr_raw or "").strip()))[0],
-                reason=f"hook 超时（>{spec.timeout:.0f}s），已连同子进程一起终止",
+                reason=tr("engine_hooks_timeout", timeout=spec.timeout),
             )
             return entry
         except OSError as exc:
             _kill_process_tree(proc)
             entry.update(
                 decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
-                reason=f"hook 执行失败: {exc}",
+                reason=tr("engine_hooks_failed", exc=exc),
             )
             return entry
         stdout, _ = redact_text(_cap((stdout_raw or "").strip()))
@@ -464,7 +465,7 @@ class HookRunner:
             # Non-zero, non-deny exit: failure strategy decides.
             entry.update(
                 decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
-                reason=(stderr or stdout or f"hook 退出码 {proc.returncode}"),
+                reason=(stderr or stdout or tr("engine_hooks_exit_code", returncode=proc.returncode)),
             )
         return entry
 

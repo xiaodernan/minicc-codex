@@ -19,6 +19,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..cli_io import tr
 from ..llm.base import system_msg, user_msg
 from ..llm.openai_provider import classify_provider_failure
 from .loop import INSPECTION_TOOL_NAMES, AgentCancelled, chat_with_cancellation
@@ -600,7 +601,7 @@ def parse_completion_decision(text: str) -> CompletionDecision:
     if not isinstance(payload, dict):
         return CompletionDecision(
             status="unknown",
-            error="完成评估没有返回有效 JSON",
+            error=tr("engine_completion_bad_json"),
         )
 
     status_value = payload.get("status", payload.get("decision"))
@@ -610,7 +611,7 @@ def parse_completion_decision(text: str) -> CompletionDecision:
     if status == "unknown":
         return CompletionDecision(
             status="unknown",
-            error="完成评估返回了未知状态",
+            error=tr("engine_completion_unknown_status"),
         )
 
     confidence = payload.get("confidence", 0.0)

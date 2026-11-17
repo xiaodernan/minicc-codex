@@ -111,6 +111,7 @@ from .task_execution import WORKER_METADATA_FIELDS, WorkerDetached, WorkerSnapsh
 from .task_persistence import TaskSnapshotWriter, task_snapshot_write_failed_event
 from .tools.registry import redact_text
 from .workspaces import resolve_workspace_path
+from .cli_io import tr
 from .trace import trace_event
 
 if TYPE_CHECKING:
@@ -424,16 +425,16 @@ def _completion_guard_message(
     if _has_successful_workspace_write(events):
         return None
     if not allow_changes:
-        return "任务要求修改工作区，但当前任务没有开启完全访问权限"
-    return "模型在没有完成任何工作区修改前结束了任务"
+        return tr("engine_task_needs_access")
+    return tr("engine_task_no_edit")
 
 
 def _completion_review_event(decision: CompletionDecision, attempt: int) -> dict[str, Any]:
     labels = {
-        "complete": "完成评估通过：证据支持交付",
-        "continue": "完成评估未通过：仍有目标未满足",
-        "blocked": "完成评估发现阻塞：需要说明原因",
-        "unknown": "完成评估不可用：暂不确认完成",
+        "complete": tr("engine_task_verdict_pass"),
+        "continue": tr("engine_task_verdict_fail"),
+        "blocked": tr("engine_task_verdict_blocked"),
+        "unknown": tr("engine_task_verdict_unknown"),
     }
     status = "ok" if decision.status == "complete" else "error" if decision.status in {"blocked", "unknown"} else "ok"
     return trace_event(
@@ -998,12 +999,12 @@ class TaskRecord:
                 result_payload = dict(self.result)
                 if self.status in {TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED}:
                     result_payload.update(
-                        answer=self.error or (TASK_CANCELLED_ANSWER if self.status == TASK_STATUS_CANCELLED else "服务重启时任务被中断。"),
+                        answer=self.error or (TASK_CANCELLED_ANSWER if self.status == TASK_STATUS_CANCELLED else tr("engine_task_interrupted")),
                         error=self.error,
                         cancelled=self.status == TASK_STATUS_CANCELLED,
                     )
                 elif self.status == TASK_STATUS_FAILED:
-                    result_payload[RESULT_FIELD_ERROR] = self.error or result_payload.get("error") or "任务失败"
+                    result_payload[RESULT_FIELD_ERROR] = self.error or result_payload.get("error") or tr("engine_task_failed")
                 output.update(result_payload)
             # Result payloads come from a provider and must never be allowed
             # to overwrite the task lifecycle fields maintained by the host.
@@ -1115,11 +1116,11 @@ class TaskRecord:
         error = data.get("error")
         if not raw_status:
             phase = PHASE_INTERRUPTED
-            error = "任务记录缺少终态，按中断处理，可重新运行。"
+            error = tr("engine_task_no_terminal")
         elif status not in TERMINAL_TASK_STATUSES and status not in ACTIVE_TASK_STATUSES:
             status = TASK_STATUS_INTERRUPTED
             phase = PHASE_INTERRUPTED
-            error = f"未知任务状态 {raw_status!r}，按中断处理，可重新运行。"
+            error = tr("engine_task_unknown_status", raw_status=raw_status)
         if status in ACTIVE_TASK_STATUSES:
             status = TASK_STATUS_INTERRUPTED
             phase = PHASE_INTERRUPTED
@@ -1183,7 +1184,7 @@ class TaskRecord:
                 and str(stored_result["completion"].get("status") or "") == "complete"
             )
         ):
-            repair_error = "历史任务没有成功修改工作区，旧记录的完成状态已更正为失败。"
+            repair_error = tr("engine_task_history_corrected")
             task.status = TASK_STATUS_FAILED
             task.phase = PHASE_FAILED
             task.error = repair_error
@@ -1351,7 +1352,7 @@ class TaskManager:
                 try:
                     task.transition_status(
                         TASK_STATUS_FAILED,
-                        error=f"会话任务队列已满（上限 {self.queue_limit}），请稍后再提交。",
+                        error=tr("engine_task_queue_full", queue_limit=self.queue_limit),
                     )
                 except InvalidStatusTransition:
                     pass
@@ -1415,7 +1416,7 @@ class TaskManager:
                         try:
                             task.transition_status(
                                 TASK_STATUS_FAILED,
-                                error=f"任务无法进入执行器: {type(exc).__name__}: {exc}",
+                                error=tr("engine_task_no_executor", type=type(exc).__name__, exc=exc),
                             )
                         except InvalidStatusTransition:
                             pass
@@ -1454,9 +1455,9 @@ class TaskManager:
                         if parent.orchestration_mode == "auto"
                         else "batch_started"
                     ),
-                    summary=f"已识别为复杂任务，自动拆分 {len(child_ids)} 个只读侦察子任务"
+                    summary=tr("engine_task_split_scouts", count=len(child_ids))
                     if parent.orchestration_mode == "auto"
-                    else f"已拆分 {len(child_ids)} 个独立子任务，交给并行执行器",
+                    else tr("engine_task_split_workers", count=len(child_ids)),
                     detail={
                         "child_count": len(child_ids),
                         "session_id": parent.session_id,
@@ -1492,7 +1493,7 @@ class TaskManager:
                         try:
                             parent.transition_status(
                                 TASK_STATUS_CANCELLED if parent.cancel_event.is_set() else TASK_STATUS_FAILED,
-                                error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else f"批任务启动失败: {type(exc).__name__}: {exc}",
+                                error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else tr("engine_task_batch_start_failed", type=type(exc).__name__, exc=exc),
                                 reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
                             )
                         except InvalidStatusTransition:
@@ -1666,7 +1667,7 @@ class TaskManager:
                     status="error",
                     phase=PHASE_PLANNING,
                     code="planner_fixed_fallback",
-                    summary="动态计划不符合安全约束，已回退固定执行模板",
+                    summary=tr("engine_task_plan_unsafe"),
                     detail={"reason": plan_result.reason},
                 ))
             self.tasks[parent.task_id] = parent
@@ -1858,7 +1859,7 @@ class TaskManager:
                             "task_id": child_id,
                             "status": TASK_STATUS_INTERRUPTED,
                             "phase": PHASE_INTERRUPTED,
-                            RESULT_FIELD_ERROR: "子任务记录不存在，按中断处理",
+                            RESULT_FIELD_ERROR: tr("engine_task_child_missing"),
                             RESULT_FIELD_ANSWER: "",
                             RESULT_FIELD_TOKENS_USED: {},
                             "events": [],
@@ -1879,7 +1880,7 @@ class TaskManager:
                         status="error" if child.get("status") in TASK_UNSUCCESSFUL_STATUSES else "ok",
                         phase=PHASE_PLANNING,
                         code="subagent_finished",
-                        summary=f"子任务 {index} 已{child.get('status')}",
+                        summary=tr("engine_task_child_status", index=index, status=child.get("status")),
                         detail={
                             "child": index,
                             "task_id": child_id,
@@ -1917,7 +1918,7 @@ class TaskManager:
                     status="ok",
                     phase=PHASE_PLANNING,
                     code="orchestration_parent_resumed",
-                    summary="只读侦察已完成，主 Agent 接管原始任务并开始实施",
+                    summary=tr("engine_task_scouts_done"),
                     detail={
                         "child_count": len(child_ids),
                         "failed": sum(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots),
@@ -1940,8 +1941,8 @@ class TaskManager:
                     if item.get("status") in TASK_UNSUCCESSFUL_STATUSES
                 )
                 result = {
-                    RESULT_FIELD_ANSWER: f"批量任务未完成：子任务 {failed_children} 没有成功结束。",
-                    RESULT_FIELD_ERROR: "一个或多个并行子任务失败或被中断",
+                    RESULT_FIELD_ANSWER: tr("engine_task_batch_incomplete", failed_children=failed_children),
+                    RESULT_FIELD_ERROR: tr("engine_task_children_failed"),
                     RESULT_FIELD_CANCELLED: False,
                     RESULT_FIELD_CHILDREN: snapshots,
                 }
@@ -1952,7 +1953,7 @@ class TaskManager:
                     status="ok",
                     phase=PHASE_MERGING,
                     code="batch_merge_started",
-                    summary="所有子任务已结束，正在合并结果与验证证据",
+                    summary=tr("engine_task_children_done"),
                     detail={
                         "child_count": len(child_ids),
                         "parallel_results": [_child_result_digest(item) for item in snapshots],
@@ -2027,7 +2028,7 @@ class TaskManager:
                 status="error" if result.get(RESULT_FIELD_ERROR) else "ok",
                 phase=PHASE_MERGING if parent.phase == PHASE_MERGING else PHASE_PLANNING,
                 code="batch_finished",
-                summary="并行结果已整理，父任务即将交付",
+                summary=tr("engine_task_merge_ready"),
                 detail={
                     "child_count": len(child_ids),
                     "failed": sum(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots),
@@ -2056,7 +2057,7 @@ class TaskManager:
                     try:
                         parent.transition_status(
                             TASK_STATUS_CANCELLED if parent.cancel_event.is_set() else TASK_STATUS_FAILED,
-                            error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else f"批任务 watcher 失败: {type(exc).__name__}: {exc}",
+                            error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else tr("engine_task_watcher_failed", type=type(exc).__name__, exc=exc),
                             reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
                         )
                     except InvalidStatusTransition:
@@ -2368,7 +2369,7 @@ class TaskManager:
         result = dict(result) if isinstance(result, dict) else {}
         snapshot.update({
             "status": TASK_STATUS_CANCELLED,
-            "error": "宿主已关闭，工作进程被中止",
+            "error": tr("engine_task_host_closed"),
             "result": {**result, RESULT_FIELD_ANSWER: str(result.get(RESULT_FIELD_ANSWER) or ""), RESULT_FIELD_CANCELLED: True},
             "heartbeat_at_epoch": time.time(),
         })
@@ -2577,7 +2578,7 @@ class TaskManager:
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
                     try:
-                        task.transition_status(TASK_STATUS_FAILED, error=f"任务启动失败: {type(exc).__name__}: {exc}")
+                        task.transition_status(TASK_STATUS_FAILED, error=tr("engine_task_start_failed", type=type(exc).__name__, exc=exc))
                     except InvalidStatusTransition:
                         pass
         if cancelled_before_start:
@@ -2604,7 +2605,7 @@ class TaskManager:
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
                     try:
-                        task.transition_status(TASK_STATUS_FAILED, error=f"任务状态保存失败: {type(exc).__name__}: {exc}")
+                        task.transition_status(TASK_STATUS_FAILED, error=tr("engine_task_save_failed", type=type(exc).__name__, exc=exc))
                     except InvalidStatusTransition:
                         pass
             self._release_session_slot(task)
@@ -2851,7 +2852,7 @@ class TaskManager:
                 status="ok",
                 phase=PHASE_PLANNING,
                 code=recovery_mode,
-                summary="已从最近一次会话检查点继续"
+                summary=tr("engine_task_resumed_from_checkpoint")
                 if recovery_mode == "session_checkpoint"
                 else "已从安全只读检查点恢复"
                 if recovery_mode == "safe_readonly_checkpoint"
@@ -2915,7 +2916,7 @@ class TaskManager:
                     status="ok",
                     phase=PHASE_PLANNING,
                     code="batch_resume",
-                    summary=f"已恢复批量任务，重建 {len(messages)} 个子任务",
+                    summary=tr("engine_task_batch_resumed", count=len(messages)),
                     detail={"source_task_id": task.task_id, "child_count": len(messages)},
                 ))
                 self._persist_task(new_parent, force=True)

@@ -15,6 +15,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote_plus, unquote, urlsplit
 from urllib.request import Request, urlopen
 
+from ..cli_io import tr
 from ..netguard import SCHEME_PREFIXES
 from .registry import ToolError
 from .schemas import TOOL_STATUS_OK, ToolResult, untrusted_tags
@@ -361,21 +362,21 @@ def _fetch_search(query: str) -> _SearchFetch:
             diagnostics=diagnostics,
             html=last_html,
         )
-    detail = "; ".join(dict.fromkeys(diagnostics)) or "没有可用搜索服务"
-    raise ToolError(f"联网搜索暂不可用：{detail}。已自动尝试备用来源，请稍后重试或换用项目内证据。")
+    detail = "; ".join(dict.fromkeys(diagnostics)) or tr("engine_web_no_service")
+    raise ToolError(tr("engine_web_unavailable", detail=detail))
 
 
 def web_search(args: dict[str, object]) -> ToolResult:
     raw_query = str(args.get("query") or "").strip()
     if not raw_query:
-        raise ToolError("搜索关键词不能为空")
+        raise ToolError(tr("engine_web_empty_query"))
     if len(raw_query) > MAX_QUERY_CHARS:
-        raise ToolError(f"搜索关键词不能超过 {MAX_QUERY_CHARS} 个字符")
+        raise ToolError(tr("engine_web_query_too_long", max=MAX_QUERY_CHARS))
     raw_limit = args.get(MAX_RESULTS_PARAM, 5)
     try:
         limit = max(1, min(MAX_RESULTS, int(raw_limit)))
     except (TypeError, ValueError) as exc:
-        raise ToolError("max_results 必须是整数") from exc
+        raise ToolError(tr("engine_web_max_results_int")) from exc
 
     fetched = _cache_get(raw_query)
     if fetched is None:
@@ -385,12 +386,12 @@ def web_search(args: dict[str, object]) -> ToolResult:
     lines: list[str] = []
     for index, item in enumerate(results, start=1):
         lines.append(f"[{index}] {item['title']}\nURL: {item['url']}\n{item['snippet']}")
-    output = "\n\n".join(lines) or "(没有找到结果，请换一种关键词；搜索服务已返回可访问页面。)"
-    cache_note = "（缓存）" if fetched.cached else ""
-    diagnostic_note = f"；诊断：{'；'.join(fetched.diagnostics[-3:])}" if fetched.diagnostics else ""
+    output = "\n\n".join(lines) or tr("engine_web_no_results")
+    cache_note = tr("engine_web_cached") if fetched.cached else ""
+    diagnostic_note = tr("engine_web_diag", items="；".join(fetched.diagnostics[-3:])) if fetched.diagnostics else ""
     return ToolResult(
         status=TOOL_STATUS_OK,
-        summary=f"联网搜索 {raw_query!r}，通过 {fetched.source}{cache_note}返回 {len(results)} 条结果{diagnostic_note}",
+        summary=tr("engine_web_search_summary", query=raw_query, source=fetched.source, cache_note=cache_note, count=len(results), diagnostic_note=diagnostic_note),
         output=output,
         data={
             "query": raw_query,

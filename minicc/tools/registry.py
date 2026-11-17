@@ -22,6 +22,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from ..cli_io import tr
 from typing import Any
 
 from .schemas import (
@@ -670,7 +671,7 @@ class ToolRegistry:
         if cancel_event is not None and cancel_event.is_set():
             return ToolResult(
                 status=TOOL_STATUS_CANCELLED,
-                summary=tagged(CODE_CANCELLED, f"任务已取消，未执行工具 {call.tool}"),
+                summary=tagged(CODE_CANCELLED, tr("engine_registry_tool_cancelled", tool=call.tool)),
                 security_tags=untrusted_tags("runtime_guard"),
             )
         started = time.monotonic()

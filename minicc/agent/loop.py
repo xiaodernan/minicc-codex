@@ -98,6 +98,7 @@ from .context import (
     repair_interrupted_tool_rounds,
     validate_tool_protocol,
 )
+from ..cli_io import tr
 from .protocol import (
     BUDGET_EXCEEDED_CODE,
     MODEL_LAST_OUTPUT_MARKER,
@@ -1284,7 +1285,7 @@ async def run_agent(
                         tc,
                         ToolResult(
                             status="error",
-                            summary=tagged(CODE_DUPLICATE_TOOL_CALL, "本轮重复调用已跳过"),
+                            summary=tagged(CODE_DUPLICATE_TOOL_CALL, tr("engine_loop_dup_skipped")),
                             output=(
                                 f"工具 {tc.tool} 与本轮第 {batch_signatures[call_signature] + 1} 个调用完全相同。"
                                 "请合并重复调用，或改用能够产生新证据的工具和参数。"
@@ -1313,7 +1314,7 @@ async def run_agent(
                         tc,
                         ToolResult(
                             status="error",
-                            summary=tagged(CODE_RECOVERY_GUARD, "已暂缓写入，必须先完成只读状态检查"),
+                            summary=tagged(CODE_RECOVERY_GUARD, tr("engine_loop_write_deferred")),
                             output=(
                                 "当前执行器正在从重复/无效路径恢复。请先使用 read_file、git_status、"
                                 "git_diff、grep 或 tree 获取新证据；确认目标和当前 diff 后再修改。"
@@ -1375,7 +1376,7 @@ async def run_agent(
                             tc,
                             ToolResult(
                                 status="denied",
-                                summary=tagged(CODE_HOOK_DENIED, f"PreToolUse hook 拒绝了此操作 ({tc.tool})"),
+                                summary=tagged(CODE_HOOK_DENIED, tr("engine_loop_hook_denied", tool=tc.tool)),
                                 output=hook_outcome.denial_reason()[:2000],
                                 data={"hook": HOOK_EVENT_PRE_TOOL_USE},
                                 security_tags=untrusted_tags(),
@@ -1397,7 +1398,7 @@ async def run_agent(
                             tc,
                             ToolResult(
                                 status="error",
-                                summary="联网工具熔断：连续失败后已停止重复请求",
+                                summary=tr("engine_loop_net_cutoff"),
                                 output="请改换更具体的关键词，或基于已经取得的项目证据继续；不要重复相同的联网请求。",
                                 data={"circuit_open": True, "failures": search_failures},
                                 security_tags=untrusted_tags("network"),
@@ -1847,7 +1848,7 @@ async def run_agent(
             if nonterminal_repairs < STAGNATION_REPLAN_LIMIT:
                 nonterminal_repairs += 1
                 emit_trace(
-                    f"模型轮次非正常结束（finish_reason={finish_reason}），不作为最终答案，要求重新作答",
+                    tr("engine_loop_nonterminal", finish_reason=finish_reason),
                     phase=PHASE_PLANNING,
                     status="error",
                     code="nonterminal_turn",
@@ -2213,7 +2214,7 @@ async def _execute_and_store(
     except Exception as exc:  # a failing sibling must not lose the other results
         tool_result = ToolResult(
             status="error",
-            summary=tagged(CODE_TOOL_ERROR, f"{tc.tool} 执行异常: {exc}"),
+            summary=tagged(CODE_TOOL_ERROR, tr("engine_loop_tool_exception", tool=tc.tool, exc=exc)),
             output=str(exc),
             security_tags=untrusted_tags(),
         )

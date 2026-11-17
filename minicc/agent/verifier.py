@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 from copy import deepcopy
 
+from ..cli_io import tr
 from ..tools.bash import run_bash
 from ..tools.schemas import TOOL_STATUS_CANCELLED, TOOL_STATUS_OK, TOOL_STATUS_TIMED_OUT, ToolResult
 from ..tools.registry import redact_text
@@ -156,7 +157,7 @@ class Verifier:
             return VerificationResult(status="cancelled")
         selected = list(commands) if commands is not None else (plan.commands if plan else self.default_commands(workspace))
         if not selected:
-            return VerificationResult(status="skipped", skipped_reason=plan.reason if plan else "工作区没有配置可识别的验证命令")
+            return VerificationResult(status="skipped", skipped_reason=plan.reason if plan else tr("engine_verifier_no_check"))
         # Authorization is part of the cache key. A permitted npm check must
         # never be replayed as evidence under a task that cannot run it.
         #

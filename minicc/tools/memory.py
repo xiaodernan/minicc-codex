@@ -292,7 +292,7 @@ class MemoryTools:
             raise ToolError(f"未找到记忆 {memory_id!r}（用 memory_list 查看现有条目）")
         return ToolResult(
             status=TOOL_STATUS_OK,
-            summary=f"{len(matches)} 条记忆全文（id={memory_id}）",
+            summary=tr("engine_memory_full_text", count=len(matches), memory_id=memory_id),
             output="\n".join(entry.to_line() for entry in matches),
             data={"entries": [entry.to_dict() for entry in matches]},
             security_tags=untrusted_tags(),

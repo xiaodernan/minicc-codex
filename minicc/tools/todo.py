@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..cli_io import tr
 from ..atomic_file import replace_with_retry
 from ..clock import utc_stamp
 from .registry import ToolError, ToolResult
@@ -106,7 +107,7 @@ class TodoTools:
         summary = _summarize(todos)
         return ToolResult(
             status=TOOL_STATUS_OK,
-            summary=summary + (f"（更新于 {updated_at}）" if updated_at else "（尚无清单）"),
+            summary=summary + (tr("engine_todo_updated", updated_at=updated_at) if updated_at else tr("engine_todo_empty")),
             output=json.dumps(todos, ensure_ascii=False, indent=2),
             data=_tool_data(todos, updated_at, "read"),
             security_tags=untrusted_tags(),

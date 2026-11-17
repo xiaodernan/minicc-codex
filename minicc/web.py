@@ -132,7 +132,7 @@ from .config import (
 # home is minicc/config.py; this module just lends its surface.
 from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_EVENT_LIMIT, DEFAULT_TASK_QUEUE_LIMIT, DEFAULT_TASK_STREAM_LIMIT, DEFAULT_TASK_USAGE_LIMIT  # noqa: F401 - re-export for tests and AgentService
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
-from .cli_io import cli_out
+from .cli_io import cli_out, tr
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
@@ -687,7 +687,7 @@ class AgentService:
                 status="pending",
                 phase=PHASE_PERMISSION,
                 code="approval_requested",
-                summary=f"等待用户批准 {tool}：{reason}",
+                summary=tr("engine_web_waiting_approval", tool=tool, reason=reason),
                 kind=APPROVAL_FRAME_REQUEST_KIND,
             )
             frame["risk"] = risk
@@ -1794,7 +1794,7 @@ class AgentService:
                 status="ok",
                 phase=PHASE_PLANNING,
                 code="image_attached",
-                summary=f"已接收 {len(attachments)} 张图片，作为视觉上下文发送给模型",
+                summary=tr("engine_web_images_received", count=len(attachments)),
                 detail={"count": len(attachments), "names": [item["name"] for item in attachments]},
             )
             events.append(image_event)
@@ -1824,7 +1824,7 @@ class AgentService:
             status="ok",
             phase=PHASE_PLANNING,
             code=STAGE_ROUTE_CODE,
-            summary="已应用规划阶段的模型与请求策略",
+            summary=tr("engine_web_strategy_applied"),
             detail=initial_route.to_dict(),
         )
         events.append(route_event)
@@ -2198,7 +2198,7 @@ class AgentService:
                             status="ok",
                             phase=PHASE_PLANNING,
                             code="task_model_fallback",
-                            summary=f"多次恢复失败，切换到备用模型 {model_override}",
+                            summary=tr("engine_web_fallback_model", model=model_override),
                             detail={"model": model_override, "index": index,
                             "fallback_models": list(fallback_models)},
                         ))
@@ -2233,7 +2233,7 @@ class AgentService:
                             status="ok",
                             phase=PHASE_PLANNING,
                             code="planner_execution_skipped",
-                            summary="动态计划包含非只读节点，未直接执行，交由主 Agent 按原有权限路径处理",
+                            summary=tr("engine_web_plan_readonly_blocked"),
                             detail=skipped,
                         )
                         events.append(event)
@@ -2246,7 +2246,7 @@ class AgentService:
                         status="ok",
                         phase=PHASE_PLANNING,
                         code="planner_execution_started",
-                        summary=f"已将验证后的只读计划接入 DAG 执行，共 {len(plan.tasks)} 个节点",
+                        summary=tr("engine_web_readonly_dag_attached", count=len(plan.tasks)),
                         detail={
                             "plan_name": plan.name,
                             "node_count": len(plan.tasks),
@@ -2290,7 +2290,7 @@ class AgentService:
                             status="ok",
                             phase=PHASE_PLANNING,
                             code="planner_node_started",
-                            summary=f"DAG 节点 {task.id} 开始执行",
+                            summary=tr("engine_web_dag_node_start", id=task.id),
                             detail={
                                 "kind": task.kind,
                                 "depends_on": list(task.depends_on),
@@ -2332,7 +2332,7 @@ class AgentService:
                                 status="ok",
                                 phase=PHASE_PLANNING,
                                 code="planner_node_provider_status",
-                                summary="计划节点模型连接状态已更新",
+                                summary=tr("engine_web_dag_node_model_ready"),
                                 detail=status,
                             ))
 
@@ -2374,7 +2374,7 @@ class AgentService:
                                     name,
                                     status="denied",
                                     code="planner_tool_out_of_scope",
-                                    summary=f"计划节点 {task.id} 未将工具 {name} 列入白名单",
+                                    summary=tr("engine_web_dag_tool_not_whitelisted", id=task.id, name=name),
                                     # M8-T308: the risk a call carries, not
                                     # the one the tool declares - the
                                     # decision event right below carries the
@@ -2482,7 +2482,7 @@ class AgentService:
                             status="error" if output.get("status") == "failed" else "ok",
                             phase=PHASE_PLANNING,
                             code="planner_node_finished",
-                            summary=f"DAG 节点 {task.id} 执行失败"
+                            summary=tr("engine_web_dag_node_failed", id=task.id)
                             if output.get("status") == "failed"
                             else f"DAG 节点 {task.id} 已完成并产出只读证据",
                             detail={
@@ -2539,7 +2539,7 @@ class AgentService:
                         status="error" if dag_result.status == "failed" else "ok",
                         phase=PHASE_PLANNING,
                         code="planner_execution_finished",
-                        summary=f"只读 DAG 执行结束：完成 {len(dag_result.completed)} 个节点"
+                        summary=tr("engine_web_readonly_dag_done", count=len(dag_result.completed))
                         + (f"，失败 {len(dag_result.failed)} 个" if dag_result.failed else "")
                         + (f"，跳过 {len(dag_result.skipped)} 个" if dag_result.skipped else ""),
                         detail=execution,
@@ -2594,7 +2594,7 @@ class AgentService:
                         status="ok",
                         phase=PHASE_PLANNING,
                         code="planner_started",
-                        summary="复杂任务已进入结构化规划预检，运行时仍保留最终控制权",
+                        summary=tr("engine_web_precheck"),
                         detail={
                             "trigger": "explicit" if payload.get("planner_requested") else "complexity_or_batch",
                             "complexity": complexity.snapshot(),
@@ -2673,7 +2673,7 @@ class AgentService:
                             status="ok",
                             phase=PHASE_PLANNING,
                             code="planner_dynamic_ready",
-                            summary=f"模型已生成受约束执行计划，共 {len(planner_result.plan.tasks)} 个节点",
+                            summary=tr("engine_web_plan_ready", count=len(planner_result.plan.tasks)),
                             detail=detail,
                         )
                         messages.append(system_msg(
@@ -2693,7 +2693,7 @@ class AgentService:
                             status="error",
                             phase=PHASE_PLANNING,
                             code="planner_preflight_fallback",
-                            summary="模型计划未通过安全校验，已回退到固定执行模板",
+                            summary=tr("engine_web_plan_rejected"),
                             detail=detail,
                         )
                         events.append(event)
@@ -2797,7 +2797,7 @@ class AgentService:
                             status="error",
                             phase=PHASE_PLANNING,
                             code="task_provider_recovery",
-                            summary=f"模型网关暂时不可用，已开始第 {provider_recoveries} 次安全恢复",
+                            summary=tr("engine_web_gateway_recovering", n=provider_recoveries),
                             detail={
                                 "retry": provider_recoveries,
                                 "retry_limit": max_provider_recoveries,
@@ -2830,7 +2830,7 @@ class AgentService:
                             status="error",
                             phase=PHASE_REPAIR,
                             code="task_stagnation_recovery",
-                            summary=f"检测到重复工具路径，已进入第 {agent_recoveries} 次错误恢复",
+                            summary=tr("engine_web_retry_loop", n=agent_recoveries),
                             detail={
                                 "attempt": agent_recoveries,
                                 "retry_limit": max_agent_recoveries,
@@ -2942,7 +2942,7 @@ class AgentService:
                                     status="ok",
                                     phase=PHASE_REPAIR,
                                     code="repair_stage_provider",
-                                    summary=f"验证失败，修复阶段切换到 repair 档模型 {repair_route.model}",
+                                    summary=tr("engine_web_repair_switch", model=repair_route.model),
                                     detail={"model": repair_route.model, **repair_route.to_dict()},
                                 )
                                 events.append(switch_event)
@@ -2955,7 +2955,7 @@ class AgentService:
                                 status="ok",
                                 phase=PHASE_REPAIR,
                                 code="dependency_aware_repair_scope",
-                                summary=f"已将修复范围收敛到 {len(scope['repair_targets'])} 个有证据关联的文件",
+                                summary=tr("engine_web_repair_scope", count=len(scope["repair_targets"])),
                                 detail=scope,
                             )
                             events.append(scope_event)
@@ -3005,7 +3005,7 @@ class AgentService:
                         stamp_cancelled(aggregate)
                         break
                     if aggregate is None:
-                        aggregate = TurnResult(answer="模型没有返回结果")
+                        aggregate = TurnResult(answer=tr("engine_web_no_result"))
                     aggregate.completion = decision.to_dict(include_usage=True)
                     runtime_state.add_evidence({"type": "completion_review", **aggregate.completion})
                     if not record_review_usage(decision, aggregate):
@@ -3057,7 +3057,7 @@ class AgentService:
                                 status="error",
                                 phase=PHASE_REVIEW,
                                 code="completion_verdict_repeated",
-                                summary="完成评估逐字重复上一轮要求且无新增活动，提前停止以免继续空转",
+                                summary=tr("engine_web_judge_repeat"),
                                 detail={
                                     "review_attempt": completion_review_attempt,
                                     "continues": completion_continues,
@@ -3093,7 +3093,7 @@ class AgentService:
                                 status="error",
                                 phase=PHASE_REVIEW,
                                 code="completion_continue_capped",
-                                summary="完成评估多轮要求继续但未收敛，已停止以避免无限重跑",
+                                summary=tr("engine_web_judge_unconverged"),
                                 detail={
                                     "rounds": completion_continues,
                                     "limit": max_completion_continues,
@@ -3137,7 +3137,7 @@ class AgentService:
                             status="error",
                             phase=PHASE_REVIEW,
                             code="completion_judge_rejected",
-                            summary="完成评估请求被确定性拒绝，重跑 agent 不会改变结论，已停止",
+                            summary=tr("engine_web_judge_refused"),
                             detail={"error": detail},
                         )
                         events.append(rejected_event)
@@ -3152,7 +3152,7 @@ class AgentService:
                             status="error",
                             phase=PHASE_REVIEW,
                             code="completion_judge_retry",
-                            summary="完成评估暂时不可用，已要求 agent 再次自检",
+                            summary=tr("engine_web_judge_unavailable"),
                             detail={"error": decision.error or "invalid response"},
                         )
                         events.append(retry_event)
@@ -3168,7 +3168,7 @@ class AgentService:
                     aggregate.error = "完成评估不可用，无法确认任务是否达到最终目标"
                     aggregate.answer = incomplete_answer(aggregate.error)
                     break
-                final = aggregate or TurnResult(answer="模型没有返回结果", error="Agent 没有返回结果")
+                final = aggregate or TurnResult(answer=tr("engine_web_no_result"), error=tr("engine_web_no_result_agent"))
                 if planner_result is not None:
                     planner_snapshot = planner_result.to_dict()
                     if planner_execution is not None:

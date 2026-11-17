@@ -8,6 +8,7 @@ import sys
 import threading
 from pathlib import Path
 
+from .cli_io import tr
 from .config import (
     DEFAULT_SANDBOX_IMAGE,
     SANDBOX_BACKEND_UNAVAILABLE,
@@ -63,7 +64,7 @@ class SandboxRunner:
         if backend == SANDBOX_BACKEND_UNAVAILABLE:
             return ToolResult(
                 status="error",
-                summary=tagged(CODE_SANDBOX_UNAVAILABLE, "Docker 不可用；未回退到宿主机执行"),
+                summary=tagged(CODE_SANDBOX_UNAVAILABLE, tr("engine_sandbox_docker_down")),
                 security_tags=["sandbox_unavailable"],
             )
         if backend != SANDBOX_MODE_DOCKER:

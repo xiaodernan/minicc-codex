@@ -54514,3 +54514,17 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - `/view` 历史文件中存的旧中文文案不追溯改写。
 - 零产品行为变化：表与 import 之外全是 `tr()` 调用替换。
 - CI 这一刻仍在跑；不把它写成绿。
+## 批次 1108 · M8-T1133: CLI 双语化 第 4 段 — 引擎面双语（模型事件/工具错误/任务生命周期）
+
+### 做了什么
+
+- **cli_io.py 消息表 129 → 235 键**（两表逐键对仗）。新增 `engine_*` 族：`engine_llm_*`（Responses 直连回退/流中断回退/工具成形/参数成形/推理进行中/重试）、`engine_loop_*`（重复调用跳过/暂缓写入/hook 拒绝/联网熔断/非终结轮次/工具异常）、`engine_hooks_*`（启动/超时含 `>` 前缀/执行失败/退出码）、`engine_bash_*`（取消/无法执行/空命令/运行时保护/后台 shell 上限/启动失败/已启动/缺失/输出 + 已结束/运行中）、`engine_web_*`（等待批准/图片接收/策略应用/fallback 模型/只读计划被拒/只读 DAG 接入/节点开始/节点模型/工具未白名单/节点失败/只读 DAG 结束/预检/计划就绪/计划被拒/gateway 恢复/重复路径/修复档切换/修复范围/无结果/完成评估 4 种早停）、`engine_task_*`（需要访问权限/模型没动工作区/verdict 四态/服务重启中断/任务失败/无终态/未知状态/历史更正/队列满/执行器拒绝/拆分侦察/拆分工人/批启动失败/计划不安全/子任务缺失/子任务状态/侦察完成/批未完成/子任务失败/子任务已合并/并行结果已整理/watcher 失败/宿主关闭/启动失败/保存失败/检查点恢复/批恢复）、`engine_tools_*` / `engine_git_summary` / `engine_memory_full_text` / `engine_registry_tool_cancelled` / `engine_todo_*` / `engine_web_search_summary`（联网搜索全套含引擎错误面与 `（缓存）`/诊断前缀）。
+- **接线 40 余处**（`openai_provider` ×11、`loop` ×6、`hooks` ×4、`bash` ×9、`sandbox`/`state`/`completion`/`verifier`/`main` ×5、`web.py` ×24、`task_manager` ×30、`tools/{__init__,git,memory,registry,todo,web}` ×15），全部 `tr()` 调用替换；zh_cn 输出逐字节与接线前一致。
+
+### 绑定的诚实边界（不声称）
+
+- **喂给模型的中文提示词**（`[完成评估反馈]` / `_unconverged_verification_note` / 恢复证据块 / `merge_basis` / `next_action` / 各类 prompt 头）**没有接**——EN 用户跑的也是 zh 提示词，改动等于作废本仓库刚实测过的 4,224-token prompt-cache 前缀亲和，且模型本身双语；登记为保持原文。
+- **意图分类器词表**（`CHANGE_INTENT_MARKERS` 等）**没有扩 EN 词**——它已含 `do not modify`/`read-only` 等英文 marker；补词会改变分类行为，是独立批次。
+- `/view` 历史里的旧存文案不追溯改写。
+- `web/styles.css` 曾短暂 stat-dirty（不影响内容，已恢复一致）。
+- CI 这一刻仍在跑；不把它写成绿。

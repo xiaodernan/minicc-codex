@@ -7,6 +7,7 @@ stopped.  These objects are safe to persist in a task snapshot.
 
 from __future__ import annotations
 
+from ..cli_io import tr
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -220,7 +221,7 @@ class AgentState:
                 phase=self.phase,
                 status=status,
                 code="node_entered",
-                summary=f"进入 {node} 节点",
+                summary=tr("engine_state_entered_node", node=node),
             )
         )
 

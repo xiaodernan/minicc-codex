@@ -535,7 +535,7 @@ async def _turn(
                 status="ok",
                 phase=PHASE_PLANNING,
                 code=STAGE_ROUTE_CODE,
-                summary="已应用规划阶段的模型与请求策略（CLI）",
+                summary=tr("engine_main_strategy_applied"),
                 detail=route.to_dict(),
             ),
             task_id=session_id or "cli",

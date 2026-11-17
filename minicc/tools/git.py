@@ -141,7 +141,7 @@ class GitTools:
         ]
         return ToolResult(
             status=TOOL_STATUS_OK,
-            summary=f"Git 摘要: {branch or '?'}，{len(dirty)} 个未提交文件",
+            summary=tr("engine_git_summary", branch=branch or "?", dirty=len(dirty)),
             output="\n".join(lines),
             data={
                 "branch": branch,
