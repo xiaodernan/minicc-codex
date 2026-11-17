@@ -454,6 +454,49 @@ export async function openAdmin() {
     }
     const ciDxPromise = requestJson("/api/oracle-ci-diagnosis", {}, 30000).catch(() => null);
     ciDxPromise.then((cidx) => renderCiDx(cidx, false));
+    // Audit story — the model reads the last slice of audit.jsonl aloud.
+    function renderAudit(story, refreshed) {
+      const bodyEl = $("#adminAuditBody");
+      const usageEl = $("#adminAuditUsage");
+      const byEl = $("#adminAuditModel");
+      if (byEl && story && story.model) byEl.textContent = story.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现读" : "read live by the model";
+      if (!story || !story.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.auditOutage"))}</p>`;
+        if (usageEl) usageEl.textContent = story?.error ? `error: ${String(story.error).slice(0, 140)}` : "";
+        return;
+      }
+      if (story.verdict === "no-audit") {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(zh() ? story.zh : story.en)}</p>`;
+        if (usageEl) usageEl.textContent = zh() ? "0 tokens · 模型未被调用" : "0 tokens · model not called";
+        return;
+      }
+      const text = zh() ? story.zh : story.en;
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc(text || (zh() ? story.en : story.zh))}</p>`;
+      if (usageEl) {
+        const u = story.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        const lines = story.total_lines != null
+          ? (zh() ? ` · 读取记录 ${story.window_size ?? "?"}/${story.total_lines} 条` : ` · read ${story.window_size ?? "?"}/${story.total_lines} lines`)
+          : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${lines}${refreshed ? " · 已重读" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${lines}${refreshed ? " · re-read" : ""}`;
+      }
+    }
+    const auditRefresh = $("#adminAuditRefresh");
+    if (auditRefresh) {
+      auditRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminAuditBody");
+        const usageEl = $("#adminAuditUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.auditPending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-audit-story?fresh=1", {}, 30000).catch(() => null).then((story) => renderAudit(story, true));
+      });
+    }
+    const auditPromise = requestJson("/api/oracle-audit-story", {}, 30000).catch(() => null);
+    auditPromise.then((story) => renderAudit(story, false));
+
 
     // tool usage — top 6 tools called by the local agent, counted from real events
     const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];

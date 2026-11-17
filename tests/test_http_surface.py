@@ -1013,6 +1013,26 @@ def test_get_oracle_ci_diagnosis_never_500s(live: _LiveServer, monkeypatch) -> N
     assert fresh[0] == 200
 
 
+def test_get_oracle_audit_story_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1173: the audit-story route is entered by the HTTP suite too —
+    # the seam stub yields the honest failure payload, the route must still answer.
+    import minicc.oracle_audit_story as oas_mod
+
+    monkeypatch.setattr(oas_mod, "build_audit_story", lambda **kwargs: {
+        "live": False, "zh": "", "en": "",
+        "error": "model-unavailable: TimeoutError",
+        "verdict": "model-unavailable",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-audit-story", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "error" in payload
+    assert "sk-" not in body.decode("utf-8", "replace")
+    fresh = _request(f"{live.url}/api/oracle-audit-story?fresh=1", method="GET")
+    assert fresh[0] == 200
+
+
 def test_get_admin_drift_never_500s(live: _LiveServer, monkeypatch) -> None:
     # M8-T1160: the drift sentinel route is entered by the HTTP suite too —
     # the seam stub yields the honest failure payload, the route must still answer.

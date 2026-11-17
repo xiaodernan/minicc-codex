@@ -611,3 +611,13 @@
 - **两次假红的精确复现与收尾（M8-T1169 / 批次 1116）**：`051b0e9` CI 红在 **JavaScript syntax** 腿，`tests/frontend_i18n_dict_one_home_smoke.mjs` 与 `node scripts/build-web.mjs --check` 两张判决书都点了同一件事——`web/src/core/i18n.js` 的 **en 表缺少** `scroll.natural` / `scroll.invert` / `scroll.invertHint` 三个键（zh 表里有）。19 次失败全部二分：先读 ECMA gate 的输出，再 `git show HEAD:web/src/core/i18n.js | repr` 核对，**确认提交出去的字节里 en 表确实没有这三键**。根因不在我先前写的 smoke 里，也不在 `en_cjk`（它验证 CJK 字节泄漏，根本不问键），而在**提交前没跑 `frontend_i18n_dict_one_home_smoke` 这个门**——它当时是绿的（zh 与 en 都缺），所以预判了绿。修复：(a) en 表补齐三键并**当场验证 parity**（zh/en 各 1）；(b) `npm run build:web` 重建全部 app.js / assets / asset-manifest.json，使 `build-web.mjs --check` 不再报 stale（CI 的 js-check 腿用同一套判决）；(c) 新增 **M8-T1170** 重建批次——构建产物是提交出去的字节，不编译它们冒充“源码决定字节”这只是句套话。**诚实的记录**：这份代码加轮了。修复后 CI 全绿；不声称“从此再不红”。
 
   2026-11-17T10:39Z `785290d` CI conclusion=**success**（Windows + Ubuntu 腿、PR eval gate、M1 reliability probe、JavaScript syntax、Service plane tests（mvn skipped，未触 Java）、Claim checkers（doc pointers + route coverage + impact floor）、Playwright web smoke + unreachable-provider 那条）——本分支最近一个稳定绿点。前序 `051b0e9` 是因为在 js-check 上红，`7e16fb9` 是因为 admin-smoke 在浅克隆上红（已修），都属于**同一把尺子逼出来的**，不是绕过去的。
+- **审计实语 · 值守读者——模型自己讲述这个仓库刚才做了什么（M8-T1173 / 批次 1117）**：管理面板新增「审计实语 · 值守读者 / Audit story · on-duty reader」，AI 直接读 `.minicc/audit.jsonl` 最近 64 行带 digest 的真实条目（action · path · detail · when），写三段话给当事人看：① 窗口里真的发生了什么（按 action 与 path 的出现频率，不虚构文件名）；② 一个值得留意的反常或重复（只基于给定行）；③ 下一步应该先看哪一个 path 或哪一个 action。模型 prompt 明确禁止一切窗口之外的叙事：不推测原因、不许造减字、不编日期/数量/行为；无法分辨时直说 data does not show one。
+
+  - **两个零 token 判词**：线完全空（文件缺失或全空白行）→ `no-audit`（模型不调用，payload 内明说）；模型失败 → `live=False`。
+  - 单测 6 条腿通过（wire truth、空窗口零 token、missing-file 零 token、unparsable 行被记录、memo 命中、模型炸→live=False）。
+  - tighter bit：`test_http_surface::test_get_oracle_audit_story_never_500s`（GET + ?fresh=1）。
+  - `route_coverage` 38→**39/39 GET**，`admin.js` 新增 `renderAudit`，`admin.audit*` i18n zh/en 键。
+
+- **代理注入 · Clash 节点真的进程生效了（M8-T1174 / 批次 1118）**：`.env` 带着 `HTTPS_PROXY=http://127.0.0.1:7897`（Clash Verge Rev 面板——api.aizzz.xyz 拒绝中国区直连），但 `load_config()` 把它解析进自己的解析表、**从未回注到 `os.environ`**——openai SDK 的 HTTP 层读 `os.environ` 的代理值才会走 Clash；此前一切直连都被网关以“不对你所在的国家及地区进行商业服务”拒绝，CI/升级没人发现是因为测试用了 fake provider。修法：`load_config()` 在解析 `.env` 后，把 `HTTP_PROXY / HTTPS_PROXY / ALL_PROXY / *_proxy` **仅当环境变量缺失时**注入进 `os.environ`；随后任何在 `load_config` 之后创建的 provider 都自然吃到代理。修后直接调 `/api/oracle-audit-story` 得到的 `gpt-6.1-terra` 回复 `cached_tokens=4,224`（prompt 7,230 · completion 299），**不再出现地区拒绝**。
+
+  **诚实边界**：本修复只回注 well-known proxy 变量；.env 其他键不会进 os.environ（M8-T8/276 的套件照旧绿）。

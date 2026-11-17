@@ -615,6 +615,20 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-audit-story":
+            # M8-T1173: the model reads this repository's own audit trail and
+            # answers what happened in the latest window, what is odd, what to
+            # look at next. Never raises; the panel shows the outage honestly.
+            try:
+                from .oracle_audit_story import build_audit_story
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_audit_story(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "zh": "", "en": "",
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-retrospective":
             # The model as completion-assurance: reads the audit record of the
             # most recent "completed" task and judges its plausibility.

@@ -1104,8 +1104,12 @@
       "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201492 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9",
       "admin.ciDxKicker": "CI \u7EA2\u706F\u5F52\u56E0 \xB7 \u503C\u5B88\u5B88\u95E8\u4EBA",
       "admin.ciDxPending": "\u6B63\u5728\u8BFB\u53D6 GitHub \u771F\u5B9E\u8FD0\u884C\u8BB0\u5F55\u2026",
+      "admin.auditKicker": "\u5BA1\u8BA1\u5B9E\u8BED \xB7 \u503C\u5B88\u8BFB\u8005",
+      "admin.auditPending": "\u6B63\u5728\u8BFB\u5BA1\u8BA1\u8BB0\u5F55\u2026",
       "admin.ciDxRefresh": "\u91CD\u65B0\u5F52\u56E0 CI \u7EA2\u706F",
       "admin.ciDxOutage": "\u503C\u5B88\u5B88\u95E8\u4EBA\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u4E0B\u65B9\u201Cmainline health\u201D\u91CC\u7684\u771F\u5B9E\u8BB0\u5F55\u3002",
+      "admin.auditRefresh": "\u91CD\u65B0\u8BFB\u5BA1\u8BA1\u6545\u4E8B",
+      "admin.auditOutage": "\u503C\u5B88\u8BFB\u8005\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u5BA1\u8BA1\u5BFC\u51FA\u7684\u539F\u59CB\u8BB0\u5F55\u3002",
       "admin.driftKicker": "\u6F02\u79FB\u54E8\u5175 \xB7 \u4ED3\u5E93\u81EA\u8BC1",
       "admin.driftHead": "\u4E8B\u5B9E\u5305 \u2261 HEAD",
       "admin.driftCrlf": "CRLF \u9489",
@@ -1914,8 +1918,12 @@
       "session.emptyChip5": "Open the world map \u2014 92 real coordinates to tap",
       "admin.ciDxKicker": "CI red attribution \xB7 on-duty gatekeeper",
       "admin.ciDxPending": "Reading the real GitHub runs\u2026",
+      "admin.auditKicker": "Audit story \xB7 on-duty reader",
+      "admin.auditPending": "Reading the audit trail\u2026",
       "admin.ciDxRefresh": "Re-attribute the CI red",
       "admin.ciDxOutage": "The on-duty gatekeeper is unavailable \u2014 check the real recorded runs in \u201Cmainline health\u201D below.",
+      "admin.auditRefresh": "Re-read the audit story",
+      "admin.auditOutage": "The on-duty reader is unavailable \u2014 check the raw audit trail first.",
       "admin.driftKicker": "Drift sentinel \xB7 the repo proves itself",
       "admin.driftHead": "fact pack \u2261 HEAD",
       "admin.driftCrlf": "CRLF pins",
@@ -8305,6 +8313,43 @@
       }
       const ciDxPromise = requestJson("/api/oracle-ci-diagnosis", {}, 3e4).catch(() => null);
       ciDxPromise.then((cidx) => renderCiDx(cidx, false));
+      function renderAudit(story, refreshed) {
+        const bodyEl = $("#adminAuditBody");
+        const usageEl = $("#adminAuditUsage");
+        const byEl = $("#adminAuditModel");
+        if (byEl && story && story.model) byEl.textContent = story.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u8BFB" : "read live by the model";
+        if (!story || !story.live) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.auditOutage"))}</p>`;
+          if (usageEl) usageEl.textContent = story?.error ? `error: ${String(story.error).slice(0, 140)}` : "";
+          return;
+        }
+        if (story.verdict === "no-audit") {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(zh8() ? story.zh : story.en)}</p>`;
+          if (usageEl) usageEl.textContent = zh8() ? "0 tokens \xB7 \u6A21\u578B\u672A\u88AB\u8C03\u7528" : "0 tokens \xB7 model not called";
+          return;
+        }
+        const text = zh8() ? story.zh : story.en;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? story.en : story.zh))}</p>`;
+        if (usageEl) {
+          const u = story.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          const lines = story.total_lines != null ? zh8() ? ` \xB7 \u8BFB\u53D6\u8BB0\u5F55 ${story.window_size ?? "?"}/${story.total_lines} \u6761` : ` \xB7 read ${story.window_size ?? "?"}/${story.total_lines} lines` : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${lines}${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${lines}${refreshed ? " \xB7 re-read" : ""}`;
+        }
+      }
+      const auditRefresh = $("#adminAuditRefresh");
+      if (auditRefresh) {
+        auditRefresh.addEventListener("click", () => {
+          const bodyEl = $("#adminAuditBody");
+          const usageEl = $("#adminAuditUsage");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.auditPending"))}</p>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-audit-story?fresh=1", {}, 3e4).catch(() => null).then((story) => renderAudit(story, true));
+        });
+      }
+      const auditPromise = requestJson("/api/oracle-audit-story", {}, 3e4).catch(() => null);
+      auditPromise.then((story) => renderAudit(story, false));
       const toolUsage = Array.isArray(data?.tool_usage) ? data.tool_usage : [];
       const toolList = $("#adminToolUsage");
       if (toolList) {

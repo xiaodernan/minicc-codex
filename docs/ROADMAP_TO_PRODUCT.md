@@ -54684,3 +54684,32 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - 这次没有给 js-check 加新门——加的是**提交之前跑 `frontend_i18n_dict_one_home_smoke`**（它已经是仓库里有的东西）；不是"从此 i18n 不红"。
 - 不声称“推送不 CI”——但这里的推送每次都经过两条**被抓的红**才到了绿。
 - `docs/latest.json` 的 `head` 仍然是 `7e16fb9`——`Update docs/latest.json` 工作流只在 docs/ 改过时才触发；本次提交不动文档，不跑。
+## 批次 1117 · M8-T1173: 审计实语——模型自己讲自己仓库刚才做了什么
+
+### 目的
+
+“`minicc` 已能看自己干了什么” — 但看见了也没人念给你听。本批让模型读 `.minicc/audit.jsonl` 并对你说出三段话。这仍然不是产品边界的扩张——是把仓库里本来就发生的审计记录变成有温度的叙述。
+
+### 做了什么
+
+- **`minicc/oracle_audit_story.py`**：新模块，读 `.minicc/audit.jsonl` 最近 64 行（含 digest 对），构造一个 ~24KB 的 JSON snapshot（全部真实 action+path+when，不干净就报错），发给 `gpt-6.1-terra`（`prompt_cache_key=minicc-oracle-audit-story-01`，temp=0.2，max_tokens=480），拿到 zh/en 三段叙事（① 发生了什么；② 一个值得留意的反常或重复；③ 下一步先看哪里），写回可 memo 的结果（10 分钟）。
+- **路由**：`GET /api/oracle-audit-story`（`?fresh=1` 越过 memo）；HTTP 层由 `minicc/webserver.py` 提供。`test_http_surface` 新增 never-500s 双腿。
+- **管理面板**：「审计实语 · 值守读者 / Audit story · on-duty reader」卡片，紧挨 retrospective 与 ci_diagnosis 之间；refresh 按钮；`admin.audit*` 双语键。
+- **单测**：`tests/test_oracle_audit_story.py` 6 条腿（wire truth + 两个零 token 路径 + unparsable 计数 + memo + 模型炸→live=False）。`test_http_surface` +1。`route_coverage` 38→**39 GET** 100/100。
+
+### 绑定的诚实边界
+
+- 整个窗口全是空白行 → verdict `no-audit`，模型不调用；文件消失 → 同样。
+- 模型手滑 → `error_payload`，面板显示 outage，**不**显示任何编造的“近似故事”。
+- 只有窗口里出现过的 path 会被引用；不会在注释里出现窗口之外的文件名。
+
+## 批次 1118 · M8-T1174: Clash 代理由 .env 注入到进程——"region refused" 的根因
+
+`load_config()` 已经把 `.env` 当真源的第一层；但它从没 `os.environ.update()` 过一条。`.env` 里明明有 `HTTPS_PROXY=http://127.0.0.1:7897`（Clash Verge Rev 的本机代理，央行/网关对中国区拒绝直连）——openai SDK 的 HTTP 层读的是 `os.environ`，所以每一次调用 aizzz.xyz 都以 “本站不对您所在的国家及地区进行商业服务” 原样弹回 `live=False, "model-unavailable"`。
+
+修法：`load_config()` 在解析 `.env` 之后，对 well-known proxy 键 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/HTTP_PROXY/https_proxy/...` **仅在 os.environ 缺失时**注入；不覆盖 CLI 已经 export 的同名值。修后直接打通模型，返回 `cached_tokens=4,224` · prompt 7,230 · completion 299。
+
+### 不声称
+
+- 本批不改其他环境变量的传播（只动 `*_proxy` 八个拼写）。
+- 本批不改 CI——CI 依然是 fake provider，模拟环境里没有“Clash”这回事。
