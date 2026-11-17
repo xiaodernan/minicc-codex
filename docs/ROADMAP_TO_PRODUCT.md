@@ -54562,3 +54562,22 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 ### 验证
 
 route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨兵三格断言）；i18n.js CRLF 313/0、index.html 751/0；claim gates 69/69；doc_pointers rc=0；CI 这一刻仍在跑。
+## 批次 1111 · M8-T1164: 年鉴第五十五章「警钟 / The Alarm」—— Atlas 92
+
+### 目的
+
+把“同一次红被同一个人摁灭三次、每次都被 CI 抓住”写成一卷——模型的第四卷自编章。本批零产品字节改动。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `thealarmMarkup()` + CHAPTERS「卷五十五 · 警钟」；instruments：Atlas 92、Volumes 55/55、Manual chapters 19/19、pushes today 80（当日实测，与 LIV 的 71 同一测法）。
+- **Atlas 91 → 92 coordinates**；Almanac **55/55**；`atlas_smoke` 92 / `almanac_smoke` 55 双语；en_cjk 确定性 3/3；index.html/i18n chips 91→92。
+- **`docs/CHAPTER_DRAFT.md`**：本卷由模型现役写出，archive 入库；`prompt_cache_key=minicc-chapter-lv-the-alarm-01`；cached_tokens=4,224（**第九次现身**）。README 预置 `**The Alarm（警钟——…）**`；onboarding/manual 全部跟到 55 卷/92 坐标。
+- **就地更正**：manual.js 的最新章昵称曾写「Chapter LIV The Great Basin」——该章从不存在（Ch.LIV《并账》），改对；这是受 CI 全量红的余波影响就地消除的一条过时叙述。
+- **CI 事实归档**：351d444（7 红·Ubuntu 腿）→ c0325fa（全数重瞄）→ c8b069d（TimeoutExpired 未捕获）→ 94647ce（UTC 回钟表家 + DEFAULT_DOCS mention）；每次都被抓、每次都修。
+
+### 不声称
+
+- **94647ce 与本批的 CI 这一刻仍在跑**；不把它写成绿。
+- Atlas 92 = 18 面板 + 55 年鉴卫星 + 19 说明书卫星。
+- Ch.LV 正文（≤4 段 zh/en）只复述 SNAPSHOT 里的事实；没有新增数字。

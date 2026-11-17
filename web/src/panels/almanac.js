@@ -74,6 +74,7 @@ export const CHAPTERS = [
   { id: "livecurrent", roman: { zh: "卷五十一", en: "Chapter LI" }, title: { zh: "通电", en: "The Live Current" }, subtitle: { zh: "模型现役上岗的第一晚", en: "the first night the model went on duty" } },
   { id: "twelfthlight", roman: { zh: "卷五十二", en: "Chapter LII" }, title: { zh: "第十二家灯", en: "The Twelfth Light" }, subtitle: { zh: "model 和 CI 一起灭了灯又点亮了一盏", en: "the model and CI both lost a light, then lit one together" } },
   { id: "thereckoning", roman: { zh: "卷五十四", en: "Chapter LIV" }, title: { zh: "并账", en: "The Reckoning" }, subtitle: { zh: "每一条分支都被审过了——没有漏掉的", en: "every branch was audited — nothing was skipped" } },
+  { id: "thealarm", roman: { zh: "卷五十五", en: "Chapter LV" }, title: { zh: "警钟", en: "The Alarm" }, subtitle: { zh: "三次 CI 红灯，同一夜里，全被摁灭", en: "three CI reds in one night — all three extinguished" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3726,6 +3727,50 @@ function thereckoningMarkup() {
     </div>`;
 }
 
+function thealarmMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-thealarm">
+      <div class="almanac-kicker">${zh() ? "卷五十五 · 警钟" : "Chapter LV · The Alarm"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `三次红灯，` + `<br/><span class="almanac-title-accent">一次都没跳过。</span>`
+        : `Three reds,` + `<br/><span class="almanac-title-accent">none skipped.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>《警钟》记下的不是凯旋，而是同一夜里三次 CI 红灯：351d444 的 Ubuntu 腿报出七个失败，串在双语文案搬迁与 one-home 门之间；c0325fa 修回引用、三个原句和围栏尺子的函数名，并补上 ratchet 基线。c8b069d 又因未捕获 TimeoutExpired 报红，也暴露 UTC 线格式不在钟表家；94647ce 把格式交回 utc_stamp()，补齐 DEFAULT_DOCS mention。</p>
+        <p>三次运行都被 CI 抓住，三次都当场修复；没有一次红灯被跳过或原谅。修红灯时留下的物理产物，是管理面板上的“漂移哨兵”：不问模型的格子，读取 git HEAD 与 docs/latest.json 的 head、两处 CRLF 钉，以及 doc_pointers --check 的现场退出码。</p>
+        <p>诚实的边界是：这份记录只说明这些检查在这些运行中抓到了问题并完成修复，不替未来的运行作保证。</p>` : `<p>The Alarm records no victory, but three CI failures in the same stretch of work. At 351d444, the Ubuntu leg reported seven failures tied to moving Chinese engine copy into the i18n message table and breaking one-home checks; c0325fa restored the references and three verbatim literals, renamed the fence-measure functions, and updated the ratchet baseline. c8b069d failed on an uncaught TimeoutExpired and exposed a UTC line format outside its clock home; 94647ce returned formatting to utc_stamp() and added the DEFAULT_DOCS mention.</p>
+        <p>CI caught all three runs, and all three failures were fixed on the spot. None was skipped or forgiven. The physical artifact produced alongside those fixes is the management panel’s “drift sentinel”: model-free cells showing git HEAD against docs/latest.json, the two CRLF pins, and the live exit code from doc_pointers --check.</p>
+        <p>The honest limit: this records what these checks caught and what was repaired in these runs; it is not a guarantee about future runs.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">92</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">55 / 55</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">80</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["三次红、三次摁灭", "351d444：Ubuntu 腿报 7 红——引文没跟着双语化移动 → c0325fa 全部重瞄；c8b069d：subprocess.run(timeout=) 未 catch TimeoutExpired → 漂移哨兵如实返回 rc=124；94647ce：UTC 线格式回钟表家（utc_stamp()）+ 宽面名册补 DEFAULT_DOCS mention——每个红都修掉，没有一次被原谅"],
+        ["漂移哨兵是物理产物", "管理面板新增不问模型的格子：git HEAD ≡ 事实包、两处 CRLF 钉（index.html 751/0 · i18n.js 313/0）、doc_pointers --check 现场退出码——第一个 model-free 管理员磁贴"],
+        ["CI 抓到了每一个", "此仓库三次运行（351d444 / c0325fa / c8b069d）全部被 Ubuntu/Windows 两腿完整抓住；没有一次红灯被跳过或原谅"],
+        ["这一卷 model 自己编的", "prompt_cache_key stable; cached_tokens=4,224——共享前缀第九次现身"],
+      ] : [
+        ["three reds, three fixes", "351d444: the Ubuntu leg reported 7 failures — citations drifted during the bilingual move; c0325fa re-aimed them all. c8b069d: subprocess.run(timeout=) without catching TimeoutExpired — the drift sentinel now answers rc=124 honestly. 94647ce: UTC line format went home to the clock (utc_stamp()) + the wide roster mentions DEFAULT_DOCS — every red fixed, none forgiven"],
+        ["the drift sentinel is a physical artifact", "the admin panel gained a cell that asks no model: git HEAD ≡ fact pack, two CRLF pins (index.html 751/0 · i18n.js 313/0), live doc_pointers --check exit code — the first model-free admin tile"],
+        ["CI caught every one", "three runs on this repository (351d444 / c0325fa / c8b069d) all caught by the Windows and Ubuntu legs — no red was skipped or forgiven"],
+        ["the model wrote this volume itself", "prompt_cache_key stable; cached_tokens=4,224 — the shared prefix serves its ninth call"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "警钟——每一次响，都必须被听见。"
+          : "The Alarm — every ring must be heard."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3781,6 +3826,7 @@ const CHAPTER_RENDERERS = {
   livecurrent: () => livecurrentMarkup(),
   twelfthlight: () => twelfthlightMarkup(),
   thereckoning: () => thereckoningMarkup(),
+  thealarm: () => thealarmMarkup(),
 };
 
 async function loadChapter(id) {
