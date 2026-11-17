@@ -137,6 +137,38 @@ class MiniccHTTPServer(ThreadingHTTPServer):
         )
 
 
+def _oracle_rate_limited(handler: "MiniccRequestHandler", route: str) -> tuple[bool, dict]:
+    """Gate every gateway-calling oracle behind the shared sliding-window bucket.
+
+    M8-T1178: /api/oracle-* spend real tokens and /api/provider-ping spends a
+    real probe; the admin panel polls them on open and on every refresh, and
+    any hot loop or retry storm would burn the gateway unchecked. The same
+    Resilience4j-shaped bucket as /api/rag/query guards them now — Redis when
+    configured, local LRU otherwise, fail-open when the backend is down, and
+    an honest recorded degradation instead of a coin flip.
+    """
+    try:
+        from .ratelimit import consume as _rl_consume
+
+        client = getattr(handler, "client_address", None) or ("local", 0)
+        client_key = client[0] if client else "local"
+        return _rl_consume(route, client_key)
+    except Exception:  # noqa: BLE001 - a broken limiter must never break the panel
+        return True, {"backend": "unavailable", "window_seconds": 60, "limit": 20}
+
+
+def _oracle_denied_payload(zh, en, meta) -> dict:
+    """The one denial shape every oracle route answers when the bucket holds."""
+    return {
+        "live": False,
+        "zh": zh,
+        "en": en,
+        "error": "rate limit exceeded; retry shortly",
+        "rate_limited": True,
+        "retry_after_seconds": int(meta.get("window_seconds", 60) or 60),
+    }
+
+
 class MiniccRequestHandler(BaseHTTPRequestHandler):
     server: MiniccHTTPServer
     server_version = "minicc-web/0.2"
@@ -495,6 +527,21 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # Never returns the key; only gateway host, model name, status,
             # round-trip ms. ?fresh=1 bypasses the 10s shared cache.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "provider-ping")
+                if not allowed:
+                    self._json({
+                        "configured": True,
+                        "live": False,
+                        "gateway": None,
+                        "model": None,
+                        "status": None,
+                        "elapsed_ms": 0.0,
+                        "error": "rate limit exceeded; retry shortly",
+                        "rate_limited": True,
+                        "retry_after_seconds": int(rmeta.get("window_seconds", 60) or 60),
+                        "probe": "GET /models",
+                    })
+                    return
                 from .provider_ping import fetch_provider_ping
 
                 query = parse_qs(parsed.query)
@@ -606,6 +653,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # /api/ci_status tile shows) and attributes the latest mainline
             # red, or honestly says there is none (no model call). Never raises.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-ci-diagnosis")
+                if not allowed:
+                    self._json(_oracle_denied_payload("", "", rmeta))
+                    return
                 from .oracle_ci_diagnosis import build_ci_diagnosis
 
                 query = parse_qs(parsed.query)
@@ -620,6 +671,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # answers what happened in the latest window, what is odd, what to
             # look at next. Never raises; the panel shows the outage honestly.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-audit-story")
+                if not allowed:
+                    self._json(_oracle_denied_payload("", "", rmeta))
+                    return
                 from .oracle_audit_story import build_audit_story
 
                 query = parse_qs(parsed.query)
@@ -634,6 +689,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # most recent "completed" task and judges its plausibility.
             # Never raises; the panel shows the outage when the wire is down.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-retrospective")
+                if not allowed:
+                    self._json(_oracle_denied_payload("", "", rmeta))
+                    return
                 from .oracle_retrospective import build_workspace_retrospective
 
                 query = parse_qs(parsed.query)
@@ -647,6 +706,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # The model as reviewer of this repo's own latest diff — real facts in,
             # bilingual review out; ?fresh=1 bypasses the memo; wire death honest.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-review")
+                if not allowed:
+                    self._json(_oracle_denied_payload("", "", rmeta))
+                    return
                 from .oracle_review import build_workspace_review
 
                 query = parse_qs(parsed.query)
@@ -661,6 +724,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # make next, ordered by urgency, each with an acceptance test.
             # Never raises; the panel shows the outage when the wire is down.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-plan")
+                if not allowed:
+                    self._json(_oracle_denied_payload([], [], rmeta))
+                    return
                 from .oracle_plan import build_workspace_plan
 
                 query = parse_qs(parsed.query)
@@ -675,6 +742,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # evidence, writes a bilingual diagnosis. ?fresh=1 bypasses the memo.
             # Never raises; the panel shows the outage when the wire is down.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-diagnosis")
+                if not allowed:
+                    self._json(_oracle_denied_payload("", "", rmeta))
+                    return
                 from .oracle_diagnosis import build_workspace_diagnosis
 
                 query = parse_qs(parsed.query)
@@ -689,6 +760,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # writes a two-part zh+en brief. ?fresh=1 bypasses the 10-minute memo.
             # Never raises; the panel shows the outage when the wire is down.
             try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-brief")
+                if not allowed:
+                    self._json(_oracle_denied_payload("", "", rmeta))
+                    return
                 from .oracle_brief import build_workspace_brief
 
                 query = parse_qs(parsed.query)

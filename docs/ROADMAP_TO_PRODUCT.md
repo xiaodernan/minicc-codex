@@ -54755,3 +54755,20 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 
 - 不代表真实网关延迟：`MINICC_FAKE_PROVIDER=1`；`/api/oracle-audit-story` 是 fake-provider 往返混合采样；不替代表压/故障注入平台（swarm/chaos 级别留给独立环境）。
 - 不引入任何缓存语义变更（审计尾必须实时，没有加 memo）。
+## 批次 1122 · M8-T1178: 模型花钱路由全部进闸——一扇门，不是八个补丁
+
+### 目的
+
+管理员页面在打开与每次刷新都会访问 *所有* model-backed oracle tile。`/api/rag/query` 从 M8-T987 起就有 Resilience4j-shaped 的 token bucket——其他 7 个 oracle + provider-ping 却没有。一次双开窗口或一个重试风暴就能让真网关的账单起势。
+
+### 做了什么
+
+- **`webserver.py`**：`_oracle_rate_limited(handler, route)` —— 包一层 `ratelimit.consume()`（Redis 优先/local LRU/fail-open/计数纪实）；`_oracle_denied_payload(zh, en, meta)` —— 所有路由共用同一拒绝形状。
+- **8 路由接闸**：brief / diagnosis / retrospective / review / plan（`zh`/`en` 为列表，拒绝时同形 `[]`） / ci-diagnosis / audit-story / provider-ping（provider-ping 形状保持本尊 → `{"configured": true, "live": false, ...}` + `rate_limited`/`retry_after_seconds`）。
+- **HTTP 门禁**：新增一腿 `test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds`——monkeypatch gate 恒 `False`，逐路由断言：200 + live False + rate_limited True + “rate limit” + 无 `sk-` + retry_after ≥ 1。
+
+### 不声称
+
+- 不改 `/api/rag/query` 自身的 bucket 参数（60s/20）。
+- 不加 per-route 不同阈值：同一把尺子（怕双 10 门路记忆混乱）。
+- 不拒绝真 "并发 20/min 边界" 之外的请求——边界之内的 burst 一律放行。

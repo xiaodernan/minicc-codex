@@ -1033,6 +1033,31 @@ def test_get_oracle_audit_story_never_500s(live: _LiveServer, monkeypatch) -> No
     assert fresh[0] == 200
 
 
+def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1178: every gateway-calling route is behind the shared token bucket;
+    # a denial must be an honest 200 payload (live=False, rate_limited=True),
+    # never a 500, and never the api key — whichever oracle you poll.
+    monkeypatch.setattr(
+        "minicc.webserver._oracle_rate_limited",
+        lambda *a, **k: (False, {"window_seconds": 60, "limit": 20, "backend": "local"}),
+    )
+    routes = [
+        "/api/oracle-ci-diagnosis", "/api/oracle-audit-story",
+        "/api/oracle-retrospective", "/api/oracle-review",
+        "/api/oracle-plan", "/api/oracle-diagnosis",
+        "/api/oracle-brief", "/api/provider-ping",
+    ]
+    for route in routes:
+        status, _, body = _request(f"{live.url}{route}", method="GET")
+        assert status == 200, (route, status)
+        payload = json.loads(body)
+        assert payload.get("rate_limited") is True, route
+        assert payload.get("live") is False, route
+        assert "rate limit" in str(payload.get("error", "")).lower(), route
+        assert "sk-" not in body.decode("utf-8", "replace"), route
+        assert int(payload.get("retry_after_seconds", 0)) >= 1, route
+
+
 def test_get_admin_drift_never_500s(live: _LiveServer, monkeypatch) -> None:
     # M8-T1160: the drift sentinel route is entered by the HTTP suite too —
     # the seam stub yields the honest failure payload, the route must still answer.
