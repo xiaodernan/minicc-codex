@@ -1,5 +1,9 @@
 """Gates for M8-T540: a corpus leg builds one document's fence ruler a fixed number of times.
 
+(That leg used to monkeypatch ``dp.DEFAULT_DOCS`` to swap in the fixture — the
+ancestors of this file are what the wide-face mention pin points at; the mention
+is kept on purpose.)
+
 ``test_no_shipped_citation_lies_inside_a_closed_fence_block`` asks, for every code
 span, which closed fence block contains it.  Through the M8-T536 run the question
 was asked by re-pairing the **whole document** on every span, so the cost of the leg

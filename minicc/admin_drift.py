@@ -28,10 +28,10 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
+from .clock import utc_stamp
 from .oracle_common import memo_read, memo_write
 
 _MEMO_KEY = "admin-drift:v1"
@@ -141,7 +141,7 @@ def build_workspace_drift(workspace: Path, *, force_refresh: bool = False) -> di
         return {
             "live": False,
             "error": f"{type(exc).__name__}: {exc}",
-            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "generated_at": utc_stamp(),
             "honest_limits": [
                 "full test suite not run here; CI is the authority on the suite",
                 "the sentinel cannot testify to a red it has not seen; a check that cannot run reports rc != 0 / live=False, never a guess",
@@ -149,7 +149,7 @@ def build_workspace_drift(workspace: Path, *, force_refresh: bool = False) -> di
         }
     body = {
         "live": True,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "generated_at": utc_stamp(),
         "head_live": head_live,
         "fact_pack": pack,
         "commits_ahead": ahead,
