@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T18:39:04.610Z",
+  "generated_at": "2026-11-17T19:13:24.723Z",
   "branch": "main",
-  "head": "1d4b542",
-  "total_commits": 1904,
+  "head": "7d10d53",
+  "total_commits": 1906,
   "recent_commits": [
+    {
+      "short": "7d10d53",
+      "at": "2026-11-18T03:12:47+08:00",
+      "subject": "M8-T1194 (CI red #8, silent handlers): Windows and Ubuntu denied on three same-family gates - scripts/stress_auth_probe.py had two nameless 'except Exception' ("
+    },
+    {
+      "short": "6e9eb42",
+      "at": "2026-11-17T18:39:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1d4b542",
       "at": "2026-11-18T02:38:43+08:00",
@@ -19,22 +29,12 @@
       "short": "3239e1e",
       "at": "2026-11-18T02:19:21+08:00",
       "subject": "M8-T1192 (abuse probe): credential-stuffing / forged-token hammering measured for real - scripts/stress_auth_probe.py spawns a required-auth instance (0.0.0.0+t"
-    },
-    {
-      "short": "e78ec3e",
-      "at": "2026-11-17T17:42:51Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e358d37",
-      "at": "2026-11-18T01:42:28+08:00",
-      "subject": "M8-T1191 (CI red #7, fake-provider switch one-home): ubuntu leg found provider_ping spelling MINICC_FAKE_PROVIDER inline - imported FAKE_PROVIDER_ENV/fake_provi"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 463,
+  "roadmap_batches": 464,
   "changelog_entries": 1,
-  "roadmap_lines": 55032,
+  "roadmap_lines": 55063,
   "tracked_files": 1122,
   "test_files": 738,
   "almanac_chapters": 57,
