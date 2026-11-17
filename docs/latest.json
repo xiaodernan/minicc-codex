@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T02:37:27.800Z",
+  "generated_at": "2026-11-17T03:18:51.745Z",
   "branch": "main",
-  "head": "6330d84",
-  "total_commits": 1825,
+  "head": "9c54954",
+  "total_commits": 1827,
   "recent_commits": [
+    {
+      "short": "9c54954",
+      "at": "2026-11-17T11:18:12+08:00",
+      "subject": "M8-T1128: the orphaned reliability branch's five gates land in main - three verbatim, two adjudicated against the truth (per-span census: three per-item _newlin"
+    },
+    {
+      "short": "fcecfb5",
+      "at": "2026-11-17T02:37:28Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "6330d84",
       "at": "2026-11-17T10:36:33+08:00",
@@ -19,24 +29,14 @@
       "short": "7d15b07",
       "at": "2026-11-17T01:12:42Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e9ea037",
-      "at": "2026-11-17T09:12:06+08:00",
-      "subject": "M8-T1125: the model closes the completion loop - post-completion retrospective tile in admin (audit record in, bilingual zh/en plausibility judgment out; ?fresh"
-    },
-    {
-      "short": "2d9f01f",
-      "at": "2026-11-17T00:51:25Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 430,
+  "roadmap_batches": 431,
   "changelog_entries": 1,
-  "roadmap_lines": 54409,
-  "tracked_files": 1100,
-  "test_files": 723,
+  "roadmap_lines": 54437,
+  "tracked_files": 1105,
+  "test_files": 728,
   "almanac_chapters": 53,
   "module_count": 14,
   "feature_surface": [
