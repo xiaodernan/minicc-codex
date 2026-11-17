@@ -54676,7 +54676,7 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 ### 怎么修
 
 - **`web/src/core/i18n.js`**：en 表补 `scroll.natural` / `scroll.invert` / `scroll.invertHint`；zh/en 各自查 1 处。CRLF 不破坏 Pins（i18n.js 现在是 **318/0**）。
-- **`web/asset-manifest.json` + `web/assets/app.6148618a8db2e025.js`**：重建，通 `node scripts/build-web.mjs --check`。
+- **`web/asset-manifest.json` + `web/app.js` + `web/game.js` + `web/styles.css`**：重建，通 `node scripts/build-web.mjs --check`（CI 的 js-check 腿用同一套判决）。
 - **`minicc/admin_drift.py` + `admin.js` + `admin_smoke.mjs`**：已在 M8-T1168 里修掉了浅克隆红（cat-file probe，`commits_ahead=None`）——这一批 1169/1170 不再重写那段。
 
 ### 不声称
