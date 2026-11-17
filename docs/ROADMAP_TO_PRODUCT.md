@@ -54991,3 +54991,25 @@ AST 常量整查为空。`test_the_fake_provider_switch_has_one_home` 5/5 green�
 ### 不声称
 
 - 不动 `llm/fake.py` 判词逻辑；不改其它模块对该总开关的读法；注释里的提及仍是注释（AST 不计），门卫立判 zero。
+## 批次 1134 · M8-T1192: 撞库暴击——一个 REQUIRED-AUTH 服务怎么被打
+
+### 目的
+
+§十一 里「比如撞库之类的场景」——管理面默认绑回环且**不鉴权**（这是刻意设计：本地操作），但**只要换绑 `0.0.0.0` 就立刻要令牌**。于是把它测出来，不空谈。
+
+### 做了什么
+
+- **`scripts/stress_auth_probe.py`**（新增，不进 CI）：子进程自动拉起 `minicc.web --workspace . --host 0.0.0.0 --port <free> --token <generated>`（env `MINICC_FAKE_PROVIDER=1`——模型调用是确定性的离线结果），跑完自动 torn down。六段场景：
+  1. 未授权健康：必须 200；
+  2. 错 bearer × 四路由（含 `/api/oracle-brief?fresh=1`）×100 请求——401 是唯一出货形态，模型 token 不许被一丝一毫动摇；
+  3. 10 KiB 随机字节打 `POST /api/chat`（valid token）×40——应被 400 拒，不许 5xx 不许崩；
+  4. 授权车道饱和（64 req，c=32）——全 200；
+  5. 风暴后健康 + 正确令牌路由复验——两条 200；
+  6. 单机 loopback 实测全部 `held`（0 broken）；numbers 严格如实：单机单次。
+- **`tests/test_stress_auth_probe.py`**（新增）：百分位墙、拒绝矩阵、burst 直方图逐字可数；`impacted_tests --check` 绿。
+
+### 不声称
+
+- 不声称抵御暴力迁移 token 搜索（token 熵 32 字节，本机场景不存在）；
+- 不声称此探针适合当企业安全审计——loopback 单次实测；数字随机器。
+- 不声称 http.server 解析层无漏洞（已知边界）；覆盖的是**授权**风暴路径。
