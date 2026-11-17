@@ -8031,9 +8031,9 @@
         crlfEl.classList.toggle("ok", Boolean(drift.crlf_ok));
         crlfEl.classList.toggle("bad", !drift.crlf_ok);
         const doc = drift.doc_pointers || {};
-        docsEl.textContent = doc.ok ? "rc=0 \u2713" : `rc=${doc.rc}`;
-        docsEl.classList.toggle("ok", Boolean(doc.ok));
-        docsEl.classList.toggle("bad", !doc.ok);
+        docsEl.textContent = doc.status === "running" ? "\u2026" : doc.rc == null ? "\u2014" : doc.ok ? "rc=0 \u2713" : `rc=${doc.rc}`;
+        docsEl.classList.toggle("ok", doc.ok === true);
+        docsEl.classList.toggle("bad", doc.rc != null && doc.ok === false);
         if (metaEl) {
           const limit = (drift.honest_limits?.[0] ?? "").replace(/\s+/g, " ");
           metaEl.textContent = `${refreshed ? zh8() ? "\u5DF2\u91CD\u65B0\u6838\u9A8C \xB7 " : "re-verified \xB7 " : ""}${limit}`;
@@ -8049,7 +8049,7 @@
       const driftRefresh = $("#adminDriftRefresh");
       if (driftRefresh) {
         driftRefresh.addEventListener("click", () => {
-          requestJson("/api/admin/drift?fresh=1", {}, 9e4).then((drift) => renderDrift(drift, true)).catch(() => {
+          requestJson("/api/admin/drift?fresh=1", {}, 3e5).then((drift) => renderDrift(drift, true)).catch(() => {
           });
         });
       }

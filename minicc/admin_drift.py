@@ -28,15 +28,21 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 from .clock import utc_stamp
 from .oracle_common import memo_read, memo_write
 
-_MEMO_KEY = "admin-drift:v1"
+_DOC_MEMO_KEY = "admin-doc-pointers:v1"
 _GIT_TIMEOUT_SECONDS = 10.0
 _CHECK_TIMEOUT_SECONDS = 90.0
+
+#: Names of in-flight background doc_pointers runs, so a burst of panel opens
+#: does not spawn a check per request.
+_doc_inflight = threading.Lock()
+_doc_running = False
 
 
 def _git_head(workspace: Path) -> str:
@@ -106,7 +112,7 @@ def _crlf_pin(path: Path) -> dict[str, Any]:
     return {"crlf": crlf, "lf_only": lf_only, "ok": crlf > 0 and lf_only == 0}
 
 
-def _doc_pointers(workspace: Path) -> dict[str, Any]:
+def _doc_pointers_sync(workspace: Path) -> dict[str, Any]:
     try:
         proc = subprocess.run(
             [sys.executable, "scripts/doc_pointers.py", "--check"],
@@ -117,26 +123,65 @@ def _doc_pointers(workspace: Path) -> dict[str, Any]:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return {"rc": 124, "ok": False, "tail": f"doc_pointers --check timed out after {_CHECK_TIMEOUT_SECONDS}s"}
+        return {"rc": 124, "ok": False, "tail": f"doc_pointers --check timed out after {_CHECK_TIMEOUT_SECONDS}s", "status": "run"}
     out = proc.stdout.decode("utf-8", errors="replace")
     lines = [line for line in out.splitlines() if line.strip()]
     tail = lines[-1][:400] if lines else ""
-    return {"rc": int(proc.returncode), "ok": proc.returncode == 0, "tail": tail}
+    return {"rc": int(proc.returncode), "ok": proc.returncode == 0, "tail": tail, "status": "run"}
+
+
+def _spawn_doc_pointers(workspace: Path) -> bool:
+    """Kick off one background check; returns True if this call spawned it."""
+    global _doc_running
+    with _doc_inflight:
+        if _doc_running:
+            return False
+        _doc_running = True
+
+    def run() -> None:
+        global _doc_running
+        try:
+            result = _doc_pointers_sync(workspace)
+            memo_write(_DOC_MEMO_KEY, result)
+        except Exception as exc:  # noqa: BLE001 - background threads must not die silently
+            memo_write(_DOC_MEMO_KEY, {"rc": None, "ok": False, "tail": f"{type(exc).__name__}: {exc}", "status": "error"})
+        finally:
+            with _doc_inflight:
+                _doc_running = False
+
+    thread = threading.Thread(target=run, name="drift-doc-pointers", daemon=True)
+    thread.start()
+    return True
+
+
+def _doc_pointers(workspace: Path, *, force_refresh: bool = False) -> dict[str, Any]:
+    """Never block the cheap checks on the expensive one.
+
+    Default path: cached result if present, otherwise kick off a background
+    check and report ``status="running"``. ``force_refresh`` first re-reads the
+    cache (a background run may have landed), otherwise runs synchronously
+    under the cap — that is what the panel's refresh button asks for.
+    """
+    cached = memo_read(_DOC_MEMO_KEY)
+    if cached is not None:
+        return {**cached, "status": "cached"}
+    if force_refresh:
+        result = _doc_pointers_sync(workspace)
+        memo_write(_DOC_MEMO_KEY, result)
+        return result
+    _spawn_doc_pointers(workspace)
+    return {"rc": None, "ok": None, "tail": "", "status": "running"}
 
 
 def build_workspace_drift(workspace: Path, *, force_refresh: bool = False) -> dict[str, Any]:
     workspace = Path(workspace)
-    if not force_refresh:
-        cached = memo_read(_MEMO_KEY)
-        if cached is not None:
-            return {**cached, "memo": True}
     try:
         head_live = _git_head(workspace)
         pack = _fact_pack(workspace)
         ahead = _commits_ahead(workspace, pack["head"])
         index_html = _crlf_pin(workspace / "web" / "index.html")
         i18n_js = _crlf_pin(workspace / "web" / "src" / "core" / "i18n.js")
-        docs = _doc_pointers(workspace)
+        docs = _doc_pointers(workspace, force_refresh=force_refresh)
     except Exception as exc:  # noqa: BLE001 - the sentinel reports, never panics
         return {
             "live": False,
@@ -160,7 +205,7 @@ def build_workspace_drift(workspace: Path, *, force_refresh: bool = False) -> di
         "honest_limits": [
             "full test suite not run here; CI is the authority on the suite",
             "in_sync tolerates exactly the fact-pack commit itself; commits_ahead > 1 means the pack is behind HEAD by more than its own commit — the push pipeline has not run, or this clone holds commits the remote has not seen",
+            "doc_pointers rides a background thread; the panel shows 'running' until it lands (cached result served for 10 minutes after); the refresh button forces a synchronous pass capped at 90s",
         ],
     }
-    memo_write(_MEMO_KEY, body)
     return body

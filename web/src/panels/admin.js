@@ -215,9 +215,9 @@ export async function openAdmin() {
       crlfEl.classList.toggle("ok", Boolean(drift.crlf_ok));
       crlfEl.classList.toggle("bad", !drift.crlf_ok);
       const doc = drift.doc_pointers || {};
-      docsEl.textContent = doc.ok ? "rc=0 ✓" : `rc=${doc.rc}`;
-      docsEl.classList.toggle("ok", Boolean(doc.ok));
-      docsEl.classList.toggle("bad", !doc.ok);
+      docsEl.textContent = doc.status === "running" ? "…" : (doc.rc == null ? "—" : (doc.ok ? "rc=0 ✓" : `rc=${doc.rc}`));
+      docsEl.classList.toggle("ok", doc.ok === true);
+      docsEl.classList.toggle("bad", doc.rc != null && doc.ok === false);
       if (metaEl) {
         const limit = (drift.honest_limits?.[0] ?? "").replace(/\s+/g, " ");
         metaEl.textContent = `${refreshed ? (zh() ? "已重新核验 · " : "re-verified · ") : ""}${limit}`;
@@ -228,7 +228,7 @@ export async function openAdmin() {
     const driftRefresh = $("#adminDriftRefresh");
     if (driftRefresh) {
       driftRefresh.addEventListener("click", () => {
-        requestJson("/api/admin/drift?fresh=1", {}, 90000).then((drift) => renderDrift(drift, true)).catch(() => {});
+        requestJson("/api/admin/drift?fresh=1", {}, 300000).then((drift) => renderDrift(drift, true)).catch(() => {});
       });
     }
 

@@ -585,3 +585,10 @@
   本批的诚实边界写进摘要：三次 CI 运行（351d444 / c0325fa / c8b069d）全部被 Ubuntu/Windows 两腿抓住、全部当场修复；**94727ce 这一笔的 CI 这一刻仍在跑——只能说 in progress，不作绿的保证**。此外就地更正：manual.js 曾把 Ch.LIV 标成不存在的「The Great Basin」（Ch.LIV 是 《并账》）。
 
   验证：almanac_smoke 55 / atlas_smoke 92 / manual / en_cjk / admin / dazzle / stategraph 全绿；CRLF pins index.html 751/0、i18n.js 313/0；doc_pointers rc=0；claim gates 走既有渠道。
+- **CI 并不是每一轮都让我们开心——漂移哨兵的首次 CI 红，以及这次修复（M8-T1165 / 批次 1112）**：94647ce 的 CI 唯一红灯（全部其余腿全绿、三次 Ubuntu/Windows 此前红仍是这一次同一次失败面）落在 **Playwright admin smoke**：`tests/admin_smoke.mjs:136` 等待 `#adminDriftHead` 超过 60s。根因：`/api/admin/drift` 同步跑 `scripts/doc_pointers.py --check`（~2–4 分钟），三个格子全部压在同一条慢请求上；`admin.js` 的客户端超时 60s 先到，`#adminDriftHead` 永远停在 “—”。**本地那次绿是假的**——服务器进程 memo 上一波 curl 残留，smoke 白嫖了整套检查结果。
+
+  修复（M8-T1165）：`/api/admin/drift` 不再为 doc_pointers 阻塞——**git/CRLF 数据（<1s）立即返回**，`doc_pointers` 在 daemon 线程跑，响应里 `{"rc": null, "status": "running"}`；`?fresh=1`（刷新按钮）才同步跑（90s 上限，并先查 memo——后台跑可能已经落定）。`admin.js` 的刷新按钮预算放宽到 300s、渲染函数容忍 `running`；admin_smoke 的 docs 格改为**轮询式收敛**：最多 12 次刷新点击、每次最多 30s 直到 `rc=` 出现——不再白嫖 memo。顺带删掉 wrapper 级 10 分钟 memo（当初为省时检查引入，如今有异步线程反而会把 `running` 钉 10 分钟）。
+
+  验证：本地 admin_smoke 通过；drift 端点热响应实测 0.23s；force-refresh 实测 13.5s（沙箱负载波动）；rc=0 正确落进 memo；route_coverage 不变。CRLF pins index.html 751/0、i18n.js 313/0。
+
+  **诚实边界**：94647ce 的 CI 记作失败；原因如上；M8-T1164（Ch.LV）这一笔的 CI 这一刻仍在 in progress/queued——本次修复落地的这一笔也得从头跑两条腿，不预写绿。

@@ -146,8 +146,18 @@ async function checkMode(locale, expectCjk) {
   );
   const driftCrlf = await page.locator("#adminDriftCrlf").innerText();
   assert.match(driftCrlf, /[0-9]/, "CRLF cell must show real byte counts");
-  const driftDocs = await page.locator("#adminDriftDocs").innerText();
-  assert.match(driftDocs, /rc=/, "doc_pointers cell must show its exit code");
+  // The doc_pointers cell rides a background thread; the first render may show a pending dot.
+  // Click refresh (each click is a bounded synchronous pass, ~15-90s) until rc= appears.
+  let driftDocs = "";
+  for (let attempt = 0; attempt < 12 && !/rc=/.test(driftDocs); attempt += 1) {
+    await page.click("#adminDriftRefresh").catch(() => {});
+    await page.waitForFunction(() => {
+      const el = document.querySelector("#adminDriftDocs");
+      return /rc=/.test((el?.innerText || "").trim());
+    }, null, { timeout: 30000 }).catch(() => {});
+    driftDocs = (await page.locator("#adminDriftDocs").innerText()).trim();
+  }
+  assert.match(driftDocs, /rc=/, "doc_pointers cell must converge to a real exit code");
 
   const briefUsage = await page.locator("#adminBriefUsage").innerText();
   // when the model answered, the usage footer must carry the token accounting;

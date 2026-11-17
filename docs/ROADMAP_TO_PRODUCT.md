@@ -54581,3 +54581,21 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - **94647ce 与本批的 CI 这一刻仍在跑**；不把它写成绿。
 - Atlas 92 = 18 面板 + 55 年鉴卫星 + 19 说明书卫星。
 - Ch.LV 正文（≤4 段 zh/en）只复述 SNAPSHOT 里的事实；没有新增数字。
+## 批次 1112 · M8-T1165: 漂移哨兵首次 CI 红——便宜的检查不再排在贵检查后面
+
+### 红了什么
+
+`94647ce` 的 Playwright 腿：`tests/admin_smoke.mjs:136` 60s 等 `#adminDriftHead` 超时。根因：`/api/admin/drift` 同步跑 `doc_pointers --check`（分钟级），三个格子全卡在一条慢请求上；admin.js 的 60s 客户端超时先到。**本地绿是假的**——服务器 memo 被此前数次 curl 白嫖。
+
+### 怎么修
+
+- **`minicc/admin_drift.py`**：cheap checks 立即返回（git HEAD、fact pack、CRLF pins）；`doc_pointers` 移入 daemon 线程——响应 `{"rc": null, "ok": null, "status": "running"}`；`?fresh=1` 优先查 memo（后台可能已经落定），否则同步跑（90s 上限）。
+- **wrapper 级 memo 删除**：早先为挡 2 分钟的检查引入，现反而会把 `running` 态钉 10 分钟。
+- **`admin.js`**：刷新按钮 fetch 预算 90 → 300s；docs 格容忍 `running`→`…`；`rc=` 收敛后上色。
+- **`admin_smoke.mjs`**：docs 格改为轮询式收敛（≤12 次刷新点击 / 每次 ≤30s / 直到 `rc=` 出现）；head 与 CRLF 格仍是立即断言——它们不再排队等 expensive check。
+- **HTTP 面**：`test_http_surface` 的 never-500s 用例不受影响（monkeypatch seam）；CRLF pins 未动。
+
+### 不声称
+
+- `94647ce` 的 CI 结论 = **failure**（如上，已修）；修复落地的这一笔 CI 这一刻仍在 pending/queued——不写绿。
+- 三项格子性质不变：git/HEAD、CRLF 字节、doc_pointers rc——全部来自真实子进程/真实字节，只是贵的那一项不再是便宜格子的排队理由。
