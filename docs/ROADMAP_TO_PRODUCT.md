@@ -54742,3 +54742,16 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 ### 不声称
 
 - 不修 `18c22376` 历史（force-push main 不做）；其红例与本批一致，修复自本提交生效。
+## 批次 1121 · M8-T1177: 压力探针 + /api/audit 并发崩溃点
+
+### 做了什么
+
+- **`scripts/stress_probe.py`**（新增，不进 CI）：并发只读探针。参数 `--url / --requests / --concurrency / --endpoints / --json`；端点默认六个只读路由（/api/health, /api/stategraph, /api/stats, /api/roadmap, /api/audit?limit=64, /api/oracle-audit-story）；重载前 warm-up 15 请求；p50/p95/p99、rps、状态码直方图、transport error 分列。
+- **真病灶**：探针 c=32 撞出 `/api/audit?limit=64` 全员 10s 超时（253/384 transport errors，c=64 为 224/384）。根因：`audit_export` 对整份 380KB 日志逐行解析并对**全部**字段套 redact 正则，再 slice 尾部；p50 与并发度线性恶化。
+- **修法**：单趟扫描 + `deque(maxlen=cap_n)`（默认 64），redact 只在保留行，`audit_level` 懒计算；语义逐行对齐旧实现（`count`=保留行数、`total`=过滤后总条数、level 过滤仍在 slice 前，未保留字段跳过 parse —— 与旧实现一致）。
+- **复测**（同机同数据）：c=1 126→13.6ms · c=8 922→89.1ms · c=32 10,008→280ms（0 错误）· c=64 10,010→233ms（0 错误）。审计 68 条相关测试绿。
+
+### 不声称
+
+- 不代表真实网关延迟：`MINICC_FAKE_PROVIDER=1`；`/api/oracle-audit-story` 是 fake-provider 往返混合采样；不替代表压/故障注入平台（swarm/chaos 级别留给独立环境）。
+- 不引入任何缓存语义变更（审计尾必须实时，没有加 memo）。

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+from collections import deque
 import threading
 import time
 import uuid
@@ -3327,6 +3328,7 @@ class AgentService:
         ``limit`` matches instead of a filtered remainder of the last lines.
         """
         keep = _audit_level_filter(levels=levels, min_level=min_level)
+        cap_n = max(1, min(limit, 2000))
         audit_path = self.workspace / ".minicc" / AUDIT_NAME
         empty = _audit_export_payload(self.workspace, [], 0)
         if not audit_path.is_file():
@@ -3335,7 +3337,15 @@ class AgentService:
             lines = audit_path.read_text(encoding="utf-8").splitlines()
         except OSError as exc:
             raise ValueError(f"无法读取审计记录: {exc}") from exc
-        matches: list[dict[str, Any]] = []
+        # M8-T1177: the export only ever returns the last `cap_n` kept rows,
+        # but it used to JSON-parse every line, redact every field of every
+        # parsed item, and only then slice — under concurrent readers that
+        # turned one request into an O(whole log) CPU storm and timeouts at
+        # c>=32 (measured: 253/384 transport errors at c=32). One pass now
+        # keeps only a bounded deque of the tail; redaction and level
+        # derivation happen on the kept rows only.
+        tail: deque[tuple[dict[str, Any], str]] = deque(maxlen=cap_n)
+        total_matches = 0
         for line in lines:
             try:
                 item = json.loads(line)
@@ -3343,19 +3353,27 @@ class AgentService:
                 continue
             if not isinstance(item, dict):
                 continue
-            level = str(item.get("level") or "") or audit_level(
-                str(item.get("action") or ""), str(item.get("detail") or "")
-            )
-            if keep is not None and level not in keep:
-                continue
+            if keep is not None:
+                level = str(item.get("level") or "") or audit_level(
+                    str(item.get("action") or ""), str(item.get("detail") or "")
+                )
+                if level not in keep:
+                    continue
+            else:
+                level = str(item.get("level") or "")
+            total_matches += 1
+            tail.append((item, level))
+        capped: list[dict[str, Any]] = []
+        for item, level in tail:
+            if not level:
+                level = audit_level(str(item.get("action") or ""), str(item.get("detail") or ""))
             safe = {
                 key: redact_text(str(item.get(key) or ""))[0]
                 for key in ("timestamp", "action", "path", "detail", "before_digest", "after_digest")
             }
             safe["level"] = level
-            matches.append(safe)
-        capped = matches[-max(1, min(limit, 2000)):]
-        return _audit_export_payload(self.workspace, capped, len(matches))
+            capped.append(safe)
+        return _audit_export_payload(self.workspace, capped, total_matches)
 
     def metrics(self, *, limit: int = 500, workspace_path: str | None = None) -> dict[str, Any]:
         """Aggregate token/cost metrics over the task index (M8-T5).
