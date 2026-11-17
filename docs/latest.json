@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T18:19:53.911Z",
+  "generated_at": "2026-11-17T18:39:04.610Z",
   "branch": "main",
-  "head": "3239e1e",
-  "total_commits": 1902,
+  "head": "1d4b542",
+  "total_commits": 1904,
   "recent_commits": [
+    {
+      "short": "1d4b542",
+      "at": "2026-11-18T02:38:43+08:00",
+      "subject": "M8-T1193: almanac Ch.LVII 'The Green Line / 绿线' - the model chronicled last night's real CI firefightign night (bdf3abcb impact floor -> 01a32347 dangling SHA r"
+    },
+    {
+      "short": "4031dc3",
+      "at": "2026-11-17T18:19:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3239e1e",
       "at": "2026-11-18T02:19:21+08:00",
@@ -19,25 +29,15 @@
       "short": "e358d37",
       "at": "2026-11-18T01:42:28+08:00",
       "subject": "M8-T1191 (CI red #7, fake-provider switch one-home): ubuntu leg found provider_ping spelling MINICC_FAKE_PROVIDER inline - imported FAKE_PROVIDER_ENV/fake_provi"
-    },
-    {
-      "short": "1dcd5c0",
-      "at": "2026-11-17T17:17:49Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3757d3b",
-      "at": "2026-11-18T01:17:23+08:00",
-      "subject": "M8-T1190 (CI red #6): liveness read-back - join(timeout=) without an is_alive() read-back may time out silently; stress probe's cleanup now asserts the daemon a"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 462,
+  "roadmap_batches": 463,
   "changelog_entries": 1,
-  "roadmap_lines": 55016,
+  "roadmap_lines": 55032,
   "tracked_files": 1122,
   "test_files": 738,
-  "almanac_chapters": 56,
+  "almanac_chapters": 57,
   "module_count": 14,
   "feature_surface": [
     "workbench",
