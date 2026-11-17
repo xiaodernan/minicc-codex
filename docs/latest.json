@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T19:49:44.191Z",
+  "generated_at": "2026-11-17T20:26:27.339Z",
   "branch": "main",
-  "head": "9330b04",
-  "total_commits": 1908,
+  "head": "59a7bbf",
+  "total_commits": 1910,
   "recent_commits": [
+    {
+      "short": "59a7bbf",
+      "at": "2026-11-18T04:26:00+08:00",
+      "subject": "M8-T1196 (on-duty strategist tile): model reads the same merged snapshot and writes the three next deep moves with a concrete acceptance check each - new /api/o"
+    },
+    {
+      "short": "5a47fc9",
+      "at": "2026-11-17T19:49:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9330b04",
       "at": "2026-11-18T03:49:08+08:00",
@@ -19,24 +29,14 @@
       "short": "7d10d53",
       "at": "2026-11-18T03:12:47+08:00",
       "subject": "M8-T1194 (CI red #8, silent handlers): Windows and Ubuntu denied on three same-family gates - scripts/stress_auth_probe.py had two nameless 'except Exception' ("
-    },
-    {
-      "short": "6e9eb42",
-      "at": "2026-11-17T18:39:04Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1d4b542",
-      "at": "2026-11-18T02:38:43+08:00",
-      "subject": "M8-T1193: almanac Ch.LVII 'The Green Line / 绿线' - the model chronicled last night's real CI firefightign night (bdf3abcb impact floor -> 01a32347 dangling SHA r"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 465,
+  "roadmap_batches": 466,
   "changelog_entries": 1,
-  "roadmap_lines": 55081,
-  "tracked_files": 1123,
-  "test_files": 739,
+  "roadmap_lines": 55099,
+  "tracked_files": 1125,
+  "test_files": 740,
   "almanac_chapters": 57,
   "module_count": 14,
   "feature_surface": [
