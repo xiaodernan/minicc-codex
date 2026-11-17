@@ -22,7 +22,7 @@ Three coupled failures, all of them a number copied instead of read:
 3. ``minicc/web.py:1852``/``:2358`` clip at 8000, which only stays honest while the
    summary is under ~1962 chars. The MCP summary is ``f"MCP {server}/{tool}"`` and the
    tool name comes from the server's own ``tools/list``: ``_unique_tool_name`` caps the
-   *registry* name at ``minicc/mcp.py:1140``, the summary at ``minicc/mcp.py:70`` never
+   *registry* name at ``minicc/mcp.py:1136``, the summary at ``minicc/mcp.py:70`` never
    passes through it.
 
 The fix is ``ToolResult.record_text(ceiling)``: the ceiling governs the raw ``output``
@@ -274,7 +274,7 @@ def test_a_server_chosen_name_cannot_push_the_tail_past_the_clip() -> None:
     assert ceilings, f"no ceiling is passed to record_text() anywhere under {MINICC} - the record surfaces never routed through it"
     ceiling = min(ceilings)
     # The summary is f"MCP {server}/{tool}" and the tool name is whatever the server's
-    # tools/list returned; nothing caps its length (mcp.py:70 vs mcp.py:1140).
+    # tools/list returned; nothing caps its length (mcp.py:70 vs mcp.py:1136).
     result = _budget_full("MCP srv/" + "n" * (ceiling - 600))
     composed = result.render()
     assert len(composed) > ceiling, f"fixture too short to test the shipped ceiling {ceiling} (composed {len(composed)})"

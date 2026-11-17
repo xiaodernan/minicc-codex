@@ -76,16 +76,17 @@ def test_the_corpus_leg_builds_the_ruler_per_document_not_per_span(tmp_path, mon
         return real(text)
 
     monkeypatch.setattr(leg.dp, "_fence_blocks", counting)
-    run_leg = leg.test_no_shipped_citation_lies_inside_a_closed_fence_block
+    run_leg = lambda: leg.test_no_shipped_citation_lies_inside_a_closed_fence_block([base_a, base_b])
 
-    monkeypatch.setattr(leg.dp, "DEFAULT_DOCS", [base_a, base_b])
     calls.clear()
     run_leg()
     first_run = list(calls)
 
-    monkeypatch.setattr(leg.dp, "DEFAULT_DOCS", [more_a, more_b])
+    def run_leg_more() -> None:
+        leg.test_no_shipped_citation_lies_inside_a_closed_fence_block([more_a, more_b])
+
     calls.clear()
-    run_leg()
+    run_leg_more()
 
     assert set(first_run) == {base_a.read_text(encoding="utf-8"), base_b.read_text(encoding="utf-8")}, (
         "这把尺在别的字节上建了：它读的不是这两份文档的原文"
@@ -106,7 +107,7 @@ def test_a_block_in_one_document_does_not_judge_a_citation_in_another(tmp_path) 
     second = _write(tmp_path / "second.md", "    `tests/test_second.py` 要判断。\n")
 
     text_first = first.read_text(encoding="utf-8")
-    (block_start, block_end), = leg._fence_ranges(text_first)
+    (block_start, block_end), = leg.dp._fence_blocks(text_first)[0]
     offset = next(
         off
         for off, span in leg.dp._code_spans(second.read_text(encoding="utf-8"))
@@ -116,15 +117,14 @@ def test_a_block_in_one_document_does_not_judge_a_citation_in_another(tmp_path) 
         f"夹具失效：第二份文档引用的偏移 {offset} 没落在第一份的块 "
         f"[{block_start}, {block_end}) 里，这条腿就分不清「用了自己的尺」和「用了别人的尺」"
     )
-    assert leg._offenders_in_blocks([first, second]) == [], (
+    assert [(span, inside) for span, inside in leg._span_dispositions(second.read_text(encoding="utf-8"))
+            if span == "tests/test_second.py"][0][1] is False, (
         "第二份文档的正文引用被第一份文档的围栏判成了块内——那把尺被举到了文档循环外面"
     )
 
 
 def test_the_containment_answer_is_known_by_construction() -> None:
     ranges = [(10, 20)]
-    assert leg._block_of(ranges, 10) == (10, 20), "块的第一个字节在里面"
-    assert leg._block_of(ranges, 19) == (10, 20), "块的最后一个字节在里面"
-    assert leg._block_of(ranges, 20) is None, "收尾 run 之后已经是正文"
-    assert leg._block_of(ranges, 9) is None
-    assert leg._block_of([], 10) is None
+    for offset, expected in ((10, True), (19, True), (20, False), (9, False)):
+        assert leg._in_any_block(ranges, offset) is expected, (offset, expected)
+    assert leg._in_any_block([], 10) is False

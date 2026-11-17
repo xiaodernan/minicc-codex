@@ -166,7 +166,7 @@ def missing_session_message(name: str) -> str:
     remembered and the model read a different wording depending on which
     door it walked through (M8-T495).
     """
-    return tr("session_not_found", name=name)
+    return f"会话不存在: {name}"
 
 
 def _replace_with_retry(source: Path, target: Path) -> None:

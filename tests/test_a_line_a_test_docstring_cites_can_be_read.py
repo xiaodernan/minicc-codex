@@ -34,7 +34,7 @@ CITATION = re.compile(r"([A-Za-z0-9_./-]+\.(?:py|md|mjs|js|ts|tsx|json|ya?ml))[:
 REPAIRED = (
     ("minicc/mcp.py", 53, "class McpError"),
     ("minicc/mcp.py", 70, "Fold every character"),
-    ("minicc/mcp.py", 1140, "_unique_tool_name"),
+    ("minicc/mcp.py", 1136, "_unique_tool_name"),
     ("minicc/agent/verifier.py", 63, "def passed"),
     ("minicc/agent/completion.py", 24, "classify_provider_failure"),
     ("minicc/agent/completion.py", 372, "text = re.sub"),

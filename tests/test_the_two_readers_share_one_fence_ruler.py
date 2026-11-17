@@ -236,20 +236,25 @@ def test_the_evidence_reader_and_the_pointer_reader_blank_the_same_fenced_bytes(
 # --------------------------------------------------------------------------- #
 
 
-def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
+def test_no_shipped_citation_lies_inside_a_closed_fence_block(docs=None) -> None:
+    # The corpus leg runs over dp.DEFAULT_DOCS; tests/test_one_document_is_one_fence_ruler_build.py
+    # calls it on a synthetic pair of fixtures and must not trip the corpus floor.
+    shipped = docs is None
+    loop = docs if docs is not None else dp.DEFAULT_DOCS
     offenders: list[tuple[str, str]] = []
     walked = 0
-    for document in dp.DEFAULT_DOCS:
+    for document in loop:
         if not document.exists():
             continue
         text = document.read_text(encoding="utf-8", errors="replace")
         dispositions = _span_dispositions(text)
         walked += len(dispositions)
         offenders.extend((document.name, span) for span, inside in dispositions if inside)
-    assert walked > 10_000, (
-        f"读者在整个语料里只走了 {walked} 条跨度：0 条 offender 什么都没说，"
-        "本腿的靶子缩了要重新瞄准"
-    )
+    if shipped:
+        assert walked > 10_000, (
+            f"读者在整个语料里只走了 {walked} 条跨度：0 条 offender 什么都没说，"
+            "本腿的靶子缩了要重新瞄准"
+        )
     assert offenders == [], f"块内逃逸的跨度 {len(offenders)} 条，前几条：{offenders[:4]}"
 
 

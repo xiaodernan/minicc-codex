@@ -74,7 +74,6 @@ _MESSAGES = {
         "allowlist_written_tool": "[minicc] 已写入本会话 allowlist：{tool} 的全部用法都将自动放行",
         "allowlist_failed": "[minicc] allowlist 写入失败: {exc}",
         # main.py — sessions, doctor, digest
-        "session_not_found": "会话不存在: {name}",
         "session_format_error": "session 格式错误: {path}",
         "fork_created": "已 fork：{source} -> {target}（{name}）",
         "fork_resume": "恢复该分支: minicc --resume --session-id {target}",
@@ -95,7 +94,6 @@ _MESSAGES = {
         "config_error": "minicc: {message}",
         # tools
         # git
-        "git_failed": "git 命令失败: {exc}",
         "branch_invalid": "branch 参数非法",
         # memory
         "memory_list_empty": "暂无记忆条目",
@@ -155,7 +153,6 @@ _MESSAGES = {
         "audit_perm_deny_rule": "permissions.json deny 规则拒绝了此操作 ({tool})",
         "audit_perm_invalid": "permission_mode 非法: {value!r} (default|plan|acceptEdits|yolo)",
         "audit_policy_unreadable": "permissions.json 读不出来，先拒绝此操作（{policy_error}）",
-        "audit_deny_rule": "permissions.json deny 规则拒绝",
         "audit_allow_rule": "permissions.json allow 规则放行",
         "audit_session_allow": "本会话 allowlist 已放行",
         "audit_git_reconly": "git_stage/git_commit 只能由人类在会话中授权；yolo / allow_changes / acceptEdits 都不放行",
@@ -333,7 +330,6 @@ _MESSAGES = {
         "allowlist_written_tool": "[minicc] Written to session allowlist: all uses of {tool} will be auto-approved",
         "allowlist_failed": "[minicc] Allowlist write failed: {exc}",
         # main.py — sessions, doctor, digest
-        "session_not_found": "Session not found: {name}",
         "session_format_error": "Session format error: {path}",
         "fork_created": "Forked: {source} -> {target} ({name})",
         "fork_resume": "Resume branch: minicc --resume --session-id {target}",
@@ -354,7 +350,6 @@ _MESSAGES = {
         "config_error": "minicc: {message}",
         # tools
         # git
-        "git_failed": "Git command failed: {exc}",
         "branch_invalid": "Invalid branch parameter",
         # memory
         "memory_list_empty": "No memory entries",
@@ -414,7 +409,6 @@ _MESSAGES = {
         "audit_perm_deny_rule": "permissions.json deny rule blocked this operation ({tool})",
         "audit_perm_invalid": "Invalid permission_mode: {value!r} (default|plan|acceptEdits|yolo)",
         "audit_policy_unreadable": "Cannot read permissions.json; denying first ({policy_error})",
-        "audit_deny_rule": "Denied by permissions.json deny rule",
         "audit_allow_rule": "Allowed by permissions.json allow rule",
         "audit_session_allow": "Allowed by this session's allowlist",
         "audit_git_reconly": "git_stage/git_commit need a human approval in-session; yolo / allow_changes / acceptEdits do not unlock them",

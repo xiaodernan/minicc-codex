@@ -50,7 +50,7 @@ def git_command_failed(exc: BaseException) -> str:
     somebody remembered and the model read a different wording depending on
     which git surface it walked through (M8-T496).
     """
-    return tr("git_failed", exc=exc)
+    return f"git 命令失败: {exc}"
 
 
 class GitTools:

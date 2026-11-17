@@ -723,7 +723,7 @@ def authorize_tool(
             return AuthorizationDecision(
                 False,
                 risk or "unknown",
-                tr("audit_deny_rule"),
+                "permissions.json deny 规则拒绝",
                 AUTHORIZATION_PERMISSION_RULE_DENY,
             )
         if verdict == PERMISSION_RULE_VERDICT_ALLOW:
