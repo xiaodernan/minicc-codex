@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T16:26:43.351Z",
+  "generated_at": "2026-11-17T16:57:21.236Z",
   "branch": "main",
-  "head": "78b2fa6",
-  "total_commits": 1894,
+  "head": "9248069",
+  "total_commits": 1896,
   "recent_commits": [
+    {
+      "short": "9248069",
+      "at": "2026-11-18T00:56:59+08:00",
+      "subject": "M8-T1189 (CI red #5, en_cjk parity): the gateway's Chinese refusal leaked into en mode - oracle_common.error_payload now ASCII-only 'kind: ExceptionType' with f"
+    },
+    {
+      "short": "7f9d101",
+      "at": "2026-11-17T16:26:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "78b2fa6",
       "at": "2026-11-18T00:26:10+08:00",
@@ -19,22 +29,12 @@
       "short": "01a3234",
       "at": "2026-11-18T00:02:07+08:00",
       "subject": "docs(roadmap): my own M8-T1181/M8-T1186 references in batch 1129 were dangling IDs - no ROADMAP batch carries those task IDs; cited as the actual fix commits (3"
-    },
-    {
-      "short": "c7d0bb1",
-      "at": "2026-11-17T23:55:57+08:00",
-      "subject": "docs(INDEX): the Ledger chapter's relationship to its draft archive stated precisely - two post-generation mechanical revisions named (Atlas/ volumes number syn"
-    },
-    {
-      "short": "3a69d4d",
-      "at": "2026-11-17T15:48:45Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 458,
+  "roadmap_batches": 459,
   "changelog_entries": 1,
-  "roadmap_lines": 54928,
+  "roadmap_lines": 54952,
   "tracked_files": 1120,
   "test_files": 737,
   "almanac_chapters": 56,
