@@ -54498,3 +54498,19 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - `task_manager.py` 等引擎内联文案（约 120 处双引号中文：预算/取消/校验等面向工程师排障与模型的消息）**未接**——登记为 **M8-T1132**：engine 面接线 + registry/fs 工具面错误文案 + 剩下的 32 个 ratchet 键归零。
 - 本批没有动任何通道输出之外的行为：表与 import 之外全是 tr() 调用替换（zh_cn 输出逐字节与接线前一致）。
 - CI 这一刻仍在跑；不把它写成绿。
+## 批次 1107 · M8-T1132: CLI 双语化 第 3 段 — ratchet 清零（每一个键都有生产者）
+
+### 做了什么
+
+- **接线 13 个**：session.py（`会话不存在` / `session 格式错误` / `fork 点无效` / `fork 点至少为 1` / `fork 点超出` / `keep_messages 至少为 1` / `user_index 至少为 1` / `会话中没有第 N 条 user 消息`）、tools/git.py（`git 命令失败` / `branch 参数非法`）、tools/memory.py（`暂无记忆条目`，原全角括号形状保留）、main.py（`未知命令`，与 `test_a_command_file...` 的逐字钉对齐）。
+- **删除 19 个**：main 中不存在对应消息的 backup 遗留键（`unknown_tool` / `tool_error` / `tool_exception` / `invalid_args` / `system_io_error` / `tool_denied` / `absolute_path` / `path_outside` / `denied_write` / `denied_exec` / `mcp_*` 五个 / `memory_not_found` / `memory_written` / `session_error` / `workspace_not_dir`）。
+- **收敛 1 个**：`rewind_no_session` 与 `session_not_found` 同文、同调用点，只留后者。
+- **表 129 键，ratchet 归零**：`UNREAD_KEYS_BASELINE = frozenset()`；`test_cli_i18n.py` 三腿（无人读键不许超过基线 / 基线不许含已接线键 / 基线不许含已消失键）在 0 上运行。
+- **en/zh 实测**：`MINICC_LOCALE=en_us` 全链路英文（REPL 语料、`--help`、权限理由、doctor、fork/rewind）；默认 zh_cn 输出逐字节不变。
+
+### 绑定的诚实边界
+
+- `task_manager.py` 引擎内联文案（约 120 处，面向工程师排障与模型语境）**没有接**——登记 **M8-T1133**：engine 面双语化（`[BUDGET]` 等标记部分 ASCII-only 可直接保留前缀，中文句接入表）；不做成“engine 双语已完成”。
+- `/view` 历史文件中存的旧中文文案不追溯改写。
+- 零产品行为变化：表与 import 之外全是 `tr()` 调用替换。
+- CI 这一刻仍在跑；不把它写成绿。

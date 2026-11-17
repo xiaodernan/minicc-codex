@@ -779,7 +779,7 @@ async def _interactive(
                 # cannot show either.
                 cli_out(
                     refusal
-                    or f"未知命令：{prompt.split(' ', 1)[0]}（/help 查看内置与自定义命令）"
+                    or tr("unknown_command", cmd=prompt.split(" ", 1)[0])
                 )
                 continue
             prompt = expanded

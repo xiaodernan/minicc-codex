@@ -26,6 +26,8 @@ INVALID_ARGUMENTS.
 
 from __future__ import annotations
 
+from ..cli_io import tr
+
 import logging
 import os
 import re
@@ -321,7 +323,7 @@ class MemoryTools:
                 f"{len(entries)} 条长期记忆（scope={'all' if scope is None else scope}, "
                 f"排序={reason}{', query=' + repr(query) if query.strip() else ''}）"
             ),
-            output="\n".join(lines) or "（暂无记忆条目）",
+            output="\n".join(lines) or f"（{tr('memory_list_empty')}）",
             data={"entries": [entry.to_dict() for entry in entries], "sort": reason},
             security_tags=untrusted_tags(),
         )

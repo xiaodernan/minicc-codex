@@ -7,6 +7,8 @@ Push/PR are explicitly not provided (per roadmap non-goal).
 
 from __future__ import annotations
 
+from ..cli_io import tr
+
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -48,7 +50,7 @@ def git_command_failed(exc: BaseException) -> str:
     somebody remembered and the model read a different wording depending on
     which git surface it walked through (M8-T496).
     """
-    return f"git 命令失败: {exc}"
+    return tr("git_failed", exc=exc)
 
 
 class GitTools:
@@ -160,7 +162,7 @@ class GitTools:
         """
         branch = str(args.get("branch") or "").strip()
         if not branch or any(ch.isspace() for ch in branch) or branch.startswith("-"):
-            raise ToolError("branch 参数非法")
+            raise ToolError(tr("branch_invalid"))
         try:
             completed = subprocess.run(
                 ["git", "merge-tree", "--write-tree", "--name-only", "HEAD", branch],

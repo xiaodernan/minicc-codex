@@ -7,9 +7,9 @@ invisible without a gate that asks the tables about each other and that reads
 the repository's own sources to see which keys are actually reached.
 
 These gates make the tables answer for each other and pin the formatter
-``tr`` relies on. The read-count ratchet only ever shrinks: it records the
-keys nobody wires yet (33 at part 1, 32 at part 2), and any commit that
-wires one shrinks it — deleting that same affordance fails here.
+``tr`` relies on. Every key is wired; the ratchet stands at zero. A commit
+that adds a key nobody wires fails this gate — the baseline is not a place to
+park unfinished copy.
 """
 
 from __future__ import annotations
@@ -21,19 +21,11 @@ import minicc.cli_io as cli_io
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-#: Keys nobody reads yet. Every batch that wires one in shrinks this set;
-#: deleting a key shrinks it too. Never add to it.
-UNREAD_KEYS_BASELINE = frozenset({
-    "absolute_path", "branch_invalid", "denied_exec", "denied_write",
-    "fork_invalid_point", "fork_max_keep", "fork_min_keep", "git_failed",
-    "invalid_args", "mcp_config_error", "mcp_no_provider", "mcp_sampling_denied",
-    "mcp_sampling_failed", "mcp_server_failed", "memory_list_empty",
-    "memory_not_found", "memory_written", "path_outside", "rewind_min",
-    "rewind_no_session", "rewind_no_user", "session_error",
-    "session_format_error", "session_not_found", "system_io_error",
-    "tool_denied", "tool_error", "tool_exception", "unknown_command",
-    "unknown_tool", "user_index_min", "workspace_not_dir",
-})
+#: Every key in the tables is wired in production code. The ratchet has no
+#: headroom left: adding a key nobody wires is the failure this gate exists to
+#: prevent, not a shape to tolerate (M8-T1132 — the last 32 unwired keys were
+#: either wired to their live call sites or removed from both tables).
+UNREAD_KEYS_BASELINE = frozenset()
 
 
 def _source_text() -> str:

@@ -47,7 +47,7 @@ _MESSAGES = {
         "starting": "minicc 已启动。输入 /help 查看命令，输入 /exit 退出。",
         "help_line": "/help  /tools  /status  /view  /compact (压缩上下文)  /collapse (折叠工具输出)  /expand [n]  /clear  /cost  /doctor  /exit",
         "custom_commands": "自定义命令：",
-        "unknown_command": "未知命令：{cmd}。/help 查看内置与自定义命令。",
+        "unknown_command": "未知命令：{cmd}（/help 查看内置与自定义命令）",
         "session_cleared": "会话上下文已清空。",
         "no_tool_history": "最近没有工具记录。",
         "recent_tools": "最近工具：",
@@ -74,7 +74,6 @@ _MESSAGES = {
         "allowlist_written_tool": "[minicc] 已写入本会话 allowlist：{tool} 的全部用法都将自动放行",
         "allowlist_failed": "[minicc] allowlist 写入失败: {exc}",
         # main.py — sessions, doctor, digest
-        "session_error": "SessionError",
         "session_not_found": "会话不存在: {name}",
         "session_format_error": "session 格式错误: {path}",
         "fork_created": "已 fork：{source} -> {target}（{name}）",
@@ -85,7 +84,6 @@ _MESSAGES = {
         "fork_min_keep": "fork 点至少为 1（保留 system 消息）",
         "fork_max_keep": "fork 点 {keep} 超出会话消息数 {total}",
         "rewind_min": "keep_messages 至少为 1（保留 system 消息）",
-        "rewind_no_session": "会话不存在: {name}",
         "rewind_no_user": "会话中没有第 {n} 条 user 消息",
         "user_index_min": "user_index 至少为 1",
         "no_saved_sessions": "（该工作区暂无保存的会话）",
@@ -93,33 +91,15 @@ _MESSAGES = {
         "channel_unavailable": "通道状态不可用（{type}）",
         "channel_plan_note": "通道: {active}（套餐通道{plan_note}）",
         # audit.py / permissions
-        "denied_write": "已拒绝 {tool} ({preview}): {reason}",
-        "denied_exec": "已拒绝 {tool} ({preview}): {reason}",
         # config
         "config_error": "minicc: {message}",
-        "workspace_not_dir": "工作区不是目录: {path}",
         # tools
-        "tool_denied": "[{code}] {message}",
-        "tool_error": "[TOOL_ERROR] {message}",
-        "unknown_tool": "[UNKNOWN_TOOL] 未知工具 {tool!r} (已注册: {registered})",
-        "invalid_args": "[INVALID_ARGUMENTS] {message}",
-        "system_io_error": "[TOOL_ERROR] 系统 IO 错误: {exc}",
-        "tool_exception": "[TOOL_ERROR] 工具 {tool!r} 未处理异常: {type}: {exc}",
         # git
         "git_failed": "git 命令失败: {exc}",
         "branch_invalid": "branch 参数非法",
-        "path_outside": "路径越界: {path} 超出 workspace 根",
-        "absolute_path": "路径越界: 不允许绝对路径 ({path})",
         # memory
-        "memory_written": "记忆已写入",
-        "memory_not_found": "记忆未找到: {id}",
         "memory_list_empty": "暂无记忆条目",
         # mcp
-        "mcp_config_error": "MCP 配置错误: {message}",
-        "mcp_server_failed": "MCP server {name} 启动失败: {reason}",
-        "mcp_sampling_denied": "Sampling denied: {reason}",
-        "mcp_no_provider": "No provider configured for sampling",
-        "mcp_sampling_failed": "Sampling failed: {exc}",
         # cost
         "no_snapshots": "本会话暂无任务快照",
         "session_cost": "本会话累计: {count} 个任务快照",
@@ -239,7 +219,6 @@ _MESSAGES = {
         "allowlist_written_tool": "[minicc] Written to session allowlist: all uses of {tool} will be auto-approved",
         "allowlist_failed": "[minicc] Allowlist write failed: {exc}",
         # main.py — sessions, doctor, digest
-        "session_error": "SessionError",
         "session_not_found": "Session not found: {name}",
         "session_format_error": "Session format error: {path}",
         "fork_created": "Forked: {source} -> {target} ({name})",
@@ -250,7 +229,6 @@ _MESSAGES = {
         "fork_min_keep": "Fork point must be at least 1 (keep system message)",
         "fork_max_keep": "Fork point {keep} exceeds session message count {total}",
         "rewind_min": "keep_messages must be at least 1 (keep system message)",
-        "rewind_no_session": "Session not found: {name}",
         "rewind_no_user": "Session has no #{n} user message",
         "user_index_min": "user_index must be at least 1",
         "no_saved_sessions": "(no saved sessions in this workspace)",
@@ -258,33 +236,15 @@ _MESSAGES = {
         "channel_unavailable": "Channel status unavailable ({type})",
         "channel_plan_note": "Channel: {active} (plan channel{plan_note})",
         # audit.py / permissions
-        "denied_write": "Denied {tool} ({preview}): {reason}",
-        "denied_exec": "Denied {tool} ({preview}): {reason}",
         # config
         "config_error": "minicc: {message}",
-        "workspace_not_dir": "Workspace is not a directory: {path}",
         # tools
-        "tool_denied": "[{code}] {message}",
-        "tool_error": "[TOOL_ERROR] {message}",
-        "unknown_tool": "[UNKNOWN_TOOL] Unknown tool {tool!r} (registered: {registered})",
-        "invalid_args": "[INVALID_ARGUMENTS] {message}",
-        "system_io_error": "[TOOL_ERROR] System IO error: {exc}",
-        "tool_exception": "[TOOL_ERROR] Tool {tool!r} unhandled exception: {type}: {exc}",
         # git
         "git_failed": "Git command failed: {exc}",
         "branch_invalid": "Invalid branch parameter",
-        "path_outside": "Path outside workspace: {path}",
-        "absolute_path": "Path outside: absolute paths not allowed ({path})",
         # memory
-        "memory_written": "Memory written",
-        "memory_not_found": "Memory not found: {id}",
         "memory_list_empty": "No memory entries",
         # mcp
-        "mcp_config_error": "MCP config error: {message}",
-        "mcp_server_failed": "MCP server {name} failed to start: {reason}",
-        "mcp_sampling_denied": "Sampling denied: {reason}",
-        "mcp_no_provider": "No provider configured for sampling",
-        "mcp_sampling_failed": "Sampling failed: {exc}",
         # cost
         "no_snapshots": "No task snapshots in this session",
         "session_cost": "Session total: {count} task snapshots",

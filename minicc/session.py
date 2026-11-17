@@ -25,6 +25,7 @@ from typing import Any
 
 from .clock import utc_now_iso
 from .config import unreadable_file_message, unwritable_file_message
+from .cli_io import tr
 from .atomic_file import (
     DEFAULT_ATTEMPTS,
     DEFAULT_DELAY,
@@ -165,7 +166,7 @@ def missing_session_message(name: str) -> str:
     remembered and the model read a different wording depending on which
     door it walked through (M8-T495).
     """
-    return f"会话不存在: {name}"
+    return tr("session_not_found", name=name)
 
 
 def _replace_with_retry(source: Path, target: Path) -> None:
@@ -373,7 +374,7 @@ class SessionStore:
         except (OSError, ValueError) as exc:
             raise SessionError(unreadable_file_message(f"session {self.path}", exc)) from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
-            raise SessionError(f"session 格式错误: {self.path}")
+            raise SessionError(tr("session_format_error", path=self.path))
         declared = payload.get("version", SESSION_FORMAT_VERSION)
         if declared != SESSION_FORMAT_VERSION:
             # A version this code cannot interpret must not be reshaped into
@@ -462,15 +463,15 @@ class SessionStore:
             wanted = from_message_id.strip()
             positions = [index for index, item in enumerate(messages) if item.get("id") == wanted]
             if not positions:
-                raise SessionError(f"会话 {self.session_id} 中没有消息 id {wanted!r}（fork 点无效）")
+                raise SessionError(tr("fork_invalid_point", session=self.session_id, point=wanted))
             keep = positions[-1] + 1
             resolved_id = wanted
         else:
             keep = _non_negative_int(from_message_id)
         if keep < 1:
-            raise SessionError("fork 点至少为 1（保留 system 消息）")
+            raise SessionError(tr("fork_min_keep"))
         if keep > len(messages):
-            raise SessionError(f"fork 点 {keep} 超出会话消息数 {len(messages)}")
+            raise SessionError(tr("fork_max_keep", keep=keep, total=len(messages)))
         if resolved_id is None:
             tail = messages[keep - 1]
             if isinstance(tail.get("id"), str):
@@ -518,7 +519,7 @@ class SessionStore:
         messages = payload["messages"]
         total = len(messages)
         if total == 0 or keep < 1:
-            raise SessionError("keep_messages 至少为 1（保留 system 消息）")
+            raise SessionError(tr("rewind_min"))
         if keep >= total:
             return _rewind_result(total, 0, "")
         # Never leave a kept assistant turn without its tool results: the
@@ -541,7 +542,7 @@ class SessionStore:
         """
         n = _non_negative_int(user_index)
         if n < 1:
-            raise SessionError("user_index 至少为 1")
+            raise SessionError(tr("user_index_min"))
         if not self.exists:
             raise SessionError(missing_session_message(self.path.name))
         payload = self._read_payload()
@@ -555,7 +556,7 @@ class SessionStore:
                     keep = index + 1
                     break
         if keep is None:
-            raise SessionError(f"会话中没有第 {n} 条 user 消息")
+            raise SessionError(tr("rewind_no_user", n=n))
         result = self.rewind(keep)
         result["user_index"] = n
         return result
