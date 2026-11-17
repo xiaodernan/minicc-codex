@@ -20,6 +20,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .redis_cache import default_cache
+from .llm.fake import FAKE_PROVIDER_ENV, fake_provider_active
 from .cache_keeper import keeper_status
 
 _TTL_SECONDS = 10
@@ -87,7 +88,7 @@ def fetch_provider_ping(*, force_refresh: bool = False) -> dict[str, Any]:
     base_url = (os.environ.get("MINICC_BASE_URL") or "").strip()
     api_key = (os.environ.get("MINICC_API_KEY") or "").strip()
     model = (os.environ.get("MINICC_MODEL") or "").strip()
-    fake = bool(os.environ.get("MINICC_FAKE_PROVIDER"))
+    fake = fake_provider_active()
 
     if not fake and not base_url:
         try:
@@ -109,7 +110,7 @@ def fetch_provider_ping(*, force_refresh: bool = False) -> dict[str, Any]:
             "model": None,
             "status": None,
             "elapsed_ms": 0.0,
-            "error": "MINICC_FAKE_PROVIDER is set; provider ping skipped",
+            "error": f"{FAKE_PROVIDER_ENV} is set; provider ping skipped",
             "probe": "GET /models",
             "keeper": keeper_status(),
         }

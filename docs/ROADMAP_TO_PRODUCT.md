@@ -54969,3 +54969,25 @@ test_join_liveness.py::test_every_thread_join_in_the_suite_is_followed_by_a_live
 ### 不声称
 
 - 不放开或软化 liveness 判例；15 条本地 `-W error` 全绿（含门卫两个文件）。
+## 批次 1133 · M8-T1191: 假 provider 开关名——一条 home，不能两条
+
+### 事实
+
+`3757d3b5` 的 CI（run 44135356138）：Claim checkers 绿、Playwright 双腿绿、JavaScript 绿、Service plane 绿；**Python tests (ubuntu-latest) 红**，失败腿：
+
+```
+assert len(offenders) == 1 and offenders[0].startswith(HOME)
+AssertionError: the fake-provider switch name is spelled inline outside its one home:
+    minicc/llm/fake.py:28, minicc/provider_ping.py:90
+```
+
+M8-T1182 的 provider-ping 修复时内联了 `MINICC_FAKE_PROVIDER` 两次（检查开关 + 错误文案）——家门定义（`minicc/llm/fake.py` 持有 `FAKE_PROVIDER_ENV`）因此两棵树。
+
+### 修法
+
+`from .llm.fake import FAKE_PROVIDER_ENV, fake_provider_active`：检测改用 `fake_provider_active()`（本尊判词，等于 pin 的 TRUTHY 语义）；错误文案拼 `FAKE_PROVIDER_ENV` 常量；
+AST 常量整查为空。`test_the_fake_provider_switch_has_one_home` 5/5 green；`test_provider_ping_fallback` 4/4 green。
+
+### 不声称
+
+- 不动 `llm/fake.py` 判词逻辑；不改其它模块对该总开关的读法；注释里的提及仍是注释（AST 不计），门卫立判 zero。
