@@ -1,43 +1,43 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T05:52:18.307Z",
+  "generated_at": "2026-11-17T07:36:22.457Z",
   "branch": "main",
-  "head": "19ba5e1",
-  "total_commits": 1843,
+  "head": "2c64970",
+  "total_commits": 1848,
   "recent_commits": [
     {
-      "short": "19ba5e1",
-      "at": "2026-11-17T13:51:39+08:00",
-      "subject": "M8-T1160: the drift sentinel - first model-free admin tile; /api/admin/drift answers three measured questions; the CRLF pin gate is enforced live; admin_smoke a"
+      "short": "2c64970",
+      "at": "2026-11-17T15:35:42+08:00",
+      "subject": "M8-T1164: the model's fourth self-authored chapter - almanac Ch.LV 'The Alarm / 警钟' (three CI reds in one night - 351d444 Ubuntu leg 7 failures from citation dr"
     },
     {
-      "short": "408538b",
-      "at": "2026-11-17T05:26:04Z",
+      "short": "94647ce",
+      "at": "2026-11-17T14:59:00+08:00",
+      "subject": "M8-T1163: the background-suite reds at c0325fa fixed at source - admin_drift uses minicc.clock.utc_stamp() instead of hand-spelling %Y-%m-%dT%H:%M:%SZ + gmtime "
+    },
+    {
+      "short": "c8b069d",
+      "at": "2026-11-17T14:31:17+08:00",
+      "subject": "M8-T1162: drift sentinel's doc_pointers subprocess now catches TimeoutExpired (M8-T1161 red: subprocess.run(timeout=) without enclosing TimeoutExpired; returns "
+    },
+    {
+      "short": "c0325fa",
+      "at": "2026-11-17T14:02:14+08:00",
+      "subject": "M8-T1161: the seven CI reds from 351d444 fixed at the source - docstring citations re-aimed to current lines (_content_to_tool_result :120->:121, web.py clips :"
+    },
+    {
+      "short": "6ad5942",
+      "at": "2026-11-17T05:52:18Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "351d444",
-      "at": "2026-11-17T13:25:39+08:00",
-      "subject": "M8-T1135: the full suite goes green again - every red a6935ee's CI found is fixed at the source (test docstrings re-aimed to the bytes they cite: _content_to_to"
-    },
-    {
-      "short": "7b28a7d",
-      "at": "2026-11-17T05:17:15Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "27960ed",
-      "at": "2026-11-17T13:16:37+08:00",
-      "subject": "M8-T1134: the model's third self-authored chapter - almanac Ch.LIV 'The Reckoning / 并账' (the night the repo was byte-audited: PR #1 closed as superseded with fi"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 438,
+  "roadmap_batches": 439,
   "changelog_entries": 1,
-  "roadmap_lines": 54565,
+  "roadmap_lines": 54584,
   "tracked_files": 1114,
   "test_files": 733,
-  "almanac_chapters": 54,
+  "almanac_chapters": 55,
   "module_count": 14,
   "feature_surface": [
     "workbench",
