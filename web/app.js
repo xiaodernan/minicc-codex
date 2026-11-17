@@ -227,6 +227,48 @@
     }
   }
 
+  // web/src/core/wheel.js
+  var STORAGE_KEY = "minicc-wheel-invert";
+  var enabled = false;
+  try {
+    enabled = localStorage.getItem(STORAGE_KEY) === "1";
+  } catch {
+  }
+  function wheelInvertEnabled() {
+    return enabled;
+  }
+  function setWheelInvert(value) {
+    enabled = Boolean(value);
+    try {
+      localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
+    } catch {
+    }
+  }
+  function isScrollable(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "html" || tag === "body" || tag === "document") return false;
+    const cs = getComputedStyle(el);
+    if (!/(auto|scroll)/.test(cs.overflowY)) return false;
+    return el.scrollHeight > el.clientHeight + 4;
+  }
+  function findScrollable(start) {
+    let el = start && start.nodeType === 1 ? start : null;
+    while (el) {
+      if (isScrollable(el)) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+  document.addEventListener("wheel", (ev) => {
+    if (!enabled) return;
+    const target = findScrollable(ev.target);
+    if (!target) return;
+    const delta = ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaMode === 2 ? ev.deltaY * 240 : ev.deltaY;
+    ev.preventDefault();
+    target.scrollTop -= delta;
+  }, { passive: false, capture: true });
+
   // web/src/core/arcade.js
   var pending;
   async function openArcade() {
@@ -726,7 +768,10 @@
       "notify.unsupported": "\u6B64\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u684C\u9762\u901A\u77E5",
       "scroll.title": "\u9F20\u6807\u6EDA\u8F6E",
       "scroll.osNote": "\u8DDF\u968F\u7CFB\u7EDF\u6EDA\u52A8\u65B9\u5411",
-      "scroll.osHint": "Windows / Linux\uFF1A\u5F80\u4E0B\u6ED1 = \u5F80\u4E0B\u770B\uFF08\u4F20\u7EDF\u65B9\u5411\uFF09\u3002macOS \u9ED8\u8BA4\u81EA\u7136\u6EDA\u52A8\uFF0C\u8DDF\u624B\u3002\u60F3\u53CD\u8F6C\u65B9\u5411\u8BF7\u6539\u7CFB\u7EDF\u8BBE\u7F6E\u2014\u2014\u7F51\u9875\u4E0D\u518D\u63A5\u7BA1\u6EDA\u8F6E\u3002",
+      "scroll.osHint": "Windows / Linux\uFF1A\u5F80\u4E0B\u6ED1 = \u5F80\u4E0B\u770B\uFF08\u4F20\u7EDF\u65B9\u5411\uFF09\u3002macOS \u9ED8\u8BA4\u81EA\u7136\u6EDA\u52A8\uFF0C\u8DDF\u624B\u3002\u7F51\u9875\u4E0D\u518D\u63A5\u7BA1\u6EDA\u8F6E\u2014\u2014\u60F3\u53CD\u5C31\u70B9\u8FD9\u91CC\u3002",
+      "scroll.natural": "\u8DDF\u968F\u7CFB\u7EDF",
+      "scroll.invert": "\u53CD\u8F6C\u6EDA\u8F6E",
+      "scroll.invertHint": "\u5F80\u4E0A\u6ED1\u5F80\u4E0A\u770B\u3001\u5F80\u4E0B\u6ED1\u5F80\u4E0B\u770B\u2014\u2014\u53EA\u5F71\u54CD\u672C\u5E94\u7528\u5185\u7684\u6EDA\u52A8\uFF0C\u5373\u65F6\u751F\u6548\uFF0C\u4E0D\u6539\u7CFB\u7EDF\u8BBE\u7F6E\u3002",
       "notify.completed": "\u4EFB\u52A1\u5B8C\u6210",
       "notify.failed": "\u4EFB\u52A1\u5931\u8D25",
       "notify.cancelled": "\u4EFB\u52A1\u5DF2\u53D6\u6D88",
@@ -2249,9 +2294,9 @@
   function notificationsBlocked() {
     return supported() && window.Notification.permission === "denied";
   }
-  async function setNotificationsEnabled(enabled) {
-    localStorage.setItem(TOGGLE_KEY, enabled ? "true" : "false");
-    if (!enabled) return true;
+  async function setNotificationsEnabled(enabled2) {
+    localStorage.setItem(TOGGLE_KEY, enabled2 ? "true" : "false");
+    if (!enabled2) return true;
     if (!supported()) return false;
     if (window.Notification.permission === "granted") return true;
     if (window.Notification.permission === "denied") return false;
@@ -9772,11 +9817,21 @@
     const sandboxBlock = '<div class="settings-block"><span>' + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "\u89C1\u5DE5\u4F5C\u533A\u9762\u677F" : "See Workspaces") + "</strong></div>";
     const notifyOn = notificationsEnabled();
     const notifyBlock = '<div class="settings-block"><span>' + t("notify.enable") + '</span><div class="settings-locale"><button class="locale-option notify-toggle ' + (notifyOn ? "active" : "") + '" data-notify="on" type="button">' + t("notify.on") + '</button><button class="locale-option notify-toggle ' + (notifyOn ? "" : "active") + '" data-notify="off" type="button">' + t("notify.off") + '</button></div><small class="settings-note">' + escapeHtml(t("notify.enableHint")) + "</small></div>";
-    const wheelBlock = '<div class="settings-block"><span>' + t("scroll.title") + "</span><strong>" + escapeHtml(t("scroll.osNote")) + '</strong><small class="settings-note">' + escapeHtml(t("scroll.osHint")) + "</small></div>";
+    const wheelOn = wheelInvertEnabled();
+    const wheelBlock = '<div class="settings-block"><span>' + t("scroll.title") + '</span><div class="settings-locale"><button class="locale-option wheel-toggle ' + (!wheelOn ? "active" : "") + '" data-wheel="natural" type="button">' + t("scroll.natural") + '</button><button class="locale-option wheel-toggle ' + (wheelOn ? "active" : "") + '" data-wheel="inverted" type="button">' + t("scroll.invert") + '</button></div><small class="settings-note">' + escapeHtml(t("scroll.invertHint")) + "</small></div>";
     const rewindBlock = '<div class="settings-block settings-rewind"><span>' + escapeHtml(t("rewind.advanced")) + '</span><form id="rewindForm" class="rewind-form"><label class="rewind-label"><span>' + escapeHtml(t("rewind.keepLabel")) + '</span><input id="rewindKeep" type="number" min="1" value="3" required aria-label="' + escapeHtml(t("rewind.keepLabel")) + '" /></label><button class="send-button rewind-button" type="submit">' + escapeHtml(t("rewind.action")) + '</button></form><small class="settings-note">' + escapeHtml(t("rewind.hint")) + "</small></div>";
     const allowlistBlock = '<div class="settings-block" id="allowlistEditor"><span>' + escapeHtml(t("allowlist.title")) + '</span><small class="settings-note">' + escapeHtml(t("allowlist.hint")) + '</small><form id="allowlistForm" class="allowlist-form"><label><span>' + escapeHtml(t("allowlist.commands")) + '</span><textarea id="allowlistCommands" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.paths")) + '</span><textarea id="allowlistPaths" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.tools")) + '</span><textarea id="allowlistTools" rows="2"></textarea></label><button class="send-button" type="submit">' + escapeHtml(t("allowlist.save")) + "</button></form></div>";
     openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + wheelBlock + rewindBlock + allowlistBlock);
     bindAllowlistEditor();
+    const wheelToggles = () => document.querySelectorAll(".wheel-toggle");
+    wheelToggles().forEach((button) => {
+      button.addEventListener("click", () => {
+        const invert = button.dataset.wheel === "inverted";
+        setWheelInvert(invert);
+        wheelToggles().forEach((b) => b.classList.toggle("active", b.dataset.wheel === "inverted" === invert));
+        showToast(state.locale === "zh" ? invert ? "\u6EDA\u8F6E\u65B9\u5411\uFF1A\u5DF2\u53CD\u8F6C\uFF08\u5F80\u4E0A\u6ED1\u5F80\u4E0A\u770B\uFF09" : "\u6EDA\u8F6E\u65B9\u5411\uFF1A\u8DDF\u968F\u7CFB\u7EDF" : invert ? "Wheel direction: inverted (up-scroll scrolls up)" : "Wheel direction: follows the system");
+      });
+    });
     const notifyToggles = () => document.querySelectorAll(".notify-toggle");
     notifyToggles().forEach((button) => {
       button.addEventListener("click", async () => {
@@ -12783,7 +12838,7 @@
   }
   function routingMarkup(routing) {
     const isZh = zh10();
-    const enabled = routing?.enabled === true;
+    const enabled2 = routing?.enabled === true;
     const rows = (routing?.stages ?? []).map((stage) => {
       const detail = [
         `<span class="stategraph-routing-model">${escapeHtml(stage.model)}</span>`,
@@ -12793,7 +12848,7 @@
       ].filter(Boolean).join("");
       return `<div class="stategraph-routing-row"><code>${escapeHtml(stage.stage)}</code>${detail}</div>`;
     }).join("");
-    const note = enabled ? isZh ? "stage_routing \u5DF2\u542F\u7528\u2014\u2014\u6309\u9636\u6BB5\u5206\u6D3E\u6A21\u578B\uFF08\u672C\u9875\u4E0E\u6BCF\u6B21\u4EFB\u52A1\u540C\u4E00 StageRouter\uFF09" : "stage_routing on \u2014 models dispatched per stage (the same StageRouter a live run builds)" : isZh ? `stage_routing \u672A\u542F\u7528\u2014\u2014\u6240\u6709\u9636\u6BB5\u5171\u7528\u9ED8\u8BA4\u6A21\u578B ${routing?.default_model ?? ""}` : `stage_routing off \u2014 every stage rides the default model ${routing?.default_model ?? ""}`;
+    const note = enabled2 ? isZh ? "stage_routing \u5DF2\u542F\u7528\u2014\u2014\u6309\u9636\u6BB5\u5206\u6D3E\u6A21\u578B\uFF08\u672C\u9875\u4E0E\u6BCF\u6B21\u4EFB\u52A1\u540C\u4E00 StageRouter\uFF09" : "stage_routing on \u2014 models dispatched per stage (the same StageRouter a live run builds)" : isZh ? `stage_routing \u672A\u542F\u7528\u2014\u2014\u6240\u6709\u9636\u6BB5\u5171\u7528\u9ED8\u8BA4\u6A21\u578B ${routing?.default_model ?? ""}` : `stage_routing off \u2014 every stage rides the default model ${routing?.default_model ?? ""}`;
     return `<div class="stategraph-routing" id="stategraphRouting">
     <div class="stategraph-edges-title">${escapeHtml(isZh ? "\u9636\u6BB5\u8DEF\u7531 \xB7 stage_routing" : "Stage routing")}</div>
     <p class="stategraph-routing-note">${escapeHtml(note)}</p>
@@ -13226,8 +13281,8 @@
     button.innerHTML = icon(state.focusMode ? "minimize" : "maximize");
     refreshIcons();
   }
-  function setFocusMode(enabled) {
-    state.focusMode = Boolean(enabled);
+  function setFocusMode(enabled2) {
+    state.focusMode = Boolean(enabled2);
     localStorage.setItem("minicc-focus-mode", String(state.focusMode));
     applyFocusMode();
   }

@@ -1,4 +1,5 @@
 import { requestJson } from "./core/transport.js";
+import "./core/wheel.js"; // registers the wheel-direction capture listener (opt-in)
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";

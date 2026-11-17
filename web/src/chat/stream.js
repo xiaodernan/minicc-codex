@@ -16,6 +16,7 @@ import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, fo
 import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
 
 import { t } from "../core/i18n.js";
+import { wheelInvertEnabled, setWheelInvert } from "../core/wheel.js";
 
 import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
 
@@ -1733,7 +1734,8 @@ export function openSettingsPanel() {
 
   const notifyBlock = "<div class=\"settings-block\"><span>" + t("notify.enable") + "</span><div class=\"settings-locale\"><button class=\"locale-option notify-toggle " + (notifyOn ? "active" : "") + "\" data-notify=\"on\" type=\"button\">" + t("notify.on") + "</button><button class=\"locale-option notify-toggle " + (notifyOn ? "" : "active") + "\" data-notify=\"off\" type=\"button\">" + t("notify.off") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("notify.enableHint")) + "</small></div>";
 
-  const wheelBlock = "<div class=\"settings-block\"><span>" + t("scroll.title") + "</span><strong>" + escapeHtml(t("scroll.osNote")) + "</strong><small class=\"settings-note\">" + escapeHtml(t("scroll.osHint")) + "</small></div>";
+  const wheelOn = wheelInvertEnabled();
+  const wheelBlock = "<div class=\"settings-block\"><span>" + t("scroll.title") + "</span><div class=\"settings-locale\"><button class=\"locale-option wheel-toggle " + (!wheelOn ? "active" : "") + "\" data-wheel=\"natural\" type=\"button\">" + t("scroll.natural") + "</button><button class=\"locale-option wheel-toggle " + (wheelOn ? "active" : "") + "\" data-wheel=\"inverted\" type=\"button\">" + t("scroll.invert") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("scroll.invertHint")) + "</small></div>";
 
 
 
@@ -1744,6 +1746,18 @@ export function openSettingsPanel() {
   openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + wheelBlock + rewindBlock + allowlistBlock);
 
   bindAllowlistEditor();
+
+  const wheelToggles = () => document.querySelectorAll(".wheel-toggle");
+  wheelToggles().forEach((button) => {
+    button.addEventListener("click", () => {
+      const invert = button.dataset.wheel === "inverted";
+      setWheelInvert(invert);
+      wheelToggles().forEach((b) => b.classList.toggle("active", (b.dataset.wheel === "inverted") === invert));
+      showToast(state.locale === "zh"
+        ? (invert ? "滚轮方向：已反转（往上滑往上看）" : "滚轮方向：跟随系统")
+        : (invert ? "Wheel direction: inverted (up-scroll scrolls up)" : "Wheel direction: follows the system"));
+    });
+  });
 
   const notifyToggles = () => document.querySelectorAll(".notify-toggle");
   notifyToggles().forEach((button) => {

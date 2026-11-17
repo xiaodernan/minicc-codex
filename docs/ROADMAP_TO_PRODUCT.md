@@ -54618,3 +54618,23 @@ route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨�
 - **本次没有调用模型**——最新 CI 仍 `in_progress`（0846924），所以任何对失败的归因都不会出现；归因只有在真红出现时才产生，且六族上限不越界。
 - 归因**不是修复**；CI 门红 = 红，直到某次 push 让两条腿全绿。
 - 新卡片不新增 smoke 断言；既有 admin_smoke/en_cjk/almanac 等全部按原样全绿。
+## 批次 1114 · M8-T1167: 滚轮方向 toggle——本应用内翻转滚轮（默认跟随系统）
+
+### 量到什么
+
+- 全量检索（web/ 全部 JS）：没有任何一处反转 wheel，唯一自定义 wheel 是 Atlas 缩放（`Math.exp(-deltaY * 0.0012)`，标准符号——滚轮上=放大）。所有滚动容器都是原生 overflow，方向 = OS 约定；设置页原文还写着「网页不再接管滚轮」。
+- Playwright 实测：`#chatArea` deltaY=240 → scrollTop 0→240；本机默认方向全标准。
+- **结论**：用户的「滚轮方向反了」是手感层面——系统/鼠标派给浏览器的 delta sign 与他们自己的手不一致。app 能修的只能是**自己的一件事**。
+
+### 怎么修
+
+- **`web/src/core/wheel.js`（新）**：`setWheelInvert(bool)` / `wheelInvertEnabled()`；一个 capture-phase `wheel` 监听，开启时 findNearestScrollable → `preventDefault` → `scrollTop -= delta`（与原生相反）。画布（Atlas/Arcade）非滚动元素不会被捕获。
+- **`web/src/chat/stream.js`**：设置 → 工作台 → 「鼠标滚轮」块改为双选项 chips 按钮（跟随系统 / 反转滚轮），`wheel-toggle`，点击即时生效 + toast（「往上滑往上看」提示 / 恢复）。
+- **`web/src/main.js`**：侧效导入 `./core/wheel.js`（模块加载时注册一次监听）。
+- **i18n**：`scroll.natural` / `scroll.invert` / `scroll.invertHint`，zh/en 双语对仗；`scroll.osHint` 同步改写为「想反就点这里」。
+
+### 不声称
+
+- app 没有反转过任何东西——翻转的是用户可选的行为，默认 OFF。
+- Atlas 缩放方向不变（画布契约与滚轮方位无关）。
+- 系统级鼠标方向依然归 OS 说了算；toggle 专治「OS 没问题（或者你根本不想动它）但进 app 就觉得反了」的场景。
