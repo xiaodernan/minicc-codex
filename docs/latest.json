@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T12:24:29.368Z",
+  "generated_at": "2026-11-17T13:18:14.230Z",
   "branch": "main",
-  "head": "f3bce75",
-  "total_commits": 1862,
+  "head": "24c0d92",
+  "total_commits": 1865,
   "recent_commits": [
+    {
+      "short": "24c0d92",
+      "at": "2026-11-17T21:17:37+08:00",
+      "subject": "M8-T1173+M8-T1174: the audit-story tile - the model reads .minicc/audit.jsonl (64-line window, full digest trail, verbatim) and tells its three-beat story (what"
+    },
+    {
+      "short": "0b915b0",
+      "at": "2026-11-17T20:41:06+08:00",
+      "subject": "M8-T1172: root-level scratch files that earlier add-A sweeps accidentally committed (probe/ledger/measure scripts from M8-T1131/1132/1166/1167) are removed; tes"
+    },
+    {
+      "short": "3eae709",
+      "at": "2026-11-17T12:24:29Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f3bce75",
       "at": "2026-11-17T20:23:25+08:00",
@@ -14,29 +29,14 @@
       "short": "1b0b8f2",
       "at": "2026-11-17T11:23:14Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "cbc8c05",
-      "at": "2026-11-17T19:22:36+08:00",
-      "subject": "M8-T1169+M8-T1170: the en table finally carries scroll.natural/scroll.invert/scroll.invertHint; web assets rebuilt - first green CI on main since the 351d444 wa"
-    },
-    {
-      "short": "785290d",
-      "at": "2026-11-17T18:38:40+08:00",
-      "subject": "M8-T1170: web assets rebuilt for the en-table i18n fix - CI's js-check leg asserts the checked-in bundle matches source (web/app.js is stale); rebuilt and re-po"
-    },
-    {
-      "short": "051b0e9",
-      "at": "2026-11-17T18:05:17+08:00",
-      "subject": "M8-T1169: the en table finally carries scroll.natural/scroll.invert/scroll.invertHint - the previous batch's en-key insertion never landed in the committed file"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 444,
+  "roadmap_batches": 446,
   "changelog_entries": 1,
-  "roadmap_lines": 54687,
-  "tracked_files": 1122,
-  "test_files": 734,
+  "roadmap_lines": 54716,
+  "tracked_files": 1116,
+  "test_files": 735,
   "almanac_chapters": 55,
   "module_count": 14,
   "feature_surface": [
