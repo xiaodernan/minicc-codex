@@ -1761,7 +1761,7 @@ iterdir-only heads           : 11 ['.git', '.minicc', '.playwright-cli', '.pytes
 claims under disk-only heads : 64 Counter({'.minicc': 33, 'output': 28, '.venv': 3})
 ```
 
-那 64 条引用就是 29 条清单差的来源（一条 span 可以在多个文档里出现，去重后按形状判据另算）。`_abbreviation_heads()`、`_resolve_path()`、`tests/` 下的模块名清单也一并改成读索引（`_holds()` 一个入口，`scripts/doc_pointers.py:641`）——**同一个坏味道不可能只在一处**。
+那 64 条引用就是 29 条清单差的来源（一条 span 可以在多个文档里出现，去重后按形状判据另算）。`_abbreviation_heads()`、`_resolve_path()`、`tests/` 下的模块名清单也一并改成读索引（`_holds()` 一个入口，`scripts/doc_pointers.py:1587`）——**同一个坏味道不可能只在一处**。
 
 2. 链接判据从二态换成**三态**：被跟踪 → 绿；被 gitignore → 记为 `generated`（照计数、照在总结行里打印、不报红）；**本机有但 git 没跟踪 → 也算红**。第三条是本批新加的，方向与第一条相反：前两条挡的是"我的绿是假的"，这一条挡的是"只有作者看得见的断链"——如果只判存在性，我在本地新建一个没 `git add` 的文件、文档里指它，`--check` 会一直绿到我推送那天。
 
@@ -1799,7 +1799,7 @@ C 格是本批最想要的一格：只往那份**干净检出**里种四个 giti
           _QUOTED_STALE_PATH 2/5、_RETIRED_PATH 2/11、_DECLINED_PATH 1/2
 ```
 
-为什么它们零命中：不带斜杠的裸文件名在判据里**不构成定位符断言**（那是 M8-T37 自己为 `loop.py` 立的规则），所以这五个键从来没被咨询的机会。**这里学到的判据值得单独记**：豁免键有两种角色——**挡红的**（删掉 `minicc/web_static` → 恰好 2 条红）和**准入的**（删掉 `.minicc/` → 一条红都不产生，只是清单从 782 缩水）。只按"删掉会不会变红"量活性，第二种键永远量不到，所以 `exemption_usage()`（`scripts/doc_pointers.py:1756`）量的是"这条键实际答上了几条引用"，命中 0 就是死行。测试里三种情形分开断言：陈旧（没人引用）→ 只有陈旧那条红；被引用但不可达（只写路径前缀、没有文件）→ 只有死行那条红；正常 → 无红。
+为什么它们零命中：不带斜杠的裸文件名在判据里**不构成定位符断言**（那是 M8-T37 自己为 `loop.py` 立的规则），所以这五个键从来没被咨询的机会。**这里学到的判据值得单独记**：豁免键有两种角色——**挡红的**（删掉 `minicc/web_static` → 恰好 2 条红）和**准入的**（删掉 `.minicc/` → 一条红都不产生，只是清单从 782 缩水）。只按"删掉会不会变红"量活性，第二种键永远量不到，所以 `exemption_usage()`（`scripts/doc_pointers.py:1779`）量的是"这条键实际答上了几条引用"，命中 0 就是死行。测试里三种情形分开断言：陈旧（没人引用）→ 只有陈旧那条红；被引用但不可达（只写路径前缀、没有文件）→ 只有死行那条红；正常 → 无红。
 
 **门是活的（四条变异，基线 sha256 `405dc6168fb3`，逐条字节还原并复验）**：
 
@@ -14094,7 +14094,7 @@ MINICC_ROUTE_COVERAGE {"GET": {"answered": 19, "total": 19, "percent": 100.0},
 | 标识符 | 今天的对应物 | 判 |
 | --- | --- | --- |
 | `_reject_grader_dir`（M4-T5） | `_reject_graders`（`minicc/tools/fs.py:58`，`GRADER_DIR_NAME = ".graders"`，读路径 `:173` 调用） | 改名，规则与调用点都在 |
-| `_cn_numeral`（M8-T40） | `_NUM = r"(\d+\|[一二三四五六七八九十]+)"`（`scripts/doc_pointers.py:137`，供 `_SECTION` / `_BATCH` 用） | 改名，职能相同（"两侧都认阿拉伯数字"） |
+| `_cn_numeral`（M8-T40） | `_NUM = r"(\d+\|[一二三四五六七八九十]+)"`（`scripts/doc_pointers.py:140`，供 `_SECTION` / `_BATCH` 用） | 改名，职能相同（"两侧都认阿拉伯数字"） |
 | `_UNPROBED_FAMILIES`（M8-T34） | `_PARKED_FAMILIES: dict[str, str] = {}`（`tests/test_http_route_inventory.py:391`，注释写着"Empty on purpose: nothing is parked today"）＋同名格子 `test_prefix_dispatched_families_are_probed_or_parked_with_a_reason` | **按行所述清空后改名**，机制还在 |
 | `_cli_subagent_trace`（M6-T2） | CLI 的子代理轨迹今天走 `log_task_event`（`minicc/main.py:27` 导入、`:417` 调用） | 折进既有漏斗 |
 
@@ -36374,7 +36374,7 @@ sha256，读数 `arms_536.txt`）：
    - `:124` `_block_of` 的包含判据按构造已知：10 在内、19 在内、20 不在、9 不在、
      空表不在。
 3. 为什么下界是「每份 2 次」而不是 1 次：`_code_spans`
-   （`scripts/doc_pointers.py:1510`）自己先调 `_blank_fences`（:601），后者调
+   （`scripts/doc_pointers.py:1533`）自己先调 `_blank_fences`（:601），后者调
    `_fence_blocks`（:566）——那一配是证据读者的眼睛，删不掉；本批只删掉腿上**按跨度**
    多出来的那 26,807 次。门的上界因此写成 `≤ 2 × 文档数`：将来若 `_code_spans` 接受
    外部传入的区间，门只会更绿，不会假红。
@@ -46080,7 +46080,7 @@ main 的工作树上留着四个未提交文件。逐字节量过之后，它们
   `norm == head.replace(b"\r\n", b"\n")` 再写），于是 `git status` 上这三份消失。
   这不是撤销谁的工作——量过才知道那里没有工作。
 - **`docs/ROADMAP_TO_PRODUCT.md`**：保留 lane 自己的四处改瞄，补上它漏的两处：
-  `scripts/doc_pointers.py:1405` → **`:1510`**（`def _code_spans`），
+  `scripts/doc_pointers.py:1405` → **`:1533`**（`def _code_spans`），
   `_fence_blocks`（`:481`）→ **（`:566`）**（`def _fence_blocks`）。
   改瞄之前先在源码里把那条链读实：`_code_spans` 的 `:1516` 是
   `blanked = _blank_fences(text)`，`_blank_fences` 的 `:614` 是
@@ -54406,3 +54406,31 @@ M8-T1116 的 scandir walker 违反了本仓库 `test_resource_hygiene.py` 的第
 - **onboarding / Manual / README**：Almanac 全量计数 53 Halls、90 坐标、年鉴（53 卷）；README 加 The Twelfth Light 领衔。
 - **`docs/CHAPTER_DRAFT.md`**：本卷由模型现役写出，archive 入 docs/；`prompt_cache_key=minicc-chapter-liii-twelfth-light-01`；cached_tokens=4,224（共享前缀第七次现身）；CI in progress 如实记录。
 - **验证**：`almanac_smoke` 53 chapters 双语 / `atlas_smoke` 90-coordinate / manual_smoke 19 / stategraph_smoke / parity / dazzle / admin；claim gates 88/88。
+## 批次 1103 · M8-T1128: 并轨收尾——PR #1 的 5 条门收编进 main，2 个漂移落点按真相重瞄
+
+### 判断依据
+
+PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）是重开仓之前那条 parallel line 的 v1。main 与它**无 merge-base**，但产品面已被逐项钉住：`_STRUCTURAL_TOKENS` / `_converged` / `_attribute` / `_body`（mentions.py）、`deny_rule_covers_path_matcher`（audit.py + web.py）、`_newline_index`（doc_pointers.py）、fence-ruler 普查门（main `tests/test_one_document_is_one_fence_ruler_build.py` / `test_the_two_readers_share_one_fence_ruler.py`）全部已在 main 内；`git log --grep='M8-T5xx'` 对上号。旧 web/assets 三枚哈希产物是 main 早已抛弃的旧构建，**不收**。唯一无法复原的是重开仓前的事实包（docs/latest.json 的旧历史），不以测试复活。
+
+### 收编的 5 条门
+
+| 门 | 收编方式 | 交付字节验证 |
+| --- | --- | --- |
+| `test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py` | 原样 | passed |
+| `test_a_record_uses_the_signature_it_was_handed.py` | 原样 | passed |
+| `test_the_deny_question_is_asked_once_per_refresh.py` | 原样（retrieval 线，与 main 的 mention/snapshot 两条 deny 门互补） | passed |
+| `test_a_per_span_answer_re_scans_no_whole_document_ruler.py` | 原样，**首判红** | 修完 5/5 绿 |
+| `test_a_roadmap_cite_of_the_pointer_checker_can_be_read.py` | 引文重瞄 + `HISTORICAL` 边界 + 新增第三条腿 | 23/23 绿（与上面两条合计 23 legs） |
+
+### 红后怎么修
+
+- `test_doc_pointers.py` ×2、`test_a_prose_mention_of_a_fence_opens_no_block.py` ×1：item 循环体里逐项重买 `_newline_index(text)` → 全部提到循环外逐文档买一次。这是门要干的事，不是绕过门。
+- ROADMAP 4 处 live 引文漂移：`:137→:140`（`_NUM`）、`:641→:1587`（M8-T38 的 `_holds()`）、`:1510→:1533`（`def _code_spans`，M8-T714 补的落点也掉了）、`:1756→:1779`（`def exemption_usage`，+23）。re-aim 记录自身（M8-T714 那段）里 `:826→:1756` 的中间步**原样保留**并在门内登记为 HISTORICAL。
+- 新增腿 `tests/test_a_roadmap_cite_of_the_pointer_checker_can_be_read.py::test_the_historical_cites_are_only_the_reaim_records`：每枚 HISTORICAL 必须仍被解析到，防止「历史表静悄悄生锈」盖住将来真正的漂移。
+
+### 不声称
+
+- 本批**不改产品字节**；`minicc/` 一行未动。
+- 不声称“PR #1 的所有内容都收了”——旧 web/assets 哈希产物、旧事实包历史是**有理由丢弃**的（见上），不是漏收。
+- CI 在本批落地时仍在跑；不把它写成绿。
+- docs/latest.json 里 test_files 一栏会在下一次 fact-pack 自动重算（723→728）。

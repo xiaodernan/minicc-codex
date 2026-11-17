@@ -1,0 +1,552 @@
+"""M8-T556 / M8-T559: a line number is asked only for an item the reader has already admitted.
+
+``_line_of`` answers "which line is this offset on?" off a newline index built once per document
+(M8-T559); before that batch it counted newlines from the start of the document up to the offset,
+paying a *prefix* scan per item.  Batch 537 measured that price, named it as a separate charge,
+deliberately kept it out of its own roster, and registered the family as M8-T556.  M8-T559 then
+took the deferred swap, so the boundary in *that* file is re-adjudicated here rather than
+inherited: the whole-document charge is the builder ``_newline_index`` (the roster admits it), and
+the per-item answer touches no text at all (the roster still excludes it).
+
+What this file measures is not the price but the *waste*: ``check_evidence`` asked for the line
+number first and only then tested whether the code span was an evidence claim at all, and
+``_check_name_targets`` asked once per citation even when every target inside it was about to be
+thrown away by the kind filter.  Both shapes paid for an answer nobody judged.  The legs below
+run the shipped readers over the corpus the gate really walks (``DEFAULT_DOCS``, plus pinned
+documents for the members that corpus never reaches) and compare, per asking function, the number
+of line numbers asked against the number of items that same function admitted -- the admitted
+count always read from the shipped reader's own channel (the counters it returns, the per-box
+counts it returns, the arguments its own caller passes), never from a number typed here.
+
+The pricing stays on the record rather than being quietly retired with the prefix count.  The two
+readings that would have replaced the prefix count are still replayed against every captured
+request, and the shipped reading's own bill is read from the builds the reader actually made in
+the same pass: one index per document per buying channel, never one per request.  The ordering of
+the bills is the measurement that justified the swap; the leg names the numbers in its message
+and pins only the order.
+"""
+
+from __future__ import annotations
+
+import ast
+import bisect
+import collections
+import importlib.util
+import pathlib
+import sys
+from typing import Any, Callable
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+SCRIPT = REPO_ROOT / "scripts" / "doc_pointers.py"
+FAMILY = "_line_of"
+INDEX_BUILDER = "_newline_index"
+M555_FILE = "test_a_per_span_answer_re_scans_no_whole_document_ruler.py"
+THIS_FILE = pathlib.Path(__file__).name
+
+#: An unclosed fence, a dead link and a page of mixed spans are cold or thin in ``docs/``.  A
+#: member judged only by "asked == admitted == 0" is vacuous, so it is handed a document that
+#: reaches it instead of being left out of the roster.
+PINNED: list[tuple[str, str]] = [
+    ("t556_pinned_fence.md", "# T\n\n```python\nprint(1)\n\ntail inside the swallowed block\n"),
+    ("t556_pinned_link.md", "# T\n\n[a](t556_missing_target.md)\n\nplain prose follows\n"),
+    ("t556_pinned_evidence.md",
+     "# T\n\n`scripts/doc_pointers.py:256` 是证据。\n"
+     "`tests/test_doc_pointers.py::test_the_checker_reads_a_document` 是证据。\n"
+     "`_line_of` 只是一个名字，不是证据。\n"),
+]
+
+
+def _load(name: str = "minicc_doc_pointers_t556") -> Any:
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # scripts/ is not a package; @dataclass(slots=True) resolves annotations through
+    # sys.modules, so the module has to be registered before it is executed.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+dp = _load()
+
+#: Every asking function this file knows how to judge, by the channel that admits its items.
+CHANNELS = frozenset({"check_evidence", "check_pointers", "_check_quoted_name",
+                      "_check_name_targets", "check_links", "sections"})
+
+
+def _in_scope(document: pathlib.Path) -> bool:
+    """The reader's own out-of-scope test, spelled the way the reader spells it."""
+    relative = (document.relative_to(REPO_ROOT).as_posix()
+                if document.is_relative_to(REPO_ROOT) else document.name)
+    return relative not in dp._OUT_OF_SCOPE_DOCS
+
+
+def _corpus() -> list[tuple[pathlib.Path, str]]:
+    """The shipped default population, plus the pinned documents.
+
+    The pinned paths hang off ``docs/`` without being written there: the link reader resolves a
+    target against ``document.parent``, so the parent has to be the real one for that member to
+    be reached the way the gate reaches it.
+    """
+    real = [(path, path.read_text(encoding="utf-8", errors="replace")) for path in dp.DEFAULT_DOCS]
+    pinned = [(REPO_ROOT / "docs" / name, text) for name, text in PINNED]
+    return real + pinned
+
+
+def _capture() -> dict[str, Any]:
+    """One pass of the shipped readers, watching both doors of the line answer.
+
+    M8-T559 gave the answer a bought index, so the pass watches ``_newline_index`` (who buys a
+    whole-document index, and of which text) as well as ``_line_of`` (who asks it for an answer).
+    Each request carries whether the index it was answered from was built over the document being
+    checked: ``sections`` is also called on another document's bytes (a cross-document citation
+    reads the target file), and answering those offsets from the checked document's index would
+    judge a different text than the reader handed to the helper.
+    """
+    if _CAPTURE:
+        return _CAPTURE
+    asked: dict[str, list[tuple[str, int, int, bool]]] = collections.defaultdict(list)
+    builds: list[tuple[str, bool, int, str]] = []
+    current = {"doc": "?", "text": ""}
+    shipped = dp._line_of
+    shipped_index = dp._newline_index
+
+    class Bought(tuple):
+        """The index a caller bought, carrying the text it was built from.
+
+        Ownership is a property of the object, not of an ``id()`` map: a map has to keep every
+        index alive (a later index can reuse a freed id), and under a mutation that buys one
+        index per item that bookkeeping held gigabytes.  A tuple subclass can carry the text, so
+        the answer names the text it was bought for without retaining anything.
+        """
+
+    def counted_index(text: str) -> tuple[int, ...]:
+        starts = Bought(shipped_index(text))
+        starts.source = text
+        builds.append((current["doc"], text is current["text"], len(text),
+                       sys._getframe(1).f_code.co_name))
+        return starts
+
+    def watched(starts: tuple[int, ...], offset: int) -> int:
+        line = shipped(starts, offset)
+        text = getattr(starts, "source", None)
+        asked[sys._getframe(1).f_code.co_name].append(
+            (current["doc"], offset, line, text is not None and text is current["text"]))
+        return line
+
+    name_calls: collections.Counter[str] = collections.Counter()
+    shipped_targets = dp._check_name_targets
+
+    def counted_targets(document: Any, text: str, starts: tuple[int, ...], offset: int,
+                        targets: list[tuple[str, str]]) -> list[Any]:
+        if any(kind == "name" for kind, _span in targets):
+            name_calls[document.name] += 1
+        return shipped_targets(document, text, starts, offset, targets)
+
+    headings: collections.Counter[str] = collections.Counter()
+    shipped_sections = dp.sections
+
+    def counted_sections(text: str, starts: tuple[int, ...] | None = None) -> list[Any]:
+        found = shipped_sections(text, starts) if starts is not None else shipped_sections(text)
+        headings[current["doc"]] += len(found)
+        return found
+
+    admitted: dict[str, collections.Counter[str]] = {
+        name: collections.Counter() for name in CHANNELS
+    }
+    shapes: dict[str, list[int]] = {}
+    spans: dict[str, list[int]] = {}
+
+    dp._line_of = watched
+    dp._newline_index = counted_index
+    dp._check_name_targets = counted_targets
+    dp.sections = counted_sections
+    try:
+        for document, text in _corpus():
+            current["doc"] = document.name
+            current["text"] = text
+            pointer_problems, checked_pointers, boxes = dp.check_pointers(document, text)
+            link_problems, _checked_links, _generated = dp.check_links(document, text)
+            _evidence_problems, checked_evidence = dp.check_evidence(document, text)
+            admitted["check_evidence"][document.name] += checked_evidence
+            admitted["check_pointers"][document.name] += (
+                checked_pointers
+                + sum(1 for problem in pointer_problems if problem.kind == "FENCE"))
+            admitted["_check_quoted_name"][document.name] += boxes[dp.BOX_QUOTED_NAME]
+            admitted["_check_name_targets"][document.name] += name_calls[document.name]
+            admitted["check_links"][document.name] += sum(
+                1 for problem in link_problems if problem.kind == "LINK")
+            if _in_scope(document):
+                pairs = dp._code_spans(text)
+                spans[document.name] = [offset for offset, _span in pairs]
+                shapes[document.name] = [offset for offset, span in pairs
+                                         if dp._evidence_shape(span) is not None]
+            else:
+                spans[document.name] = []
+                shapes[document.name] = []
+        admitted["sections"] = headings
+    finally:
+        dp._line_of = shipped
+        dp._newline_index = shipped_index
+        dp._check_name_targets = shipped_targets
+        dp.sections = shipped_sections
+
+    _CAPTURE.update({"asked": asked, "admitted": admitted, "shapes": shapes, "spans": spans,
+                     "builds": builds})
+    return _CAPTURE
+
+
+_CAPTURE: dict[str, Any] = {}
+
+
+def _askers() -> set[str]:
+    """The functions in the shipped script that ask the family - read off the source, not here."""
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8", errors="replace"))
+    owner = _enclosing_functions(tree)
+    return {owner.get(node.lineno, "<module>") for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == FAMILY}
+
+
+def _index_buyers() -> set[str]:
+    """The functions in the shipped script that buy a whole-document index."""
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8", errors="replace"))
+    owner = _enclosing_functions(tree)
+    return {owner.get(node.lineno, "<module>") for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == INDEX_BUILDER}
+
+
+def _table() -> dict[str, tuple[int, int]]:
+    """``asker -> (line numbers asked, items admitted)``, one row per asking function."""
+    cap = _capture()
+    return {name: (len(cap["asked"].get(name, [])), sum(cap["admitted"][name].values()))
+            for name in sorted(_askers())}
+
+
+# --------------------------------------------------------------------------- #
+# The shapes the censuses below read, planted as source so the census - not this file - judges.
+# --------------------------------------------------------------------------- #
+
+_INLINE_INDEX_COPY = '''
+def sections(text):
+    out = []
+    starts = tuple(match.start() for match in re.finditer("\\n", text))
+    for match in _HEADING.finditer(text):
+        out.append(bisect.bisect_right(starts, match.start() - 1) + 1)
+    return out
+'''
+
+
+def _enclosing_functions(tree: ast.AST) -> dict[int, str]:
+    """``lineno -> the def it sits in``; the outermost def wins where defs nest."""
+    owner: dict[int, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            for child in ast.walk(node):
+                if hasattr(child, "lineno"):
+                    owner.setdefault(child.lineno, node.name)
+    return owner
+
+
+def _index_scans(source: str) -> list[tuple[str, int]]:
+    """Every ``re.finditer("\\n", <something>)`` in ``source``, with the def that wrote it.
+
+    After the swap this is the whole-document walk: a copy outside ``_newline_index`` would be
+    invisible to every measurement that watches the builder.
+    """
+    tree = ast.parse(source)
+    owner = _enclosing_functions(tree)
+    found: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "finditer" or len(node.args) < 2:
+            continue
+        first, second = node.args[0], node.args[1]
+        if not (isinstance(first, ast.Constant) and first.value == "\n"):
+            continue
+        if isinstance(second, ast.Constant):
+            continue
+        found.append((owner.get(node.lineno, "<module>"), node.lineno))
+    return found
+
+
+def _cursor_read(text: str) -> tuple[Callable[[int], int], dict[str, int]]:
+    """A forward cursor: walks only the gap, and pays a prefix count when a request goes back."""
+    state = {"offset": -1, "line": 1, "chars": 0}
+
+    def read(offset: int) -> int:
+        if offset < state["offset"]:
+            state["chars"] += offset
+            return text.count("\n", 0, offset) + 1
+        state["chars"] += max(offset - state["offset"] - 1, 0)
+        state["line"] += text.count("\n", state["offset"] + 1, offset)
+        state["offset"] = offset
+        return state["line"]
+
+    return read, state
+
+
+def _index_read(text: str) -> tuple[Callable[[int], int], dict[str, int]]:
+    """A newline index built from one pass over the text, bisected per request."""
+    starts = [i for i, ch in enumerate(text) if ch == "\n"]
+    state = {"chars": len(text)}
+
+    def read(offset: int) -> int:
+        return bisect.bisect_right(starts, offset - 1) + 1
+
+    return read, state
+
+
+def _replay(streams: dict[str, list[tuple[str, int, int]]], texts: dict[str, str],
+            build: Callable[[str], tuple[Callable[[int], int], dict[str, int]]],
+            per_document: bool) -> tuple[list[str], int]:
+    """Answer every captured request with one reading; return the wrong answers and the characters."""
+    instances: dict[str, tuple[Callable[[int], int], dict[str, int]]] = {}
+    wrong: list[str] = []
+    for caller, events in streams.items():
+        for name, offset, expected in events:
+            key = name if per_document else f"{caller}:{name}"
+            if key not in instances:
+                instances[key] = build(texts[name])
+            read, state = instances[key]
+            got = read(offset)
+            if got != expected and len(wrong) < 4:
+                wrong.append(f"{caller} {name} offset={offset} shipped={expected} got={got}")
+    return wrong, sum(state["chars"] for _read, state in instances.values())
+
+
+# --------------------------------------------------------------------------- #
+# The legs.
+# --------------------------------------------------------------------------- #
+
+def test_the_reader_asks_one_line_number_per_item_it_admits() -> None:
+    """The identity, one row per asking function: asked == admitted.
+
+    Every admitted count comes from the shipped reader itself -- ``check_evidence``'s own
+    ``checked``, ``check_pointers``'s ``checked`` plus the fence problems it emitted, the
+    quoted-name box it counted, the targets its own caller handed ``_check_name_targets``, the
+    link problems it returned -- so a site cannot pass by this file editing its own denominator.
+    """
+    uneven = {name: counts for name, counts in _table().items() if counts[0] != counts[1]}
+    assert uneven == {}, f"要了行号却没判这一项的站点（请求, 承认）：{uneven}"
+
+
+def test_no_line_number_is_paid_for_a_span_the_shape_throws_away() -> None:
+    """The same identity as an offset set, so the discarded population has a price.
+
+    ``check_evidence`` may ask at an offset only if that offset is one of the evidence-shaped
+    spans of the same document; every other offset it asked at is an answer bought for an item
+    the very next line throws away.  M8-T559 made that answer cheap -- a bisect over an index the
+    document already paid for -- but a request nobody judges is still the shape this leg prices.
+    """
+    cap = _capture()
+    assert all(own for _doc, _offset, _line, own in cap["asked"].get("check_evidence", [])), (
+        "证据循环在一个不是被检文档的文本上要了行号：这条腿比的是同一份文本的偏移")
+    offenders: list[tuple[str, int, int]] = []
+    for name, admitted_offsets in cap["shapes"].items():
+        allowed = set(admitted_offsets)
+        asked = [offset for doc, offset, _line, _own in cap["asked"].get("check_evidence", [])
+                 if doc == name]
+        discarded = [offset for offset in asked if offset not in allowed]
+        if discarded:
+            offenders.append((name, len(discarded), sum(discarded)))
+    assert offenders == [], f"为没进判决的跨度数了行号：(文档, 条数, 白问的偏移和) {offenders[:4]}"
+
+
+def test_the_discarded_population_is_real_and_the_kept_one_is_smaller() -> None:
+    """The leg above only means something because most spans are thrown away.
+
+    Counted from the same shipped predicates: the corpus has strictly more code spans than
+    evidence-shaped spans, and the pinned document has both kinds.  Without this, "asked ==
+    admitted" could be satisfied by a reader that admits everything.
+    """
+    cap = _capture()
+    total_spans = sum(len(v) for v in cap["spans"].values())
+    total_shapes = sum(len(v) for v in cap["shapes"].values())
+    assert total_shapes < total_spans, (total_shapes, total_spans)
+    pinned = "t556_pinned_evidence.md"
+    assert cap["shapes"][pinned], cap["spans"][pinned]
+    assert len(cap["spans"][pinned]) > len(cap["shapes"][pinned]), (
+        cap["spans"][pinned], cap["shapes"][pinned])
+
+
+def test_the_cold_members_are_reached_by_a_document_that_reaches_them() -> None:
+    """The members the shipped corpus never touches are judged where somebody does.
+
+    For a pinned document the asking function and the admitting channel are the same number and
+    that number is at least one: an unclosed fence is asked once and reported once, a dead link is
+    asked once and reported once.
+    """
+    cap = _capture()
+    for name, asker in (("t556_pinned_fence.md", "check_pointers"),
+                        ("t556_pinned_link.md", "check_links")):
+        asked = [offset for doc, offset, _line, _own in cap["asked"].get(asker, []) if doc == name]
+        admitted = cap["admitted"][asker][name]
+        assert admitted >= 1, (name, admitted)
+        assert len(asked) == admitted, (name, len(asked), admitted)
+
+
+def test_the_family_is_enumerated_from_the_source_and_no_asker_is_left_unjudged() -> None:
+    """Nobody may add an asking site and keep this file green by leaving it out of the table."""
+    askers = _askers()
+    unjudged = sorted(askers - CHANNELS)
+    assert unjudged == [], f"新的要行号的人没有承认渠道可数：{unjudged}"
+    assert "<module>" not in askers, sorted(askers)
+    table = _table()
+    for name, (asked, _admitted) in sorted(table.items()):
+        assert asked > 0, f"{name} 一次都没被问过：这一行是白过的"
+
+
+def test_a_channel_that_admits_items_asks_the_door_for_their_line_numbers() -> None:
+    """The derived roster's own blind spot, armed on the shipped reader's counts.
+
+    ``_askers()`` reads who calls ``_line_of``, so a member that *stops* calling it simply leaves
+    the table - and a row that is not in the table cannot be uneven.  The admitted side of such a
+    member is still counted by the shipped reader, so the pairing that has to hold is the other
+    one: a channel that admitted items in this pass without asking the door for their line numbers
+    means those numbers came from somewhere this census cannot see.  This batch landed by folding
+    exactly one such copy into the helper, which is why the shape is judged rather than assumed
+    away - and why the door census above is not enough on its own.
+    """
+    cap = _capture()
+    silent = sorted(name for name in CHANNELS
+                    if sum(cap["admitted"][name].values()) > 0 and name not in _askers())
+    assert silent == [], f"承认了项目却没问行号的名字（行号另有出处）：{silent}"
+
+
+def test_the_index_has_one_door_and_the_scan_charges_a_copy() -> None:
+    """``_newline_index`` is the only place the whole-document newline walk is written.
+
+    A copy outside the builder is invisible to every measurement that watches the builder, so a
+    later change of reading would fix every site that goes through the door and quietly leave the
+    copy behind.  The census that forbids the copy is shown to be capable of finding one, by
+    running the same scan over a planted copy.
+    """
+    source = SCRIPT.read_text(encoding="utf-8", errors="replace")
+    outside = [site for site in _index_scans(source) if site[0] != INDEX_BUILDER]
+    assert outside == [], outside
+    charged = _index_scans(_INLINE_INDEX_COPY)
+    assert [name for name, _line in charged] == ["sections"], charged
+
+
+def _roster_module() -> Any:
+    """Batch 537's roster, loaded by path: the same predicate, not a copy of it."""
+    path = REPO_ROOT / "tests" / M555_FILE
+    spec = importlib.util.spec_from_file_location("minicc_t555_roster_for_t559", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_answer_is_a_bounded_read_of_the_index_the_caller_bought() -> None:
+    """Batch 537's boundary, re-adjudicated by the batch that changed the reading.
+
+    ``_line_of`` no longer takes the document.  It takes the newline index and answers by bisect,
+    so it scans no text and the whole-document roster still excludes it - for the new reason.  The
+    charge itself did not disappear: ``_newline_index`` walks the document and is admitted by that
+    same roster.  Both halves are read off the shipped source here, the roster through batch 537's
+    own derivation rather than a list typed in this file.
+    """
+    source = SCRIPT.read_text(encoding="utf-8", errors="replace")
+    tree = ast.parse(source)
+    definition = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef) and node.name == FAMILY)
+    params = [argument.arg for argument in definition.args.args]
+    assert params == ["starts", "offset"], params
+    touching = [call for call in ast.walk(definition)
+                if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name) and call.func.value.id in params]
+    assert touching == [], touching
+    reads = [call for call in ast.walk(definition)
+             if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+             and call.func.attr == "bisect_right" and call.args
+             and isinstance(call.args[0], ast.Name) and call.args[0].id == "starts"]
+    assert len(reads) == 1, [call.lineno for call in reads]
+    roster = _roster_module()
+    scanners = roster.derived_scanners(tree)
+    assert roster.INDEX_BUILDER in scanners, sorted(scanners)
+    assert FAMILY not in scanners, sorted(scanners)
+
+
+def test_the_two_alternative_readings_answer_every_request_the_shipped_one_answers() -> None:
+    """The deferred choice, taken: the replay still agrees and the shipped bill is read, not typed.
+
+    A forward cursor and a newline index - built per asking site, and built once per document -
+    replay the captured request streams in request order.  All three agree on every request, so
+    the reading the repository now ships is one of the measured ones rather than a fourth shape.
+
+    The shipped reader's own bill comes from the builds the same pass watched: at most one index
+    per document per buying channel, and strictly fewer buys than requests.  The bill ordering -
+    per-document index, then cursor, then per-site index, then the retired prefix reading - is
+    the measurement that justified the swap; the leg names the numbers in its message and pins
+    only the order.
+
+    Only requests made on the checked document's own text are replayed.  Until M8-T560 the
+    cross-document table was built by ``sections`` on another file's bytes, so exactly one caller -
+    ``sections`` - legitimately appeared on the far side and the exception had to be named.  The
+    foreign table is now built without a line ruler at all, so that exception is empty: a non-empty
+    set here would mean a named document is again being numbered with the ruler of the document
+    under check, or with a second copy of it.
+    """
+    cap = _capture()
+    texts = {document.name: text for document, text in _corpus()}
+    foreign = {caller for caller, events in cap["asked"].items()
+               if any(not own for _doc, _offset, _line, own in events)}
+    assert foreign == set(), sorted(foreign)
+    streams = {caller: [(name, offset, line) for name, offset, line, own in events if own]
+               for caller, events in cap["asked"].items()}
+    retired_chars = sum(offset for events in streams.values() for _n, offset, _l in events)
+    bills: dict[str, int] = {}
+    for label, build, per_document in (("cursor", _cursor_read, False),
+                                       ("index-per-site", _index_read, False),
+                                       ("index-per-document", _index_read, True)):
+        wrong, chars = _replay(streams, texts, build, per_document)
+        assert wrong == [], (label, wrong)
+        bills[label] = chars
+    assert (bills["index-per-document"] < bills["cursor"] < bills["index-per-site"]
+            < retired_chars), (bills, retired_chars)
+    own_builds = [(doc, chars, buyer) for doc, own, chars, buyer in cap["builds"] if own]
+    buyers = _index_buyers()
+    assert buyers, "读者里没人买索引：这一行是白过的"
+    per_channel: collections.Counter[tuple[str, str]] = collections.Counter(
+        (doc, buyer) for doc, _chars, buyer in own_builds)
+    assert max(per_channel.values(), default=0) <= 1, (
+        "同一份文档的同一个买家买了不止一次索引：", per_channel)
+    assert {buyer for _doc, _chars, buyer in own_builds} <= buyers, (
+        sorted({buyer for _doc, _chars, buyer in own_builds} - buyers))
+    assert not any(buyer == "sections" for _doc, _chars, buyer in own_builds), (
+        "走查里 sections 自己买了索引：调用方没有把 starts 传下去")
+    requests = sum(len(events) for events in streams.values())
+    assert 0 < len(own_builds) < requests, (len(own_builds), requests)
+    shipped_chars = sum(chars for _doc, chars, _buyer in own_builds)
+    assert shipped_chars < retired_chars, (shipped_chars, retired_chars)
+
+
+def test_the_explanation_of_the_prefix_charge_drops_its_unmeasured_price() -> None:
+    """M8-T555's own file priced this charge by hand, and a hand-copied reading has no reader.
+
+    The paragraph still owes the boundary -- a whole-document charge is a *separate* charge
+    from the per-item scan, which is the claim the leg above re-reads -- but it has to point at a
+    leg that measures the size instead of at microsecond and second figures nobody re-ran.
+    M8-T559 moved the charge to ``_newline_index`` without printing a replacement number.
+    """
+    text = (REPO_ROOT / "tests" / M555_FILE).read_text(encoding="utf-8", errors="replace")
+    for stale in ("39.7", "24.8 s"):
+        assert stale not in text, stale
+    assert THIS_FILE in text, "改说明的批次没把量它的人点名"
+
+
+def test_the_repaired_sites_say_why_the_answer_comes_after_the_filter() -> None:
+    """The law lives with the code and names the leg that reads it.
+
+    Both repaired loops used to ask first and admit second; a reader of either should learn from
+    the function itself which order is the rule, and where the rule is judged.
+    """
+    for function in (dp.check_evidence, dp._check_name_targets):
+        doc = function.__doc__ or ""
+        assert "admits" in doc, function.__name__
+        assert THIS_FILE in doc, function.__name__
