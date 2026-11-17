@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T13:52:21.277Z",
+  "generated_at": "2026-11-17T14:27:24.434Z",
   "branch": "main",
-  "head": "ead7a68",
-  "total_commits": 1869,
+  "head": "ee3a27e",
+  "total_commits": 1871,
   "recent_commits": [
+    {
+      "short": "ee3a27e",
+      "at": "2026-11-17T22:26:20+08:00",
+      "subject": "M8-T1177: read-pressure probe finds the CPU storm in /api/audit - 400 concurrent-ish reads: c=32 p50 10,008ms with 253/384 timeouts, c=64 224/384; root cause: a"
+    },
+    {
+      "short": "cea50b6",
+      "at": "2026-11-17T13:52:21Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ead7a68",
       "at": "2026-11-17T21:51:56+08:00",
@@ -19,23 +29,13 @@
       "short": "18c2237",
       "at": "2026-11-17T21:48:42+08:00",
       "subject": "M8-T1175: almanac Ch.LVI 'The Ledger That Speaks / The Ledger That Speaks' - the model finally read what this repository just did, chapter written live by gpt-6"
-    },
-    {
-      "short": "cb8e8fb",
-      "at": "2026-11-17T13:18:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "24c0d92",
-      "at": "2026-11-17T21:17:37+08:00",
-      "subject": "M8-T1173+M8-T1174: the audit-story tile - the model reads .minicc/audit.jsonl (64-line window, full digest trail, verbatim) and tells its three-beat story (what"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 448,
+  "roadmap_batches": 449,
   "changelog_entries": 1,
-  "roadmap_lines": 54745,
-  "tracked_files": 1116,
+  "roadmap_lines": 54758,
+  "tracked_files": 1117,
   "test_files": 735,
   "almanac_chapters": 56,
   "module_count": 14,
