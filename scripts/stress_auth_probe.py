@@ -58,9 +58,9 @@ def _wait_for_health(url: str, timeout: float = 30.0) -> None:
             resp = httpx.get(url + "/api/health", timeout=1.5)
             if resp.status_code == 200:
                 return
-        except Exception:
+        except Exception:  # noqa: BLE001 - the child is still booting; a failed probe is a wait, not a verdict
             pass
-        time.sleep(0.15)
+        time.sleep(0.15)  # poll again on purpose: the whole point is to wait, honestly
     raise SystemExit("minicc required-auth server never answered /api/health")
 
 
@@ -89,7 +89,7 @@ def _request(url: str, path: str, *, headers: dict[str, str] | None = None, body
         else:
             resp = httpx.post(url + path, headers=headers or {}, content=body, timeout=timeout)
         return resp.status_code, (time.perf_counter() - started) * 1000
-    except Exception:
+    except Exception:  # noqa: BLE001 - the probe records the absence of an answer; an exception would abort the burst instead
         return -1, (time.perf_counter() - started) * 1000
 
 

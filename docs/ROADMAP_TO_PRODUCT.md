@@ -55029,3 +55029,34 @@ AST 常量整查为空。`test_the_fake_provider_switch_has_one_home` 5/5 green�
 
 - 不声称章节覆盖了未验证的环境；
 - 不声称本卷是模型全自动链路的结果（叙事采样与渲染仍人工编排；检验全部自动裁决）。
+## 批次 1136 · M8-T1194: CI 红灯复盘——沉默处理器要署名
+
+### 事实
+
+`1d4b542d` 的 CI（run 44150112666）：Claim / Playwright / JS / Service-plane / PR eval / M1 全绿——但 **Windows 与 Ubuntu 双腿红**，三门同站：
+
+```
+test_broad_silent_handlers_state_a_reason.py
+    these handlers swallow every exception and say nothing about why
+    -> scripts/stress_auth_probe.py:61, scripts/stress_auth_probe.py:92
+
+test_broad_silent_handlers_state_a_reason_mutation.py
+    these sites only the third gate counts are silent with no stated reason
+
+test_mutation_cells_react_to_the_code_they_name.py
+    is red before any mutation - a blind mutation result would be uninterpretable
+```
+
+### 修法
+
+两个 `except Exception` 都挂上 `# noqa: BLE001 - <why>` 及体内一行理由：
+
+- **健康轮询**（子进程 boot）：失败的是“等”，不是结论；耐心重试就是存活检查的全部含义。
+- **burst transport 兜底**：探针的首要语义是“没收到答案这一计”，异常要统计进直方图（-1），不许中止 burst。
+
+三层门本地 `-W error` 全绿，27 条 assertions/cells 全部通过。
+
+### 不声称
+
+- 不声称压测探针的异常语义可替代 `stress_probe.py`：各自带上自己的审计脚本与门。
+- 不声称本轮门禁判断覆盖所有脚本——仅覆盖 `minicc/` 与 `scripts/` 下的沉默 broad-except。
