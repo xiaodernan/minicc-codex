@@ -55210,3 +55210,21 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 
 - 不声称本轮 Windows 腿结论如何（Windows 还在 in_progress，runtime 差异以实际跑完为准）；
 - 不声称本批之后 minicc/ 里就再无 `strftime`-at-call-site 的泄露——已知只有这一家，本轮已在红灯上锁住。
+## 批次 1143 · M8-T1201: bench v2 长出第一口气
+
+### 目的
+
+M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写入——面板首开只见到 `present:false`。本批让 `--suite v2` 能真正留下一行历史，并执行一次真实 skeleton 闭合闭环。
+
+### 做了什么
+
+- **`minicc/bench_history.py`** 新增 `ingest_report(workspace, report_path, allow_changes=True)`：读公版报告 JSON → 写 **1 条 `suite_run` 行 + N 行 `task` 行**到 workspace `.minicc/bench_history.jsonl`；没开 `allow_changes` 不动手；report 路径不存在/JSON 不合法都诚实返回 reason。CLI `--ingest output/evaluation.json --allow-changes`。
+- **真实烟火**：`python -m minicc.bench_tasks --suite v2`（不下 `--run`、不烧 token）——fixtures 28，grading_coverage=1.0，executed_count=0，metrics.pass_at_1=null（not_run 不是 failure）。回灌 `--ingest` → `{recorded:true, entries:29}`——1 条汇总+28 张任务行。
+- **admin 可见**：管理面板 tile「评估时序 · `bench v2`」展示真实数字（样本数 29、pass=null/均分=— / 均耗时=— / skipped_lines=0）；时间窗 `2026-11-17T23:31:32Z 至 2026-11-17T23:31:32Z`。
+- **门禁**：`tests/test_bench_history.py` 10 腿绿（含 2 条新 ingest 腿：absent report 诚实 / 0.5+3 行翻译真值）。`output/` 与 `.minicc/` 都 gitignored。
+
+### 不声称
+
+- bench v2 还**没**被模型跑过——这是 skeleton 结果，没产生任何分数，不算能力评估；
+- 不声称本批对 v2 fixture census 做任何性能测量；
+- 不声称 seed 数据入仓——`.minicc/` 被 gitignored 故意；1 次本地产物，CI 不见。

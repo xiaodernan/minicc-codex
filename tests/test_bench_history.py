@@ -95,3 +95,29 @@ def test_cli_append_and_show(tmp_path: Path) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "-W", "error"]))
+
+def test_ingest_absent_report_is_honest_not_fatal(tmp_path: Path) -> None:
+    out = bh.ingest_report(tmp_path, tmp_path / "no-such-report.json", allow_changes=True)
+    assert out["recorded"] is False
+    assert "not found" in out["reason"]
+
+
+def test_ingest_translates_suite_run_and_task_rows(tmp_path: Path) -> None:
+    report = {
+        "suite_version": "v2-1",
+        "metrics": {"pass_at_1": 0.5, "latency_p50_ms": 800},
+        "results": [
+            {"task_id": "a", "grader_type": "file_contract", "passed": True,  "latency_ms": 600},
+            {"task_id": "b", "grader_type": "file_contract", "passed": False, "latency_ms": 1000},
+            {"task_id": "c", "grader_type": "command_contract", "passed": None, "latency_ms": 200},
+        ],
+    }
+    report_path = tmp_path / "evaluation.json"
+    report_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+    out = bh.ingest_report(tmp_path, report_path, allow_changes=True)
+    assert out["recorded"] is True
+    assert out["entries"] == 4
+    history = bh.read_history(tmp_path)
+    assert history["count"] == 4
+    scores = [e["score"] for e in history["entries"]]
+    assert 1.0 in scores and 0.0 in scores

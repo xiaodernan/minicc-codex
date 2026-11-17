@@ -126,6 +126,69 @@ def read_history(workspace: Path, *, limit: int = _MAX_ENTRIES) -> dict[str, Any
     }
 
 
+def ingest_report(workspace: Path, evaluation_json: Path, *, allow_changes: bool) -> dict[str, Any]:
+    """Translate a benchmarks/evaluation.json into bench_history rows.
+
+    Two shapes are written, each honest about what is actually known:
+
+    - one ``suite_run`` row always (records "a run was observed"; its ``score``
+      is the real ``pass_at_1`` or ``None`` when nothing was judged);
+    - one row per graded | task row, when the report executed anything;
+      ``score`` is 1.0 for pass, 0.0 for fail, ``None`` for refused.
+    """
+    if not allow_changes:
+        return {"recorded": False, "reason": "allow_changes is off for this workspace"}
+    if not evaluation_json.is_file():
+        return {"recorded": False, "reason": f"report not found: {evaluation_json}"}
+    try:
+        report = json.loads(evaluation_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"recorded": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+    writer = []
+    metrics = report.get("metrics") or {}
+    results = report.get("results") or []
+    suite_version = report.get("suite_version") or "unknown"
+    suite = str(suite_version).split("-", 1)[0] if isinstance(suite_version, str) else "unknown"
+
+    writer.append({
+        "ts": utc_stamp(),
+        "suite": suite,
+        "kind": "suite_run",
+        "task_id": "*",
+        "score": metrics.get("pass_at_1"),
+        "elapsed_ms": metrics.get("latency_p50_ms"),
+        "provider": "unknown",
+        "deterministic": True,
+    })
+
+    for row in results:
+        task_id = row.get("task_id") or "unknown"
+        passed = row.get("passed")
+        score = None
+        if passed is True:
+            score = 1.0
+        elif passed is False:
+            score = 0.0
+        writer.append({
+            "ts": utc_stamp(),
+            "suite": suite,
+            "kind": str(row.get("grader_type") or "ungraded"),
+            "task_id": task_id,
+            "score": score,
+            "elapsed_ms": row.get("elapsed_ms") or row.get("latency_ms"),
+            "provider": "unknown",
+            "deterministic": True,
+        })
+
+    entries = 0
+    for entry in writer:
+        outcome = append_entry(workspace, entry, allow_changes=True)
+        if outcome.get("recorded"):
+            entries += 1
+    return {"recorded": True, "entries": entries, "path": str(_history_path(workspace))}
+
+
 def main() -> int:
     import argparse
 
@@ -136,6 +199,7 @@ def main() -> int:
     parser.add_argument("--allow-changes", action="store_true",
                         help="declare explicitly the caller has write permission for this workspace")
     parser.add_argument("--show", action="store_true", help="print the read history as JSON")
+    parser.add_argument("--ingest", metavar="FILE", help="translate a benchmarks/evaluation.json into history lines")
     args = parser.parse_args()
 
     workspace = Path(args.workspace)
@@ -151,6 +215,11 @@ def main() -> int:
             return 2
         entry.setdefault("ts", utc_stamp())
         out = append_entry(workspace, entry, allow_changes=args.allow_changes)
+        cli_out(json.dumps(out, ensure_ascii=False))
+        return 0 if out.get("recorded") else 1
+
+    if args.ingest is not None:
+        out = ingest_report(workspace, Path(args.ingest), allow_changes=args.allow_changes)
         cli_out(json.dumps(out, ensure_ascii=False))
         return 0 if out.get("recorded") else 1
 
