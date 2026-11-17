@@ -55178,3 +55178,21 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 - 不声称这两条工单已经落地——它们现在只是蓝图；
 - 不声称下一批就是这两个方向——以后谁做看哪条火先起来；
 - 不声称 admin tile 新增这两条就等于“模型又说了一大段话”——它们是可验证客观数据型 tile，模型不参与，避免和 oracle tile 混语。
+## 批次 1141 · M8-T1199: 工单 A 落地——bench v2 历史可读，bench history tile 上墙
+
+### 目的
+
+`docs/SERVICE_PLANE_PLAN.md` 里两张蓝图，先落地评估读数——把 `--suite v2` 的未来结果结成可消费的时间序列。
+
+### 做了什么
+
+- **`minicc/bench_history.py`**（新增）：append/read/CLI 一条龙。read 永远返回 dict；append 没权限直接拒绝；坏行跳过计数；`limit=200` 尾窗；service 级 10s memo；零 token · 零模型 · 零写盘（除了 allow_changes 被方明确允许的时候）。
+- **路由** `GET /api/bench-history`；永远返回 200；缺失/坏文件 → `present:false`，面板直收。
+- **管理面板** tile「评估时序 · bench v2」：四数字（count / mean_score / mean_elapsed_ms / skipped_lines）+ 窗口边界，首存空态主动推荐跑 `--suite v2`（`i18n` 双语三键）。
+- **门禁**：8 腿单测；`test_http_surface` 加 bench-history never-500s 双腿；`route_coverage` **41/41**；`.admin-benchrule` 与 admin.js 对 `/api/bench-history` 的 fetch 与 render，与既有 tile 同形态。
+
+### 不声称
+
+- bench.jsonl 目前没有内容——这是诚实的事实：面板首开只见 `present:false`，导引你去跑 `python -m minicc.bench_tasks --suite v2`（含 `--append` 落盘记录）；
+- 不声称本批建立 CI perf gate（该 gate 会在有数据之后自己自然到来）；
+- 不声称该读侧绝对优于 jq-like ——它只是给 admin 面板一种可消费的形态。

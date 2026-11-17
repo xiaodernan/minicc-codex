@@ -1114,6 +1114,9 @@
       "admin.recommendationsOutage": "\u503C\u5B88\u519B\u5E08\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u7528\u4E0A\u9762\u201C\u57FA\u4E8E\u771F\u5B9E\u6570\u636E\u7684\u4F18\u5316\u5EFA\u8BAE\u201D\u5E2E\u4E0A\u3002",
       "admin.auditRefresh": "\u91CD\u65B0\u8BFB\u5BA1\u8BA1\u6545\u4E8B",
       "admin.auditOutage": "\u503C\u5B88\u8BFB\u8005\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u5BA1\u8BA1\u5BFC\u51FA\u7684\u539F\u59CB\u8BB0\u5F55\u3002",
+      "admin.benchHistoryKicker": "\u8BC4\u4F30\u65F6\u5E8F \xB7 bench v2",
+      "admin.benchHistoryPending": "\u6B63\u5728\u8BFB\u53D6 bench_history.jsonl\u2026",
+      "admin.benchHistoryAbsent": "\u6682\u65E0 bench_history.jsonl\u2014\u2014\u5148\u8DD1\u4E00\u904D v2 \u8BC4\u4F30\uFF08python -m minicc.bench_tasks --suite v2\uFF09",
       "admin.ratelimitKicker": "\u7F51\u5173\u9884\u7B97 \xB7 \u5171\u4EAB\u95F8\u95E8",
       "admin.ratelimitPending": "\u6B63\u5728\u8BFB\u5171\u4EAB\u95F8\u5C3A\u2026",
       "admin.ratelimitOutage": "\u95F8\u95E8\u8BA1\u6570\u6682\u65F6\u4E0D\u53EF\u8BFB\u2014\u2014\u95F8\u672C\u8EAB fail-open \u7167\u5E38\u653E\u884C\uFF0C\u8D26\u672C\u7167\u8BB0\u3002",
@@ -1935,6 +1938,9 @@
       "admin.recommendationsOutage": "The on-duty strategist is unavailable \u2014 lean on the rule-based recommendations above.",
       "admin.auditRefresh": "Re-read the audit story",
       "admin.auditOutage": "The on-duty reader is unavailable \u2014 check the raw audit trail first.",
+      "admin.benchHistoryKicker": "Bench history \xB7 v2",
+      "admin.benchHistoryPending": "Reading bench_history.jsonl\u2026",
+      "admin.benchHistoryAbsent": "No bench history yet \u2014 run the v2 suite once to draw the first line",
       "admin.ratelimitKicker": "Gateway budget \xB7 shared gate",
       "admin.ratelimitPending": "Reading the shared bucket\u2026",
       "admin.ratelimitOutage": "The gate counters are unreadable \u2014 the gate itself fails open and keeps counting.",
@@ -8338,6 +8344,32 @@
       }
       const recPromise = requestJson("/api/oracle-recommendations", {}, 3e4).catch(() => null);
       recPromise.then((recs2) => renderRecommendations(recs2, false));
+      function renderBenchHistory(data2) {
+        const bodyEl = $("#adminBenchBody");
+        const usageEl = $("#adminBenchUsage");
+        const byEl = $("#adminBenchModel");
+        if (byEl) byEl.textContent = zh8() ? "\u771F\u5B9E bench \u8BFB\u6570" : "real bench readout";
+        if (!data2 || data2.present === false) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.benchHistoryAbsent"))}</p>`;
+          if (usageEl) usageEl.textContent = data2?.reason ? (zh8() ? "\u539F\u56E0\uFF1A" : "reason: ") + String(data2.reason).slice(0, 140) : "";
+          return;
+        }
+        const items = zh8() ? [
+          { label: "\u6837\u672C\u6570", value: String(data2.count) },
+          { label: "\u5747\u5206\uFF08\u8D8A\u9AD8\u8D8A\u597D\uFF09", value: data2.mean_score != null ? String(data2.mean_score) : "\u2014" },
+          { label: "\u5747\u8017\u65F6 (ms)", value: data2.mean_elapsed_ms != null ? String(data2.mean_elapsed_ms) : "\u2014" },
+          { label: "\u88AB\u8DF3\u8FC7\u884C", value: String(data2.skipped_lines ?? 0) }
+        ] : [
+          { label: "samples", value: String(data2.count) },
+          { label: "mean score (higher is better)", value: data2.mean_score != null ? String(data2.mean_score) : "\u2014" },
+          { label: "mean elapsed (ms)", value: data2.mean_elapsed_ms != null ? String(data2.mean_elapsed_ms) : "\u2014" },
+          { label: "skipped lines", value: String(data2.skipped_lines ?? 0) }
+        ];
+        if (bodyEl) bodyEl.innerHTML = `<ul class="admin-ratelimit-list">${items.map((item) => `<li><strong>${esc2(item.label)}</strong><span>${esc2(item.value)}</span></li>`).join("")}</ul>`;
+        if (usageEl) usageEl.textContent = zh8() ? `\u7A97\u53E3 ${data2.window_from ?? "\u2014"} \u81F3 ${data2.window_to ?? "\u2014"}` : `window ${data2.window_from ?? "\u2014"} through ${data2.window_to ?? "\u2014"}`;
+      }
+      const benchHistoryPromise = requestJson("/api/bench-history", {}, 1e4).catch(() => null);
+      benchHistoryPromise.then((data2) => renderBenchHistory(data2));
       function renderReview(review, refreshed) {
         const bodyEl = $("#adminReviewBody");
         const usageEl = $("#adminReviewUsage");

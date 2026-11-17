@@ -702,6 +702,24 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/bench-history":
+            # M8-T1199: read-only rollup of .minicc/bench_history.jsonl.
+            # Memoized 10s at the service layer. Never raises; an absent /
+            # unreadable file is an honest present:false payload, not a 5xx.
+            try:
+                from .bench_history import read_history
+
+                self._json(self.server.service._memo_http(
+                    "bench-history",
+                    10.0,
+                    lambda: read_history(self.server.service.workspace),
+                ))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"present": False,
+                            "reason": f"{type(exc).__name__}: {exc}",
+                            "count": 0,
+                            "entries": []}, 200)
+            return
         if path == "/api/oracle-recommendations":
             # M8-T1196: the model reads the merged diagnostic snapshot and
             # writes three next-step deep moves, each with a concrete

@@ -384,6 +384,40 @@ export async function openAdmin() {
     }
     const recPromise = requestJson("/api/oracle-recommendations", {}, 30000).catch(() => null);
     recPromise.then((recs) => renderRecommendations(recs, false));
+    // Bench history — read-only rollup, zero model tokens.
+    function renderBenchHistory(data) {
+      const bodyEl = $("#adminBenchBody");
+      const usageEl = $("#adminBenchUsage");
+      const byEl = $("#adminBenchModel");
+      if (byEl) byEl.textContent = zh() ? "真实 bench 读数" : "real bench readout";
+      if (!data || data.present === false) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.benchHistoryAbsent"))}</p>`;
+        if (usageEl) usageEl.textContent = data?.reason
+          ? (zh() ? "原因：" : "reason: ") + String(data.reason).slice(0, 140)
+          : "";
+        return;
+      }
+      const items = zh()
+        ? [
+            { label: "样本数", value: String(data.count) },
+            { label: "均分（越高越好）", value: data.mean_score != null ? String(data.mean_score) : "—" },
+            { label: "均耗时 (ms)", value: data.mean_elapsed_ms != null ? String(data.mean_elapsed_ms) : "—" },
+            { label: "被跳过行", value: String(data.skipped_lines ?? 0) },
+          ]
+        : [
+            { label: "samples", value: String(data.count) },
+            { label: "mean score (higher is better)", value: data.mean_score != null ? String(data.mean_score) : "—" },
+            { label: "mean elapsed (ms)", value: data.mean_elapsed_ms != null ? String(data.mean_elapsed_ms) : "—" },
+            { label: "skipped lines", value: String(data.skipped_lines ?? 0) },
+          ];
+      if (bodyEl) bodyEl.innerHTML = `<ul class="admin-ratelimit-list">${items.map((item) => `<li><strong>${esc(item.label)}</strong><span>${esc(item.value)}</span></li>`).join("")}</ul>`;
+      if (usageEl) usageEl.textContent = zh()
+        ? `窗口 ${data.window_from ?? "—"} 至 ${data.window_to ?? "—"}`
+        : `window ${data.window_from ?? "—"} through ${data.window_to ?? "—"}`;
+    }
+    const benchHistoryPromise = requestJson("/api/bench-history", {}, 10000).catch(() => null);
+    benchHistoryPromise.then((data) => renderBenchHistory(data));
+
 
 
     // Live code review — model as reviewer of this repo's latest diff.

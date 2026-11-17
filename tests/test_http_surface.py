@@ -1052,7 +1052,6 @@ def test_get_oracle_recommendations_never_500s(live: _LiveServer, monkeypatch) -
     assert fresh[0] == 200
 
 
-
 def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(live: _LiveServer, monkeypatch) -> None:
     # M8-T1178: every gateway-calling route is behind the shared token bucket;
     # a denial must be an honest 200 payload (live=False, rate_limited=True),
@@ -1380,3 +1379,33 @@ def test_get_admin_summary_returns_honest_empty_dict_on_missing_workspace(live: 
     import re
 
     assert not re.search(rb"sk-[A-Za-z0-9]{40,}", res[2]), "admin summary leaked key-shaped material"
+
+def test_get_oracle_recommendations_never_500s(live: _LiveServer, monkeypatch) -> None:
+    import minicc.oracle_recommendations as orc_mod
+
+    monkeypatch.setattr(orc_mod, "build_workspace_recommendations", lambda **kwargs: {
+        "live": False, "zh": [], "en": [],
+        "error": "model-unavailable: TimeoutError",
+        "verdict": "model-unavailable",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-recommendations", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "sk-" not in body.decode("utf-8", "replace")
+    fresh = _request(f"{live.url}/api/oracle-recommendations?fresh=1", method="GET")
+    assert fresh[0] == 200
+
+
+def test_get_bench_history_never_500s(live: _LiveServer, monkeypatch) -> None:
+    import minicc.bench_history as bh_mod
+
+    monkeypatch.setattr(bh_mod, "read_history", lambda workspace, **kwargs: {
+        "present": False, "reason": "simulated outage",
+        "count": 0, "entries": [],
+    })
+    status, _, body = _request(f"{live.url}/api/bench-history", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["present"] is False
+    assert "sk-" not in body.decode("utf-8", "replace")
