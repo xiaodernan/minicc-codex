@@ -23,15 +23,19 @@ _DIFF_BODY_BUDGET = 30000
 
 
 def _git(*args: str, cwd: Path) -> str:
-    out = subprocess.run(
-        ["git", *args],
-        cwd=str(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        timeout=20,
-        check=False,
-    )
-    return out.stdout.decode("utf-8", errors="replace")
+    """Best-effort git call; never leaks subprocess errors. Callers treat failure as data."""
+    try:
+        out = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=20,
+            check=False,
+        )
+        return out.stdout.decode("utf-8", errors="replace")
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
 
 
 def _snapshot(workspace: Path) -> dict[str, Any]:
