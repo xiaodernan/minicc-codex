@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from collections.abc import Iterable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -77,24 +76,54 @@ def _spans(text: str) -> set[str]:
     return {span for _off, span in dp._code_spans(text)}
 
 
-def _fence_ranges(text: str) -> list[tuple[int, int]]:
-    """One document, one pairing.
+def _occurrences(text: str, needle: str) -> list[int]:
+    """Every offset at which the author wrote ``needle`` — all of them, not the first."""
+    found: list[int] = []
+    at = text.find(needle)
+    while at >= 0:
+        found.append(at)
+        at = text.find(needle, at + 1)
+    return found
 
-    M8-T540: this used to be ``_block_of(text, offset)``, which rebuilt the whole
-    document's fence ruler *per span*.  On the shipped documents that is 24,071
-    pairings of a 2.9 MB corpus for one leg; the M8-T536 run took 1423.6s, crossed
-    ``conftest.py:35``'s 900s bound, and the hook at ``conftest.py:87`` rewrote a
-    passing call report into ``failed``.  A fence ruler is a property of the
-    document, so it is built once and asked per span.
+
+def _in_any_block(ranges: list[tuple[int, int]], offset: int) -> bool:
+    return any(start <= offset < end for start, end in ranges)
+
+
+def _span_dispositions(text: str) -> list[tuple[str, bool]]:
+    """Every span the evidence reader harvests, and whether the block table charges it to a block.
+
+    The table is built **once per document**. Asking it span by span is the shape this file's
+    corpus leg had before M8-T529: the question 「这条跨度落在哪个块里」 was answered by re-running
+    the whole-document scan for every span, so the leg's cost was (spans x document bytes) and the
+    900s hang bound started killing it on the biggest document. That bound cannot see the count, so
+    ``test_the_block_table_is_built_once_per_document`` charges it, and the same leg charges the
+    population — a helper that examined nothing would be green on the corpus verdict alone.
     """
-    return dp._fence_blocks(text)[0]
+    ranges, _unclosed = dp._fence_blocks(text)
+    return [(span, _in_any_block(ranges, offset)) for offset, span in dp._code_spans(text)]
 
 
-def _block_of(ranges: list[tuple[int, int]], offset: int) -> tuple[int, int] | None:
-    for start, end in ranges:
-        if start <= offset < end:
-            return (start, end)
-    return None
+def _fence_builds(text: str) -> tuple[list[tuple[str, bool]], list[int]]:
+    """Run the disposition pass with a counter wrapped around the shipped whole-document scan.
+
+    Returns the dispositions alongside the sizes handed to each scan, so the caller can charge the
+    verdicts and the cost from one walk, and can tell a cheap partial scan apart from the expensive
+    full one — a spy that only counted would be green on either.
+    """
+    calls: list[int] = []
+    original = dp._fence_blocks
+
+    def counting(scanned: str) -> tuple[list[tuple[int, int]], list[int]]:
+        calls.append(len(scanned))
+        return original(scanned)
+
+    dp._fence_blocks = counting  # type: ignore[assignment]
+    try:
+        dispositions = _span_dispositions(text)
+    finally:
+        dp._fence_blocks = original  # type: ignore[assignment]
+    return dispositions, calls
 
 
 # --------------------------------------------------------------------------- #
@@ -207,23 +236,53 @@ def test_the_evidence_reader_and_the_pointer_reader_blank_the_same_fenced_bytes(
 # --------------------------------------------------------------------------- #
 
 
-def _offenders_in_blocks(documents: Iterable[Path]) -> list[tuple[str, str]]:
-    """One ruler build per document; every span is asked against that build."""
+def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
     offenders: list[tuple[str, str]] = []
-    for document in documents:
+    walked = 0
+    for document in dp.DEFAULT_DOCS:
         if not document.exists():
             continue
         text = document.read_text(encoding="utf-8", errors="replace")
-        ranges = _fence_ranges(text)
-        for offset, span in dp._code_spans(text):
-            if _block_of(ranges, offset) is not None:
-                offenders.append((document.name, span))
-    return offenders
-
-
-def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
-    offenders = _offenders_in_blocks(dp.DEFAULT_DOCS)
+        dispositions = _span_dispositions(text)
+        walked += len(dispositions)
+        offenders.extend((document.name, span) for span, inside in dispositions if inside)
+    assert walked > 10_000, (
+        f"读者在整个语料里只走了 {walked} 条跨度：0 条 offender 什么都没说，"
+        "本腿的靶子缩了要重新瞄准"
+    )
     assert offenders == [], f"块内逃逸的跨度 {len(offenders)} 条，前几条：{offenders[:4]}"
+
+
+def test_the_block_table_is_built_once_per_document() -> None:
+    """The corpus leg's cost is a fact about its shape, so a leg has to read the shape.
+
+    A wall-clock pin would grade the machine, and the machine is not what changed. This asks the
+    same helper the corpus leg asks, with a counter wrapped around the shipped scan, and charges
+    three things: the document really was walked, nothing in it is charged to a block, and the
+    scan count does not follow the span count.
+
+    The last one is stated as an equality across two documents rather than as a pinned number,
+    because ``_code_spans`` blanks the fences itself and so adds its own scan to the pass. Pinning
+    ``2`` would go red the day the reader caches its own table; pinning ``spans`` is the shape the
+    900s bound died on. Two documents of the same *shape* but different sizes is what makes the
+    knife observable: per span, the big one builds tens of thousands of tables and the small one
+    a handful.
+    """
+    text = _ROADMAP.read_text(encoding="utf-8")
+    spans = len(list(dp._code_spans(text)))
+    assert spans > 0, "ROADMAP 一条跨度也没读到，下面的计数什么都没说"
+    dispositions, calls = _fence_builds(text)
+    assert len(dispositions) == spans, f"读者 walked {len(dispositions)} 条，跨度有 {spans} 条"
+    assert [span for span, inside in dispositions if inside] == [], "最大的那篇文档里竟有块内跨度"
+    assert calls, "计数腿一次也没建围栏表：它数的是一件没发生过的事"
+    assert calls == [len(text)] * len(calls), f"有人拿片段去建表，量的就不是全文重扫了：{calls}"
+    small, small_calls = _fence_builds(_RUN_LENGTH_TEXT)
+    assert small, "对照文本一条跨度也没读到，等式两边都是空的"
+    assert len(calls) == len(small_calls), (
+        f"ROADMAP 的 {spans} 条跨度这趟建了 {len(calls)} 次全文围栏表，"
+        f"{len(_RUN_LENGTH_TEXT)} 字、{len(small)} 条跨度的对照文本建 {len(small_calls)} 次："
+        "调用数跟着跨度走，代价就是跨度数×文档字节——围栏表要每篇文档算一次"
+    )
 
 
 #: 块体与块外的收尾指针写在夹具里而不是去船上找：全语料里没有「块内裸指针」这条
@@ -266,18 +325,53 @@ def test_the_sibling_citations_keep_their_reader_and_their_line() -> None:
     A block-ruler swap that left the inline pattern alone would turn this leg red — which
     is why the pair is named here instead of folded into leg 1. It is a ceiling leg: it
     proves nothing about the defect, only that the repair does not manufacture a second one.
+
+    The accounting is per **occurrence**, because the names stopped being unique: each of
+    these two citations is written twice in the ledger — once in the L1550 table row this
+    batch aims at, once in the M8-T521 record prose. The first draft of this leg asked a
+    singular question with two different answers: ``{span: off for ...}`` kept the *last*
+    offset while ``next(...)`` took the *first* written line, so the leg was red on a
+    document whose reader judged every citation correctly, and the obvious repair — delete
+    the record's citations to make the name unique again — would have falsified the record
+    to please a gate. The reader has one verdict per occurrence, so the leg asks for the
+    whole multiset, and the hazard row is pinned separately by an independent line scan.
     """
     text = _ROADMAP.read_text(encoding="utf-8")
-    offsets = {span: off for off, span in dp._code_spans(text) if span in _SIBLING_CITATIONS}
+    lines = text.splitlines()
+    index = dp._newline_index(text)
+    ranges, _unclosed = dp._fence_blocks(text)
+    harvested = list(dp._code_spans(text))
     for citation in _SIBLING_CITATIONS:
-        assert citation in offsets, f"{citation} 没有读者了：换尺换掉了它的定界符"
-        written = next(
-            number
-            for number, line in enumerate(text.splitlines(), start=1)
-            if f"`{citation}`" in line
+        needle = f"`{citation}`"
+        written = _occurrences(text, needle)
+        assert written, f"{citation} 在账本里一次也没写了：本腿的靶子搬家，要重新瞄准"
+        judged = [off for off, span in harvested if span == citation]
+        assert judged, f"{citation} 没有读者了：换尺换掉了它的定界符"
+        for off in judged:
+            line = dp._line_of(index, off)
+            assert needle in lines[line - 1], (
+                f"{citation} 的一格判在 {line} 行，那一行写的不是它：{lines[line - 1]!r}"
+            )
+        outside = [off for off in written if not _in_any_block(ranges, off)]
+        judged_lines = sorted(dp._line_of(index, off) for off in judged)
+        written_lines = sorted(dp._line_of(index, off) for off in outside)
+        assert judged_lines == written_lines, (
+            f"{citation} 读者判在 {judged_lines}，块外作者写于 {written_lines}"
+            f"（作者共 {len(written)} 处，块内 {len(written) - len(outside)} 处不计）"
         )
-        reported = dp._line_of(dp._newline_index(text), offsets[citation])
-        assert reported == written, f"{citation} 判在 {reported} 行，作者写的是 {written} 行"
+        hazard = [
+            number
+            for number, line in enumerate(lines, start=1)
+            if needle in line and "```" in line
+        ]
+        assert hazard, (
+            f"{citation} 那行「同一格写着 ``` 与它」没了——本腿靠那一行证明换尺没有制造第二个盲区，"
+            "要重新瞄准"
+        )
+        for number in hazard:
+            assert number in judged_lines, (
+                f"{citation} 在 {number} 行与一个 ``` 同格，读者却不在这一行判它"
+            )
 
 
 def test_an_unclosed_opener_does_not_swallow_the_rest_of_the_document() -> None:

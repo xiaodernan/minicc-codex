@@ -656,6 +656,10 @@ class Config:
     subagent_writable: bool = False
     subagent_max_tokens: int | None = None
     subagent_max_depth: int = DEFAULT_SUBAGENT_MAX_DEPTH
+    # M12: MCP sampling (server → agent completions). Off by default; a server
+    # entry must ALSO carry "sampling_enabled": true in .minicc/mcp.json, and
+    # every request goes through the rate/token/model gates in SamplingGuard.
+    sampling_enabled: bool = False
     # Not a knob - diagnostics.  Keys the user set in a config.json layer that
     # no resolver lookup ever consulted (typo, retired name, renamed field).
     # Before this, such a key silently ran at its default.
@@ -965,6 +969,10 @@ def load_config(
     raw_auto_resume = pick(None, "MINICC_AUTO_RESUME_ON_START", "auto_resume_on_start", "0")
     auto_resume_on_start = raw_auto_resume.strip().lower() in TRUTHY
 
+    # M12: MCP sampling (server -> agent). Off by default.
+    raw_sampling = pick(None, "MINICC_SAMPLING_ENABLED", "sampling_enabled", "0")
+    sampling_enabled = raw_sampling.strip().lower() in TRUTHY
+
     # M6-T1: writable subagent delegation is opt-in and defaults to off.
     subagent_writable = pick(None, "MINICC_SUBAGENT_WRITABLE", "subagent_writable", "0").strip().lower() in TRUTHY
     subagent_max_tokens = _optional_positive_int("MINICC_SUBAGENT_MAX_TOKENS", "subagent_max_tokens")
@@ -1122,6 +1130,7 @@ def load_config(
         fallback_models=tuple(fallback_models),
         stage_routing=stage_routing,
         auto_resume_on_start=auto_resume_on_start,
+        sampling_enabled=sampling_enabled,
         task_executor=task_executor,
         soft_max_tokens=soft_max_tokens,
         soft_max_duration_seconds=soft_max_duration_seconds,

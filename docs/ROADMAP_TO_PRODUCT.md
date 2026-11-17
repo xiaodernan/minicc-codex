@@ -54434,3 +54434,31 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - 不声称“PR #1 的所有内容都收了”——旧 web/assets 哈希产物、旧事实包历史是**有理由丢弃**的（见上），不是漏收。
 - CI 在本批落地时仍在跑；不把它写成绿。
 - docs/latest.json 里 test_files 一栏会在下一次 fact-pack 自动重算（723→728）。
+## 批次 1104 · M8-T1129: 分支清扫——15 条分支/工作树字节级对账，3 处真缺口补齐，2 条更新版本的门收编
+
+### 收编清单
+
+| 来源 | 收获 | 处置 |
+| --- | --- | --- |
+| `rescue/wt529` | `tests/test_the_two_readers_share_one_fence_ruler.py`（含逐文档一次构建的新证据） | main 的 `_line_of(starts, offset)` 改瞄三处，14/14 绿 |
+| `rescue/wt537` | `tests/test_the_deny_policy_is_asked_once_per_refresh.py`（M8-T533/537 线） | 原样入库，5/5 绿 |
+| `rescue/plane196` | allowlist 读-改-写无跨进程互斥 | **补齐**：`hold_sidecar` 罩读写两半 + 拒绝不降级 + 新门 4 腿 |
+| `backup/local-line-batches70-75` | `grader_type` 列发明标签缺陷（M8-T89） | **补齐**：`DISPATCH_GRADER_TYPES`/`GRADER_TYPE_VOCABULARY`/`declared_grader_type`；vocab 门 13/13 绿（两处按 main 记录契约裁定） |
+| `backup/local-line-batches70-75` | **M12 MCP sampling**（`sampling/createMessage`）整套功能 | **补齐**：`SamplingGuard` + stdio 读线程路由 + `MINICC_SAMPLING_ENABLED` 全局开关（默认关闭）+ 真实 provider 回调（`asyncio.run`）+ JSONL 审计 + `/api/mcp` 报每服务器开关 + 新门 15 腿 |
+| `archive/read-failure-chain-t566-t574` | 14 提交 | main 已全部包含（log 逐项对上号），25/25 绿 |
+| `consolidation/read-failure-chain` / `rescue/t544-plane` / `dev/minicc-reliability-4ba3` | — | main 已是更新版本（audit.py 29,253 → 38,713 B）；checkpoint 为纯行尾翻转；t544 的门已以 M8-T1128 形式收编 |
+| `rescue/wt353/wt379/wt470/wt478par/wt519pre/plane195/plane196/plane-sdist` | — | 逐字相同或更老的切片；main 已是更新版本（memory/sidecar、fence-ruler、ninety_nine、policy-read、两-heading 门） |
+| `backup/...:cli_io.py`（zh/en 双语 CLI 表 + i18n ratchet） | 64 键 52 键无人读，半成品 | **不收**，登记为独立批次（CLI 全量双语化） |
+| `bench_tasks.py` / `benchmarks.py` | 字节行尾 | 恢复 main 的 CRLF，净增 31/9 行真实 diff |
+
+### 裁定记录
+
+- `test_grader_type_vocabulary.py`：not_run 行报 `None`（main 的 M8-T139/T181 契约，保留）；普查按 main 的 verdict-constructor 设计扩展写入计数口径；`_declared_grader_type` 的两个旧测试（钉住「原文直出」的缺陷契约）改瞄到正确语义。
+- fence-ruler 门：wt529 的实现更新（去掉 `_block_of` 逐跨度线性扫），按 main 现有 API 改瞄。
+- mcp.py：sampling 仅 stdio 读线程支持（HTTP 传输本就不接 server→client 请求）；未知模型 hint 是红，不是紫（允许空 allowlist + 无 hint）。
+
+### 不声称
+
+- CLI 双语化**没有**做（52/64 键在 backup 线里就是死的）。
+- 本批 CI 这一刻仍在跑；不把它写成绿。
+- backup 分支与 rescue/* 分支的工作树保留在本机（未删除）；远端只关 PR #1 并删其分支 + 删除已并入 main 的两条 `m8-t537` 远端分支。

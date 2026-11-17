@@ -142,6 +142,12 @@ MINICC_REASONING_EFFORT=high
 #MINICC_SUBAGENT_MAX_DEPTH=2
 #MINICC_SUBAGENT_MAX_TOKENS=
 
+# MCP sampling（M12）：允许 MCP 服务器向客户端要一次模型补全
+# （sampling/createMessage）。默认关闭；服务器条目还必须在 .minicc/mcp.json 里写
+# "sampling_enabled": true，且每次请求都过速率/令牌/模型白名单并写入审计日志
+# （.minicc/mcp_sampling_audit.jsonl）。模型 hint 不在允许名单内一律拒绝。
+#MINICC_SAMPLING_ENABLED=0
+
 # 执行位置：host（直接用宿主 Python）| docker | auto（默认，能容器化就容器化）。
 # 取其它值会在启动时报 ConfigError。写进 config.json 时两种拼法都认：`sandbox`
 # （对齐本文件的环境变量名）与 `sandbox_mode`（对齐 Config 字段名与 --sandbox）。

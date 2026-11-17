@@ -56,6 +56,9 @@ __all__ = [
     "grade_command_contract",
     "grade_v2",
     "BEHAVIOR_GRADER_TYPES",
+    "DISPATCH_GRADER_TYPES",
+    "GRADER_TYPE_VOCABULARY",
+    "declared_grader_type",
 ]
 
 SUITE_VERSION = "v2-1"
@@ -70,6 +73,13 @@ GRADER_TYPES = frozenset({"file_contract", "command_contract"})
 # the behavior loader and the benchmark dispatch both consult; ``behavior_bench``
 # imports the constant from here.
 BEHAVIOR_GRADER_TYPES = frozenset({"python_behavior", "answer_rubric"})
+# M8-T89: the vocabulary of names the ``grader_type`` column may carry. Three
+# modules fill that column (the two grader families, the dispatcher and the
+# runner) and each used to spell its own value, including one - ``behavior`` -
+# that names a *suite* and that no grader ever answers. Declared once here so a
+# census can say "outside the vocabulary" instead of "looks unfamiliar".
+DISPATCH_GRADER_TYPES = GRADER_TYPES | BEHAVIOR_GRADER_TYPES
+GRADER_TYPE_VOCABULARY = DISPATCH_GRADER_TYPES | frozenset({"command", "ungraded"})
 DEFAULT_TASKS_V2 = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.v2.json"
 # M8-T349: the hidden grader directory's name has **one** home
 # (``tools.fs``).  This module used to keep its own copy, while
@@ -79,6 +89,27 @@ DEFAULT_TASKS_V2 = Path(__file__).resolve().parent.parent / "benchmarks" / "task
 # exactly what the M4-T5 contract (hidden graders are invisible **and**
 # immutable) forbids.
 _REQUIRED_KEYS = ("id", "category", "prompt", "fixture", "grader")
+
+
+def declared_grader_type(task: dict[str, Any]) -> str:
+    """The label for a row the runner never got a verdict from a grader for.
+
+    A cancelled or incomplete run, a row that was skipped, and a grader that
+    blew up before returning its own dict all still need this column filled.
+    It must say what the grader *would* have answered for that spec: measured
+    before this batch, one and the same task file read ``ungraded`` when it
+    completed and ``behavior`` - or the raw string copied out of the file -
+    when it was cancelled, so a reader could not compare the two rows.
+    Mirrors the dispatch exactly: only a type a grader recognises may be named,
+    everything else is what ``grade_behavior``/``grade_v2`` answer: ungraded.
+    """
+    grader = task.get("grader")
+    if isinstance(grader, dict) and grader:
+        declared = grader.get("type")
+        return str(declared) if declared in DISPATCH_GRADER_TYPES else "ungraded"
+    if task.get("verify_command"):
+        return "command"
+    return "ungraded"
 
 
 def resolve_grader_dir(explicit: object | None = None) -> Path:

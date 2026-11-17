@@ -87,13 +87,17 @@ def test_quantile_upper_quartile() -> None:
 # ============================================================================
 
 def test_declared_grader_type_known() -> None:
-    assert _declared_grader_type({"grader": {"type": "pytest"}}) == "pytest"
-    assert _declared_grader_type({"grader": {"type": "mypy"}}) == "mypy"
-    assert _declared_grader_type({"grader": {"type": "ruff"}}) == "ruff"
+    assert _declared_grader_type({"grader": {"type": "file_contract"}}) == "file_contract"
+    assert _declared_grader_type({"grader": {"type": "command_contract"}}) == "command_contract"
+    assert _declared_grader_type({"grader": {"type": "python_behavior"}}) == "python_behavior"
+    assert _declared_grader_type({"grader": {"type": "answer_rubric"}}) == "answer_rubric"
 
 
 def test_declared_grader_type_unknown() -> None:
-    assert _declared_grader_type({"grader": {"type": "unknown_tool"}}) == "unknown_tool"
+    # M8-T89: a type no grader answers to is recorded as ungraded, never
+    # copied raw into the column - one vocabulary, derived once.
+    assert _declared_grader_type({"grader": {"type": "unknown_tool"}}) == "ungraded"
+    assert _declared_grader_type({"grader": {"type": "pytest"}}) == "ungraded"
 
 
 def test_declared_grader_type_no_grader() -> None:

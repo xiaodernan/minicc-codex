@@ -532,7 +532,21 @@ class AgentService:
             if key in self._mcp_by_workspace:
                 return self._mcp_by_workspace[key]
             try:
-                manager: McpManager | None = McpManager(workspace)
+                # M12: the sampling opt-in is global and explicit. A provider
+                # factory is handed to the manager only when the operator set
+                # MINICC_SAMPLING_ENABLED; each server must separately opt in
+                # via "sampling_enabled": true, and SamplingGuard audits every
+                # request either way.
+                sampling_on = getattr(self.config, "sampling_enabled", False)
+                factory = (
+                    (lambda: self._make_provider(timeout=float(self.config.timeout), status_callback=None))
+                    if sampling_on else None
+                )
+                manager: McpManager | None = McpManager(
+                    workspace,
+                    sampling_provider_factory=factory,
+                    sampling_allowed_models=((getattr(self.config, "model", "") or ""),) if sampling_on else (),
+                )
             except McpError:
                 manager = None
             self._mcp_by_workspace[key] = manager

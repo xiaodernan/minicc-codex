@@ -119,10 +119,7 @@ def _declared_grader_type(task: dict[str, Any]) -> str:
     report never derives a judge from the task spec, so a row that recorded no
     grader reports none instead of one the spec implies.
     """
-    kind = (task.get("grader") or {}).get("type")
-    if isinstance(kind, str) and kind:
-        return kind
-    return "command" if task.get("verify_command") else "ungraded"
+    return bench_tasks.declared_grader_type(task)
 
 
 VACUOUS_ORACLE_POLICIES = ("allow", "deny", "require_case_count")
@@ -976,7 +973,7 @@ def run_benchmark(
             refused = bool(entry.get("grading_refused"))
             if task.get("grader"):
                 if entry["status"] == TASK_STATUS_COMPLETED:
-                    attempted = "behavior"
+                    attempted = bench_tasks.declared_grader_type(task)
                     try:
                         grader_type = (task.get("grader") or {}).get("type")
                         if grader_type in bench_tasks.GRADER_TYPES:
@@ -992,7 +989,7 @@ def run_benchmark(
                         # shape, and the row keeps the agent's own error.
                         entry.update(bench_tasks.grader_unable(attempted, exc))
                 elif not refused:
-                    entry.update(passed=False, grader_type=task["grader"].get("type", "behavior"))
+                    entry.update(passed=False, grader_type=bench_tasks.declared_grader_type(task))
                     oracle = _objective_oracle(task, task_workspace, grader_dir, worker)
                     if oracle:
                         entry["objective_oracle"] = oracle

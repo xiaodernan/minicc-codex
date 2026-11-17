@@ -16,6 +16,7 @@ requests, per the MCP streamable HTTP transport spec.
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import hashlib
 import json
@@ -193,6 +194,13 @@ class McpServerConfig:
     read_only: bool = False
     url: str = ""
     headers: dict[str, str] = field(default_factory=dict)
+    # M12: the server may ask the *client* for a completion (method
+    # sampling/createMessage). Off by default; BOTH this flag and the global
+    # MINICC_SAMPLING_ENABLED must be true before such a request is even
+    # evaluated. It still goes through SamplingGuard (rate, token ceiling,
+    # model allowlist, audit).
+    sampling_enabled: bool = False
+    sampling_models: tuple[str, ...] = ()
 
     @property
     def transport(self) -> str:
@@ -289,6 +297,10 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
         args = value.get("args", [])
         env = value.get("env", {})
         headers = value.get("headers", {})
+        sampling_enabled = _config_flag(value, str(name), "sampling_enabled")
+        sampling_models_raw = value.get("sampling_models", [])
+        if not isinstance(sampling_models_raw, list) or not all(isinstance(item, str) for item in sampling_models_raw):
+            raise McpError(f"MCP server {name!r} 的 sampling_models 非法（必须是 JSON 字符串数组）")
         if not isinstance(args, list) or not all(isinstance(item, str) for item in args):
             raise McpError(f"MCP server {name!r} 的 args 非法")
         if not isinstance(env, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
@@ -303,6 +315,8 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
             read_only,
             url,
             dict(headers),
+            sampling_enabled,
+            tuple(item.strip() for item in sampling_models_raw if item.strip()),
         )
         _report_keys_this_transport_never_reads(config, value)
         configs.append(config)
@@ -382,12 +396,113 @@ def _jsonrpc_notification(method: str, params: dict[str, Any]) -> dict[str, Any]
     return {"jsonrpc": JSONRPC_VERSION, "method": method, "params": params}
 
 
+@dataclass(frozen=True)
+class SamplingRequest:
+    """A sampling request from an MCP server (method sampling/createMessage)."""
+
+    messages: list[dict[str, Any]]
+    model_preferences: dict[str, Any] | None = None
+    system_prompt: str | None = None
+    max_tokens: int = 1024
+    temperature: float | None = None
+    stop_sequences: list[str] | None = None
+
+
+@dataclass(frozen=True)
+class SamplingResult:
+    """What a sampling handler produced for the server."""
+
+    content: str
+    model: str
+    stop_reason: str = "endTurn"
+
+
+class SamplingGuard:
+    """Safety guard for MCP sampling requests (M12).
+
+    Checks, in this order:
+    - a per-server sliding minute window (rate limit);
+    - a token ceiling per request;
+    - a model allowlist: a hint the operator did not allow is denied. An
+      empty allowlist disables the name gate; rate and token gates still
+      apply. The deployment's own model is passed in by the caller;
+    - every request is audited to
+      ``<workspace>/.minicc/mcp_sampling_audit.jsonl`` — one JSON line per
+      decision, allowed or denied.
+    """
+
+    def __init__(
+        self,
+        workspace: Path,
+        *,
+        max_tokens_per_request: int = 4096,
+        max_requests_per_minute: int = 30,
+        allowed_models: tuple[str, ...] = (),
+        audit_path: Path | None = None,
+    ) -> None:
+        self.workspace = workspace
+        self.max_tokens_per_request = max_tokens_per_request
+        self.max_requests_per_minute = max_requests_per_minute
+        self.allowed_models = frozenset(m for m in allowed_models if m)
+        self.audit_path = audit_path or workspace / ".minicc" / "mcp_sampling_audit.jsonl"
+        self._requests: dict[str, list[float]] = {}
+        self._lock = threading.RLock()
+
+    def check_request(self, server_name: str, request: SamplingRequest) -> tuple[bool, str]:
+        """Check if a sampling request is allowed. Returns (allowed, reason)."""
+        with self._lock:
+            now = time.time()
+            self._requests = {
+                s: [t for t in times if now - t < 60]
+                for s, times in self._requests.items()
+            }
+            server_times = self._requests.get(server_name, [])
+            if len(server_times) >= self.max_requests_per_minute:
+                return False, f"Rate limit exceeded: {self.max_requests_per_minute} req/min"
+
+            if request.max_tokens > self.max_tokens_per_request:
+                return False, f"Max tokens exceeded: {request.max_tokens} > {self.max_tokens_per_request}"
+
+            if self.allowed_models:
+                prefs = request.model_preferences or {}
+                hints = prefs.get("hints", []) if isinstance(prefs, dict) else []
+                if isinstance(hints, list) and hints:
+                    names = [
+                        h.get("name") for h in hints
+                        if isinstance(h, dict) and isinstance(h.get("name"), str)
+                    ]
+                    if names and not any(name in self.allowed_models for name in names):
+                        return False, f"Requested model not in allowed list: {sorted(self.allowed_models)}"
+
+            self._requests.setdefault(server_name, []).append(now)
+
+        return True, "OK"
+
+    def audit_log(self, server_name: str, request: SamplingRequest, allowed: bool, reason: str) -> None:
+        """Write one audit line for the decision. Never raises: a sampling round is not allowed to hinge on the log being writable."""
+        entry = {
+            "timestamp": time.time(),
+            "server": server_name,
+            "allowed": allowed,
+            "reason": reason,
+            "max_tokens": request.max_tokens,
+            "message_count": len(request.messages),
+            "model_preferences": request.model_preferences,
+        }
+        try:
+            self.audit_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.audit_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except OSError:
+            LOG.warning(f"MCP sampling audit 写不进去: {self.audit_path}")
+
+
 class McpStdioClient:
     """Persistent JSON-RPC-over-stdio client with a reader queue."""
 
     #: What ``load_mcp_config`` and ``McpManager`` consult for this transport.
     TRANSPORT = "stdio"
-    CONFIG_KEYS_READ = ("command", "args", "env")
+    CONFIG_KEYS_READ = ("command", "args", "env", "sampling_enabled", "sampling_models")
 
     #: Environment variables MCP server children are allowed to inherit.
     #: Everything else (LLM api_key, web bearer token, etc.) is scrubbed so
@@ -411,6 +526,9 @@ class McpStdioClient:
         self._counter = 0
         self._dead = False
         self._dead_reason = ""
+        # M12: set by McpManager when the server declared sampling_enabled; the
+        # reader thread calls it with (msg_id, params) and it responds via _respond.
+        self._sampling_handler: Any = None
         self._start()
 
     @property
@@ -514,6 +632,8 @@ class McpStdioClient:
             self._respond(msg_id, result={})
         elif method == "roots/list":
             self._respond(msg_id, result={"roots": []})
+        elif method == "sampling/createMessage":
+            self._handle_sampling_request(msg_id, message)
         else:
             self._respond(
                 msg_id,
@@ -522,6 +642,24 @@ class McpStdioClient:
                     "message": method_not_found_message(method),
                 },
             )
+
+    def _handle_sampling_request(self, msg_id: Any, message: dict[str, Any]) -> None:
+        """Handle sampling/createMessage from a server (M12).
+
+        Enabled only when the server entry itself declares sampling_enabled and
+        the manager injected a handler (the web layer wires one only when the
+        global MINICC_SAMPLING_ENABLED flag is on and a provider can be built).
+        Otherwise the request is refused; a silent gap would look like a hang.
+        """
+        params = message.get("params") if isinstance(message.get("params"), dict) else {}
+        if not getattr(self.config, "sampling_enabled", False):
+            self._respond(msg_id, error={"code": ERROR_METHOD_NOT_FOUND, "message": "Sampling is not enabled for this server"})
+            return
+        handler = self._sampling_handler
+        if handler is None:
+            self._respond(msg_id, error={"code": -32603, "message": "Sampling handler not configured"})
+            return
+        handler(msg_id, params)
 
     def _respond(self, msg_id: Any, *, result: Any = None, error: Any = None) -> None:
         payload: dict[str, Any] = {"jsonrpc": JSONRPC_VERSION, "id": msg_id}
@@ -937,7 +1075,13 @@ def mcp_capabilities(config: McpServerConfig) -> tuple[str, ...]:
 
 
 class McpManager:
-    def __init__(self, workspace: Path) -> None:
+    def __init__(
+        self,
+        workspace: Path,
+        *,
+        sampling_provider_factory: Any = None,
+        sampling_allowed_models: tuple[str, ...] = (),
+    ) -> None:
         self.workspace = workspace
         self.configs = load_mcp_config(workspace)
         self.clients: dict[str, Any] = {}
@@ -945,6 +1089,12 @@ class McpManager:
         self.discovery_skips: dict[str, str] = {}
         #: Per server, the answers this pass could not read - named beside ``skipped``.
         self.discovery_unreadable: dict[str, list[str]] = {}
+        # M12: the global opt-in lives with the caller (the web layer passes a
+        # provider factory only when MINICC_SAMPLING_ENABLED is on); per server,
+        # the entry must also carry sampling_enabled. The guard audits every request.
+        self.sampling_provider_factory = sampling_provider_factory
+        self.sampling_allowed_models = tuple(sampling_allowed_models)
+        self.sampling_guard = SamplingGuard(workspace, allowed_models=sampling_allowed_models)
 
     def _client(self, config: McpServerConfig) -> Any:
         with self._client_lock:
@@ -962,6 +1112,18 @@ class McpManager:
                         f"MCP server {config.name} 的 transport {config.transport!r} 没有对应客户端"
                     )
                 client: Any = handler[0](config, self.workspace)
+                # M12: inject the sampling handler when this server declared
+                # sampling_enabled and a provider factory was wired. Without a
+                # factory the handler stays None and the client answers that
+                # sampling is not configured - visible, not silent.
+                if (
+                    config.transport == "stdio"
+                    and getattr(config, "sampling_enabled", False)
+                    and self.sampling_provider_factory is not None
+                ):
+                    client._sampling_handler = (
+                        lambda msg_id, params: self._handle_sampling(msg_id, params, config.name)
+                    )
             except McpError:
                 self.clients[config.name] = _DEAD_CLIENT
                 raise
@@ -1003,6 +1165,105 @@ class McpManager:
         taken.add(candidate)
         return candidate
 
+    def _handle_sampling(self, msg_id: Any, params: dict[str, Any], server_name: str) -> None:
+        """Fulfill sampling/createMessage for one server (M12).
+
+        The request is validated, checked against the guard (rate limit, token
+        ceiling, model allowlist) and audited - allowed or denied, the decision
+        is written to ``.minicc/mcp_sampling_audit.jsonl``. Only then is the
+        configured provider asked for one completion. A failure is answered
+        with JSON-RPC error -32603, never with an exception escaping the
+        reader thread.
+        """
+        client = self.clients.get(server_name)
+        if client is None:  # pragma: no cover - clients map outlives the call
+            return
+
+        def respond(*, result: Any = None, error: Any = None) -> None:
+            handler = getattr(client, "_respond", None)
+            if callable(handler):
+                handler(msg_id, result=result, error=error)
+
+        messages = params.get("messages")
+        if not isinstance(messages, list) or not messages:
+            respond(error={"code": -32602, "message": "Invalid messages parameter"})
+            return
+        normalized: list[dict[str, Any]] = []
+        for message in messages:
+            if not isinstance(message, dict):
+                respond(error={"code": -32602, "message": "Each message must be an object"})
+                return
+            role, content = message.get("role"), message.get("content")
+            if not isinstance(role, str) or not isinstance(content, str):
+                respond(error={"code": -32602, "message": "Each message needs string role and content"})
+                return
+            normalized.append({"role": role, "content": content})
+
+        max_tokens_raw = params.get("maxTokens", 1024)
+        try:
+            max_tokens = int(max_tokens_raw)
+        except (TypeError, ValueError):
+            respond(error={"code": -32602, "message": "maxTokens must be an integer"})
+            return
+        if max_tokens < 1:
+            respond(error={"code": -32602, "message": "maxTokens must be positive"})
+            return
+        max_tokens = min(max_tokens, 32768)
+
+        model_preferences = params.get("modelPreferences")
+        if not isinstance(model_preferences, dict):
+            model_preferences = None
+        system_prompt = params.get("systemPrompt")
+        if not isinstance(system_prompt, str):
+            system_prompt = None
+        temperature = params.get("temperature")
+        if not isinstance(temperature, (int, float)) or isinstance(temperature, bool):
+            temperature = None
+        stop_sequences = params.get("stopSequences")
+        if not isinstance(stop_sequences, list) or not all(isinstance(s, str) for s in stop_sequences):
+            stop_sequences = None
+
+        request = SamplingRequest(
+            messages=normalized,
+            model_preferences=model_preferences,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stop_sequences=stop_sequences,
+        )
+
+        allowed, reason = self.sampling_guard.check_request(server_name, request)
+        self.sampling_guard.audit_log(server_name, request, allowed, reason)
+        if not allowed:
+            respond(error={"code": -32603, "message": f"Sampling denied: {reason}"})
+            return
+
+        factory = self.sampling_provider_factory
+        if factory is None:
+            respond(error={"code": -32603, "message": "No provider configured for sampling"})
+            return
+
+        provider_messages: list[dict[str, Any]] = []
+        if request.system_prompt:
+            provider_messages.append({"role": "system", "content": request.system_prompt})
+        provider_messages.extend(request.messages)
+
+        try:
+            provider = factory()
+            response = asyncio.run(provider.chat(provider_messages, tools=None))
+            text = getattr(response, "text", None)
+            if text is None:
+                text = response.get("content") if isinstance(response, dict) else str(response)
+            model = getattr(response, "model", "") or (response.get("model") if isinstance(response, dict) else "") or "unknown"
+            respond(result={
+                "model": model,
+                "stopReason": "endTurn",
+                "role": "assistant",
+                "content": {"type": "text", "text": str(text)},
+            })
+        except Exception as exc:  # noqa: BLE001 - the server gets a JSON-RPC error, not a dead reader
+            respond(error={"code": -32603, "message": f"Sampling failed: {exc}"})
+
     def status(self) -> dict[str, Any]:
         """The MCP payload the surfaces read (``/api/mcp`` and ``workspace_info()``).
 
@@ -1028,6 +1289,7 @@ class McpManager:
                 "url": item.url,
                 "transport": item.transport,
                 "read_only": item.read_only,
+                "sampling_enabled": item.sampling_enabled,
                 "state": states[item.name],
             }
             for item in self.configs

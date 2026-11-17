@@ -7,17 +7,29 @@ import json
 import os
 import posixpath
 import threading
+import time
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from .atomic_file import replace_with_retry
+from .sidecar_lock import LockPrimitives, hold_sidecar, sidecar_path_for
 from .tools.registry import redact_text
 
 from .config import unreadable_file_message, unwritable_file_message
 from .internal_paths import ALLOWLIST_NAME  # re-exported: the deny list reads it from here
 from .tools.names import TOOL_NAME_BASH
+
+try:  # Windows
+    import msvcrt
+except ImportError:  # pragma: no cover - non-Windows
+    msvcrt = None  # type: ignore[assignment]
+
+try:  # POSIX
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
 
 _lock = threading.RLock()
 
@@ -122,18 +134,48 @@ def replace_session_rules(
         raise AllowlistError("session_id 不能为空")
     # M2-T4: read-modify-write under one lock so concurrent sessions
     # cannot lose each other's rules.
+    #
+    # That lock is a ``threading.RLock`` - it speaks to this process and to
+    # nobody else.  ``<workspace>/.minicc/allowlist.json`` is one file for
+    # every minicc process in that workspace, so two processes that both
+    # wrote successfully still dropped each other's rules.  Measured on the
+    # plane that found this (two children forced into the same critical
+    # section, eight rounds): 0 of 8 rounds kept both sessions.
+    #
+    # The sidecar lock is the repository's one answer for this
+    # (``minicc/sidecar_lock.py``), and it is held across the read *and* the
+    # write: a lock around the write alone still lets two processes read the
+    # same old content and each write it back.
+    #
+    # A refused lock is **not** downgraded to an unlocked write.  This file
+    # holds the user's *consent* - a lost rule is a lost permission, and the
+    # session that lost it would silently run without it.  So the refusal is
+    # reported and the write is refused, which is the answer the session
+    # checkpoint already gives (``SessionError``), with the same discipline:
+    # the ceiling is derived from the outcome, never retyped.
     with _lock:
-        payload = load_allowlist(workspace)
-        current = _normalize_rules((payload.get("sessions") or {}).get(sid))
-        if commands is not None:
-            current["commands"] = _normalize_rules({"commands": commands})["commands"]
-        if paths is not None:
-            current["paths"] = _normalize_rules({"paths": paths})["paths"]
-        if tools is not None:
-            current["tools"] = _normalize_rules({"tools": tools})["tools"]
-        payload.setdefault("sessions", {})[sid] = current
-        save_allowlist(workspace, payload)
-        return current
+        with hold_sidecar(
+            sidecar_path_for(_path(workspace)),
+            primitives=LockPrimitives(msvcrt=msvcrt, fcntl=fcntl, time=time),
+        ) as outcome:
+            if not outcome.held:
+                ceiling = outcome.attempts * outcome.delay
+                raise AllowlistError(
+                    f"允许清单正被另一个进程占用，本次没有写入 ({_path(workspace)}): "
+                    f"{outcome.attempts} 次 × {outcome.delay}s = 上限 {ceiling:.1f}s 后仍未释放"
+                    + (f": {outcome.refusal}" if outcome.refusal else "")
+                )
+            payload = load_allowlist(workspace)
+            current = _normalize_rules((payload.get("sessions") or {}).get(sid))
+            if commands is not None:
+                current["commands"] = _normalize_rules({"commands": commands})["commands"]
+            if paths is not None:
+                current["paths"] = _normalize_rules({"paths": paths})["paths"]
+            if tools is not None:
+                current["tools"] = _normalize_rules({"tools": tools})["tools"]
+            payload.setdefault("sessions", {})[sid] = current
+            save_allowlist(workspace, payload)
+            return current
 
 
 def add_session_rule(
