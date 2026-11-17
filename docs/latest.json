@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T13:49:40.774Z",
+  "generated_at": "2026-11-17T13:52:21.277Z",
   "branch": "main",
-  "head": "18c2237",
-  "total_commits": 1867,
+  "head": "ead7a68",
+  "total_commits": 1869,
   "recent_commits": [
+    {
+      "short": "ead7a68",
+      "at": "2026-11-17T21:51:56+08:00",
+      "subject": "M8-T1176: CI red on 24c0d92 - two one-home gates caught the M8-T1173 commit: the 'audit.jsonl' literal had two homes (now imports AUDIT_NAME from internal_paths"
+    },
+    {
+      "short": "818ebb0",
+      "at": "2026-11-17T13:49:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "18c2237",
       "at": "2026-11-17T21:48:42+08:00",
@@ -19,22 +29,12 @@
       "short": "24c0d92",
       "at": "2026-11-17T21:17:37+08:00",
       "subject": "M8-T1173+M8-T1174: the audit-story tile - the model reads .minicc/audit.jsonl (64-line window, full digest trail, verbatim) and tells its three-beat story (what"
-    },
-    {
-      "short": "0b915b0",
-      "at": "2026-11-17T20:41:06+08:00",
-      "subject": "M8-T1172: root-level scratch files that earlier add-A sweeps accidentally committed (probe/ledger/measure scripts from M8-T1131/1132/1166/1167) are removed; tes"
-    },
-    {
-      "short": "3eae709",
-      "at": "2026-11-17T12:24:29Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 447,
+  "roadmap_batches": 448,
   "changelog_entries": 1,
-  "roadmap_lines": 54733,
+  "roadmap_lines": 54745,
   "tracked_files": 1116,
   "test_files": 735,
   "almanac_chapters": 56,
