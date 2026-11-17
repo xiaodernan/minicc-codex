@@ -54829,3 +54829,19 @@ M8-T1178 把所有模型花钱路由都进了闸——但闸门的计数器（�
 - 不改 `.env` 的传播语义：本批依旧只让 `.env` 走 `load_config()`；代理回注仍只进 `os.environ` 的 8 个 proxy 拼写。
 - 不让探针改状态：`GET /models`、零 token、状态落缓存（10s TTL，`_CACHE_KEY="provider-ping:v1"`）。
 - 不修 night eval / nightly real-key 门禁（它仍是 CI 唯一真 key 跑道，比例 token 不在本批）。
+## 批次 1126 · M8-T1183: impact floor——每个模块都要有能看见它的观众
+
+`cf93bb6b` 的 CI：`Claim checkers (doc pointers + route coverage + impact floor)` → step "Every module has an audience that can notice its change" → `modules no test reaches: scripts.stress_probe`。
+
+修复本身不抬白旗：新增可忽略无关模块之外的真正受众 `tests/test_stress_probe.py`：
+
+- `_percentile` 已知总体核对（p50/p95/p99/空）；
+- 用 ThreadingHTTPServer 起临时端点，真打 120 次请求（c=4），状态直方图 == {200: 120}、p50 ≤ p99 ≤ max、rps > 1；
+- 死端口 `main()` 诚实返回 2（绝不强测一个没起来的琥珀盒）。
+
+`scripts/impacted_tests.py --check` —— 绿（exit 0）。`tests/test_stress_probe.py` —— `pytest -W error` 3/3。
+
+### 不声称
+
+- 不在 CI 里跑压力探针（数字是机器相关的；CI 没有 8765 站点可撞）。
+- 不加入 EXEMPT：豁免列表是本门最后的逃生门，本批没有用它。
