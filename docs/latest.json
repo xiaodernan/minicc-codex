@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T03:55:39.696Z",
+  "generated_at": "2026-11-17T04:06:47.254Z",
   "branch": "main",
-  "head": "4c02fff",
-  "total_commits": 1831,
+  "head": "3e8d803",
+  "total_commits": 1833,
   "recent_commits": [
+    {
+      "short": "3e8d803",
+      "at": "2026-11-17T12:05:54+08:00",
+      "subject": "M8-T1131: bilingual CLI part 2 - argparse description + all 39 help= strings, the 25 authorization decision reasons in audit.py, doctor's four advice lines and "
+    },
+    {
+      "short": "8bfad7e",
+      "at": "2026-11-17T03:55:40Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4c02fff",
       "at": "2026-11-17T11:54:48+08:00",
@@ -19,23 +29,13 @@
       "short": "39f2ffe",
       "at": "2026-11-17T11:43:55+08:00",
       "subject": "M8-T1129: the consolidation sweep - 15 branches/worktrees audited byte-level against main; the three gaps that survived it get fixed (allowlist cross-process RM"
-    },
-    {
-      "short": "7015caf",
-      "at": "2026-11-17T03:18:52Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9c54954",
-      "at": "2026-11-17T11:18:12+08:00",
-      "subject": "M8-T1128: the orphaned reliability branch's five gates land in main - three verbatim, two adjudicated against the truth (per-span census: three per-item _newlin"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 433,
+  "roadmap_batches": 434,
   "changelog_entries": 1,
-  "roadmap_lines": 54480,
-  "tracked_files": 1110,
+  "roadmap_lines": 54501,
+  "tracked_files": 1112,
   "test_files": 733,
   "almanac_chapters": 53,
   "module_count": 14,
