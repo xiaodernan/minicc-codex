@@ -55096,3 +55096,26 @@ test_mutation_cells_react_to_the_code_they_name.py
 - 不删 rule-based 三条（并列：前者可证、后者可深）；
 - 不声称本批做病因诊断——这是「三条可执行的下一步，每条可验收」；
 - 不称该 tile 由任何算法「最优」——模型从合并快照里取三味。
+## 批次 1139 · M8-T1197: 诚实复盘——一只空壳，一片 54 秒
+
+### 事实 A：军师瓷贴出厂是死壳
+
+`59a7bbf8`（M8-T1196）的注入脚本 `_wire_recs3.py` 在 index.html 分支因类型错误崩了；后半段（admin.js 的 renderer、取数、刷新按钮、双语文案键）全部**没执行**。main 就带着一只外表挺像的瓷器——占了位置、等了没人取、拿了没人送。冒烟不红因为：① 无门禁约束 index.html 的 `data-i18n` 键在字典 dictone-home 中必须存在；② admin_smoke 不断言那些键打印；③ en_cjk 冷启动时没跑到相应分支。发现靠的是：把本台浏览器亲手解析一遍——即，我亲眼看到“admin.recommendationsPending”裸渲在屏幕上。发现之后按正道补齐：
+
+- `web/src/panels/admin.js` 真正落入：`renderRecommendations`（deal 卡列表、模型 byline、用量行、`no-signal` 输出）、`recRefresh`、`recPromise`；
+- `web/src/core/i18n.js` 补足 zh/en recommendations*4 键；CRLF 钉 330/0；
+- 已验证的事实：unlock→zh/en 翻译→数字到位→冒烟绿；route_coverage **40/40**。
+
+### 事实 B：oracle-recommendations 路由 54 秒走仓库 walk
+
+probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_snapshot()` 直接调重 `stats.gather()`（全仓读 walk）。修法：
+
+- `minicc/oracle_recommendations.py`：`_snapshot()` 与 `build_workspace_recommendations()` 都接受调用方**注入**的 `stats`/`summary`（service-layer memoized）——默认行为兼容保留；
+- webserver 路由传 `self.server.service.stats()`（30s memo）+ `admin_summary()`（15s memo）；首次付 cold-cost 9.32s + 5.33s，之后 0 walk；
+- en_cjk 冷启动时 `[arcade] interaction failed: timeout 7000ms` 同样根因于此（服务未热时 visit 该 section 超时）；hot 后全绿复本本地验证。
+
+### 不声称
+
+- 不声称首次解锁就是秒开——首次 cold-cost 由 fact 证实（9.32s + 5.33s，只付一次）；
+- 不假装 admin 面板已有门捕获这种“壳空壳壳”——本批无此门、也无意借此批造轮子；
+- 不声称任何一道既有冒烟红过——每一条绿都是真实的。

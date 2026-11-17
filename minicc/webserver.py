@@ -719,7 +719,12 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_workspace_recommendations(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_workspace_recommendations(
+                    workspace=self.server.service.workspace,
+                    stats=self.server.service.stats(),
+                    summary=self.server.service.admin_summary(),
+                    force_refresh=fresh,
+                ))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": [], "en": [],
                             "error": f"{type(exc).__name__}: {exc}"}, 200)

@@ -23,9 +23,9 @@ from .stats import gather
 _CACHE_KEY = "oracle-recommendations:v1"
 
 
-def _snapshot(workspace: Path) -> dict[str, Any]:
-    stats = gather(workspace)
-    summary = build_summary(workspace)
+def _snapshot(workspace: Path, *, stats: Any = None, summary: Any = None) -> dict[str, Any]:
+    stats = stats if stats is not None else gather(workspace)
+    summary = summary if summary is not None else build_summary(workspace)
     totals = summary.get("totals") or {}
     trend = summary.get("trend_7d") or []
     return {
@@ -61,8 +61,15 @@ def _prompt(snapshot: dict[str, Any]) -> str:
 
 
 def build_workspace_recommendations(*, config: Any | None = None, workspace: Path | None = None,
+                                     stats: Any = None, summary: Any = None,
                                      force_refresh: bool = False) -> dict[str, Any]:
-    """Return the model-written recommendations; memoized (10 min) unless forced."""
+    """Return the model-written recommendations; memoized (10 min) unless forced.
+
+    ``stats`` / ``summary`` let the caller pass the service-layer memoized values
+    (``/api/stats`` is warmed 30s, ``/api/admin/summary`` 15s) instead of walking
+    the whole workspace twice per oracle call — the cold walk here is ~54s on a
+    mid-size repo, far past the HTTP budget.
+    """
     if not force_refresh:
         cached = memo_read(_CACHE_KEY)
         if isinstance(cached, dict) and cached.get("live") is not None:
@@ -70,7 +77,7 @@ def build_workspace_recommendations(*, config: Any | None = None, workspace: Pat
 
     root = Path(workspace) if workspace is not None else Path.cwd()
     try:
-        snapshot = _snapshot(root)
+        snapshot = _snapshot(root, stats=stats, summary=summary)
     except Exception as exc:  # noqa: BLE001 - a partial snapshot is reported, never raised
         return error_payload("snapshot-unavailable", exc, lists=True)
 

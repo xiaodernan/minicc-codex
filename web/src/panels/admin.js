@@ -347,6 +347,44 @@ export async function openAdmin() {
     }
     const planPromise = requestJson("/api/oracle-plan", {}, 30000).catch(() => null);
     planPromise.then((plan) => renderPlan(plan, false));
+    // Live recommendations — the model reasons from the merged snapshot.
+    function renderRecommendations(recs, refreshed) {
+      const listEl = $("#adminRecommendationsList");
+      const usageEl = $("#adminRecommendationsUsage");
+      const byEl = $("#adminRecommendationsModel");
+      if (byEl && recs && recs.model) byEl.textContent = recs.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现判" : "read live by the model";
+      if (!recs || !recs.live) {
+        const line = zh() ? (recs?.zh_error ?? recs?.error) : (recs?.en_error ?? recs?.error);
+        if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc(t("admin.recommendationsOutage"))}</em></li>`;
+        if (usageEl) usageEl.textContent = line ? String(line).slice(0, 140) : "";
+        return;
+      }
+      const items = zh() ? (recs.zh || []) : (recs.en || []);
+      const list = items.length ? items : (zh() ? recs.en : recs.zh) || [];
+      if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span></li>`).join("");
+      if (usageEl) {
+        const u = recs.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        const v = recs.verdict === "no-signal" ? (zh() ? " · 零信号 · 模型未被调用" : " · zero-signal · model not called") : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${v}${refreshed ? " · 已重读" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${v}${refreshed ? " · re-read" : ""}`;
+      }
+    }
+    const recRefresh = $("#adminRecommendationsRefresh");
+    if (recRefresh) {
+      recRefresh.addEventListener("click", () => {
+        const listEl = $("#adminRecommendationsList");
+        const usageEl = $("#adminRecommendationsUsage");
+        if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc(t("admin.recommendationsPending"))}</em></li>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-recommendations?fresh=1", {}, 30000).catch(() => null).then((recs) => renderRecommendations(recs, true));
+      });
+    }
+    const recPromise = requestJson("/api/oracle-recommendations", {}, 30000).catch(() => null);
+    recPromise.then((recs) => renderRecommendations(recs, false));
+
 
     // Live code review — model as reviewer of this repo's latest diff.
     function renderReview(review, refreshed) {

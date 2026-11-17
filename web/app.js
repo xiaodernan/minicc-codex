@@ -1108,6 +1108,10 @@
       "admin.auditPending": "\u6B63\u5728\u8BFB\u5BA1\u8BA1\u8BB0\u5F55\u2026",
       "admin.ciDxRefresh": "\u91CD\u65B0\u5F52\u56E0 CI \u7EA2\u706F",
       "admin.ciDxOutage": "\u503C\u5B88\u5B88\u95E8\u4EBA\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u4E0B\u65B9\u201Cmainline health\u201D\u91CC\u7684\u771F\u5B9E\u8BB0\u5F55\u3002",
+      "admin.recommendationsKicker": "\u4E0B\u4E00\u6B65\u8BE5\u5E72\u4EC0\u4E48 \xB7 \u503C\u5B88\u519B\u5E08",
+      "admin.recommendationsPending": "\u6B63\u5728\u8BFB\u5B9E\u6D4B\u5FEB\u7167\u2026",
+      "admin.recommendationsRefresh": "\u91CD\u65B0\u5206\u6790\u4E0B\u4E00\u6B65\u8BE5\u5E72\u4EC0\u4E48",
+      "admin.recommendationsOutage": "\u503C\u5B88\u519B\u5E08\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u7528\u4E0A\u9762\u201C\u57FA\u4E8E\u771F\u5B9E\u6570\u636E\u7684\u4F18\u5316\u5EFA\u8BAE\u201D\u5E2E\u4E0A\u3002",
       "admin.auditRefresh": "\u91CD\u65B0\u8BFB\u5BA1\u8BA1\u6545\u4E8B",
       "admin.auditOutage": "\u503C\u5B88\u8BFB\u8005\u6682\u65F6\u4E0D\u53EF\u7528\u2014\u2014\u5148\u770B\u5BA1\u8BA1\u5BFC\u51FA\u7684\u539F\u59CB\u8BB0\u5F55\u3002",
       "admin.ratelimitKicker": "\u7F51\u5173\u9884\u7B97 \xB7 \u5171\u4EAB\u95F8\u95E8",
@@ -1925,6 +1929,10 @@
       "admin.auditPending": "Reading the audit trail\u2026",
       "admin.ciDxRefresh": "Re-attribute the CI red",
       "admin.ciDxOutage": "The on-duty gatekeeper is unavailable \u2014 check the real recorded runs in \u201Cmainline health\u201D below.",
+      "admin.recommendationsKicker": "What to do next \xB7 on-duty strategist",
+      "admin.recommendationsPending": "Reading the measured snapshot\u2026",
+      "admin.recommendationsRefresh": "Re-analyze the next moves",
+      "admin.recommendationsOutage": "The on-duty strategist is unavailable \u2014 lean on the rule-based recommendations above.",
       "admin.auditRefresh": "Re-read the audit story",
       "admin.auditOutage": "The on-duty reader is unavailable \u2014 check the raw audit trail first.",
       "admin.ratelimitKicker": "Gateway budget \xB7 shared gate",
@@ -8296,6 +8304,40 @@
       }
       const planPromise = requestJson("/api/oracle-plan", {}, 3e4).catch(() => null);
       planPromise.then((plan) => renderPlan(plan, false));
+      function renderRecommendations(recs2, refreshed) {
+        const listEl = $("#adminRecommendationsList");
+        const usageEl = $("#adminRecommendationsUsage");
+        const byEl = $("#adminRecommendationsModel");
+        if (byEl && recs2 && recs2.model) byEl.textContent = recs2.model;
+        else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u5224" : "read live by the model";
+        if (!recs2 || !recs2.live) {
+          const line = zh8() ? recs2?.zh_error ?? recs2?.error : recs2?.en_error ?? recs2?.error;
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.recommendationsOutage"))}</em></li>`;
+          if (usageEl) usageEl.textContent = line ? String(line).slice(0, 140) : "";
+          return;
+        }
+        const items = zh8() ? recs2.zh || [] : recs2.en || [];
+        const list = items.length ? items : (zh8() ? recs2.en : recs2.zh) || [];
+        if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span></li>`).join("");
+        if (usageEl) {
+          const u = recs2.usage || {};
+          const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
+          const v = recs2.verdict === "no-signal" ? zh8() ? " \xB7 \u96F6\u4FE1\u53F7 \xB7 \u6A21\u578B\u672A\u88AB\u8C03\u7528" : " \xB7 zero-signal \xB7 model not called" : "";
+          usageEl.textContent = zh8() ? `tokens\uFF1Aprompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${v}${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `tokens: prompt ${u.prompt_tokens ?? "\u2014"} \xB7 completion ${u.completion_tokens ?? "\u2014"}${cached}${v}${refreshed ? " \xB7 re-read" : ""}`;
+        }
+      }
+      const recRefresh = $("#adminRecommendationsRefresh");
+      if (recRefresh) {
+        recRefresh.addEventListener("click", () => {
+          const listEl = $("#adminRecommendationsList");
+          const usageEl = $("#adminRecommendationsUsage");
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.recommendationsPending"))}</em></li>`;
+          if (usageEl) usageEl.textContent = "";
+          requestJson("/api/oracle-recommendations?fresh=1", {}, 3e4).catch(() => null).then((recs2) => renderRecommendations(recs2, true));
+        });
+      }
+      const recPromise = requestJson("/api/oracle-recommendations", {}, 3e4).catch(() => null);
+      recPromise.then((recs2) => renderRecommendations(recs2, false));
       function renderReview(review, refreshed) {
         const bodyEl = $("#adminReviewBody");
         const usageEl = $("#adminReviewUsage");
