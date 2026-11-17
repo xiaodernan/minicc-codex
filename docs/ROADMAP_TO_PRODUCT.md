@@ -55143,7 +55143,7 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 
 **建议方案**：
 
-- 新增 `minicc/benchcfg.py` 作为“一处一家”家：`suite_v2` 配置 + `bench.jsonl`（JSONL 评测单测/真测的单次执行摘要，按 `\n` 分隔）；
+- 新增一个 `benchcfg` 家：suite_v2 配置 + bench.jsonl（JSONL，单测/真测的每次执行摘要，按行分隔）；
 - writer 侧：`bench_tasks.py --suite v2` 跑完时追加一行到 `workspace/.minicc/bench.jsonl`（同一次 run 不重复 append）；
   **write path locked behind permission**：只有被授权 `allow_changes` 的任务才 append——评测不是“写盘行为”，不应该问用户鼓励写；
 - 只读路由：`GET /api/bench-history` 递归读 `bench.jsonl`：`limit=200` 防超额、滤 `suite=v2`、聚合到 `{mean, p50, p95, samples_by_day, last_run_sec_ago, sample_count}`；
