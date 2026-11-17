@@ -182,6 +182,56 @@ export async function openAdmin() {
     } catch { /* the tile is best-effort; the panel never depends on it */ }
     });
 
+    // M8-T1160: the drift sentinel — model-free oracle for repo self-consistency.
+    // fire-and-forget, like the CI tile; the unlock never waits on it.
+    function renderDrift(drift, refreshed) {
+      const headEl = $("#adminDriftHead");
+      const crlfEl = $("#adminDriftCrlf");
+      const docsEl = $("#adminDriftDocs");
+      const metaEl = $("#adminDriftMeta");
+      const stampEl = $("#adminDriftStamp");
+      if (!headEl || !crlfEl || !docsEl) return;
+      if (stampEl) stampEl.textContent = drift && drift.generated_at ? String(drift.generated_at).replace("T", " ").replace("Z", " UTC") : "";
+      if (!drift || !drift.live) {
+        [headEl, crlfEl, docsEl].forEach((el) => { el.textContent = "—"; el.classList.remove("ok", "bad"); });
+        if (metaEl) metaEl.textContent = drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "";
+        return;
+      }
+      const ahead = Number(drift.commits_ahead ?? -1);
+      headEl.textContent = zh()
+        ? (drift.in_sync
+          ? `${drift.head_live} · 同步（事实包领先 ${ahead} 个）`
+          : `${drift.head_live} · 领先事实包 ${ahead} 个（fact ${drift.fact_pack?.head}）`)
+        : (drift.in_sync
+          ? `${drift.head_live} · synced (pack +${ahead})`
+          : `${drift.head_live} · ${ahead} ahead of fact pack (${drift.fact_pack?.head})`);
+      headEl.classList.toggle("ok", Boolean(drift.in_sync));
+      headEl.classList.toggle("bad", !drift.in_sync);
+      const idx = drift.crlf_pins?.index_html;
+      const i18n = drift.crlf_pins?.i18n_js;
+      crlfEl.textContent = drift.crlf_ok
+        ? `✓ ${idx?.crlf}/0 · ${i18n?.crlf}/0`
+        : `✗ ${idx?.crlf}/${idx?.lf_only} · ${i18n?.crlf}/${i18n?.lf_only}`;
+      crlfEl.classList.toggle("ok", Boolean(drift.crlf_ok));
+      crlfEl.classList.toggle("bad", !drift.crlf_ok);
+      const doc = drift.doc_pointers || {};
+      docsEl.textContent = doc.ok ? "rc=0 ✓" : `rc=${doc.rc}`;
+      docsEl.classList.toggle("ok", Boolean(doc.ok));
+      docsEl.classList.toggle("bad", !doc.ok);
+      if (metaEl) {
+        const limit = (drift.honest_limits?.[0] ?? "").replace(/\s+/g, " ");
+        metaEl.textContent = `${refreshed ? (zh() ? "已重新核验 · " : "re-verified · ") : ""}${limit}`;
+      }
+    }
+    const driftPromise = requestJson("/api/admin/drift", {}, 60000).catch(() => null);
+    driftPromise.then((drift) => { try { renderDrift(drift, false); } catch { /* panel never depends on it */ } });
+    const driftRefresh = $("#adminDriftRefresh");
+    if (driftRefresh) {
+      driftRefresh.addEventListener("click", () => {
+        requestJson("/api/admin/drift?fresh=1", {}, 90000).then((drift) => renderDrift(drift, true)).catch(() => {});
+      });
+    }
+
     // Live workspace brief — the model on duty for this workspace:
     // fire-and-forget, like the CI tile. The unlock never waits on it.
     function renderBrief(brief, refreshed) {

@@ -150,6 +150,8 @@ export const I18N = {
     "session.emptyChip2": "跑测试并报告：哪挂了、为什么",
     "session.emptyChip3": "审查 git diff，指出回归风险",
     "session.emptyChip4": "打开说明书，十三章全翻到", "session.emptyChip5": "打开世界地图——91 个真实坐标随便点",
+    "admin.driftKicker": "漂移哨兵 · 仓库自证", "admin.driftHead": "事实包 ≡ HEAD", "admin.driftCrlf": "CRLF 钉",
+    "admin.driftDocs": "doc_pointers", "admin.driftRefresh": "重新核验漂移哨兵",
 
   },
   en: {
@@ -300,6 +302,8 @@ export const I18N = {
     "session.emptyChip2": "Run the test suite and report failures",
     "session.emptyChip3": "Review the diff and flag regressions",
     "session.emptyChip4": "Open the manual — all thirteen chapters", "session.emptyChip5": "Open the world map — 91 real coordinates to tap",
+    "admin.driftKicker": "Drift sentinel · the repo proves itself", "admin.driftHead": "fact pack ≡ HEAD", "admin.driftCrlf": "CRLF pins",
+    "admin.driftDocs": "doc_pointers", "admin.driftRefresh": "re-verify the drift sentinel",
 
   },
 };

@@ -993,6 +993,27 @@ def test_get_oracle_brief_never_500s(live: _LiveServer, monkeypatch) -> None:
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_get_admin_drift_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1160: the drift sentinel route is entered by the HTTP suite too —
+    # the seam stub yields the honest failure payload, the route must still answer.
+    import minicc.admin_drift as ad_mod
+
+    monkeypatch.setattr(ad_mod, "build_workspace_drift", lambda **kwargs: {
+        "live": False,
+        "error": "RuntimeError: git rev-parse failed: not a git repository",
+        "generated_at": "2026-11-17T00:00:00Z",
+        "honest_limits": ["full test suite not run here; CI is the authority on the suite"],
+    })
+    status, _, body = _request(f"{live.url}/api/admin/drift", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert "error" in payload
+    assert "sk-" not in body.decode("utf-8", "replace")
+    fresh = _request(f"{live.url}/api/admin/drift?fresh=1", method="GET")
+    assert fresh[0] == 200
+
+
 def test_get_mcp_surfaces_malformed_config_as_error_not_500(tmp_path: Path) -> None:
     # M8-T138 (M5-4 recheck): the service loads .minicc/mcp.json at
     # construction (web.py _set_current_mcp), so a broken file must be

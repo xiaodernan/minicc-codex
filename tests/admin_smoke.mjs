@@ -132,6 +132,23 @@ async function checkMode(locale, expectCjk) {
   assert.ok(retrospectiveText.trim().length > 0, "retrospective tile must carry either a live retrospective or the honest outage line");
   assert.ok(!/^admin\./.test(retrospectiveText.trim()), "retrospective body must never read as an unresolved i18n key");
 
+  // drift sentinel: after unlock, the tile must carry measured numbers, never em-dashes
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminDriftHead");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return text.length > 0 && text !== "—";
+  }, null, { timeout: 60000 });
+  const driftHead = await page.locator("#adminDriftHead").innerText();
+  assert.ok(
+    /同步|synced|领先|ahead|落后|≡|≠/.test(driftHead),
+    "drift head cell must show the real sync verdict, got: " + driftHead,
+  );
+  const driftCrlf = await page.locator("#adminDriftCrlf").innerText();
+  assert.match(driftCrlf, /[0-9]/, "CRLF cell must show real byte counts");
+  const driftDocs = await page.locator("#adminDriftDocs").innerText();
+  assert.match(driftDocs, /rc=/, "doc_pointers cell must show its exit code");
+
   const briefUsage = await page.locator("#adminBriefUsage").innerText();
   // when the model answered, the usage footer must carry the token accounting;
   // when the wire is down the footer carries the error instead

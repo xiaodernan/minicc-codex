@@ -700,6 +700,22 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/permissions":
             self._json(self.server.service.permissions_status())
             return
+        if path == "/api/admin/drift":
+            # M8-T1160: the drift sentinel — a model-free oracle for repo
+            # self-consistency (HEAD vs fact pack, CRLF pins, doc_pointers --check).
+            # ?fresh=1 bypasses the 10-minute memo. Never raises.
+            try:
+                from .admin_drift import build_workspace_drift
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_workspace_drift(workspace=self.server.service.workspace, force_refresh=fresh))
+            except Exception as exc:  # noqa: BLE001 - the tile must never 500
+                self._json({
+                    "live": False,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }, 200)
+            return
         if path == "/favicon.ico":
             self._serve_static("/favicon.svg")
             return

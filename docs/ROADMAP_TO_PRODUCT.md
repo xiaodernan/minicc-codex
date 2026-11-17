@@ -54547,3 +54547,18 @@ PR #1（`dev/minicc-reliability-4ba3`，head `c281903`，2026-11-02→11-07）�
 - 首轮 22 红中的其余 19 条未在本批确认归因（跑测时树正在被连续编辑）；**新全量正在跑**，红了再修，修了再算。
 - CI 两腿这一刻仍在跑；不把它写成绿。
 - Atlas 的帐：91 = 18 面板 + 54 年鉴卫星 + 19 说明书卫星。
+## 批次 1110 · M8-T1160: 管理面板「漂移哨兵 / Drift Sentinel」—— 第一个 model-free 磁贴
+
+### 做了什么
+
+- **新端点 `GET /api/admin/drift`**：`minicc/admin_drift.py`（`git rev-parse --short HEAD` / `docs/latest.json` head / `git rev-list --count pack..HEAD` / `web/index.html` 与 `web/src/core/i18n.js` 的 CRLF 字节契约 / `scripts/doc_pointers.py --check` 实跑）。HTTP 层 `minicc/webserver.py` 提供 `?fresh=1`（越过 10 分钟 memo）。honest_limits 落定：全量套件不归本磁贴代管。
+- **管理员磁贴渲染**：三个格子（事实包≡HEAD / CRLF 钉 / doc_pointers rc）+ 尾注；refresh 按钮 `?fresh=1` 重新核验；zh/en（`admin.driftKicker/Head/Crlf/Docs/Refresh`）。
+- **admin_smoke 加三个断言**：解锁后漂移哨兵格子必须从占位符变成实测 verdict（`同步|synced|领先|ahead|≡|≠` / `[0-9]` / `rc=`）。
+
+### 漂移哨兵上岗第一小时就咬住了自己
+
+实测输出：`head_live=408538b vs fact_pack=351d444 · commits_ahead=1 · in_sync=True（设计预期：恰好一笔包自身的 lag）`；i18n.js 当时实测 **309 CRLF + 4 LF-only**——此前一次编辑悄悄把 i18n.js 写成混合行尾，CRLF 钉门会红；修复后 **313/0**，CRLF pins 双绿。
+
+### 验证
+
+route_coverage **37/37 GET · 14/14 POST**；admin_smoke 通过（含漂移哨兵三格断言）；i18n.js CRLF 313/0、index.html 751/0；claim gates 69/69；doc_pointers rc=0；CI 这一刻仍在跑。

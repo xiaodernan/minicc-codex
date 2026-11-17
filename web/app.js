@@ -1056,7 +1056,12 @@
       "session.emptyChip2": "\u8DD1\u6D4B\u8BD5\u5E76\u62A5\u544A\uFF1A\u54EA\u6302\u4E86\u3001\u4E3A\u4EC0\u4E48",
       "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669",
       "session.emptyChip4": "\u6253\u5F00\u8BF4\u660E\u4E66\uFF0C\u5341\u4E09\u7AE0\u5168\u7FFB\u5230",
-      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201491 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9"
+      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201491 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9",
+      "admin.driftKicker": "\u6F02\u79FB\u54E8\u5175 \xB7 \u4ED3\u5E93\u81EA\u8BC1",
+      "admin.driftHead": "\u4E8B\u5B9E\u5305 \u2261 HEAD",
+      "admin.driftCrlf": "CRLF \u9489",
+      "admin.driftDocs": "doc_pointers",
+      "admin.driftRefresh": "\u91CD\u65B0\u6838\u9A8C\u6F02\u79FB\u54E8\u5175"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1854,7 +1859,12 @@
       "session.emptyChip2": "Run the test suite and report failures",
       "session.emptyChip3": "Review the diff and flag regressions",
       "session.emptyChip4": "Open the manual \u2014 all thirteen chapters",
-      "session.emptyChip5": "Open the world map \u2014 91 real coordinates to tap"
+      "session.emptyChip5": "Open the world map \u2014 91 real coordinates to tap",
+      "admin.driftKicker": "Drift sentinel \xB7 the repo proves itself",
+      "admin.driftHead": "fact pack \u2261 HEAD",
+      "admin.driftCrlf": "CRLF pins",
+      "admin.driftDocs": "doc_pointers",
+      "admin.driftRefresh": "re-verify the drift sentinel"
     }
   };
   function t(key) {
@@ -7954,6 +7964,54 @@
         } catch {
         }
       });
+      function renderDrift(drift, refreshed) {
+        const headEl = $("#adminDriftHead");
+        const crlfEl = $("#adminDriftCrlf");
+        const docsEl = $("#adminDriftDocs");
+        const metaEl = $("#adminDriftMeta");
+        const stampEl = $("#adminDriftStamp");
+        if (!headEl || !crlfEl || !docsEl) return;
+        if (stampEl) stampEl.textContent = drift && drift.generated_at ? String(drift.generated_at).replace("T", " ").replace("Z", " UTC") : "";
+        if (!drift || !drift.live) {
+          [headEl, crlfEl, docsEl].forEach((el) => {
+            el.textContent = "\u2014";
+            el.classList.remove("ok", "bad");
+          });
+          if (metaEl) metaEl.textContent = drift?.error ? `error: ${String(drift.error).slice(0, 160)}` : "";
+          return;
+        }
+        const ahead = Number(drift.commits_ahead ?? -1);
+        headEl.textContent = zh8() ? drift.in_sync ? `${drift.head_live} \xB7 \u540C\u6B65\uFF08\u4E8B\u5B9E\u5305\u9886\u5148 ${ahead} \u4E2A\uFF09` : `${drift.head_live} \xB7 \u9886\u5148\u4E8B\u5B9E\u5305 ${ahead} \u4E2A\uFF08fact ${drift.fact_pack?.head}\uFF09` : drift.in_sync ? `${drift.head_live} \xB7 synced (pack +${ahead})` : `${drift.head_live} \xB7 ${ahead} ahead of fact pack (${drift.fact_pack?.head})`;
+        headEl.classList.toggle("ok", Boolean(drift.in_sync));
+        headEl.classList.toggle("bad", !drift.in_sync);
+        const idx = drift.crlf_pins?.index_html;
+        const i18n = drift.crlf_pins?.i18n_js;
+        crlfEl.textContent = drift.crlf_ok ? `\u2713 ${idx?.crlf}/0 \xB7 ${i18n?.crlf}/0` : `\u2717 ${idx?.crlf}/${idx?.lf_only} \xB7 ${i18n?.crlf}/${i18n?.lf_only}`;
+        crlfEl.classList.toggle("ok", Boolean(drift.crlf_ok));
+        crlfEl.classList.toggle("bad", !drift.crlf_ok);
+        const doc = drift.doc_pointers || {};
+        docsEl.textContent = doc.ok ? "rc=0 \u2713" : `rc=${doc.rc}`;
+        docsEl.classList.toggle("ok", Boolean(doc.ok));
+        docsEl.classList.toggle("bad", !doc.ok);
+        if (metaEl) {
+          const limit = (drift.honest_limits?.[0] ?? "").replace(/\s+/g, " ");
+          metaEl.textContent = `${refreshed ? zh8() ? "\u5DF2\u91CD\u65B0\u6838\u9A8C \xB7 " : "re-verified \xB7 " : ""}${limit}`;
+        }
+      }
+      const driftPromise = requestJson("/api/admin/drift", {}, 6e4).catch(() => null);
+      driftPromise.then((drift) => {
+        try {
+          renderDrift(drift, false);
+        } catch {
+        }
+      });
+      const driftRefresh = $("#adminDriftRefresh");
+      if (driftRefresh) {
+        driftRefresh.addEventListener("click", () => {
+          requestJson("/api/admin/drift?fresh=1", {}, 9e4).then((drift) => renderDrift(drift, true)).catch(() => {
+          });
+        });
+      }
       function renderBrief(brief, refreshed) {
         const bodyEl = $("#adminBriefBody");
         const usageEl = $("#adminBriefUsage");

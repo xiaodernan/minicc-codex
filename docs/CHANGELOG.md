@@ -577,3 +577,6 @@
   **en-CJK 门的一个豁免（不是弱化）**：`#sessionTitle`/`#sessionSubtitle` 是用户自己的 resume-latest 会话标题（本仓库自身的中文 benchmark 会话名），数据不是装饰——加入既有 EXEMPT 列表（与 commit subjects / archive titles 同族）；en_cjk_smoke 连跑 3/3 全绿。
 
   **验证**：claim gates 69/69；doc_pointers rc=0；CRLF 无动；`git show` 本批除 almanac/web 与上述三个测试/清单外无产品字节。
+- **管理面板「漂移哨兵 · 仓库自证 / Drift Sentinel」——第一个 model-free 管理员磁贴（M8-T1160 / 批次 1110）**：其他磁贴全问模型；这个直接问机器。`GET /api/admin/drift`（`?fresh=1` 可越过 10 分钟 memo）返回三项实测：① **HEAD vs 事实包**——`git rev-parse --short HEAD` vs `docs/latest.json` 的 `head`，外加 `git rev-list --count pack..HEAD`（`commits_ahead`）。事实包由 push 触发的 workflow 在 source commit **之后**生成，所以 `ahead ≤ 1` 是正常态（一个就是包自身的那一笔）；`ahead > 1` 才算漂移。首轮实测：`408538b vs 351d444 · commits_ahead=1 · in_sync=True`（正常）。② **两枚 CRLF 钉**——`web/index.html` / `web/src/core/i18n.js` 各自的 CRLF 字节计数与 LF-only 数；实测 i18n.js 此前被本批之前的一次编辑悄悄写成了 **309 CRLF + 4 LF-only**（CRLF 钉门会红）——本磁贴当场咬住，修复后 313/0。③ **`scripts/doc_pointers.py --check` 实跑 rc**（60–90s 超时、`?fresh=1` 强制重验）。**如实边界写在磁贴尾注**：全量测试套件本磁贴不跑、CI 才是套件权威；`in_sync` 容忍恰好一笔事实包自身的提交。
+
+    磁贴已落地（index.html 新增 admin-drift 卡片 + `web/styles.css` 新样式 + `admin.js` 渲染函数与 refresh 按钮 + i18n zh/en 五个 `admin.drift*` 键）；**admin_smoke 现在同时断言三个格子都落实测数字**（head 文案 / CRLF 字节 / `rc=`）。route_coverage **37/37 GET · 14/14 POST**；CRLF pins index.html **751/0**、i18n.js **313/0**；CI 这一刻仍在跑。

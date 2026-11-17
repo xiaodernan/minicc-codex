@@ -568,6 +568,16 @@
             <p class="admin-brief-usage" id="adminRetrospectiveUsage"></p>
         </section>
 
+        <section class="admin-card admin-drift" aria-label="drift sentinel">
+            <div class="admin-card-kicker"><i data-lucide="shield-check"></i><span data-i18n="admin.driftKicker">漂移哨兵 · 仓库自证</span><span class="admin-brief-by" id="adminDriftStamp"></span><button class="admin-brief-refresh" id="adminDriftRefresh" type="button" aria-label="refresh drift sentinel" data-i18n-aria="admin.driftRefresh"><i data-lucide="refresh-cw"></i></button></div>
+            <div class="admin-drift-grid" id="adminDriftGrid">
+                <div class="admin-drift-cell"><span class="admin-drift-label" data-i18n="admin.driftHead">事实包 ≡ HEAD</span><strong class="admin-drift-value" id="adminDriftHead">—</strong></div>
+                <div class="admin-drift-cell"><span class="admin-drift-label" data-i18n="admin.driftCrlf">CRLF 钉</span><strong class="admin-drift-value" id="adminDriftCrlf">—</strong></div>
+                <div class="admin-drift-cell"><span class="admin-drift-label" data-i18n="admin.driftDocs">doc_pointers</span><strong class="admin-drift-value" id="adminDriftDocs">—</strong></div>
+            </div>
+            <p class="admin-brief-usage" id="adminDriftMeta"></p>
+        </section>
+
         <div class="admin-duo">
             <section class="admin-card" aria-label="tool usage">
               <div class="admin-card-kicker"><i data-lucide="wrench"></i><span data-i18n="admin.toolUsage">常用工具分布 · 真实事件</span></div>
