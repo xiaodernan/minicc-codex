@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T04:16:11.881Z",
+  "generated_at": "2026-11-17T04:33:01.379Z",
   "branch": "main",
-  "head": "dbbbe15",
-  "total_commits": 1835,
+  "head": "a6935ee",
+  "total_commits": 1837,
   "recent_commits": [
+    {
+      "short": "a6935ee",
+      "at": "2026-11-17T12:32:11+08:00",
+      "subject": "M8-T1133: the engine speaks two tongues - every user-visible engine string is wired to the two-table cli_io (stream progress/gateway fallback in openai_provider"
+    },
+    {
+      "short": "d9f736c",
+      "at": "2026-11-17T04:16:12Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "dbbbe15",
       "at": "2026-11-17T12:15:47+08:00",
@@ -19,22 +29,12 @@
       "short": "3e8d803",
       "at": "2026-11-17T12:05:54+08:00",
       "subject": "M8-T1131: bilingual CLI part 2 - argparse description + all 39 help= strings, the 25 authorization decision reasons in audit.py, doctor's four advice lines and "
-    },
-    {
-      "short": "8bfad7e",
-      "at": "2026-11-17T03:55:40Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4c02fff",
-      "at": "2026-11-17T11:54:48+08:00",
-      "subject": "M8-T1130: bilingual CLI part 1 - the backup line's two-table cli_io lands in main with MINICC_LOCALE=zh_cn|en_us, tr() fallback never raises, and all 43 interac"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 435,
+  "roadmap_batches": 436,
   "changelog_entries": 1,
-  "roadmap_lines": 54517,
+  "roadmap_lines": 54531,
   "tracked_files": 1113,
   "test_files": 733,
   "almanac_chapters": 53,
