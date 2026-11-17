@@ -107,14 +107,17 @@ def _crlf_pin(path: Path) -> dict[str, Any]:
 
 
 def _doc_pointers(workspace: Path) -> dict[str, Any]:
-    proc = subprocess.run(
-        [sys.executable, "scripts/doc_pointers.py", "--check"],
-        cwd=str(workspace),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=_CHECK_TIMEOUT_SECONDS,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "scripts/doc_pointers.py", "--check"],
+            cwd=str(workspace),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=_CHECK_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"rc": 124, "ok": False, "tail": f"doc_pointers --check timed out after {_CHECK_TIMEOUT_SECONDS}s"}
     out = proc.stdout.decode("utf-8", errors="replace")
     lines = [line for line in out.splitlines() if line.strip()]
     tail = lines[-1][:400] if lines else ""
