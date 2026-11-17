@@ -54393,3 +54393,16 @@ M8-T1116 的 scandir walker 违反了本仓库 `test_resource_hygiene.py` 的第
 - **GET `/api/oracle-retrospective`**：永远 200（stub-seam tested）。
 - **Admin tile**：第六 model tile（history · refresh）。
 - **测试**：**4/4**（snapshot 没有敏感数据——不见 diff/home/env；memo 二回合免调用；真实 endpoint 被 http_surface 路由封闭）；route_coverage 36/36 GET + 14/14 POST B；CRLF pins 723→741 pure CRLF；smoke 新增 i18n-fallback guard。
+## 批次 1102 · M8-T1127: 年鉴第五十二章「第十二家灯 / The Twelfth Light」—— Atlas 90
+
+### 目的
+
+把"今晚又红了然后修成绿色"这件事写成一卷——model 自己的一卷。
+
+### 做了什么
+
+- **`web/src/panels/almanac.js`**：新增 `twelfthlightMarkup()` + CHAPTERS「第五十二章·第十二家灯」；instruments grid Atlas 90 / Volumes 53/53 / pushes today 54；CHAPTER_RENDERERS 注册。
+- **Atlas 89 → 90 coordinates**：almanac satellites 52→53；`atlas_smoke` 90；`index.html` 711/0；`i18n.js` 309/0。
+- **onboarding / Manual / README**：Almanac 全量计数 53 Halls、90 坐标、年鉴（53 卷）；README 加 The Twelfth Light 领衔。
+- **`docs/CHAPTER_DRAFT.md`**：本卷由模型现役写出，archive 入 docs/；`prompt_cache_key=minicc-chapter-liii-twelfth-light-01`；cached_tokens=4,224（共享前缀第七次现身）；CI in progress 如实记录。
+- **验证**：`almanac_smoke` 53 chapters 双语 / `atlas_smoke` 90-coordinate / manual_smoke 19 / stategraph_smoke / parity / dazzle / admin；claim gates 88/88。

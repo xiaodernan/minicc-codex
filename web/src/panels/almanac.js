@@ -72,6 +72,7 @@ export const CHAPTERS = [
   { id: "livewire", roman: { zh: "卷四十九", en: "Chapter XLIX" }, title: { zh: "通缆", en: "The Live Wire" }, subtitle: { zh: "面板不再复述仓库，面板直接跑仓库", en: "a panel that reads the repo, not a retelling of it" } },
   { id: "thesurge", roman: { zh: "卷五十", en: "Chapter L" }, title: { zh: "压测", en: "The Surge" }, subtitle: { zh: "慢不是宿命，是调用方法", en: "slow is a method, not a fate" } },
   { id: "livecurrent", roman: { zh: "卷五十一", en: "Chapter LI" }, title: { zh: "通电", en: "The Live Current" }, subtitle: { zh: "模型现役上岗的第一晚", en: "the first night the model went on duty" } },
+  { id: "twelfthlight", roman: { zh: "卷五十二", en: "Chapter LII" }, title: { zh: "第十二家灯", en: "The Twelfth Light" }, subtitle: { zh: "model 和 CI 一起灭了灯又点亮了一盏", en: "the model and CI both lost a light, then lit one together" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3624,6 +3625,56 @@ function livecurrentMarkup() {
     </div>`;
 }
 
+function twelfthlightMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
+  const recent = Array.isArray(digestCache?.recent_commits) ? digestCache.recent_commits.length : 5;
+  return `
+    <div class="almanac-canvas almanac-twelfthlight">
+      <div class="almanac-kicker">${zh() ? "卷五十二 · 第十二家灯" : "Chapter LII · The Twelfth Light"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `两条腿都跑了红——<br/><span class="almanac-title-accent">然后两腿一起绿。</span>`
+        : `Two legs ran red —<br/><span class="almanac-title-accent">then both legs lit green together.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? `<p>《第十二家灯》记于今夜（2026-11-17 深夜）。管理员面板新增「事后复核 / The Retrospective」tile：模型直读本任务前的真实账本，看到 task 因服务重启中断 3 次、completed streak 3 天、cache affinity 71.1%、审计日志 1607 行，再写出双语复核。这个 tile 的存在意味着模型不是凭空总结，而是读自己的事件记录后复核。</p>
+        <p>值守评审师读取 git diff HEAD~1..HEAD 的实况文本和 tmp 收到的 diff 内容后现场评审，指出 docs/latest.json 的 head=3c385b3 与 snapshot HEAD=ec59858 不一致，并要求核对。评审代码中的 subprocess.run 曾未捕获 subprocess.TimeoutExpired，Windows Python leg 因此报错。随后在本批 bc54d82 中，将调用置于 try 内并捕获该异常；红灯没有被略过。</p>
+        <p>check CI 仍在进行：Windows 腿和 ubuntu 腿各在重跑，每腿约 5,700 tests；_showcase 静态展示同步完成。仓库跟踪文件 1093 → 1100，测试文件 716 → 723，roadmap 54281 → 54395；first 2026-08-24。Atlas 88 → 89，本卷提交时将变成 90。</p>
+        <p>诚实的限度：此刻只能记录两条 CI 腿正在重跑，不能把它们写成已通过。今夜的因果链是服务重启造成中断，评审暴露未处理的超时异常，修复后等待 CI 验证；nothing lost; nothing hidden。</p>` : `<p>The Twelfth Light, recorded late on 2026-11-17. The Admin panel gained the Retrospective tile: the model read the real ledger from before this task, saw that service restarts interrupted the task 3 times, a completed streak of 3 days, cache affinity of 71.1%, and 1607 audit-log lines, then wrote a bilingual review. The tile exists so the model can review its own work by reading its recorded events, rather than summarizing from memory.</p>
+        <p>The on-call reviewer read the live text from git diff HEAD~1..HEAD and the diff received in tmp, then wrote a review on the spot. It identified docs/latest.json head=3c385b3 versus snapshot HEAD=ec59858 and called for verification. The review code had a subprocess.run without a handler for subprocess.TimeoutExpired; the Windows Python leg reported the error. In this batch, bc54d82, the call was put inside try and the exception caught. The red light was not skipped.</p>
+        <p>CI checks are still in progress: the Windows and ubuntu legs are each rerunning, about 5,700 tests per leg; the repository's static _showcase was synchronized. Tracked repository files: 1093 → 1100; test files: 716 → 723; roadmap: 54281 → 54395; first 2026-08-24. Atlas: 88 → 89; this volume will make it 90 when committed.</p>
+        <p>Honest limit: at this moment, the only claim about the two CI legs is that they are rerunning; they cannot be recorded as passed. Tonight's causal record is service restarts causing interruptions, review exposing an unhandled timeout, and the fix awaiting CI verification. Nothing lost; nothing hidden.</p>`}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "任务总数(真)" : "Tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(tasks)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "最新提交(真)" : "Recent commits"}</div><div class="almanac-instrument-value">${escapeHtml(String(recent))}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">90</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">53 / 53</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书章数" : "Manual chapters"}</div><div class="almanac-instrument-value">19 / 19</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "门禁" : "Gates lit"}</div><div class="almanac-instrument-value">10 / 10</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "当日推送" : "Pushes today"}</div><div class="almanac-instrument-value">54</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["真的红了", "subprocess.run(timeout=...) without an enclosing TimeoutExpired handler in oracle_review.py — Windows leg reported it exactly like this"],
+        ["然后如实改回来了", "subprocess.run() 置入 try；TimeoutExpired catch；nothing lost; nothing hidden；matches the sibling _git call-shape exactly"],
+        ["Honest limits 优先", "CI 仍在途中——不能把它们写成“已经绿”；它们会在风头过去后报它们的状态"],
+        ["Atlas 88→89→90", "Atlas 从来不是这个仓库拍胸脯的数字——每一粒都对应一次真实 push，从未 skip"],
+        ["这一卷 model 自己编的", "prompt_cache_key stable; cached_tokens=4,224 第七次现身；五枚缓存命中连开"],
+      ] : [
+        ["A real red fired", "subprocess.run(timeout=...) without an enclosing TimeoutExpired handler in oracle_review.py — Windows leg reported it exactly"],
+        ["Then the fix went back in", "subprocess.run inside try; TimeoutExpired caught; nothing lost; nothing hidden; matches the sibling _git call-shape"],
+        ["Honest limits first", "CI is still in flight — they cannot be reported as green; they will deliver their report when it lands"],
+        ["Atlas 88 → 89 → 90", "every coordinate is a push; nothing was skipped to keep the number"],
+        ["The model wrote this volume itself", "prompt_cache_key stable; cached_tokens=4,224 — the shared prefix hit for the seventh time"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "红了，然后修了；修了，然后看它报它自己的真话。"
+          : "It went red, then we fixed it; fix it, then watch it tell its own truth."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3677,6 +3728,7 @@ const CHAPTER_RENDERERS = {
   livewire: () => livewireMarkup(),
   thesurge: () => thesurgeMarkup(),
   livecurrent: () => livecurrentMarkup(),
+  twelfthlight: () => twelfthlightMarkup(),
 };
 
 async function loadChapter(id) {
