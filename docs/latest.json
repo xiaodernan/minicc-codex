@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T04:33:01.379Z",
+  "generated_at": "2026-11-17T05:17:15.253Z",
   "branch": "main",
-  "head": "a6935ee",
-  "total_commits": 1837,
+  "head": "27960ed",
+  "total_commits": 1839,
   "recent_commits": [
+    {
+      "short": "27960ed",
+      "at": "2026-11-17T13:16:37+08:00",
+      "subject": "M8-T1134: the model's third self-authored chapter - almanac Ch.LIV 'The Reckoning / 并账' (the night the repo was byte-audited: PR #1 closed as superseded with fi"
+    },
+    {
+      "short": "01f8a90",
+      "at": "2026-11-17T04:33:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a6935ee",
       "at": "2026-11-17T12:32:11+08:00",
@@ -19,16 +29,6 @@
       "short": "dbbbe15",
       "at": "2026-11-17T12:15:47+08:00",
       "subject": "M8-T1132: the ratchet bottoms out - every one of the 32 remaining unwired keys is judged (13 wired to their live call sites: session.py fork/rewind/session-form"
-    },
-    {
-      "short": "fdb5893",
-      "at": "2026-11-17T04:06:47Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3e8d803",
-      "at": "2026-11-17T12:05:54+08:00",
-      "subject": "M8-T1131: bilingual CLI part 2 - argparse description + all 39 help= strings, the 25 authorization decision reasons in audit.py, doctor's four advice lines and "
     }
   ],
   "first_commit_at": "2026-08-24",
@@ -37,7 +37,7 @@
   "roadmap_lines": 54531,
   "tracked_files": 1113,
   "test_files": 733,
-  "almanac_chapters": 53,
+  "almanac_chapters": 54,
   "module_count": 14,
   "feature_surface": [
     "workbench",
