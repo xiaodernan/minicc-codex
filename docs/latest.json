@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T19:12:20.809Z",
+  "generated_at": "2026-11-18T19:39:12.629Z",
   "branch": "main",
-  "head": "182c9e1",
-  "total_commits": 1988,
+  "head": "f53a2b6",
+  "total_commits": 1990,
   "recent_commits": [
+    {
+      "short": "f53a2b66",
+      "at": "2026-11-19T03:38:32+08:00",
+      "subject": "almanac: Ch.LXII On Its Own Scale - forged entirely from auto-assembled repo facts (forge-facts, M8-T1235): terra flapped 404 all evening, forge ran on gpt-6.1-"
+    },
+    {
+      "short": "f8d1782c",
+      "at": "2026-11-18T19:12:21Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "182c9e18",
       "at": "2026-11-19T03:10:26+08:00",
@@ -19,16 +29,6 @@
       "short": "e48f5454",
       "at": "2026-11-19T02:49:36+08:00",
       "subject": "almanac: Ch.LXI The Parallel Wind - forged by the live StateGraph pipeline (M8-T1234): intake/draft/verify/ledger on minicc.agent.graph; gpt-6.1-terra still sus"
-    },
-    {
-      "short": "062aa657",
-      "at": "2026-11-19T02:49:36+08:00",
-      "subject": "forge: StateGraph-driven almanac generator (M8-T1234) - intake/draft/verify/repair(bond 2)/ledger on minicc.agent.graph; model via oracle_common.call_model with"
-    },
-    {
-      "short": "6dde3072",
-      "at": "2026-11-18T18:11:02Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
@@ -37,7 +37,7 @@
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 61,
+  "almanac_chapters": 62,
   "module_count": 14,
   "feature_surface": [
     "workbench",
