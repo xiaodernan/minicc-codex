@@ -266,3 +266,14 @@ responses 协议重跑同一新 key：与 `measure_cache_affinity.py` 同条件�
 **诚实边界**：上述数字仅代表本 lane / 本前缀 / 本日；换账号或换前缀分布后要重新实测。`.env` 中 `MINICC_MODEL=gpt-6.1-terra` 已切换；旧 `gpt-6.1-sol` 停用，不再作为默认。
 **补测（M8-T1221，当晚）**：验证实验室改指 `sys.executable` 后重跑 v2-fix-add（新 key · gpt-6.1-terra · reasoning max）——`passed=true · repair_attempts=0 · 109s · 120,599 tokens · prompt_cache_hit_tokens=84,096（71.7%）· reviewer_false_negative_count=0 · pass@1=1.0`（修复前：241s · repair_attempts=2 · pass@1=0.0 · reviewer_fn=1）。
 **补测（M8-T1225，当晚）**：README excerpt 进入 prefix 后（13,295 bytes）新 key · terra · chat/completions 实测——A 会话族键 call 1 冷 / call 2..6 恒定 8,362/8,566（**97.6%**）；B lane 键同档；C 随机键 call 1 也命中 8,362（**97.6%**）——本仓库前缀现已成为所有 lane 共享的 headline block（从 4,166 涨到 8,362）。
+
+## 2026-11-18 晚 · 新 key 150 s 实锤 + 后续 10 次序列测量（M8-T1229 / M8-T1230 旁证）
+
+2026-11-18 傍晚换用新 lane key 后，`/v1/models` 仍 7 项、terra 200 正常，首 call 随后两次 warm 全命（8,362 / 8,566 = **97.6%**；call-1 cold ~72%）。而 150 秒空闲后 call-3 **归零**（cache_key 不变）。也就是说旧的 220 s keeper 间隔从未护上——水冷 `shard-~1,500` 过窗口 `TTL ≤150s`；现已保留 60 s 默认值并以本段测量为据。
+
+后续 10 次序列调用：call-1 cold（0%），call-2 至 call-10 几乎全命（8,362/8,566=97.6%），只有 call-9（在 26s 长 tail 之后）出现一次完整 cold（0%）——这孤例需要注意，但整条序列的全局 hit 权重 ≈ 8/10 ≈ 80%。
+
+诚实结论：
+- 旧的 `cache keeper 220s` **从未**在本 lane 上护过住 shard；真的 `minicc-<sha256(family)[:16]>` 仅保 97.6% 连续 hit；
+- 60s keeper 的设计：间隔足够细，能跨过网关 shard TTL + 短窗口再家热；
+- 命中率 ≠ 100% —— 只要 system prompt 一样就必然 97.6%，但 1 次 anti-cache 了（call-9）说明网关仍然会按 shard hash 轮换；蜂窝稳定轨迹线已经在 commit 中作为 `cache_keeper status` 外显（warms=2 · last_cached_tokens=4,940 · interval=60）。
