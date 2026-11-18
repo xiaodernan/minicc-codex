@@ -756,3 +756,7 @@
   - README：Atlas 行 96/58/20、年鉴（58 卷）、年鉴列表尾追加 The Two Shards 存证段、说明书行「二十章小册子」并补全十二～二十章；INDEX.md 新增 Ch.LVIII 存证条目（明写人手写定稿、非模型生成）；
   - 历史段落有意原样保留：绿线卷的 “Atlas 94” tile、Meridian 的 M8-T1020 里程碑句、早期卷的座标 FIFO（54…59）；
   - battery **16/16 绿**；en 侧零 CJK；未新增 i18n 键；未改 CRLF 钉。
+- **M8-T1217：almanac Ch.LVIII《双峰 / The Two Shards》en 侧 CJK 泄漏——en_cjk 门抓获，当场修（本批由本地 smoke 触发，CI 未走到两腿就先摁住）**：
+  - LEDGER_EN 里原样抄入中文小节名《2026-11-18 尾 · sol 新 lane 上「光锥模式」现象》，en 模式 zero-CJK 承诺被自己打破；改为 `under the late-2026-11-18 sol-lane entry`；
+  - LEDGER_ZH 一处乱码残迹「te届固有」改为「两峰是上游 sharding 的固有行为——本卷只负责把它记下来」；
+  - 本地复验：`almanac_smoke` 58 chapters 全双语零 CJK；`manual_smoke` 20 chapters；`atlas_smoke` 96 coordinates；未放松任何门；en_cjk parity 完整。

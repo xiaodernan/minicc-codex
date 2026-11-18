@@ -55556,3 +55556,29 @@ HTTP 404 {"error":{"message":"Model \"gpt-6.1-terra\" is not supported by any co
 - 《双峰》正文里的数字**全部来自本 lane 本日实测**；换账号/换网关/换 shard，这些数字不会自动成立。
 - en 侧有意不归责：「Neither minicc nor any model caused this; it is upstream sharding.」
 - 测试只证明「渲染得出来 + 双语 + 零 CJK + 页内报错为 0」，不证明 sol 优于 terra。
+## 批次 1157 · M8-T1217: 《双峰》en 侧 CJK 泄漏——en_cjk 门当场抓到，当场修
+
+### 事故
+
+M8-T1216 的 almanac Ch.LVIII《双峰》英文正文里抄了一段中文小节名
+（`CACHE_AFFINITY_MATRIX.md` 里的「2026-11-18 尾 · sol 新 lane 上「光锥模式」现象」），
+中英混排直接破了 en 模式 zero-CJK 的硬承诺。`tests/almanac_smoke.mjs` 本地复现：
+
+```
+en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SHARDS ...
+```
+
+同批还发现 zh 正文里一处机器生成的乱码组合「te届固有」（zh 能出现，但纯粹是胡话）。
+
+### 修了什么
+
+1. `web/src/panels/almanac.js`：
+   - LEDGER_EN：`§<strong>2026-11-18 尾 · sol 新 lane 上</strong>` → `under the late-2026-11-18 sol-lane entry`；
+   - LEDGER_ZH：「本 lane 不黑，te届固有。」→「本 lane 不必归责，两峰是上游 sharding 的固有行为——本卷只负责把它记下来。」
+2. 本地重跑：`almanac_smoke` **58/58** 双语零 CJK；`manual_smoke` **20**；`atlas_smoke` **96 坐标**。
+3. 未改动 en 的任何其它章节、未放松 en_cjk 门、未动任何 CRLF 钉。
+
+### 诚实边界
+
+- 这是一道被 en_cjk 门"当回一脚"的批次：1216 的 CI 还在排队时我本地先跑现场验了，抓到就修，不等 red 到 main。
+- 中文小节名原样保留在 zh 侧——zh 允许的东西不能被 en 便宜了它，这就是 parity。
