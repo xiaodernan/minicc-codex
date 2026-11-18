@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T12:49:59.420Z",
+  "generated_at": "2026-11-18T12:56:20.927Z",
   "branch": "main",
-  "head": "b48a016",
-  "total_commits": 1954,
+  "head": "247fee1",
+  "total_commits": 1956,
   "recent_commits": [
+    {
+      "short": "247fee1",
+      "at": "2026-11-18T20:54:12+08:00",
+      "subject": "M8-T1221 (verification lab's fake pytest): plan hardcoded 'python -m pytest' - on this machine that resolves to system Python 3.11 WITHOUT pytest, while the obj"
+    },
+    {
+      "short": "de32e8f",
+      "at": "2026-11-18T12:49:59Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b48a016",
       "at": "2026-11-18T20:39:27+08:00",
@@ -19,22 +29,12 @@
       "short": "15204a3",
       "at": "2026-11-18T20:03:49+08:00",
       "subject": "M8-T1217 (en_cjk rescue): almanac CH.LVIII en ledger leaked a Chinese section name (CACHE_AFFINITY_MATRIX.md late-2026-11-18 entry) - local almanac_smoke caught"
-    },
-    {
-      "short": "efef2ec",
-      "at": "2026-11-18T11:51:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "97abfaf",
-      "at": "2026-11-18T19:49:07+08:00",
-      "subject": "M8-T1216: ship 2026-11-18's sol lane swap as a world volume - almanac CH.LVIII The Two Shards + manual ch.20, both bilingual (en zero CJK); Atlas follows live f"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 485,
+  "roadmap_batches": 486,
   "changelog_entries": 1,
-  "roadmap_lines": 55617,
+  "roadmap_lines": 55641,
   "tracked_files": 1152,
   "test_files": 744,
   "almanac_chapters": 58,
