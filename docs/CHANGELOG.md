@@ -783,3 +783,9 @@
   - onboarding step 2（左侧控台）新增「⌘K 搜『状态图』看实时 StateGraph 路由」；step 9 卷数 57→58（zh/en 同步）；
   - 说明书「年鉴 · Almanac」行 57 卷 → 58 卷，最新卷改成 Ch.LVIII《双峰》；
   - en 侧零 CJK；未新增 i18n 键；battery 16/16。
+- **M8-T1227：年鉴卷 LIX《现在通了 / The Now Goes Through》——由 gpt-6.1-terra 现场亲笔；Atlas 全程 96 → 97，年鉴 58 → 59 卷，全部 pin 同步**：
+  - worker 单次 chat/completions：prompt 5,072 · completion 1,939 · cached 4,173（lane headline 命中，未显式 key）· temperature 0.2 · `response_format=json_object`；
+  - 内容：terra 复活、三 lane 判决反转、plan 硬编码 `python` 撞 PATH 系统 Python 的根因、M8-T1221 修复后 v2-fix-add passed / repair_attempts=0 / tokens -29% / cache 71.7% / pass@1=1.0；
+  - `onenineMarkup()` 直渲模型原文；CHAPTERS / CHAPTER_RENDERERS / almanac_smoke 注册；
+  - README / INDEX / 手册 / onboarding / i18n chips（96→97，CRLF 338/0）/ atlas_smoke / manual / Meridian 全部对账；
+  - battery 16/16；三支 smoke 全绿（atlas 97 / manual 20 / almanac 59）。

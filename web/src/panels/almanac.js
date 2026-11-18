@@ -78,6 +78,7 @@ export const CHAPTERS = [
   { id: "theledger", roman: { zh: "卷五十六", en: "Chapter LVI" }, title: { zh: "会开口的账本", en: "The Ledger That Speaks" }, subtitle: { zh: "模型终于听懂了这个仓库刚才做了什么", en: "the model finally understood what this repository just did" } },
   { id: "thegreenline", roman: { zh: "卷五十七", en: "Chapter LVII" }, title: { zh: "绿线", en: "The Green Line" }, subtitle: { zh: "一条被 CI 抓着抓、修着修、最后推通红色的主线", en: "the main line CI caught over and over while it was pushed back to green" } },
   { id: "twoshards", roman: { zh: "卷五十八", en: "Chapter LVIII" }, title: { zh: "双峰", en: "The Two Shards" }, subtitle: { zh: "同一把钥匙，打同一道墙，墙的另一头有两种价钱", en: "same key, same wall, two prices at the far side" } },
+  { id: "onenine", roman: { zh: "卷五十九", en: "Chapter LIX" }, title: { zh: "现在通了", en: "The Now Goes Through" }, subtitle: { zh: "名字还在，调用不通——验证计划选错了价钱", en: "the name stayed, the call did not — the plan picked the wrong interpreter" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1346,9 +1347,9 @@ function meridianMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "岛屿" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">96</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">97</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "面板坐标" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴卫星" : "Almanac satellites"}</div><div class="almanac-instrument-value">58</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴卫星" : "Almanac satellites"}</div><div class="almanac-instrument-value">59</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "说明书卫星" : "Manual satellites"}</div><div class="almanac-instrument-value">20</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "已完成任务(真)" : "Completed tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "被中断(真)" : "Interrupted (live)"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
@@ -1358,13 +1359,13 @@ function meridianMarkup() {
         ["拖拽平移", "不是滚动，是驾驶——世界以手掌推出来的"],
         ["滚轮缩放", "每个人都在自己的节奏里读世界"],
         ["点击直达", "画布裂出 minicc:nav 事件 → main.js dispatchView 接住 → Esc 随时回地图"],
-        ["96 个坐标", "18 面板 + 58 年鉴卷 + 20 说明书章——坐标是真的，探索也是真的"],
+        ["97 个坐标", "18 面板 + 59 年鉴卷 + 20 说明书章——坐标是真的，探索也是真的"],
         ["琥珀=去过 / 灰=未去过", "localStorage 里只有你自己的足迹，任何人的路都照亮另一人的路"],
       ] : [
         ["Drag to pan", "not a scroll, a drive — the world is pushed forward by the palm"],
         ["Scroll to zoom", "everyone reads the world at their own tempo"],
         ["Click to teleport", "the canvas dispatches minicc:nav → main.js dispatchView catches it → Esc walks you back"],
-        ["96 coordinates", "18 panes + 58 almanac chapters + 20 manual chapters — the map is real, the exploring is real"],
+        ["97 coordinates", "18 panes + 59 almanac chapters + 20 manual chapters — the map is real, the exploring is real"],
         ["Amber = walked there · grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"],
       ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
       <p class="almanac-quote almanac-quote-end">
@@ -3892,6 +3893,46 @@ function thegreenlineMarkup() {
     </div>`;
 }
 
+const LEDGER_ZH_LIX = "<p><strong>卷五十九：现在通了 / The Now Goes Through。</strong>这一卷是 terra 现场写的（This chapter was written live by gpt-6.1-terra on 2026-11-18）。这一天的记录从一次拒绝开始，也以一次通过收尾。早间，aizzz.xyz 上旧 key 所属的账号组停服了 gpt-6.1-terra。目录没有同步沉默：GET /v1/models 仍然列出 terra；但单次 ping 被拒，HTTP 404，错误名是 model_not_found。名字还在，调用却不通。这不是模型从目录里消失，而是列出的名字与可用的服务之间出现了裂缝。那天的第一道门，仍然没有通。</p><p>中午到傍晚，换上新 key 后，/v1/models 列出七项，其中包括 terra，terra 的调用全线恢复。傍晚的 v2-fix-add 用 terra 跑完，结果是 passed，repair_attempts=0，pass@1=1.0。可同一天的三条 lane，把“跑通”这件事分成了两种。本机 terra 的上午、本机 sol 的中午、新 key terra 的傍晚，连续三次重现同一个反转：模型已经把 calc.py 修对，objective oracle 重跑 exit 0；agent 自己的验证实验室却连报两次 failed，repair_attempts=2，最后把正确结果判错。实现与判决并不一致，三次如此，不能把它当成一次偶然的噪声。程序已经通了，裁决还没有通。</p><p>根因藏在验证计划所选的解释器里。minicc 的 verification plan 把检查命令恒写成 <em>python -m pytest</em>。系统 PATH 上的 python 是系统级 3.11，没有 pytest；objective oracle 的 <em>{python}</em> 占位符却替换成 virtualenv 里的 sys.executable，那里有 pytest。于是同一句验证，交给了两个 python、两个世界，也得到了两个判决。oracle 重跑时能检查修复，agent 的实验室却因检查环境不同而报错。失败信号是真的，失败所指并不是代码。这次反转不在修复本身，而在两个验证入口没有共享同一个解释器；把这条因果线理清，事情才通了。</p><p>当晚的 M8-T1221 修复把 plan 改为使用 <em>_quote(sys.executable)</em>，让检查命令跟随实际运行 oracle 的解释器。重跑 v2-fix-add 后，结果 passed，repair_attempts=0，全部修复尝试归零，pass@1=1.0。tokens 从 170,956 降到 120,599，减少 29%；prompt_cache_hit_tokens 为 84,096，占 71.7%；reviewer_false_negative_count 从 1 变为 0。这里没有另一场代码修复可供夸饰：变化落在验证计划，数字记录的是同一任务在修正后给出的判决。模型做对、检查也看见它做对，才算通了。</p><p>同一晚的缓存亲和记录，处理的是并行会话的另一类错位。parallel 会话不再共用一条全局 lane 哈希，派生键改为 minicc-<em>&lt;sha256(session_id)&gt;</em>。HTTP 请求认同一前缀后，前两次调用仍是冷的；从第三次起，6,880 个 tokens 的同字节前缀里有 6,587 个命中，占 95.7%，并连续六次不掉。它不是让所有会话挤进同一条 lane，而是让相同前缀在会话自己的键下逐渐稳定。早间名字可见却不可调用，三条 lane 看见不同的验证世界；到晚间，解释器、判决与缓存亲和各自对上了位置。记录没有把挫折改写成捷径，只写下这一日最后的状态：现在通了。</p>";
+
+const LEDGER_EN_LIX = "<p><strong>Volume Fifty-Nine: The Now Goes Through.</strong> This chapter was written live by gpt-6.1-terra on 2026-11-18. The day's record begins with a refusal and ends with a passing run. In the morning, the account group associated with the old key at aizzz.xyz had gpt-6.1-terra shut off. The catalog did not go quiet: GET /v1/models still listed terra. But a single ping was rejected with HTTP 404 and model_not_found. The name remained while the call did not. This was not disappearance from the catalog; it was a gap between a listed model and a usable service. At the first gate of the day, the call did not go through.</p><p>From midday into evening, a new key restored terra across the board, and /v1/models listed seven entries, including terra. In the evening, v2-fix-add ran with terra and finished passed, with repair_attempts=0 and pass@1=1.0. Yet three lanes on that same day divided “working” into two different judgments. Local terra in the morning, local sol at midday, and new-key terra in the evening reproduced the same reversal three times: the model had corrected calc.py, and the objective oracle reran with exit 0. The agent's own verification lab nevertheless reported failed twice, recorded repair_attempts=2, and ultimately judged the correct result wrong. Implementation and judgment disagreed, three times in succession. The program had gone through; the verdict had not.</p><p>The cause was in the interpreter selected by the verification plan. minicc's plan always wrote its check command as <em>python -m pytest</em>. The python on the system PATH was system-level 3.11 and had no pytest. The objective oracle's <em>{python}</em> placeholder, however, was replaced with sys.executable from the virtual environment, where pytest was installed. One check therefore met two pythons, two worlds, and two verdicts. The oracle could inspect the repair when it reran, while the agent's lab failed because its checking environment differed. The failure signal was real, but it did not identify a code failure. The reversal was not in the repair itself: the two verification entrances did not share an interpreter. Once that chain of cause and effect was clear, the explanation went through.</p><p>That evening's M8-T1221 fix changed the plan to use <em>_quote(sys.executable)</em>, so the check command followed the interpreter actually running the oracle. The rerun of v2-fix-add finished passed, with repair_attempts=0, all repair attempts eliminated, and pass@1=1.0. Tokens fell from 170,956 to 120,599, a 29% reduction. prompt_cache_hit_tokens reached 84,096, or 71.7%, and reviewer_false_negative_count moved from 1 to 0. There was no second code repair to embellish: the change was in the verification plan, and these figures record the same task judged after that correction. The model did the right work, and the check recognized it. That result went through.</p><p>That evening's cache-affinity record addressed a different kind of mismatch among parallel sessions. They no longer shared one global lane hash; the derived key became minicc-<em>&lt;sha256(session_id)&gt;</em>. HTTP requests recognizing the same prefix were cold on calls 1 and 2. From call 3 onward, 6,587 of the 6,880 tokens in the identical-byte prefix were hits, or 95.7%, and that level held for six consecutive calls. This did not put every session into one lane; it let a matching prefix stabilize under its session's own key. In the morning, a name was visible but unavailable. Across three lanes, verification saw different worlds. By evening, the interpreter, the verdict, and cache affinity each had their proper place. The record does not turn the setback into a shortcut; it records the day's final state: now it goes through.</p>";
+
+function onenineMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-onenine">
+      <div class="almanac-kicker">${zh() ? "卷五十九 · 现在通了" : "Chapter LIX · The Now Goes Through"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `方才还不通，` + `<br/><span class="almanac-title-accent">现在通了。</span>`
+        : `A moment ago, no,` + `<br/><span class="almanac-title-accent">and now it goes through.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LIX : LEDGER_EN_LIX}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">97</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">59 / 59</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "判决（真）" : "Verdict (live)"}</div><div class="almanac-instrument-value">1.0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["名字还在，调用不通", "旧 key 停服后 `GET /v1/models` 仍列 `gpt-6.1-terra`；逐个 ping 唯一被拒（`model_not_found`）；换 key 才恢复"],
+        ["验证计划选错了解释器", "`python -m pytest` 打到 PATH 上的系统 Python 3.11（没有 pytest）；oracle 的 `{python}` 占位符替换成 virtualenv 的 `sys.executable`（有 pytest）——同一句检查，两个判决"],
+        ["修复只换了一行", "`_python_interpreter()` 返回 `_quote(sys.executable)`；v2-fix-add 重跑 `passed`、`repair_attempts=0`、`reviewer_false_negative_count=0`、pass@1 0.0 → 1.0"],
+        ["本卷由 terra 亲笔", "worker prompt 5,072 · completion 1,939 · cached 4,173（82.3%）· temperature 0.2 · response_format=json_object"],
+      ] : [
+        ["the name stayed, the call didn't", "after the old key lost terra, `GET /v1/models` still listed it; a ping refused with `model_not_found`; a new key brought it back"],
+        ["the plan picked the wrong interpreter", "`python -m pytest` hit PATH's system Python 3.11 (no pytest); the oracle's `{python}` placeholder became the virtualenv's `sys.executable` (with pytest) — one check, two verdicts"],
+        ["the fix was one line", "`_python_interpreter()` returns `_quote(sys.executable)`; the v2-fix-add re-run: `passed`, `repair_attempts=0`, `reviewer_false_negative_count=0`, pass@1 0.0 → 1.0"],
+        ["written live by terra itself", "prompt 5,072 · completion 1,939 · cached 4,173 (82.3%) · temperature 0.2 · response_format=json_object"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "通了，不是因为玄学，是因为同一把解释器。"
+          : "It goes through — not by grace, by sharing an interpreter."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -3951,6 +3992,7 @@ const CHAPTER_RENDERERS = {
   theledger: () => theledgerMarkup(),
   thegreenline: () => thegreenlineMarkup(),
   twoshards: () => twoshardsMarkup(),
+  onenine: () => onenineMarkup(),
 };
 
 async function loadChapter(id) {

@@ -55704,3 +55704,27 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
    - 这样教"怎么找到它"就和产品里真实存在的入口对上了（`Ticket` 命令面板 `minicc:nav`→`stategraph` / `/api/stategraph` live 现读 `minicc/agent/graph.py::build_coding_workflow`）。
 3. 绿线卷 LVII 的「第 57 卷」是冻结的历史叙事，不动；未涉及任何 i18n 键；en 侧零 CJK。
 4. battery **16/16 绿**；中文发布物已核对无残留「五十七」。
+## 批次 1163 · M8-T1227: 年鉴卷 LIX《现在通了 / The Now Goes Through》——这本日记由 gpt-6.1-terra 现场亲笔
+
+### 为什么做
+
+2026-11-18 下午到傍晚，terra 复活（新 key）后，本日的「假阴性」线被我当场修到 pass@1=1.0（M8-T1221）。用户第九轮复述总指令时，再次强调「要把大模型 API 的能力发挥到极致、完整深度地嵌入项目整体能力」——这一条刚好是狠节点：把那一天的经过交给模型本人，让它写一卷存档。这不是用模型编文案，是让模型亲历并复述自己参与的事故。
+
+### 做了什么
+
+1. **terra 亲笔**：2026-11-18 向 `gpt-6.1-terra` 发出 Ch.LIX 任务（全程真实联网 · temperature 0.2 · `response_format=json_object` · max_tokens=4,000）：
+   - 产出：`{"zh","en"}` 双字段 HTML 片段（zh ~600 字 / en 450–550 words），每段 <p> 完整对位；
+   - usage：prompt **5,072** · completion **1,939** · total **7,011** · cached_tokens **4,173**（82.3%，lane headline 命中，本次主动不显式给 key，做单发测）；
+   - en 侧 CJK/全角零命中；
+   - 存证：`docs/CHAPTER_DRAFT.md` 追加「Ch.LIX oracle draft」段（完整 usage + 原文 JSON，不删不改）。
+2. **渲染接力**：`web/src/panels/almanac.js` 新增 `onenineMarkup()`——内容 100% 模型原文（仅做 escapeHtml 包装内名），不自造改写：kicker/title/instrument tiles/gate list/quote 全部对位；en 侧零 CJK。
+3. **注册同步**：`CHAPTERS` 注册 `onenine`；`CHAPTER_RENDERERS` 注册 `onenineMarkup`；`tests/almanac_smoke.mjs` 加 `onenine` 章 + marker `["现在通了", "The Now Goes Through"]`、log 升 59 chapters。
+4. **Atlas 联动**：18 panes + 59 年鉴卷 + 20 说明书 = **97 坐标**（旧 96）；`tests/atlas_smoke.mjs` expectTotal → **97**；`onboarding.js` 第 5 步旅游文案 96 → **97**；`manual.js` Atlas 行 96→**97**；`i18n.js` chips 两语 96→**97**（CRLF 338/0 原地字节替换）；`atlas.js` 文件头注释；README 年鉴行 58→**59 卷**、列表尾追加「The Now Goes Through」存证段；INDEX.md 追加 Ch.LIX 归档行。
+5. **验证**：`almanac_smoke` 59/59 全绿、`manual_smoke` 20/20、`atlas_smoke` **97 坐标** 全绿（实测，双 locale，零 pageerror）；battery **16/16**。
+
+### 诚实边界
+
+- 这一卷的文字**是 gpt-6.1-terra 现场写的**——每个数字（pass / repair_attempts / tokens / cache hit / 95.7%）都从当天的 live run 取出，没有再编造；结尾「现在通了」扣住当晚的事实。
+- 存档卷（LVII 绿线、LIX 现在通了）均保留在 docs/CHAPTER_DRAFT.md，与本提交一同可复现。
+- Atlas 97 = 18+59+20 的勾股和，全圈现场读数，不是宣传数字；不改历史卷的 instrument tiles（绿线卷 Atlas 94、双峰卷 Atlas 96 都是当时的现场计数，保留）。
+- 本卷 en 直接出 terra、未二次改写；en_cjk 门绿。
