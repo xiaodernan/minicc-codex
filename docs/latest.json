@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T07:04:52.406Z",
+  "generated_at": "2026-11-18T10:32:52.424Z",
   "branch": "main",
-  "head": "c2c93c0",
-  "total_commits": 1942,
+  "head": "c0c2c49",
+  "total_commits": 1945,
   "recent_commits": [
+    {
+      "short": "c0c2c49",
+      "at": "2026-11-18T18:30:18+08:00",
+      "subject": "M8-T1214 (prompt prefix visible): the system prompt now carries a compact, byte-stable top-level snapshot of the workspace - sorted entries with shallow item co"
+    },
+    {
+      "short": "624d5f9",
+      "at": "2026-11-18T15:32:47+08:00",
+      "subject": "docs(cache-affinity-matrix): append the 2026-11-18 lane-swap incident with today's live measurements - terra 404 mid-day on this account group (model_not_found)"
+    },
+    {
+      "short": "29ffd3e",
+      "at": "2026-11-18T07:04:52Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c2c93c0",
       "at": "2026-11-18T15:03:53+08:00",
@@ -14,27 +29,12 @@
       "short": "f03b04c",
       "at": "2026-11-18T05:52:56Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "048de47",
-      "at": "2026-11-18T13:52:33+08:00",
-      "subject": "M8-T1212 (lane mid-flight swap): aizzz.xyz stopped serving gpt-6.1-terra to this account group mid-day (HTTP 404 model_not_found, key/endpoint/Clash unchanged);"
-    },
-    {
-      "short": "a97e1a1",
-      "at": "2026-11-18T05:38:46Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f3349ee",
-      "at": "2026-11-18T13:37:50+08:00",
-      "subject": "M8-T1211 (pre-push battery): scripts/pre_push_gates.py - one command that runs the same 16 gates that turned red for this repo across CI red #10/#11/#12 (doc po"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 480,
+  "roadmap_batches": 481,
   "changelog_entries": 1,
-  "roadmap_lines": 55479,
+  "roadmap_lines": 55502,
   "tracked_files": 1151,
   "test_files": 743,
   "almanac_chapters": 57,
