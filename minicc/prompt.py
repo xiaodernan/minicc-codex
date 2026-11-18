@@ -25,6 +25,86 @@ def _workspace_guidance(workspace: Path) -> str:
     return "\n\n".join(sections)
 
 
+_WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字节）。
+
+产品现状（current, measured）：
+- 引擎：minicc-codex（main branch，本地优先的编程智能体 + 开发者工作台）
+  - 面板层：cmdk、任务/工作台/活动/账本/模板/说明/地图/小游戏/管理员/诊断/问仓库/评估器（18 panes）
+  - Agent 内核：loop → planner → verifier → completion judge（verification plan 使用 sys.executable 绑定的解释器；completion judge 有常量协议缓存前缀）
+- 微服务平面：minicc-cloud/（8 个 Maven 模块：gateway / config / registry / inspector / evidence / tasks / insights / bridge），docker-compose 编排，BUILD SUCCESS 于本机 Windows 实测
+- 压测事实：33,600 次 Wave 1-3（0 非 2xx）· 总计 59,070 次（0 非 2xx）· c=128 三波
+- 缓存亲和：warm 97.6% 稳定（session-family key；150 s TTL；新 lane）；keeper 现以 60 s 为默认
+
+说明书二十章（Manual · 双语 · 本地内嵌，非 .md）
+  一 五分钟上手 / Quick Start · 二 工作台导览 / The Workbench · 三 七个模块，一个世界 / The Modules · 四 命令与快捷键 / Commands & Shortcuts · 五 游戏厅教程 / Playbook · 六 排错 / Troubleshooting · 七 边界与范围 / Honest Limits · 八 密钥与金库 / Keys & Vault · 九 安静的房间 / The Quiet Room · 十 问仓库 / Ask the Repo · 十一 压测与容量 / Load & Capacity · 十二 微服务平面 / Spring Cloud plane · 十三 前后端全景架构 / Full Stack · 十四 状态图 / StateGraph · 十五 冷热亲和 / Cache Affinity · 十六 沙盒与安全 / Sandbox & Safety · 十七 并行子智能体 / Parallel Subagents · 十八 证词与门禁 / Evidence & Gates · 十九 长城 / The CI Wall · 二十 双峰 / The Two Shards
+
+年鉴六十三卷（Almanac · 双语 · 叙事日记，每卷双语并存）
+  序章 一封给未来的信 / The Letter
+  第一章 火种 / The Spark
+  第二章 深度 / The Depth
+  第三章 哨兵 / The Sentry
+  第四章 盛放 / The Bloom
+  第五章 远行 / The Open Road
+  卷六 关卡 / The Gate
+  卷七 星网 / The Mesh
+  卷八 证人 / The Witness
+  卷九 技艺 / The Craft
+  卷十 未竟 / The Unfinished
+  卷十一 回声 / The Echo
+  卷十二 回问 / The Answer Back
+  卷十三 余烬 / The Ember
+  卷十四 星图 / The Atlas
+  卷十五 曦 / First Light
+  卷十六 高烧 / The Fever
+  卷十七 灯塔 / The Lighthouse
+  卷十八 守门人 / The Gatekeeper
+  卷十九 镜门 / The Meridian
+  卷二十 未眠 / The Night Watch
+  卷二十一 篱笆 / The Fence
+  卷二十二 罗经仪 / The Compass
+  卷二十三 深空 / The Deep Field
+  卷二十四 翠茵 / The Lawn
+  卷二十五 试纸 / The Litmus
+  卷二十六 港灯 / The Harbour Light
+  卷二十七 归航 / The Return Voyage
+  卷二十八 守望 / The Steward
+  卷二十九 驿站 / The Relay
+  卷三十 潮汐 / The Tide
+  卷三十一 灯下 / The Lamplighter
+  卷三十二 萤 / The Firefly
+  卷三十三 烛火 / The Candle
+  卷三十四 新涯 / The New Coast
+  卷三十五 无恙 / The Unscathed
+  卷三十六 潮平 / The Slack Tide
+  卷三十七 留白 / The Negative Space
+  卷三十八 归墟 / The Great Basin
+  卷三十九 灯火管制 / The Blackout Drill
+  卷四十 配额 / The Quota
+  卷四十一 算术 / The Arithmetic
+  卷四十二 团聚 / The Gathering
+  卷四十三 神谕 / The Oracle
+  卷四十四 无眠 / The Sleepless
+  卷四十五 进门 / The Threshold
+  卷四十六 复测 / The Re-Measurement
+  卷四十七 清道夫 / The Eviction
+  卷四十八 墙立住了 / The Wall Stood
+  卷四十九 通缆 / The Live Wire
+  卷五十 压测 / The Surge
+  卷五十一 通电 / The Live Current
+  卷五十二 第十二家灯 / The Twelfth Light
+  卷五十四 并账 / The Reckoning
+  卷五十五 警钟 / The Alarm
+  卷五十六 会开口的账本 / The Ledger That Speaks
+  卷五十七 绿线 / The Green Line
+  卷五十八 双峰 / The Two Shards
+  卷五十九 现在通了 / The Now Goes Through
+  卷六十 破损的引号 / The Broken Quotation
+  卷六十一 并发的风 / The Parallel Wind
+  卷六十二 按自己的尺度 / On Its Own Scale
+  卷六十三 锻造的世界 / The Forged World
+"""
+
+
 _MAX_INVENTORY_ENTRIES = 28
 _MAX_CHILDREN_PER_DIR = 14
 _MAX_INVENTORY_BYTES = 6_500
@@ -194,5 +274,5 @@ def build_system_prompt(workspace: Path, output_style: str = "") -> str:
 - web_search 会把搜索关键词发送到外部搜索服务；不要把密钥、密码、令牌或个人隐私放进搜索关键词。
 - 需求不清时先做低风险的调查；需要破坏性或外部副作用操作时先请求用户确认。
 
-{_workspace_inventory(workspace)}{_readme_excerpt(workspace)}{style_block}{guidance_block}
+{_WORLD_MAP}{_workspace_inventory(workspace)}{_readme_excerpt(workspace)}{style_block}{guidance_block}
 """
