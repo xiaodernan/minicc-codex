@@ -770,3 +770,7 @@
   - 根因：agent verifier 与 objective oracle 用两个不同的解释器——oracle 用 `{python}=sys.executable`（带 pytest），verifier 用裸 `python`（系统 3.11，`No module named pytest`→ rc 1 → failed ×2 → repair 上限 → `reviewer_false_negative_count=1`，terra/sol 双 lane 确定性复现三次）；
   - 修后实跑：v2-fix-add (new key · terra · reasoning max) **passed · repair_attempts=0 · 109s · 120,599 tokens (-29%) · 84,096 cached · reviewer_false_negative_count=0 · pass@1=1.0**；
   - 相关测试 117 例全绿；假阴性历史存档不删除（assessment_v2_fixadd_retest.json / terra_snapshot.json 留底）。
+- **M8-T1222 + M8-T1223：滚轮反向与按钮「会说话」——一夜之间修完总指令第四/五点**：
+  - wheel：STORAGE_KEY `minicc-wheel-invert` → `minicc-wheel-v2`；main.js legacy cleanup 追加旧键一同清除——默认恢复 OS 自然方向（往上滑看上面），显式反转仍在设置面板可选；
+  - tooltips：新增 `web/src/core/tooltips.js`——约 40 个核心控件（19 导航 + diff/文件/验证标签 + 发送⌘Enter + 任务清单 + 最近任务抽屉 + 诊断/管理员解锁/游戏技能/帮助/语言切换）注册中英文教学提示；`locale-changed` 重新挂载；
+  - probe selector 大小写现场勘误（sendButton / todoSectionToggle）；playwright 实测双 locale 18/18 补全、零 pageerror；battery 16/16。

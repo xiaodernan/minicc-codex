@@ -1,5 +1,6 @@
 import { requestJson } from "./core/transport.js";
 import "./core/wheel.js"; // registers the wheel-direction capture listener (opt-in)
+import { applyTooltips } from "./core/tooltips.js"; // curated bilingual teaching tooltips
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
@@ -594,6 +595,8 @@ document.addEventListener("DOMContentLoaded", () => {
   applyLocale();
   refreshIcons();
   installButtonTooltips();
+  applyTooltips();
+  window.addEventListener("minicc:locale-changed", () => applyTooltips());
   prepareStartupSplash();
   loadWorkspace()
     .then((online) => {
@@ -630,7 +633,12 @@ export function exposeWorkbenchGlobals() {
   // One-time legacy cleanup: the old custom wheel engine fought the OS convention
 // (M8-T967-era keys) — native scrolling always wins, so those keys no longer
 // mean anything. Remove them silently; direction is governed by the OS.
-try { localStorage.removeItem('minicc-invert-wheel'); localStorage.removeItem('minicc-scroll-natural'); } catch { /* private mode */ }
+// M8-T967-era keys AND the M8-T1222 bump: the pre-2026-11-18 sticky setting
+// (minicc-wheel-invert=1) kept forcing scroll inversion for users who had
+// opted in accidentally years before; the wheel now follows the OS by
+// default and any prior inversion is discarded. Direction is governed by the
+// OS. These keys no longer mean anything; remove them silently.
+try { localStorage.removeItem('minicc-invert-wheel'); localStorage.removeItem('minicc-scroll-natural'); localStorage.removeItem('minicc-wheel-invert'); } catch { /* private mode */ }
   Object.assign(window, {
     $, $$, t, state, icon, refreshIcons, applyIcons, showToast, openPanel, closePanel, escapeHtml,
     eventTimelineMarkup, assistantMessageMarkup, visibleAgentEvents, addLoadingMessage, bindRunningTask,

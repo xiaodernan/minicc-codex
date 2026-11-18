@@ -228,7 +228,7 @@
   }
 
   // web/src/core/wheel.js
-  var STORAGE_KEY = "minicc-wheel-invert";
+  var STORAGE_KEY = "minicc-wheel-v2";
   var enabled = false;
   try {
     enabled = localStorage.getItem(STORAGE_KEY) === "1";
@@ -268,6 +268,71 @@
     ev.preventDefault();
     target.scrollTop -= delta;
   }, { passive: false, capture: true });
+
+  // web/src/core/tooltips.js
+  var HINTS = [
+    // ── sidebar nav: the 19 panes ────────────────────────────────────────────
+    ['.nav-item[data-view="tasks"]', "\u67E5\u770B/\u7EE7\u7EED\u6240\u6709\u4EFB\u52A1\uFF0C\u590D\u7528\u5DE5\u4F5C\u533A", "View, resume and reuse every task workspace"],
+    ['.nav-item[data-view="workspaces"]', "\u5207\u6362\u5DE5\u4F5C\u533A\uFF0C\u6D4F\u89C8\u5B83\u7684\u6587\u4EF6\u6811\u548C Git", "Switch workspace; browse its file tree and git"],
+    ['.nav-item[data-view="activity"]', "\u6BCF\u4E00\u6B21\u5DE5\u5177\u8C03\u7528\u7684\u771F\u5B9E\u6D41\u6C34\uFF0C\u53EF\u641C\u7D22", "A true, searchable log of every tool call"],
+    ['.nav-item[data-view="ledger"]', "Tokens / \u7F13\u5B58\u547D\u4E2D\u7387 / \u6210\u672C\u7684\u8D26\u672C", "Tokens, cache hit rate and cost, per call"],
+    ['.nav-item[data-view="templates"]', "\u590D\u7528\u63D0\u793A\u8BCD\u4E0E\u4EFB\u52A1\u6A21\u677F\u5E93", "Reusable prompts and task templates"],
+    ['.nav-item[data-view="manual"]', "\u6253\u5F00 20 \u7AE0\u4E2D\u6587\u4F7F\u7528\u8BF4\u660E\u4E66", "Open the 20-chapter user manual"],
+    ['.nav-item[data-view="almanac"]', "\u5E74\u9274\uFF1A58 \u5377\u53CC\u8BED\u4E16\u754C\u53D9\u4E8B", "Almanac: 58 bilingual volumes of the world"],
+    ['.nav-item[data-view="axioms"]', "\u8FD9\u4E2A\u4ED3\u5E93\u7684\u94C1\u5F8B\uFF08\u4E0D\u53EF\u534F\u5546\uFF09", "The non-negotiable axioms of this repo"],
+    ['.nav-item[data-view="journal"]', "Git \u63D0\u4EA4\u5199\u6210\u7684\u8239\u957F\u65E5\u5FD7", "Your git commits, drawn as a captain\u2019s log"],
+    ['.nav-item[data-view="archive"]', "\u6240\u6709\u5386\u53F2\u4EFB\u52A1\u7684\u6863\u6848\u9986", "Searchable archive of past tasks"],
+    ['.nav-item[data-view="askdocs"]', "BM25 \u68C0\u7D22\u672C\u4ED3\u5E93\uFF0C\u6A21\u578B\u53EA\u8BFB\u4F5C\u7B54\uFF08\u771F\u8DD1\uFF09", "BM25 retrieval over this repo; the model answers quote-only"],
+    ['.nav-item[data-view="doctor"]', "\u9010\u9879\u8BCA\u65AD\u5DE5\u4F5C\u533A\u7684\u95EE\u9898", "One-by-one workspace diagnostics"],
+    ['.nav-item[data-view="dockyard"]', "\u4F60\u7684\u4E13\u5C5E\u65C5\u7A0B\u7EDF\u8BA1\u4E0E\u8239\u706F\u91CC\u7A0B\u7891", "Your own voyage ledger and harbour milestones"],
+    ['.nav-item[data-view="atlas"]', "\u4E16\u754C\u5730\u56FE\uFF1A13 \u5EA7\u5C9B \xB7 96 \u4E2A\u771F\u5B9E\u5750\u6807", "World map: 13 islands, 96 real coordinates"],
+    ['.nav-item[data-view="admin"]', "\u7BA1\u7406\u5458\uFF1A\u5BC6\u7801 123 \u7684\u5171\u4EAB\u95E8\uFF0C\u771F\xB7\u7EDF\u8BA1", "Admin: the shared door, password 123, real stats"],
+    ['.nav-item[data-view="recent"]', "\u6700\u8FD1 ship \u4E86\u4EC0\u4E48", "What shipped lately"],
+    ['.nav-item[data-view="pulse"]', "\u7F13\u5B58\u547D\u4E2D \xB7 \u4E0A\u4E0B\u6587 \xB7 \u5B8C\u6210\u7387\u4E00\u5C4F\u770B\u5B8C", "Hit rate, context usage and done rate in one ring"],
+    ['.nav-item[data-view="promo"]', "\u751F\u6210\u516C\u5F00\u5BA3\u4F20\u9875\uFF08\u5E26\u771F\u5B9E\u9A8C\u529B\uFF09", "Generate the public promo page with real proof"],
+    ['.nav-item[data-view="arcade"]', "\u5F69\u8679\u5C9B\u5854\u9632\uFF1A\u65B0\u624B\u6559\u7A0B\u6E38\u620F", "Rainbow-Island tower defence: the tutorial game"],
+    // ── top bar / sidebar chrome ─────────────────────────────────────────────
+    ["#helpMenuButton", "\u5FEB\u6377\u952E\u4E0E\u5E2E\u52A9\u9762\u677F\uFF08?\uFF09", "Shortcuts and help panel (?)"],
+    [".profile-row", "\u4E2A\u4EBA\u8D44\u6599\u4E0E\u6A21\u578B/\u98CE\u683C\u8BBE\u7F6E", "Profile, model and output-style settings"],
+    ["#localeZh", "\u5207\u6362\u5230\u4E2D\u6587\u754C\u9762", "Switch the UI to Chinese"],
+    ["#localeEn", "\u5207\u6362\u5230\u82F1\u6587\u754C\u9762", "Switch the UI to English"],
+    ["#threadSearch", "\u5168\u5C40\u641C\u7D22\u5168\u90E8\u4F1A\u8BDD\u5386\u53F2\uFF08\u2318K\uFF09", "Search every task in this workspace (\u2318K)"],
+    ["#task-dock-open", "\u5C55\u5F00 / \u6536\u8D77\u6700\u8FD1\u4EFB\u52A1\u62BD\u5C49", "Toggle the recent-task dock"],
+    // ── inspector tabs ───────────────────────────────────────────────────────
+    ["#tabChanges", "\u672C\u6B21\u4EFB\u52A1\u6BCF\u5904 diff\uFF0C\u9010\u6761\u53EF\u5BA1", "Every diff this task produced, change by change"],
+    ["#tabFiles", "\u672C\u6B21\u4EFB\u52A1\u4EA7\u51FA\u7684\u6210\u54C1\u6587\u4EF6", "The finished files this task produced"],
+    ["#tabVerification", "\u5BA2\u89C2\u9A8C\u8BC1\uFF08\u6D4B\u8BD5 / \u68C0\u67E5\uFF09\u7684\u771F\u5B9E\u7ED3\u679C", "The honest result of objective verification"],
+    ["#todoSectionToggle", "\u5C55\u5F00\u6216\u6536\u8D77\u6A21\u578B\u7684\u5DE5\u4F5C\u8BA1\u5212\u6E05\u5355", "Show or hide the agent\u2019s plan checklist"],
+    // ── doctor / admin / composer / arcade ───────────────────────────────────
+    [".doctor-action", "\u7ACB\u5373\u8FD0\u884C\u8FD9\u9879\u8BCA\u65AD", "Run this diagnosis now"],
+    ["#admin-unlock-btn", "\u8F93\u5165 123 \u89E3\u9501\u7BA1\u7406\u5458\u9762\u677F", "Type 123 to unlock the admin panel"],
+    ["#sendButton", "\u53D1\u9001\u4EFB\u52A1\uFF08\u2318/Ctrl + Enter\uFF09", "Send the task (\u2318/Ctrl + Enter)"],
+    [".codex-tab", "\u4F1A\u8BDD\u6807\u7B7E\uFF1A\u5207\u6362\u5F53\u524D\u5BF9\u8BDD\u7EBF\u7A0B", "Thread tab: switch the active conversation"],
+    [".game-sound", "\u6E38\u620F\u97F3\u6548\u5F00\u5173", "Toggle game sound"],
+    [".game-skill", "\u91CA\u653E\u690D\u7269\u6280\u80FD", "Play a plant skill"],
+    [".game-how-ready", "\u51C6\u5907\u597D\u4E86\uFF0C\u5F00\u59CB\u7B2C\u4E00\u6CE2", "Ready \u2014 start the first wave"],
+    [".seed-card", "\u6C42\u751F\u5361\u7247\uFF1A\u81EA\u5DF1\u6392\u9664\u90A3\u4E2A\u9009\u9879", "Survivor cards: rule out the impossible"]
+  ];
+  function currentLocale() {
+    try {
+      return (localStorage.getItem("minicc-locale") || "zh") === "en" ? "en" : "zh";
+    } catch {
+      return "zh";
+    }
+  }
+  var applied = false;
+  function applyTooltips(root = document) {
+    const en = currentLocale() === "en";
+    for (const [selector, zh12, enHint] of HINTS) {
+      for (const el of root.querySelectorAll(selector)) {
+        const hint = en ? enHint : zh12;
+        if (!hint) continue;
+        el.setAttribute("title", hint);
+        el.setAttribute("aria-label", hint);
+      }
+    }
+    applied = true;
+  }
 
   // web/src/core/arcade.js
   var pending;
@@ -15020,6 +15085,8 @@
     applyLocale();
     refreshIcons();
     installButtonTooltips();
+    applyTooltips();
+    window.addEventListener("minicc:locale-changed", () => applyTooltips());
     prepareStartupSplash();
     loadWorkspace().then((online) => {
       if (online) {
@@ -15055,6 +15122,7 @@
     try {
       localStorage.removeItem("minicc-invert-wheel");
       localStorage.removeItem("minicc-scroll-natural");
+      localStorage.removeItem("minicc-wheel-invert");
     } catch {
     }
     Object.assign(window, {

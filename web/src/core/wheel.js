@@ -7,7 +7,14 @@
  * deltaY sign for any scrollable element inside the app.  Atlas / Arcade canvases
  * have their own wheel contracts and are untouched.
  */
-const STORAGE_KEY = "minicc-wheel-invert";
+// M8-T1222: the stored preference key is bumped on purpose. A stale
+// `minicc-wheel-invert=1` from an old build overrode the sane default for
+// everyone on this origin forever, with no way back except the settings
+// toggle (which reads no user's intent from that era). Direction is governed
+// by the OS by default; the opt-in lives on under a fresh key that no
+// historical value can hijack. The settings UI (stream.js) reads and writes
+// this exact constant, kept in sync with the stale-key cleanup below.
+const STORAGE_KEY = "minicc-wheel-v2";
 
 let enabled = false;
 try { enabled = localStorage.getItem(STORAGE_KEY) === "1"; } catch { /* storage unavailable */ }

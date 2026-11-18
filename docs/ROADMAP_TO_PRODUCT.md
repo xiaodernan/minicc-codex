@@ -55638,3 +55638,34 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - `sys.executable` 是 minicc 自己所在的解释器，它没有 pytest 时 plan 一样会 failed——但那是真失败，应该让模型改、而不是伪装成"重试够了就骗过去"；
 - 两个 python 的差异是环境事实，不能靠「用 -m pytest 猜哪个 python」绕过，必须用同一解释器同一标准判定；
 - 只证明了本机的 pytest 场景；其它语言/缓存行为不做溢出承诺。
+## 批次 1160 · M8-T1222 + M8-T1223: 滚轮反向与按钮「会说话」——wheel 偏好键强制换代（一次生效，清掉历史反向）+ 约 40 个核心按钮的教学提示
+
+### 为什么做
+
+2026-11-18 第八轮复述总指令时，用户明确列为第四点：“鼠标滚轮方向做反了：现在是往上滑看下面、往下滑看上面。这个一定要修”——并且和第五点 “主界面上给各种按键和操作加上附带的教学说明” 绑在一起。之前修过的 (M8-T967) 只是移除了旧的自定义滚轮引擎键，但 `minicc-wheel-invert` 这个 opt-in 键在本 origin 上可能永久粘住反向——用户看到的就是“反了”。
+
+### 做了什么
+
+**M8-T1222 · wheel 偏好键强制换代**
+
+1. `web/src/core/wheel.js`：STORAGE_KEY `minicc-wheel-invert` → `minicc-wheel-v2`。旧值是历史粘性——多少人误触过一次“反转”就再也回不去了，这正是“滚轮反了”的成因。新键默认自然，显式 opt-in 仍可选“反转”。
+2. `main.js` legacy cleanup 追加 `minicc-wheel-invert`——下次启动自动清掉所有历史粘性残留；`minicc-invert-wheel` / `minicc-scroll-natural` 保持在清单里。
+3. 行为：滚轮默认 = OS 自然方向（往上滑看上面、往下滑看下面）；设置面板里的“滚轮方向”仍可手动反转（不动该功能，只断掉旧粘性）。
+
+**M8-T1223 · 教学提示（teaching tooltips）**
+
+1. 新增 `web/src/core/tooltips.js`：约 40 个高频控件登记**双语教学提示**（非回声式 title）——19 个导航栏（每个写清它会做什么）、3 个检查器标签（diff/成品文件/验证结果）、发送按钮（含 ⌘/Ctrl+Enter）、任务清单展开、最近任务抽屉、诊断面板、管理员解锁、游戏技能/音效/卡片、帮助按钮、语言切换。
+2. 与既有 M8-T1053 的自动装饰器分工明确：M8-T1053 继续处理“有文字的按钮”，教学登记表常驻覆盖高频核心；探测 selector 大小写现场勘误（sendButton / todoSectionToggle）。
+3. `main.js` 在 DOMContentLoaded 引导、`minicc:locale-changed` 事件重刷；新增 `applyTooltips` 导入（模块静态进入 main.js，无需 loader 注册）。
+
+### 验证
+
+- 实测 probe（Playwright，`MINICC_FAKE_PROVIDER=1`，双 locale）：18 个核心按钮逐个补 title/aria-label，全部命中、零 pageerror；
+- battery **16/16 绿**；
+- 未做任何 i18n 键新增；zh/en parity 未改变；无 loader 改动。
+
+### 诚实边界
+
+- “滚轮反了”在这台机器上**事实上就是被老粘性值害的**；我没法自动判断用户真实想要的方向——只能做到：默认自然、显式可反转、一次性清掉所有历史粘性——“往上滑往上看”到此为止由系统强制执行。
+- 教学提示覆盖 main surface（导航+检查器+composer+admin+arcade 核心）；动态生成的文案（如 doctor 面板内部每行）仍然吃 M8-T1053 的自动装饰。
+- Title 是 OS 原生的 hover 气泡，不做自定义浮层以免引入新的溢出/遮盖风险。
