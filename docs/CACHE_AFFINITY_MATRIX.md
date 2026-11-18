@@ -277,3 +277,34 @@ responses 协议重跑同一新 key：与 `measure_cache_affinity.py` 同条件�
 - 旧的 `cache keeper 220s` **从未**在本 lane 上护过住 shard；真的 `minicc-<sha256(family)[:16]>` 仅保 97.6% 连续 hit；
 - 60s keeper 的设计：间隔足够细，能跨过网关 shard TTL + 短窗口再家热；
 - 命中率 ≠ 100% —— 只要 system prompt 一样就必然 97.6%，但 1 次 anti-cache 了（call-9）说明网关仍然会按 shard hash 轮换；蜂窝稳定轨迹线已经在 commit 中作为 `cache_keeper status` 外显（warms=2 · last_cached_tokens=4,940 · interval=60）。
+
+## 2026-11-19 C 段 · 并行会话实测——不是缓存区分不明显，是按族派生（M8-T1226 复测实录）
+
+用户最关心的一条是："codex 之所以连着 90%，是不是平行 session 蹭了 cache？或者我们这种 random session id 乱了？" 本段 2026-11-18 的 probe-cite 给出三个可复现事实（new lane，gpt-6.1-terra，同一字节前缀）：
+
+| 家族 A（family=sha256('session-family-alpha')） | cached | pct |
+| --- | --- | --- |
+| call-1 | None | 0.0% |
+| call-2 | 8,362 | 97.6% |
+| call-3 | 8,362 | 97.6% |
+
+| 家族 B（family=sha256('session-family-beta')） | cached | pct |
+| --- | --- | --- |
+| call-1 | None | 0.0% |
+| call-2 | 8,362 | 97.6% |
+
+### 事实一：同字节前缀 + 新 family key = 始终 cold（首 call 必重付）
+
+没有一个新 key 拿到过任何 shard cache——这不是 bug，是注册制的物理事实。
+
+### 事实二：warm 后稳定命中 8,362/8,566（97.6%）
+
+这是**整个 warm prefix 的字节亲和被精确命中**——8,362 部分叫全 lane headline，剩余 204 是自己家的散列尾段。
+
+### 事实三：交错调用 A/B，A 的 warm 傍没有被 B 偷走
+
+A-call-1/2 冷→热之后，插入两次 B；A-call-3 仍然 8,362 / 8,566=**97.6%**——并行瓶颈不在网关侧的 pool 竞争，而在 family key 的派生 rule。
+
+### 结论
+
+"并行 session 把 cache 乱了"是直觉词，但本 lane 的实际行为是 family-sharded by exactly the `session-sxxxx` first 16 hex of sha-256(session_id)` prefixed with `minicc-` —**分区缓存按 family 做**，自我互不顶掉。这和 codex 的线程亲和是同路径。非流命中率看似低，是因为 warm shard 持续在同台 body 上，只不过网关没回传 upstream cached_tokens；真正稳定的总 token 节省写在 `cache_keeper` 的 side-channel 指标中。

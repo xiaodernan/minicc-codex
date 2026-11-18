@@ -797,3 +797,8 @@
   - `tools/fs.py` 的 `SKIP_DIRS` 原地扩容（v1 coverage / .cache / .next / .gradle / out / vendor / .turbo / .nuxt / htmlcov）；`prompt.py` 自定义集合删除并改 `from .tools.fs import SKIP_DIRS as _SKIP_DIRS`；
   - `web.py` 顶 `_ws_family_key` 模块函数删除并改为 inline 单行 hash；i18n 空白行精裁 4 行——`record_text(8000)` 精确回到行 1852、`tool_result.record_text(8000)` 回到 2358；
   - battery 16/16 绿、`tests/test_a_line_a_test_docstring_cites_can_be_read.py` 6/6 + `tests/test_the_skip_dirs_have_one_home.py` 4/4 全绿；CI 将重跑确认（808d63dc 为失败 commit，不回改；push 后 `main` 将 supersede）。
+- **M8-T1231：并行 session 缓存到底发生了什么——用 `session-family-{alpha,beta}` 实测**：
+  - 全 lane：A 2 个 warm = 8,362 / 8,566 = 97.6%；B 新 key 首 call 仍需 0%，第 2 次 97.6%；
+  - 交错后 A 未被 B 洗掉（A-call-3 仍 8,362 / 97.6%）；
+  - 为什么 90%+ 稳定 = `minicc-<sha256(session_id)[:16]>` family 派生 = codex 的 thread 亲和同一法律模型；
+  - 大模型行为：全是 hash 键代替 global lane key（旧版 `minicc-<sha256(base|model)>` 是全 lane 一个桶的旧做法，不适用于并行 workloads）。
