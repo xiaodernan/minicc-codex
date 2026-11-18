@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -333,11 +334,30 @@ def _matches(path: str, pattern: str) -> bool:
     return re.fullmatch(expression, path.replace("\\", "/")) is not None
 
 
+def _python_interpreter() -> str:
+    """The interpreter this process runs on, quoted for the checker.
+
+    The plan used to hardcode ``python`` — which on Windows resolves outside
+    the virtualenv (or to whatever else is on PATH) and has no pytest
+    installed, so a correct fix the agent made could fail verification
+    forever while the same interpreter the bench used (sys.executable) passed
+    it. No quotes in the default path on POSIX; quoted when it needs it.
+    """
+    exe = sys.executable or ""
+    if not exe:
+        return "python"
+    try:
+        return _quote(exe)
+    except ValueError:
+        return "python"
+
+
 def build_verification_plan(workspace: Path, changed_paths: list[str] | None = None, *, full: bool = False) -> VerificationPlan:
     root = workspace.resolve()
     changed = sorted({Path(path).as_posix() for path in changed_paths or []
                       if not Path(path).is_absolute() and (root / path).resolve().is_relative_to(root)})
     commands: list[VerificationCommand] = []
+    py_interpreter = _python_interpreter()
     config_path = root / ".minicc" / "verification.json"
     if config_path.is_file():
         if config_path.is_symlink() or not config_path.resolve().is_relative_to(root):
@@ -362,7 +382,7 @@ def build_verification_plan(workspace: Path, changed_paths: list[str] | None = N
                 commands.extend(VerificationCommand(command, label="project") for command in configured)
     candidates = relevant_python_tests(root, changed)
     if full:
-        commands.append(VerificationCommand("python -m pytest -q", label="full regression", timeout=300))
+        commands.append(VerificationCommand(f"{py_interpreter} -m pytest -q", label="full regression", timeout=300))
     elif candidates:
         # M8-T299: a path that cannot be quoted portably is **skipped**,
         # not silently rewritten into a different path - and it does not
@@ -374,7 +394,7 @@ def build_verification_plan(workspace: Path, changed_paths: list[str] | None = N
             except ValueError:
                 continue
         if quoted:
-            commands.append(VerificationCommand("python -m pytest -q " + " ".join(quoted)))
+            commands.append(VerificationCommand(f"{py_interpreter} -m pytest -q " + " ".join(quoted)))
     frontend = any(Path(path).suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".css", ".html"} for path in changed)
     package = root / "package.json"
     if frontend and package.is_file():

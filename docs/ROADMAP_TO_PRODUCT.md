@@ -55614,3 +55614,27 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 - 新增 `tests/test_session_cache_affinity.py`：三级优先（构造器/keeper/sha）、族键稳定/区分、快照两层/有界/跳过、缺失目录鲁棒——8 个用例全绿。
 - `tests/test_core_agent.py` / `test_memory.py` / 写作风格套件：66 个全绿。
+## 批次 1159 · M8-T1221: 验证实验室的「假 pytest」——Windows 直接调 PATH 上的 python 没有 pytest → 假阴性，修到 sys.executable，bench 当场翻转
+
+### 事故
+
+2026-11-18 上、中、晚的三次 v2-fix-add 真跑（terra 两次 + sol 一次）**连续三次**出现同一症状：agent 把 `calc.py` 修对了（objective oracle 重跑 `pytest` exit 0），自己的 verifier 却连续两次报 `failed`，卡 repair 上帽 → `reviewer_false_negative_count=1`。看谁是假嫌疑人
+
+- 不是模型（terra/sol 两种 lanes 一致复现）；
+- 不是 reasoning_effort（max/high 都一样）；
+- 不是 cache（两趟都命中 80%+ 同段前缀）；
+- 是 **`build_verification_plan` 把检查命令恒写成 `python -m pytest`**，而这个 `python` 在本机 shell=True 下解析到的是系统 Python 3.11（`C:\Program Files\Python311\python.exe`，没装 pytest）→ `No module named pytest` → verifier 报 `failed` → repair 上限 2 → 谈不上完成。objective oracle 的 `{python}` 占位符替换为 `sys.executable`（有 pytest）→ pass。**同一台机器两个 python，判决器里输的是没 pytest 的那个。**
+
+### 修了什么
+
+1. `minicc/agent/verification_plan.py`：新增 `_python_interpreter()`——产出 `_quote(sys.executable)`（带空格/中文路径整体双引号）；plan 里的 `python -m pytest` 全部换成该 token（`full` 与 `changed-files` 两个产出点）。`.env` 换过 terra 后仍然是同一个洞——这次两个 lane 一起通了。
+2. 再跑：**v2-fix-add（新 key · terra · max reasoning）当场 `passed=true · repair_attempts=0 · 109 秒 · 120,599 tokens（-29%）· 84,096 cached_tokens（71.7%）· reviewer_false_negative_count=0 · pass@1=1.0**（修复前：185s～241s、repair_attempts=2、pass@1=0.0、reviewer_fn=1）。
+3. `test_session_cache_affinity` 之外，verification_plan 相关 117 个用例全绿（test_verification_plan/t_accuracy_contracts/t_a_timeout_is_not_a_failing_test/t_an_evidence_row_never_contradicts_itself/t_a_test_directory_past_the_scan_window_is_not_checked/t_a_test_file_that_could_not_be_read_is_not_an_unrelated_test/t_optimization_core/t_a_path_must_not_…/t_m4_evidence_chain/t_m8_t58_inspection_fallback 等）。
+4. 没清洗之前的假阴性记录——三个 lane 的 JSON 存档留在 output/，不会删除。
+
+### 诚实边界
+
+- 修的是「agent 自身的验证实验室」与「objective oracle 的解释器」两者不一致——不是 judge 逻辑改动、不是 cache、不是模型；
+- `sys.executable` 是 minicc 自己所在的解释器，它没有 pytest 时 plan 一样会 failed——但那是真失败，应该让模型改、而不是伪装成"重试够了就骗过去"；
+- 两个 python 的差异是环境事实，不能靠「用 -m pytest 猜哪个 python」绕过，必须用同一解释器同一标准判定；
+- 只证明了本机的 pytest 场景；其它语言/缓存行为不做溢出承诺。

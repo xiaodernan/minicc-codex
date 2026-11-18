@@ -264,3 +264,4 @@ responses 协议重跑同一新 key：与 `measure_cache_affinity.py` 同条件�
 **结论**：「突然掉缓存」的两个主因：（1）affinity key 全局共享，并行车道互相挤占同一 shard 的缓存容量；（2）prefix 本身随工具/轮次/文件而变。M8-T1218 修 (1)，M8-T1219 修 (2)。新 key 下 terra 全线可用、命中率稳定 ≥ 95%。
 
 **诚实边界**：上述数字仅代表本 lane / 本前缀 / 本日；换账号或换前缀分布后要重新实测。`.env` 中 `MINICC_MODEL=gpt-6.1-terra` 已切换；旧 `gpt-6.1-sol` 停用，不再作为默认。
+**补测（M8-T1221，当晚）**：验证实验室改指 `sys.executable` 后重跑 v2-fix-add（新 key · gpt-6.1-terra · reasoning max）——`passed=true · repair_attempts=0 · 109s · 120,599 tokens · prompt_cache_hit_tokens=84,096（71.7%）· reviewer_false_negative_count=0 · pass@1=1.0`（修复前：241s · repair_attempts=2 · pass@1=0.0 · reviewer_fn=1）。

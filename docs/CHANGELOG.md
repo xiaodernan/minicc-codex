@@ -765,3 +765,8 @@
   - `cache_keeper.py::derive_family_cache_key()` 三级镜像；web keeper 构造器接 `session_id`；`.minicc` 不展开（audit.jsonl 每轮都长）；系统提示 3,969 → 7,177 bytes；
   - `docs/CACHE_AFFINITY_MATRIX.md` 新增 2026-11-18 尾节：新 key · terra · chat 6,880 tokens · 同字节前缀 · 6 连发——A 族 call 3+ 稳定 6,587（95.7%），B lane 同档，C 随机键全冷；responses 复验双峰仍是 gateway 分片；
   - `tests/test_session_cache_affinity.py`（8 例）+ 既有 66 例全绿；手册「什么决定命中率」/`What decides a hit` 两语同步改写为三级派生并附实测；`.env` 切 `gpt-6.1-terra`（gitignored，不追踪）。
+- **M8-T1221：验证实验室的「假 pytest」—— plan 硬编码 `python` 撞上 PATH 上的系统 Python（没有 pytest），修到 `sys.executable`，v2-fix-add 当场翻转**：
+  - `verification_plan.py` 新增 `_python_interpreter()` → `_quote(sys.executable)`；plan 中两处 `python -m pytest` 换为该 token（full regression / changed-files）；
+  - 根因：agent verifier 与 objective oracle 用两个不同的解释器——oracle 用 `{python}=sys.executable`（带 pytest），verifier 用裸 `python`（系统 3.11，`No module named pytest`→ rc 1 → failed ×2 → repair 上限 → `reviewer_false_negative_count=1`，terra/sol 双 lane 确定性复现三次）；
+  - 修后实跑：v2-fix-add (new key · terra · reasoning max) **passed · repair_attempts=0 · 109s · 120,599 tokens (-29%) · 84,096 cached · reviewer_false_negative_count=0 · pass@1=1.0**；
+  - 相关测试 117 例全绿；假阴性历史存档不删除（assessment_v2_fixadd_retest.json / terra_snapshot.json 留底）。
