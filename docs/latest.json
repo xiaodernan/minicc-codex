@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T18:11:02.554Z",
+  "generated_at": "2026-11-18T18:55:03.124Z",
   "branch": "main",
-  "head": "e55f56b",
-  "total_commits": 1983,
+  "head": "e48f545",
+  "total_commits": 1986,
   "recent_commits": [
+    {
+      "short": "e48f5454",
+      "at": "2026-11-19T02:49:36+08:00",
+      "subject": "almanac: Ch.LXI The Parallel Wind - forged by the live StateGraph pipeline (M8-T1234): intake/draft/verify/ledger on minicc.agent.graph; gpt-6.1-terra still sus"
+    },
+    {
+      "short": "062aa657",
+      "at": "2026-11-19T02:49:36+08:00",
+      "subject": "forge: StateGraph-driven almanac generator (M8-T1234) - intake/draft/verify/repair(bond 2)/ledger on minicc.agent.graph; model via oracle_common.call_model with"
+    },
+    {
+      "short": "6dde3072",
+      "at": "2026-11-18T18:11:02Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e55f56b7",
       "at": "2026-11-19T02:10:26+08:00",
@@ -14,30 +29,15 @@
       "short": "b15ea5d4",
       "at": "2026-11-18T18:00:46Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8f49dbb4",
-      "at": "2026-11-19T02:00:22+08:00",
-      "subject": "almanac: Ch.LX The Broken Quotation - the io-page inline script's stray '' pair (SyntaxError at line 599, career-os never hydrated) fixed in 652bf3c, Pages Depl"
-    },
-    {
-      "short": "2480f592",
-      "at": "2026-11-18T15:54:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e1997981",
-      "at": "2026-11-18T15:53:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
   "changelog_entries": 1,
   "roadmap_lines": 55786,
-  "tracked_files": 1154,
-  "test_files": 745,
-  "almanac_chapters": 60,
+  "tracked_files": 1156,
+  "test_files": 746,
+  "almanac_chapters": 61,
   "module_count": 14,
   "feature_surface": [
     "workbench",
