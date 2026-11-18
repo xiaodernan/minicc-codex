@@ -55371,3 +55371,17 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 
 - 批次 1148 段落“claim checkers 保持绿”**当时不成立**（该 push 的 CI 红）；本条为史实订正；批次 1148 其余事实不受影响；
 - 教训：**推送前必须把 claim battery 三项（`impacted_tests`/`doc_pointers`/`route_coverage`）全部跑绿**，不再依赖“上个跑通的 run 替我挡”；本批起以本地 exit 0 为准绳。
+## 批次 1150 · M8-T1210: CI 红 #12——两扇没人撞、只有我撞过的门
+
+### 事实
+
+`a2e85504`（批次 1149 的账本订正）的 CI（run 44237807548）Ubuntu 腿红；Ubuntu 之外的 gates（claim/checkers/mvn/Playwright）全绿；Windows 腿仍在跑时已被本修复提交替代。两个失败逐字同源：**细节门禁被我擅自发明**。
+
+1. `test_a_module_is_registered_before_a_loader_executes_it`：我用 `spec_from_file_location + exec_module` 载入脚本却没把模块登记进 `sys.modules`——门禁明令“loader 执行前必先注册”。修：`sys.modules[spec.name] = module` 再 exec（并 import sys）；
+2. `test_the_palette_has_one_home`：我在 `.admin-evidence-log` 里写 `background: … var(--bg-raised) …`——**这个 token 根本不存在**（styles.css 声明的是 `--surface` / `--surface-soft` / `--surface-raised`，深浅两套）。门禁的原则：var() 引用的 token 必须在 css 或 js 某处声明过，否则声明在 computed-value 时间无效且静默回落。修：改为 `color-mix(in srgb, var(--surface-raised) 80%, transparent)`（真实存在）。
+
+### 复检（全部本地 exit 0 才 push）
+
+- `test_a_module_is_registered_before_a_loader_executes_it`、`test_the_palette_has_one_home`、`test_evidence_backfill`、`test_tracked_evidence_census` **17/17 绿**；
+- `npm run build:web` 绿（styles hash 更新，asset-manifest 同步）；claim battery 三项本地 exit 0；i18n resolve 未触碰本轮文件；
+- 教训的真实收获：**两个都不是“检查环境”**——是同兄弟法则的不同侧面：内容库里没有的字不准用（palette），执行计划外的模块不准偷偷跑（sys.modules）。写代码之前必须先逐个跑过对应的门禁，不是最后才补。

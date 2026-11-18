@@ -709,3 +709,7 @@
   - 修法：`tests/test_evidence_backfill.py`（4 legs 真跑 `main(argv)`：非数字 run_id 被拒、后端不可达→exit 1、无效 JSON→exit 1、真捕获→exit 0 打印 capture 行）；`main(argv)` 签名的脚本形状本身合规；
   - 复检：impact floor / doc_pointers / route coverage 三项本地 exit 0；tracked_evidence_census 因新文件未入 git 而两腿红→入库后绿；
   - **更正**：批次 1148 曾写“claim checkers 保持绿”——当时并不成立（该 run 红）；本条即史实订正，修复后 HEAD 的裁决以本批推送后的 CI 为准。
+- **M8-T1210：CI 红 #12 复盘——两个“实现细节也是门禁”**（a2e85504，Ubuntu 腿）：
+  - `test_a_module_is_registered_before_a_loader_executes_it`：`tests/test_evidence_backfill.py` 用 spec_from_file_location + exec_module 却未注册 sys.modules——修复为先 `sys.modules[spec.name] = module` 再 exec；
+  - `test_the_palette_has_one_home`：`.admin-evidence-log` 引用 `var(--bg-raised)`——该 token **不存在**；修复为真实存在的 `--surface-raised`（color-mix 80%），styles hash 改变；
+  - 复检：两个门 + evidence_backfill + census **17/17 绿**；build:web 重产（styles.fa1c4c7233747654.css）；本次起 claim battery 全跑落锚后才 push。

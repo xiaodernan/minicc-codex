@@ -5825,5 +5825,5 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .admin-evidence-facts li:last-child { border-bottom: 0; }
 .admin-evidence-facts strong { color: var(--muted); font-weight: 600; }
 .admin-evidence-facts span { font-family: var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
-.admin-evidence-log { font-family: var(--font-mono); font-size: 10px; line-height: 1.45; color: var(--quiet); background: color-mix(in srgb, var(--bg-raised) 80%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.admin-evidence-log { font-family: var(--font-mono); font-size: 10px; line-height: 1.45; color: var(--quiet); background: color-mix(in srgb, var(--surface-raised) 80%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
 .admin-evidence-reason { font-size: 11px; color: var(--quiet); margin: 4px 0 0; }

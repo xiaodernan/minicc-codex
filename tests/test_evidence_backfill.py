@@ -8,6 +8,7 @@ in the audience floor, with real behavior underneath it.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ def _load():
     spec = importlib.util.spec_from_file_location("evidence_backfill", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
