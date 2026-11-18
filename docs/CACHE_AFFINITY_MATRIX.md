@@ -204,7 +204,7 @@ read-back 验证：同样脚本在 `.env` 写入 `HTTPS_PROXY=http://127.0.0.1:7
 
 ## 2026-11-18 · lane 换血：gpt-6.1-terra 中途不可用 → gpt-6.1-sol；keeper 重启 · 活测（实录）
 
-**事件**：本日中午 aizzz.xyz 对本账号组停服 `gpt-6.1-terra`（HTTP 404 `model_not_found`），`/v1/models` 仍列出它但账号不再为此模型背书。本机 `.env` 迁往 `gpt-6.1-sol`（gitignored，留痕见 `docs/CHANGELOG.md` M8-T1212 / 批次 1152）。Key、端点、Clash `127.0.0.1:7897` 不变。tracked 代码从未 pin 具体模型，仅 test fixture/文档历史。
+**事件**：本日中午 aizzz.xyz 对本账号组停服 `gpt-6.1-terra`（HTTP 404 `model_not_found`），`/v1/models` 仍列出它但账号不再为此模型背书。本机 `.env` 迁往 `gpt-6.1-sol`（gitignored，证据链落在 `docs/CHANGELOG.md` 批次 1152）。Key、端点、Clash `127.0.0.1:7897` 不变。tracked 代码从未 pin 具体模型，仅 test fixture/文档历史。
 
 **实测形状**（本机、本代理、真 API、真 token）：
 

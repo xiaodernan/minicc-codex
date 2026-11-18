@@ -25,6 +25,58 @@ def _workspace_guidance(workspace: Path) -> str:
     return "\n\n".join(sections)
 
 
+_MAX_INVENTORY_ENTRIES = 28
+_INVENTORY_PREFIX = "顶层结构："
+
+
+def _workspace_inventory(workspace: Path) -> str:
+    """A compact, byte-stable snapshot of the workspace's top-level layout.
+
+    Lists only top-level entries; children counts are direct scans with no
+    subtree walk - the snapshot's shape must be constant from one turn to the
+    next, and the flat scan keeps it cheap to rebuild on every turn.
+    """
+    try:
+        entries = list(sorted(workspace.iterdir(), key=lambda p: p.name.lower()))
+    except OSError:
+        return ""
+
+    lines: list[str] = []
+    shown = 0
+    for entry in entries:
+        if entry.name.startswith(".") and entry.name not in {".minicc", ".github"}:
+            continue
+        try:
+            if entry.is_dir():
+                count = 0
+                for _child in entry.iterdir():
+                    count += 1
+                lines.append(f"{entry.name}/  · {count} 项")
+            else:
+                try:
+                    size = entry.stat(follow_symlinks=False).st_size
+                except OSError:
+                    size = 0
+                lines.append(f"{entry.name}  · {_fmt_bytes(size)}")
+        except OSError:
+            lines.append(f"{entry.name}  · ?")
+        shown += 1
+        if shown >= _MAX_INVENTORY_ENTRIES:
+            lines.append("…")
+            break
+    if not lines:
+        return ""
+    return _INVENTORY_PREFIX + "  " + "  ".join(lines)
+
+
+def _fmt_bytes(size: int) -> str:
+    if size >= 1_000_000:
+        return f"{size / 1_000_000:.1f}M"
+    if size >= 1_000:
+        return f"{size / 1_000:.1f}K"
+    return f"{size}B"
+
+
 def build_system_prompt(workspace: Path, output_style: str = "") -> str:
     from .commands import skills_prompt_block
     from .output_style import load_output_style, render_output_style_block
@@ -74,5 +126,6 @@ def build_system_prompt(workspace: Path, output_style: str = "") -> str:
 - bash 是高风险工具。仅执行完成当前任务所需的命令，不要删除数据、修改 Git 历史、上传文件或更改系统设置。
 - web_search 会把搜索关键词发送到外部搜索服务；不要把密钥、密码、令牌或个人隐私放进搜索关键词。
 - 需求不清时先做低风险的调查；需要破坏性或外部副作用操作时先请求用户确认。
-{style_block}{guidance_block}
+
+{_workspace_inventory(workspace)}{style_block}{guidance_block}
 """

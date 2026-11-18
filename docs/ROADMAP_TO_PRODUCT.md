@@ -55476,3 +55476,26 @@ HTTP 404 {"error":{"message":"Model \"gpt-6.1-terra\" is not supported by any co
 - 本批**没动 oracle 线缆**（oracles 本来就是 chat/completions 且跑相同前缀亲和单位，测到 ~92% 稳定）；
 - 并行会话乱序这件事两派都能说——这个 lane 现在只显示本 lane 的 warm 真相，不代表别人的会话也这样；但并行打乱的“乱序”本人最担心的就是这个 tile 显示的稳定性；
 - 不声称“94% 是门禁率”：cache hit 是“本次部署到本次测量”的事实，不是能力指标。
+## 批次 1154 · M8-T1214: 系统提示现内置“顶层结构快照”，模型不再盲开第一步
+
+### 为什么做
+
+`gpt-6.1-terra` 中午起 404，`sol` 顶班——但真正的诉求是“模型第一步更快知道自己在哪”。`codex-rs` 之类的代码代理一上来给模型一份**工作区快照**（根目录、提示文件、输出风格、技能名单），模型不需要再用 read_file 探一次目录、再 guess 一次扩展名。
+
+### 具体改动
+
+1. **`minicc/prompt.py`** 新增 `_workspace_inventory(workspace)`：
+   - 仅扫描 `workspace.iterdir()`，**不递归下钻**——深层结构用 read_file 再看；
+   - 返回格式：「·」分隔的 `"顶层结构：  .github/  · 2 项  .minicc/  · 18 项  …"`；
+   - **字节序稳定**：所有条目按 `name.lower()` 字典序排列，大小计算仅用一次 `stat(follow_symlinks=False)`，不递归；
+   - 前导 `顶层结构：` 一行；
+   - 保持 `GuidanceFiles` / `skills_prompt_block` / `render_memory_index` 的追加顺序不变；
+   - 实测影响：prompt 体积 3,380 → 3,969 bytes（+589 bytes），`.minicc/` 包含、`tests/` 含 745 项、`output/` 553 项全部可见；
+2. **`scripts/pre_push_gates.py`** 新增 `_say()`：所有 print 输出走它——先把字符串编码为当前 `stdout` 的 `encoding`（或 utf-8）并替换无法解码的字节；终端不能为人类打印的字节绝不能让 CI 判错环境编码而炸掉。
+3. **`docs/CACHE_AFFINITY_MATRIX.md`** 本地继续实录：`gpt-6.1-sol` lane 停在 94% 率、keeper 真实 220s 脉冲往返，cache-unrelated 的提醒不影响命中；同时把本 lane 下 “非流命中”——延迟 11.6s → 2.6-3.3s——记为工程事实。
+
+### 诚实边界
+
+- **预期缓存命中率不会因此提高**：cache key 门控的是“字节完全相同的前缀”，顶层结构只增加了体积而不改变命中截面；
+- **不声称 inventory 能让模型更懂代码**：它只把首次 `tree` 调用省了；模型仍然需要用 `read_file`/`grep`/`glob` 了解内部；
+- 只在 `.is_file()` 报 false 时丢条目——跟 `GuidanceFiles` 同样的约定。

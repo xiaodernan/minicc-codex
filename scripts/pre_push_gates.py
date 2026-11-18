@@ -51,6 +51,26 @@ GATES: list[tuple[str, list[str]]] = [
 SELF_TEST_EXIT = 3
 
 
+def _say(text: str, *, flush: bool = False) -> None:
+    """Print even when the terminal encoding cannot represent some byte.
+
+    The child processes we shell out to may print CJK, emoji, or bytes that
+    the host Windows console cannot decode; a GBK stdout must not turn a red
+    gate into a crash on the final line of the report.
+    """
+    stream = sys.stdout
+    try:
+        encoded = str(text).encode(getattr(stream, "encoding", "utf-8") or "utf-8", errors="replace")
+        stream.buffer.write(encoded)
+        if flush:
+            stream.flush()
+        else:
+            stream.flush()
+    except Exception:  # noqa: BLE001 - the report must never die on the way out
+        bytes_ = text.encode("utf-8", errors="replace")
+        sys.stdout.buffer.write(bytes_)
+
+
 def _run(name: str, argv: list[str]) -> tuple[bool, float, str]:
     start = time.perf_counter()
     proc = subprocess.run(
@@ -91,25 +111,25 @@ def main(argv: list[str] | None = None) -> int:
         needle = args.only.lower()
         gates = [(name, cmd) for name, cmd in gates if needle in name.lower()]
         if not gates:
-            print(f"no gate matches {args.only!r}; try --list")
+            _say(f"no gate matches {args.only!r}; try --list")
             return 2
 
     started = time.perf_counter()
     red: list[str] = []
     for name, cmd in gates:
-        print(f"gate … {name:32s}", flush=True)
+        _say(f"gate … {name:32s}", flush=True)
         ok, elapsed, tail = _run(name, cmd)
         if ok:
-            print(f"pass   {name:32s} {elapsed:6.1f}s", flush=True)
+            _say(f"pass   {name:32s} {elapsed:6.1f}s", flush=True)
         else:
-            print(f"FAIL   {name:32s} {elapsed:6.1f}s", flush=True)
+            _say(f"FAIL   {name:32s} {elapsed:6.1f}s", flush=True)
             if tail:
-                print(tail, flush=True)
+                _say(tail, flush=True)
             red.append(name)
 
     total = time.perf_counter() - started
     names = ", ".join(red) or "none"
-    print(f"\n{len(gates) - len(red)}/{len(gates)} gates green in {total:.1f}s; red: {names}")
+    _say(f"\n{len(gates) - len(red)}/{len(gates)} gates green in {total:.1f}s; red: {names}")
     return 1 if red else 0
 
 

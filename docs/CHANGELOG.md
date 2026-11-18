@@ -735,3 +735,10 @@
   - 管理面板「通道分账」tile 追加三行：**缓存保活**（warms/fails/间隔/上次 age）、**prefix 命中**（`N% · hit/prompt`；未报即“—”）、**上次 warm**（热/凉+错误类）；zh/en 双语、CRLF 钉不动、零新增 i18n 键；
   - 验证：Playwright unlock 实际读到——`缓存保活 2 warm · 0 fail · 220s · 上次 3m前`、`prefix 命中 94% · 4939/5231`、`上次 warm 热 ✓`；admin_smoke 过；en_cjk parity 过；i18n 解析过；cache keeper 测试 5/5；
   - 诚实边界（写死在记录里）：first warm 永远是 cold（lc=0 头约 220s）；keeper 负责 warm = 避免“你没用缓存”，没法替用户拓宽 TTL；fake provider 下 keeper 关；并行会话同 lane 抖动我们这边没压测（全被抽到同一个上游池子——真相不可证伪，只能说未测）；admin 数字永远给本 lane，不存在跨 workspace “全局数字”；.env 未改动；而非流 vs 流“谁命中率高”的说法——**两边都稳定在 91–100%，流式和非流式无差别，“非流显示低”是展示面历史叙事（恢复锁已移除），不是线缆问题**。
+- **M8-T1214：模型的“盲开第一步”被免费减掉一步——系统提示现内置顶层结构快照**：
+  - `minicc/prompt.py` 新增 `_workspace_inventory()`：以字母序顶层扫描（不下钻），只列 28 个条目以内、每个夹带「直接子项数」或「文件字节」，`.` 开头的点文件目录照旧过滤掉，`.minicc`/`.github` 保留；
+  - 条目计数字节都按每次调用的同一棵树计算，字节序固定 → **prompt 前缀每次逐字节相同**，hash 前缀亲和正中；
+  - `scripts/pre_push_gates.py`：本地 `--only` 和正常模式所有 print 出口统一走 `_say()`，GBK 终端下解码失败也不再让 gate 自杀；
+  - `docs/CACHE_AFFINITY_MATRIX.md`：本轮实测 `gpt-6.1-sol` `minicc-test-lane` cached=4,939/5,231（94%），本日降 lane 仍写好本条更正；doc_pointers 门禁不再让 marker 无处可去；
+  - 局域测试：`test_core_agent.py` 45/45 绿；`test_a_workspace_that_asks_for_a_writing_style_must_get_it` 绿；`test_prefix_fingerprint_ships_with_usage` 绿；`test_memory.py` 绿；
+  - 本地 pre_push_gates 16/16 GREEN。
