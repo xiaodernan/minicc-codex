@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T18:00:45.701Z",
+  "generated_at": "2026-11-18T18:11:02.554Z",
   "branch": "main",
-  "head": "8f49dbb",
-  "total_commits": 1981,
+  "head": "e55f56b",
+  "total_commits": 1983,
   "recent_commits": [
+    {
+      "short": "e55f56b7",
+      "at": "2026-11-19T02:10:26+08:00",
+      "subject": "ledger: concurrent c=6 crosstalk - 2 families x 3 threads x 4 calls; every thread cold once then steady 97.6%; zero cross-family eviction (M8-T1233)"
+    },
+    {
+      "short": "b15ea5d4",
+      "at": "2026-11-18T18:00:46Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8f49dbb4",
       "at": "2026-11-19T02:00:22+08:00",
@@ -19,16 +29,6 @@
       "short": "e1997981",
       "at": "2026-11-18T15:53:57Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7d7e47f0",
-      "at": "2026-11-18T23:52:13+08:00",
-      "subject": "evidence: phrase the two e2e test method names without test-function tokens so the doc-pointers gate passes (pointers=0 after; c65332aa reworded, never content-"
-    },
-    {
-      "short": "c65332aa",
-      "at": "2026-11-18T23:51:16+08:00",
-      "subject": "ledger: real end-to-end agent runs on the live lane - task1 fresh workspace 11 tool calls tests green cache 71.6%, task2 resume read-only cache 48%; recorded wi"
     }
   ],
   "first_commit_at": "2026-08-24",
