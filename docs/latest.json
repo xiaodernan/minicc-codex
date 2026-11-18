@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T13:33:53.822Z",
+  "generated_at": "2026-11-18T13:54:01.607Z",
   "branch": "main",
-  "head": "43e7dce",
-  "total_commits": 1963,
+  "head": "1f38aa5",
+  "total_commits": 1966,
   "recent_commits": [
+    {
+      "short": "1f38aa5",
+      "at": "2026-11-18T21:53:22+08:00",
+      "subject": "docs(index): add Ch.LIX archive entry to CHAPTER_DRAFT index - live terra single call, no explicit prompt_cache_key, 4,173 lane-headline cached tokens, json_obj"
+    },
+    {
+      "short": "13fe7d3",
+      "at": "2026-11-18T21:53:22+08:00",
+      "subject": "M8-T1227: CH.LIX 现在通了 - written live by gpt-6.1-terra itself (prompt 5,072 / completion 1,939 / cached 4,173 lane-headline / 0 explicit key, temperature 0.2, js"
+    },
+    {
+      "short": "4d3c375",
+      "at": "2026-11-18T13:33:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "43e7dce",
       "at": "2026-11-18T21:28:35+08:00",
@@ -14,30 +29,15 @@
       "short": "55e7404",
       "at": "2026-11-18T13:19:43Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "aea867d",
-      "at": "2026-11-18T21:19:12+08:00",
-      "subject": "M8-T1225: README excerpt into the system prompt - agent no longer starts blind. README.md (<=6KB) injected as data, never as instructions; 7,177 -> 13,295 bytes"
-    },
-    {
-      "short": "e1cb9ea",
-      "at": "2026-11-18T13:12:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "87f247e",
-      "at": "2026-11-18T21:10:12+08:00",
-      "subject": "M8-T1224 (manual recall): the 2026-11-18 lane story is now truthful end-to-end - the manual's 'sol swap' bullet says what actually happened across the day: old "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 489,
+  "roadmap_batches": 490,
   "changelog_entries": 1,
-  "roadmap_lines": 55707,
+  "roadmap_lines": 55731,
   "tracked_files": 1154,
   "test_files": 745,
-  "almanac_chapters": 58,
+  "almanac_chapters": 59,
   "module_count": 14,
   "feature_surface": [
     "workbench",
