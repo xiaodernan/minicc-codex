@@ -742,3 +742,8 @@
   - `docs/CACHE_AFFINITY_MATRIX.md`：本轮实测 `gpt-6.1-sol` `minicc-test-lane` cached=4,939/5,231（94%），本日降 lane 仍写好本条更正；doc_pointers 门禁不再让 marker 无处可去；
   - 局域测试：`test_core_agent.py` 45/45 绿；`test_a_workspace_that_asks_for_a_writing_style_must_get_it` 绿；`test_prefix_fingerprint_ships_with_usage` 绿；`test_memory.py` 绿；
   - 本地 pre_push_gates 16/16 GREEN。
+- **M8-T1215：手册第十五章回写 sol 换血实录——「terra 97.5% 稳定命中」的旧账留在原页，新加「Sol 13:00 双峰实录」一节**：
+  - zh/en Cache Affinity 章节**新增同址第 8 条**——terra 被 aizzz 停供（model_not_found），同 key/网关/Clash 节点迁 gpt-6.1-sol；sol 下分两个 shard：warm shard ≈ 5,446（94.7%）、cold shard ≈ 4,166（72.3%）——**不是渐进，是分裂**，warm shard ≥90，不保证单调升；
+  - 原有条目（"Responses 流式"、"terra 95.9% 稳定命中"）保留为 terra 时代档案；
+  - manual 构建产物同步（LF-only 字节稳定，未触 CRLF pin）；battery 16/16 绿；本批次未新增 i18n 键；
+  - 本批只是手册「继续诚实」的回写，不是功能升级——事实优先于叙述，无任何 sol 加持声称。

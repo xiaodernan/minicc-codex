@@ -55499,3 +55499,26 @@ HTTP 404 {"error":{"message":"Model \"gpt-6.1-terra\" is not supported by any co
 - **预期缓存命中率不会因此提高**：cache key 门控的是“字节完全相同的前缀”，顶层结构只增加了体积而不改变命中截面；
 - **不声称 inventory 能让模型更懂代码**：它只把首次 `tree` 调用省了；模型仍然需要用 `read_file`/`grep`/`glob` 了解内部；
 - 只在 `.is_file()` 报 false 时丢条目——跟 `GuidanceFiles` 同样的约定。
+## 批次 1155 · M8-T1215: 说明书第十五章刀掉了 terra——把 sol 的双峰现实手写进去，再用一次「非流命中」现场验一下
+
+### 为什么做
+
+2026-11-18 早上 aizzz.xyz 停供 gpt-6.1-terra。同 key 同网关换 gpt-6.1-sol 后，cache 亲和变成**双峰**：warm shard 命令 5,446（≈94.6%），cold shard 4,166（≈72.3%）。之前 manual 第十五章（en+zh）还记录着「terra warm 95.9% 稳定命中」——跟现在的现实不吻合，且用户一再问“为什么 sol 时高时低”。这一批就是把 chapter 最新测到的事实手写进去，别留一季度没人动的旧账。
+
+### 做了什么
+
+1. `web/src/panels/manual.js`：
+   - zh 章：**新增第 8 条：「2026-11-18 · sol 换血（实录）」**——TL;DR：模型下岗了，换到 sol，sol 是双峰不是渐进，warm shard ≥90，cache 不保证上升。
+   - en 章：**同位置增项**——same facts.
+   - 不修其它条（“Responses 流式 94.5%”一节仍属于 terra 时代数据的存档）；不虚追加任何“新模型胜过旧模型”之类叙事。
+2. 构建产物、CRLF、i18n 键、manual 语法：全部未动；
+3. 本机 battery **16/16 绿**；
+4. **没**提交 CHANGELOG 批次号——本批纯粹是「把手册最新观察手写回去」，不是一次架构变化。
+
+### 诚实边界
+
+- sol 是今日 noon 前被仓库省悟出来的“中转站”——我把它写成 gpt-6.1-sol 只为让账上有据可查；
+- 章节里“warm shard ≥90、cold shard ≈72”的数字，全是这一账号的本机本日实测读数——换到别人的账号/网关上，这些数字未必定义现——只在本 lane 活着；
+- 说明书不声称 sol 比 terra 好或差——identity 与完全没什么可比；
+- Chapter 磁带里仍保留着 "Responses 流式 94.5% → 100%" 的 terra 时代记录——那是 terra 还活着时测的真值，虽冷却但没被我撤回；
+- 手册这章原本只想给新手一个「为什么叫 Cache 亲和」的 mental model，不想变成“sol 详细剖析”；这句话的抱歉写给任何在 sol 上找到这个章节的人——事实准确优先于便利。
