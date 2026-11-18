@@ -718,3 +718,13 @@
   - `--list` 列出全部 gate；`--only <substr>` 过滤；`--self-test`（exit 3）给测试用合成红蓝对；
   - **它自己第一轮就抓住了自己作者**：loader-register 测试（我忘记 sys.modules）和 census（未跟踪新文件）——两处全部维护性修复后运行 **16/16 GREEN（224s）**；
   - audience：`tests/test_pre_push_gates.py`（4 legs：list 保证 ≥10 且唯一、self-test exit 3、--only 子串过滤、--only 无匹配 → exit 2）。
+- **M8-T1212：lane 当场换血——gpt-6.1-terra 中午直接 404，换回 gpt-6.1-sol 换回测同一套三件套**」：
+  - 探针：`POST /v1/chat/completions` 带 `gpt-6.1-terra` → **HTTP 404 `model_not_found`**：`Model "gpt-6.1-terra" is not supported by any configured account in this group`（key 长度不变、端点不变、Clash 节点不变、Clash 注入生效）；
+  - `GET /v1/models` 返回 7 元组；逐个 ping（max_tokens=1）：`gpt-6.1-sol / gpt-6-sol / gpt-6-astra / gpt-5.6-sol / gpt-5.6-terra / codex-auto-review` 全 200；**terra 是唯一被拒的**；
+  - 本机 `.env` 的 `MINICC_MODEL` 改为 **`gpt-6.1-sol`**（gitignored，留痕注释：探针日期、ping 结果、恢复条件）；
+  - **同一三道题 live 对照**（真 token、Clash 走 aizzz.xyz）：
+    - terra（上午）：pass@1 0.667、tokens_per_success **185,442**、p95 **306.8s**、repair_attempts 平均 0.667、v2-fix-add 跑 333s 后违反 grader 但被 repair 上限截；
+    - sol（中午）：pass@1 **0.667**（同题 2✓1✗）、tokens_per_success **79,430**（**-57%**）、p95 **74s**、mean_repair_attempts 0、v2-fix-add **73s 内终结，同样被客观 grader 判负**（reviewer_false_negative_count=1，跨 lane 一致）；
+    - prefix-cache：json-roundtrip prompt_cache_hit 64,128/87,801（73%）——**warm 亲和在 sol 也成立**；
+    - `minicc.bench_history --ingest` 已收 4 行（总计 **37 行**，均分 0.667，window 扩至 05:50:57Z）。
+  - 诚实边界：n=3/lane、pass@1 不因 lane 改变但也不据此排序模型；terra 上午的“可用”真实发生过（上午的 probe json 留底）；tracked code 无 terra 常量（仅测试 fixture/文档叙事）；admin tile 不改；`.env` 修改**不提交**（gitignored），且保持了 .env 的记录。

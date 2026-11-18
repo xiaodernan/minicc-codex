@@ -55414,3 +55414,33 @@ CI red #10（Ubuntu+Win：content-addressed 引文 + scandir）、#11（impact f
 - 该 battery **不是 CI 的复制品**：CI 有 Ubuntu/Windows 双腿、PR eval gate、Playwright、多份互斥检查；本机命令没有 Ubuntu 的文件系统语义，不做出双腿结论（#R 的 Windows 专属失败也曾在 Ubuntu 外出现过）；但它把我本轮全部五个真红都涵盖了；
 - 未上 `--self-test` 之外的合成红场景（不制造假失败门），故无 flakes；
 - 无文档 pointer、不代写 `# noqa`，不动任何门禁本体。
+## 批次 1152 · M8-T1212: 模型不是永久的——terra 当场 404，账本换默认
+
+### 发现经过
+
+用户最初说“如果打不进去可以检查可能是网关配置或者梯子的问题 可以多试试”，并不带有“terra 欠一条性命”的暗示；本批**实测**之前，上午同一 .env 下 v2 三件套真跑得通：pass@1=2/3、tokens_per_success=185,442、v2-fix-add 333s 被 repair 上限截断。中午同 key/同端点/同 Clash 再跑：
+
+```
+HTTP 404 {"error":{"message":"Model \"gpt-6.1-terra\" is not supported by any configured account in this group","type":"model_not_found","param":"","code":null}}
+```
+
+### 处理
+
+1. `/v1/models` 现时真实列表：`codex-auto-review / gpt-5.6-sol / gpt-5.6-terra / gpt-6-astra / gpt-6-sol / gpt-6.1-sol / gpt-6.1-terra`；逐个 ping（全部 max_tokens=1 实况）：
+   - **6/7 返回 200；terra 404**（组不再带它）；
+2. 本机 `.env`：`MINICC_MODEL=gpt-6.1-sol`（含留痕注释：2026-11-18 探针日期 + ping 证据 + “组再放 terra 再换回”的指明条件）；**不出于“terra 差”**——通了几个月的 terra 今天没欠债；
+3. 同三道题 live 对照（真 token，Clash `127.0.0.1:7897`，key 不变）：
+
+| lane | pass@1 | tokens_per_success | p95 | repair(均) | v2-fix-add | false-negative |
+| --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-terra（本日早，n=3） | 0.667 | 185,442 | 306.8s | 0.667 | 333s → repair cap | 1 |
+| gpt-6.1-sol（本日中，n=3） | **0.667** | **79,430（-57%）** | **74.0s** | **0** | **73s 终结（同题同 grader 判负）** | 1 |
+
+4. 已把三道题结果存档并 ingest 进 `.minicc/bench_history.jsonl`（37 行，mean_score=0.667，window 23:31:32Z → 05:50:57Z；仍未改 pass@1 会计，仍未动 gate）；admin tile 继续展示真实 count/mean。
+5. 夜间说明：terra **上午的可用性是事实**（本日 `output/evaluation_v2_probe.json` 在 gitignored output 中可查，pass_at_1=0.667、当时真 token 流过）；两条 lane 数字互为镜像：模型换血不改问题本身（v2-fix-add 对两 lane 同题同 grader 判负），**pass@1 不随 lane 升降级**。
+
+### 为何不试图“恢复 terra”
+
+- 端点 / key / Clash 节点不改（git 端不触碰 .env），本事实和 terra 命运属于账号组，不属于这台机器；
+- 未登录其它模型替代容量做超纲比较；sol 是“同 gen 继承 ersatz 的旗舰档”的合理选择，而非照猫画虎；
+- （.env 注释写下回滚条件：组再送 terra 再换回。）
