@@ -57,22 +57,32 @@ def measured_usage(usage_obj: Any) -> dict[str, Any]:
     return record
 
 
-def call_model(*, config: Any, prompt: str, max_tokens: int = 280, temperature: float = 0.2) -> dict[str, Any]:
-    """One model call against the configured gateway. Raises on transport failure."""
+def call_model(*, config: Any, prompt: str, max_tokens: int = 280, temperature: float = 0.2,
+               response_format: dict[str, Any] | None = None,
+               request_timeout: float = 60.0) -> dict[str, Any]:
+    """One model call against the configured gateway. Raises on transport failure.
+
+    ``response_format`` (e.g. ``{"type": "json_object"}``) is forwarded verbatim when
+    the caller needs hard JSON; callers that pass nothing get the historical shape.
+    ``request_timeout`` caps the whole request for slow lanes (default 60s, unchanged).
+    """
     from openai import OpenAI
 
     model_name = str(getattr(config, "model", "") or "")
     base_url = str(getattr(config, "base_url", "") or "")
     api_key = str(getattr(config, "api_key", "") or "")
     explicit_key = str(getattr(config, "prompt_cache_key", "") or "")
-    client = OpenAI(api_key=api_key, base_url=base_url, timeout=60, max_retries=0)
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=temperature,
-        prompt_cache_key=prompt_cache_key(base_url, model_name, explicit_key),
-    )
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=request_timeout, max_retries=0)
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "prompt_cache_key": prompt_cache_key(base_url, model_name, explicit_key),
+    }
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    response = client.chat.completions.create(**kwargs)
     text = (response.choices[0].message.content or "").strip()
     usage = measured_usage(getattr(response, "usage", None))
     return {"text": text, "usage": usage, "model": model_name}

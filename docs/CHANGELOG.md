@@ -811,3 +811,13 @@
   - 2 家族（conc-alpha / conc-beta）× 各 3 线程，每线程 4 次同前缀调用：每线程 call-1 = 0%，call-2+ 全部 8,362/8,566 = **97.6%**；
   - 6 路并发零跨 family 驱逐、零抖动；冷成本仅 family 首注册（2×3=6 次），其余 18 次全暖；
   - 结论：「并行会话把 cache 乱了」是被实验否定的直觉——shard 隔离按 family key 成立，codex thread-affinity 同法律模型；剩余 TTL 风险已由 60s keeper 覆盖。
+- **M8-T1234：锻造台上线——StateGraph 驱动的年鉴章节生成器（进项目，不是一次性补丁）**：
+  - `scripts/almanac_forge.py`：进 → 草拟 → 校验 → 修复（有界，max 2）→ 落账 五步 StateGraph（`minicc/agent/graph.py` 原版：GraphNode/StateGraph/AgentState/Budget，**不是**另起炉灶）；
+  - 模型用 `minicc/oracle_common.py::call_model` 同一条路（同 family cache key 纪律），新增 `response_format` 与 `request_timeout` 两个可选透传参数（现有 oracle 调用方不受影响）；
+  - 校验契约（`verify_chapter`）：JSON 键恰为 {zh, en}、双端非空且不短于 600 字符、en 零 CJK、禁止 `<script`、单端上限 9,000 字节；
+  - 修复回环：verify 失败 → repair（喂回失败原因 + 原 FACTS）→ verify；修复仍失败即整图失败，**绝不静默通过**；
+  - live 实测（2026-11-19 00:29 UTC，Clash 7897，gpt-6.1-sol——**terra 此时被 aizzz 再次停服（GET /v1/models 列 terra，chat 一律 404 model_not_found，与 2026-11-18 中午同一签名）**）：`cached_tokens=4,169`、`attempts=1`、`status=passed`，zh/en 全量输出（zh 1,591 字符、en 2,621 字符、en 零 CJK）；5,408 prompt / 1,879 completion，**首次调用即过审，没有走 repair 分支**；
+  - 锻造产物只写 `--out` 指定路径——绝不代提交。是否上架由后续提交决定；
+  - `.env` 的 `MINICC_MODEL` 已切换到 `gpt-6.1-sol`（terra 停服期间；.env 本就 gitignored），附带注释；`gpt-6-sol`/`gpt-6-astra`/`gpt-5.6-sol` 均 200 实测；
+  - `tests/test_almanac_forge.py`（4 条：首过 / repair 后过 / 反复 CJK 泄漏整体失败 / 校验契约单元）全绿；
+  - 配套轮换：期间 `gpt-6.1-terra` 停服 → 切 `gpt-6.1-sol`；Clash/Cloudflare 524 一次（origin 120s，retryable），150s 退避后成功。
