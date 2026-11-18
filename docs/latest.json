@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T13:54:01.607Z",
+  "generated_at": "2026-11-18T14:04:16.140Z",
   "branch": "main",
-  "head": "1f38aa5",
-  "total_commits": 1966,
+  "head": "f806c0f",
+  "total_commits": 1968,
   "recent_commits": [
+    {
+      "short": "f806c0f",
+      "at": "2026-11-18T22:02:50+08:00",
+      "subject": "M8-T1228 (ledger): note the io-card cache baseline swap (73.7/95.9 -> 72.3/97.6, session-family measured 2026-11-18)"
+    },
+    {
+      "short": "a971561",
+      "at": "2026-11-18T13:54:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1f38aa5",
       "at": "2026-11-18T21:53:22+08:00",
@@ -19,22 +29,12 @@
       "short": "4d3c375",
       "at": "2026-11-18T13:33:54Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "43e7dce",
-      "at": "2026-11-18T21:28:35+08:00",
-      "subject": "M8-T1226 (tour gets StateGraph; almanac count 57->58): onboarding step 2 now names the ⌘K StateGraph route - users finally find the live graph; step 9 volume co"
-    },
-    {
-      "short": "55e7404",
-      "at": "2026-11-18T13:19:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 490,
+  "roadmap_batches": 491,
   "changelog_entries": 1,
-  "roadmap_lines": 55731,
+  "roadmap_lines": 55742,
   "tracked_files": 1154,
   "test_files": 745,
   "almanac_chapters": 59,
