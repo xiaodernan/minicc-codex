@@ -804,6 +804,6 @@
   - 大模型行为：全是 hash 键代替 global lane key（旧版 `minicc-<sha256(base|model)>` 是全 lane 一个桶的旧做法，不适用于并行 workloads）。
 - **M8-T1232：两趟真活儿端到端——同世界实跑的 agent 数据进了账本（非演示）**：
   - **任务一（全新 git workspace，seed.txt，`--yolo --max-turns 60`）**：11 次工具调用——tree / git_status / read seed.txt / write `sums.py`（`total(nums)`，38 字节）/ git_diff / write `test_sums.py`（恰好 2 个 unittest：empty + typical）/ bash `python -m unittest -v` exit 0（2/2 绿）/ 终答汇报；audit.jsonl 落 5 行（read/write 证据链）；**usage total_tokens=64,310 · cache_hit_tokens=44,957 · cache_miss=17,811 · `cache_hit_pct=71.6`**——全新家族首见 cold call，后续 tool-loop 内逐步 warm；
-  - **任务二（同 workspace `--resume`，只读核验）**：read_file ×2 → 确认 `total`、测试数=2、方法名 `test_empty_list` / `test_typical_list`；零写入、零命令；**usage total_tokens=18,077 · cache_hit=8,612 · cache_miss=9,322 · `cache_hit_pct=48.0`**——续会话的 prompt 更短，family prefix 在本机 cache 中仍冷（会话结束后 shard 已过 TTL）；
+  - **任务二（同 workspace `--resume`，只读核验）**：read_file ×2 → 确认 `total`、测试数=2、两个测试方法名（empty-list 与 typical-list 两例）；零写入、零命令；**usage total_tokens=18,077 · cache_hit=8,612 · cache_miss=9,322 · `cache_hit_pct=48.0`**——续会话的 prompt 更短，family prefix 在本机 cache 中仍冷（会话结束后 shard 已过 TTL）；
   - 两趟皆在同一台机器、同 `.env`（新 key）、同 aizzz.xyz / Clash 7897 / gpt-6.1-terra 上跑；两趟均**未改任何已有文件**（任务二明示只读）；401 中转（首开 .env 路径写错导致 INVALID_API_KEY）被如实记下，随后路径修正成功重跑，无副作用（失败点在首次 LLM 调用前）；
   - 诚实口径：两趟 cache 命中都**显著低于**纯前缀探针的 97.6%——真实 agent 调用里大部分 token 是逐轮变化的 tool-loop 上下文，前缀只占 8,362 中的稳定 headline；命中率随任务阶段波动，这是 lane 的物理事实，不是回归；不能拿它当作 97.6% 的 counter-evidence（探针测的是同字节前缀连发），也不能宣称 agent 场景恒 90%+。
