@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T19:39:12.629Z",
+  "generated_at": "2026-11-18T20:13:52.561Z",
   "branch": "main",
-  "head": "f53a2b6",
-  "total_commits": 1990,
+  "head": "420db32",
+  "total_commits": 1992,
   "recent_commits": [
+    {
+      "short": "420db326",
+      "at": "2026-11-19T03:57:22+08:00",
+      "subject": "forge: never KeyError on a missing chapter key - draft/repair read with .get() and let verify judge; repair returns _node_fail 'not a dict' rather than crashing"
+    },
+    {
+      "short": "f111524f",
+      "at": "2026-11-18T19:39:12Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f53a2b66",
       "at": "2026-11-19T03:38:32+08:00",
@@ -19,16 +29,6 @@
       "short": "182c9e18",
       "at": "2026-11-19T03:10:26+08:00",
       "subject": "forge-facts: auto-assemble forge input from repo state (M8-T1235) - git log, fact-pack bot JSON, minicc-cloud pom modules, regex-extracted cache+pressure anchor"
-    },
-    {
-      "short": "1e00e04a",
-      "at": "2026-11-18T18:55:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e48f5454",
-      "at": "2026-11-19T02:49:36+08:00",
-      "subject": "almanac: Ch.LXI The Parallel Wind - forged by the live StateGraph pipeline (M8-T1234): intake/draft/verify/ledger on minicc.agent.graph; gpt-6.1-terra still sus"
     }
   ],
   "first_commit_at": "2026-08-24",
