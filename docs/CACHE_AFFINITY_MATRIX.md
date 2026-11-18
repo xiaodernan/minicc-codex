@@ -202,4 +202,18 @@ read-back 验证：同样脚本在 `.env` 写入 `HTTPS_PROXY=http://127.0.0.1:7
 
 **结论**：与 2026-11-16 首测同一区间（冷 73.7% → 暖 95.9%）——两天、同模型、全新 lane 复现。`4224` 是 content-addressed 的共享前缀块；日 lane key 门控其余部分；prefix 本身不变即两层稳定。**「非流」误解在此 lane 上同样不存在**：Responses 流式两回合之后 cached_tokens 全程可见。
 
-**工程收尾**：`scripts/measure_cache_affinity.py` 现在自动从 gitignored `.env` 继承 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`（仅当 shell 未预置）——不再要求 shell 预置代理，dry-run 继续零网络、零输出 key。
+## 2026-11-18 · lane 换血：gpt-6.1-terra 中途不可用 → gpt-6.1-sol；keeper 重启 · 活测（实录）
+
+**事件**：本日中午 aizzz.xyz 对本账号组停服 `gpt-6.1-terra`（HTTP 404 `model_not_found`），`/v1/models` 仍列出它但账号不再为此模型背书。本机 `.env` 迁往 `gpt-6.1-sol`（gitignored，留痕见 `docs/CHANGELOG.md` M8-T1212 / 批次 1152）。Key、端点、Clash `127.0.0.1:7897` 不变。tracked 代码从未 pin 具体模型，仅 test fixture/文档历史。
+
+**实测形状**（本机、本代理、真 API、真 token）：
+
+1. 同一份系统前缀 + 一个 `“在”`（孤立单字符）连发——第 1 次 cached=0（cold），第 2/3 次 cached ≈ **4,939 / 5,210（94.7%）**，耗时从 11.6s 压到 **2.6–3.3s**；
+2. 同一前缀 + 仅尾部不同的 `v1..v5` 变量——cached 全部落在 **4,178–4,307 / 4,540–4,471（91–96%）**，非流与流式无本质差异；流式命中略低（观察区间内无实质偏离）；
+3. `Responses` 端点本日中途降级为 `stream_required`（网关侧账号组规则漂移）—— `stream=True` 后依然命中（4179/4540 · 92%），非流被同组直接拒绝；`chat/completions` 两个 wire 均稳定命中；
+
+**keeper 的修复**：`cache_keeper._call_gateway` 重写——① chat/completions 流式（stream_options.include_usage）② chat 非流 ③ Responses 流式；usage 形状统一提取。probe 复验（同代码路径、同一 lane）：`call 1 (cold): cached=0, 18.6s → call 2/3 (warm): cached=4,939 · 2.6–3.3s`。`/api/metrics` 新增 `cache_keeper` 对象（`{warms, failures, last_prompt_tokens, last_cached_tokens, last_elapsed_ms, interval_seconds, enabled, last_ok}`）；admin「通道分账」卡新增加了三行：保活计数、prefix 命中、上次 warm 结论。面板实测开出即见 `2 warm · 0 fail · 220s · 94% · 4939/5231 · 热 ✓`。
+
+**读法**：本 lane 每 220 秒一枚微型 warm（≤20 output token）持续 5,231 token 共享前缀——admin 面板现在真实地显示它：这不是缓存“重新设计”，是把早已在偷偷工作的东西，从第一天起摆上了唯一正确的位置——一个人们永远能看到的指示器上。在这之前 94.6% 是静默事实；现在它是句子的主语。
+**工程收尾**：`scripts/measure_cache_affinity.py` 现在自动从 gitignored `.env` 继承 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`（仅当 shell 未预置）——不再要求 shell 预置代理，dry-run 默认跑通，零网络、零输出 key。
+
