@@ -821,3 +821,9 @@
   - `.env` 的 `MINICC_MODEL` 已切换到 `gpt-6.1-sol`（terra 停服期间；.env 本就 gitignored），附带注释；`gpt-6-sol`/`gpt-6-astra`/`gpt-5.6-sol` 均 200 实测；
   - `tests/test_almanac_forge.py`（4 条：首过 / repair 后过 / 反复 CJK 泄漏整体失败 / 校验契约单元）全绿；
   - 配套轮换：期间 `gpt-6.1-terra` 停服 → 切 `gpt-6.1-sol`；Clash/Cloudflare 524 一次（origin 120s，retryable），150s 退避后成功。
+- **M8-T1235：forge facts 自动取证——章节不再靠手写事实清单（进项目的证据流水线）**：
+  - `scripts/forge_facts.py`：从仓库自己读取真实数据——git log（`-n 10 --pretty=format:%h | %ad | %s`）、`docs/latest.json` 事实包八个字段（head / generated_at / total_commits / roadmap_batches / almanac_chapters / test_files / tracked_files / roadmap_lines）、`minicc-cloud/pom.xml` 的 `<modules>` 列表、`docs/CACHE_AFFINITY_MATRIX.md` 按 regex 抽出的实测行（97.6 / 71.6 / 48.0 / 8,362 / 8,566 / 150 s / 60 s / cache_hit）、`docs/LOAD_TESTING.md` 按 regex 抽出的压测行（59,070 / 33,600 / 25,470 / 400/400 / 14,280）；
+  - 读不到的一律标注 `(fact pack missing)` / `(git log unavailable)` / `(pom missing)`——**绝不用一个看起来合理的数字填上去**；en 零 CJK 的职责仍然在 forge 的 verify 契约里；
+  - 使用：`python scripts/forge_facts.py --out docs/_facts.txt --chapter LXII`；
+  - `tests/test_forge_facts.py`（2 条：fixture 数据集含全部锚点 + 缺文件降级为 gaps 不崩溃）全绿；
+  - 本批直接用自动生成的事实滚动喂给 Ch.LXII（terra 停服期间改由 `MINICC_MODEL=gpt-6.1-sol` 单次 env 覆盖；.env 未动）：**attempts=2（首次草拟未过 verify，repair 带错改单，第二次过审）** · cached 8,379/13,851（60%）· zh 1,260 / en 2,141 字符 · en 零 CJK · status passed——**锻造台的修复回路第一次在真实章节上被触发并证明自己有用**。
