@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold", "remeasure", "eviction", "thewall", "livewire", "thesurge", "livecurrent", "twelfthlight", "thereckoning", "thealarm", "theledger", "thegreenline", "twoshards", "onenine", "quotation", "parallelwind"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold", "remeasure", "eviction", "thewall", "livewire", "thesurge", "livecurrent", "twelfthlight", "thereckoning", "thealarm", "theledger", "thegreenline", "twoshards", "onenine", "quotation", "parallelwind", "ownscale"];
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
@@ -65,6 +65,7 @@ const CHAPTER_MARKERS = {
   onenine: ["现在通了", "The Now Goes Through"],
   quotation: ["破损的引号", "The Broken Quotation"],
   parallelwind: ["并发的风", "The Parallel Wind"],
+  ownscale: ["按自己的尺度", "On Its Own Scale"],
 };
 const CJK = /[\u4e00-\u9fff]/;
 
@@ -99,5 +100,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 61 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
+console.log("almanac smoke passed: 62 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
 process.exit(0);

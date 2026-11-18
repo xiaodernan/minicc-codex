@@ -56,6 +56,10 @@ def _git_log(repo: Path, count: int = 10) -> list[str]:
         ).decode("utf-8", errors="replace")
         return [ln for ln in raw.splitlines() if ln.strip()]
     except Exception:
+        # Deliberate boundary: git is only a *data source* for the fact sheet.
+        # If a repo has no commits yet (or git is unavailable), the section
+        # degrades to the honest "(git log unavailable)" marker instead of
+        # killing the whole fact sheet — the model is told to say so.
         return []
 
 

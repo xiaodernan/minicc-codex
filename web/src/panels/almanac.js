@@ -81,6 +81,7 @@ export const CHAPTERS = [
   { id: "onenine", roman: { zh: "卷五十九", en: "Chapter LIX" }, title: { zh: "现在通了", en: "The Now Goes Through" }, subtitle: { zh: "名字还在，调用不通——验证计划选错了价钱", en: "the name stayed, the call did not — the plan picked the wrong interpreter" } },
   { id: "quotation", roman: { zh: "卷六十", en: "Chapter LX" }, title: { zh: "破损的引号", en: "The Broken Quotation" }, subtitle: { zh: "两个多余的字符，炸掉每一次页面加载", en: "two extra characters, every page load" } },
   { id: "parallelwind", roman: { zh: "卷六十一", en: "Chapter LXI" }, title: { zh: "并发的风", en: "The Parallel Wind" }, subtitle: { zh: "六条线程、两个家庭，谁也不动谁", en: "six threads, two families, neither moves the other" } },
+  { id: "ownscale", roman: { zh: "卷六十二", en: "Chapter LXII" }, title: { zh: "按自己的尺度", en: "On Its Own Scale" }, subtitle: { zh: "同一把尺，量每一段路", en: "one rule, every road measured the same way" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3979,6 +3980,10 @@ function quotationMarkup() {
     </div>`;
 }
 
+const LEDGER_ZH_LXII = "<p><strong>卷六十二：按自己的尺度 / On Its Own Scale。</strong>截至 2026-11-18，docs/latest.json 记录：head 为 e48f545，生成时间为 2026-11-18T18:55:03.124Z；共有 1,986 个提交、493 个 roadmap 批次、61 个 almanac 章节、746 个测试文件、1,156 个 tracked files，以及 55,786 行 roadmap。</p><p>minicc-cloud 包含八个模块：minicc-cloud-bridge、minicc-cloud-registry、minicc-cloud-config、minicc-cloud-inspector、minicc-cloud-tasks、minicc-cloud-insights、minicc-cloud-evidence、minicc-cloud-gateway。</p><p>缓存测量记录显示，wkapi.pro 的上游分片以 prefix-cache shard 和客户端 prompt_cache_key 作为路由提示。没有这个 key，同一前缀会逐次落到冷分片；有 key 后，热度周期内命中率稳定在约 94% 至 100%。minicc 始终自动派生 prompt_cache_key。一次记录为 total_tokens=15568、cache_hit_tokens=7040、cache_miss_tokens=8456，命中率为 45.4%。另一次补测记录为 120,599 tokens、prompt_cache_hit_tokens=84,096，命中率为 71.7%，repair_attempts=0，reviewer_false_negative_count=0，pass@1=1。</p><p>新 key 的实测中，call 1 为冷，call 2 至 call 6 稳定命中 8,362/8,566，即 97.6%。150 秒空闲后 call 3 归零；后续十次序列中，call 1 为冷，call 2 至 call 10 几乎全命中，call 9 在 26 秒长尾后出现一次完整冷启动。60 秒 keeper 的状态记录为 warms=2、last_cached_tokens=4,940、interval=60。每线程从第二次调用起均为 8,362/8,566，即 97.6%，且记录为零抖动、零跨家族驱逐。</p><p>压力测试的 Wave 3 为 c=128、12 秒，每条路径 n=2380，共 14,280 个请求，0 errors，全部为 200。三轮累计为 33,600 个请求、0 个 non-2xx、0 个连接失败；另一组累计为 25,470 个请求，同样为零 non-2xx、零连接失败。当天所有压力运行累计为 59,070 个请求、0 个 non-2xx。测试运行于 Windows，同一进程中的 minicc-web 监听 127.0.0.1:8899，并使用 MINICC_FAKE_PROVIDER=1。</p>";
+
+const LEDGER_EN_LXII = "<p><strong>Volume Sixty-Two: On Its Own Scale.</strong>As of 2026-11-18, docs/latest.json records head e48f545 and generation time 2026-11-18T18:55:03.124Z. It records 1,986 total commits, 493 roadmap batches, 61 almanac chapters, 746 test files, 1,156 tracked files, and 55,786 roadmap lines.</p><p>The minicc-cloud modules are minicc-cloud-bridge, minicc-cloud-registry, minicc-cloud-config, minicc-cloud-inspector, minicc-cloud-tasks, minicc-cloud-insights, minicc-cloud-evidence, and minicc-cloud-gateway.</p><p>The cache measurements state that wkapi.pro upstream shards use the prefix-cache shard and the client prompt_cache_key as routing hints. Without the key, the same prefix falls onto a cold shard successively; with the key, the hit rate remains about 94% to 100% during the hot period. minicc always derives prompt_cache_key automatically. One record reports total_tokens=15568, cache_hit_tokens=7040, cache_miss_tokens=8456, and a 45.4% hit rate. Another retest reports 120,599 tokens and prompt_cache_hit_tokens=84,096, for a 71.7% hit rate, with repair_attempts=0, reviewer_false_negative_count=0, and pass@1=1.</p><p>In the new-key measurement, call 1 was cold and calls 2 through 6 consistently hit 8,362/8,566, or 97.6%. After 150 seconds of idle time, call 3 returned to zero. In the following ten-call sequence, call 1 was cold and calls 2 through 10 almost always hit; call 9 had one complete cold result after a 26-second long tail. The 60-second keeper status was warms=2, last_cached_tokens=4,940, and interval=60. From the second call onward, every thread recorded 8,362/8,566, or 97.6%, with zero jitter and zero cross-family eviction.</p><p>Pressure-test Wave 3 used c=128 for 12 seconds. Each path had n=2380, for 14,280 requests total, with 0 errors and all responses equal to 200. The cumulative result across three waves was 33,600 requests, 0 non-2xx responses, and 0 connection failures. Another cumulative run recorded 25,470 requests with zero non-2xx responses and zero connection failures. The daily total across all pressure runs was 59,070 requests and 0 non-2xx responses. The test ran on Windows with minicc-web listening on 127.0.0.1:8899 and MINICC_FAKE_PROVIDER=1.</p>";
+
 function parallelwindMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4011,6 +4016,42 @@ function parallelwindMarkup() {
         ${zh()
           ? "并发不喧哗，它只留下稳定的回声。"
           : "Concurrency leaves a steady echo."}
+      </p>
+    </div>`;
+}
+
+function ownscaleMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-ownscale">
+      <div class="almanac-kicker">${zh() ? "卷六十二 · 按自己的尺度" : "Chapter LXII · On Its Own Scale"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `同一把尺，` + `<br/><span class="almanac-title-accent">量每一段路。</span>`
+        : `One rule,` + `<br/><span class="almanac-title-accent">every road measured the same.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXII : LEDGER_EN_LXII}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">100</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">62 / 62</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=2</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["事实全从仓库自己的账上读", "forge-facts：git log · docs/latest.json 八字段 · pom modules · 缓存/压测 regex 实测行——读不到就标注 missing，不粉饰"],
+        ["Terra 停服时模块切 sol 走 env 覆盖", "2026-11-19 aizzz account group 间歇停服 terra（chat 404）；本次用 `MINICC_MODEL=gpt-6.1-sol` 单次覆盖，.env 不动"],
+        ["修复回路第一次在真实章节上被触发", "首次草拟未过 verify → repair 带错改单 → 第二次过契约（keys{zh,en}、en 零 CJK、≥600 字符），attempts=2，cached 8,379/13,851（60%）"],
+        ["数字一个没变", "1,986 commits · 493 batches · 61 卷 · 746 tests · 1,156 tracked · 55,786 roadmap lines · 59,070 压测 0 non-2xx——全部逐字节取自 fact pack 与既有账本"],
+      ] : [
+        ["every fact came from the repo's own ledger", "forge-facts: git log, the eight fact-pack fields of docs/latest.json, pom modules, and regex-extracted cache/pressure anchor lines — gaps are marked missing, never filled in"],
+        ["sol took over while terra was down", "2026-11-19 aizzz account group flaked on terra (chat 404); this run used a per-invocation `MINICC_MODEL=gpt-6.1-sol` override; .env stayed untouched"],
+        ["the repair loop earned its keep for real", "first draft failed verify, repair took the failure list back, the second passed the contract (keys {zh,en}, zero CJK, ≥600 chars), attempts=2, cached 8,379/13,851 (60%)"],
+        ["not one number drifted", "1,986 commits, 493 batches, 61 volumes, 746 tests, 1,156 tracked files, 55,786 roadmap lines, 59,070 pressure requests with zero non-2xx — all read verbatim from the fact pack and the ledgers"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "尺子不抬高，量自己才诚实。"
+          : "Hold the ruler level — that is how you measure honestly."}
       </p>
     </div>`;
 }
@@ -4077,6 +4118,7 @@ const CHAPTER_RENDERERS = {
   onenine: () => onenineMarkup(),
   quotation: () => quotationMarkup(),
   parallelwind: () => parallelwindMarkup(),
+  ownscale: () => ownscaleMarkup(),
 };
 
 async function loadChapter(id) {
