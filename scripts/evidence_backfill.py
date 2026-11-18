@@ -18,11 +18,11 @@ import json
 import urllib.request
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evidence-backfill", description=__doc__)
     parser.add_argument("--run-id", required=True, help="the GitHub Actions run id (digits)")
     parser.add_argument("--url", default="http://127.0.0.1:8088", help="evidence gate base URL")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not args.run_id.isdigit():
         parser.error("--run-id must be the GitHub run id (digits only)")
