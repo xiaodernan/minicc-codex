@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T18:55:03.124Z",
+  "generated_at": "2026-11-18T19:12:20.809Z",
   "branch": "main",
-  "head": "e48f545",
-  "total_commits": 1986,
+  "head": "182c9e1",
+  "total_commits": 1988,
   "recent_commits": [
+    {
+      "short": "182c9e18",
+      "at": "2026-11-19T03:10:26+08:00",
+      "subject": "forge-facts: auto-assemble forge input from repo state (M8-T1235) - git log, fact-pack bot JSON, minicc-cloud pom modules, regex-extracted cache+pressure anchor"
+    },
+    {
+      "short": "1e00e04a",
+      "at": "2026-11-18T18:55:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e48f5454",
       "at": "2026-11-19T02:49:36+08:00",
@@ -19,24 +29,14 @@
       "short": "6dde3072",
       "at": "2026-11-18T18:11:02Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e55f56b7",
-      "at": "2026-11-19T02:10:26+08:00",
-      "subject": "ledger: concurrent c=6 crosstalk - 2 families x 3 threads x 4 calls; every thread cold once then steady 97.6%; zero cross-family eviction (M8-T1233)"
-    },
-    {
-      "short": "b15ea5d4",
-      "at": "2026-11-18T18:00:46Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
   "changelog_entries": 1,
   "roadmap_lines": 55786,
-  "tracked_files": 1156,
-  "test_files": 746,
+  "tracked_files": 1158,
+  "test_files": 747,
   "almanac_chapters": 61,
   "module_count": 14,
   "feature_surface": [
