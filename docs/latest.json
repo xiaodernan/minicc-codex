@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T20:13:52.561Z",
+  "generated_at": "2026-11-18T22:37:29.069Z",
   "branch": "main",
-  "head": "420db32",
-  "total_commits": 1992,
+  "head": "1a0c6b3",
+  "total_commits": 1994,
   "recent_commits": [
+    {
+      "short": "1a0c6b38",
+      "at": "2026-11-19T06:37:02+08:00",
+      "subject": "almanac: Ch.LXIII The Forged World - terra-era live forge run attempt=1, cached 4,154/6,997 (59%), zh 616/en 1,678 chars, en zero CJK, full facts bridge (M8-T12"
+    },
+    {
+      "short": "18c579ca",
+      "at": "2026-11-18T20:13:53Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "420db326",
       "at": "2026-11-19T03:57:22+08:00",
@@ -19,16 +29,6 @@
       "short": "f53a2b66",
       "at": "2026-11-19T03:38:32+08:00",
       "subject": "almanac: Ch.LXII On Its Own Scale - forged entirely from auto-assembled repo facts (forge-facts, M8-T1235): terra flapped 404 all evening, forge ran on gpt-6.1-"
-    },
-    {
-      "short": "f8d1782c",
-      "at": "2026-11-18T19:12:21Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "182c9e18",
-      "at": "2026-11-19T03:10:26+08:00",
-      "subject": "forge-facts: auto-assemble forge input from repo state (M8-T1235) - git log, fact-pack bot JSON, minicc-cloud pom modules, regex-extracted cache+pressure anchor"
     }
   ],
   "first_commit_at": "2026-08-24",
@@ -37,7 +37,7 @@
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 62,
+  "almanac_chapters": 63,
   "module_count": 14,
   "feature_surface": [
     "workbench",
