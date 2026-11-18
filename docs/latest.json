@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T12:04:47.064Z",
+  "generated_at": "2026-11-18T12:49:59.420Z",
   "branch": "main",
-  "head": "15204a3",
-  "total_commits": 1952,
+  "head": "b48a016",
+  "total_commits": 1954,
   "recent_commits": [
+    {
+      "short": "b48a016",
+      "at": "2026-11-18T20:39:27+08:00",
+      "subject": "M8-T1218/1219/1220: codex thread-affinity cache families + two-level workspace snapshot; new aizz key revives gpt-6.1-terra (models=7, chat 200) - provider/keep"
+    },
+    {
+      "short": "5f053ba",
+      "at": "2026-11-18T12:04:47Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "15204a3",
       "at": "2026-11-18T20:03:49+08:00",
@@ -19,24 +29,14 @@
       "short": "97abfaf",
       "at": "2026-11-18T19:49:07+08:00",
       "subject": "M8-T1216: ship 2026-11-18's sol lane swap as a world volume - almanac CH.LVIII The Two Shards + manual ch.20, both bilingual (en zero CJK); Atlas follows live f"
-    },
-    {
-      "short": "27f52a0",
-      "at": "2026-11-18T11:32:26Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "2ef87d1",
-      "at": "2026-11-18T19:31:07+08:00",
-      "subject": "M8-T1215 (manual recall): write the 2026-11-18 sol lane swap into Manual Chapter 15 - both in zh and en; new bullet calls out that sol's prefix cache is bimodal"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 484,
+  "roadmap_batches": 485,
   "changelog_entries": 1,
-  "roadmap_lines": 55585,
-  "tracked_files": 1151,
-  "test_files": 743,
+  "roadmap_lines": 55617,
+  "tracked_files": 1152,
+  "test_files": 744,
   "almanac_chapters": 58,
   "module_count": 14,
   "feature_surface": [
