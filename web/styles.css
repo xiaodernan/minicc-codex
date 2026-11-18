@@ -5810,3 +5810,5 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .admin-ratelimit-list li:last-child { border-bottom: 0; }
 .admin-ratelimit-list strong { color: var(--muted); font-weight: 600; }
 .admin-ratelimit-list span { font-family: var(--font-mono); color: var(--text); }
+
+.admin-channel { border-color: color-mix(in srgb, var(--purple) 42%, var(--line)); margin-top: 12px; }

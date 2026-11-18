@@ -1117,6 +1117,8 @@
       "admin.benchHistoryKicker": "\u8BC4\u4F30\u65F6\u5E8F \xB7 bench v2",
       "admin.benchHistoryPending": "\u6B63\u5728\u8BFB\u53D6 bench_history.jsonl\u2026",
       "admin.benchHistoryAbsent": "\u6682\u65E0 bench_history.jsonl\u2014\u2014\u5148\u8DD1\u4E00\u904D v2 \u8BC4\u4F30\uFF08python -m minicc.bench_tasks --suite v2\uFF09",
+      "admin.channelKicker": "\u901A\u9053\u5206\u8D26 \xB7 \u771F\u82B1\u7684\u6BCF\u4E00\u5206 token",
+      "admin.channelPending": "\u6B63\u5728\u8BFB\u53D6 metrics \u901A\u9053\u6570\u636E\u2026",
       "admin.ratelimitKicker": "\u7F51\u5173\u9884\u7B97 \xB7 \u5171\u4EAB\u95F8\u95E8",
       "admin.ratelimitPending": "\u6B63\u5728\u8BFB\u5171\u4EAB\u95F8\u5C3A\u2026",
       "admin.ratelimitOutage": "\u95F8\u95E8\u8BA1\u6570\u6682\u65F6\u4E0D\u53EF\u8BFB\u2014\u2014\u95F8\u672C\u8EAB fail-open \u7167\u5E38\u653E\u884C\uFF0C\u8D26\u672C\u7167\u8BB0\u3002",
@@ -1941,6 +1943,8 @@
       "admin.benchHistoryKicker": "Bench history \xB7 v2",
       "admin.benchHistoryPending": "Reading bench_history.jsonl\u2026",
       "admin.benchHistoryAbsent": "No bench history yet \u2014 run the v2 suite once to draw the first line",
+      "admin.channelKicker": "Model channels \xB7 where the tokens went",
+      "admin.channelPending": "Reading metrics \u2026",
       "admin.ratelimitKicker": "Gateway budget \xB7 shared gate",
       "admin.ratelimitPending": "Reading the shared bucket\u2026",
       "admin.ratelimitOutage": "The gate counters are unreadable \u2014 the gate itself fails open and keeps counting.",
@@ -8055,7 +8059,7 @@
       }
     });
     async function loadSummary() {
-      const data = await requestJson("/api/admin/summary", {}, 2e4).catch(() => null);
+      const data = await requestJson("/api/admin/summary", {}, 45e3).catch(() => null);
       const totals = data?.totals ?? {};
       const trend = Array.isArray(data?.trend_7d) ? data.trend_7d : [];
       const tasks = Array.isArray(data?.recent_tasks) ? data.recent_tasks : [];
@@ -8507,6 +8511,53 @@
       }
       const auditPromise = requestJson("/api/oracle-audit-story", {}, 3e4).catch(() => null);
       auditPromise.then((story) => renderAudit(story, false));
+      function renderChannel(metrics, refreshed) {
+        const bodyEl = $("#adminChannelList");
+        const usageEl = $("#adminChannelUsage");
+        const byEl = $("#adminChannelModel");
+        if (byEl && metrics) byEl.textContent = zh8() ? "\u771F\u5B9E\u901A\u9053" : "real channels";
+        if (!metrics || typeof metrics !== "object") {
+          if (bodyEl) bodyEl.innerHTML = `<li class="admin-brief-pending">${esc2(t("admin.channelPending"))}</li>`;
+          if (usageEl) usageEl.textContent = "";
+          return;
+        }
+        const priced = Number(metrics?.priced_tasks ?? 0);
+        const unpriced = Number(metrics?.unpriced_tasks ?? 0);
+        const scoped = String(metrics?.scope ?? "unknown");
+        const totalCost = metrics?.cost_usd;
+        const costStr = typeof totalCost === "number" ? totalCost.toFixed(4) : "null";
+        const partialStr = metrics?.cost_is_partial === true ? "partial" : "complete";
+        const usage = metrics?.usage ?? {};
+        const byModel = metrics?.by_model ?? {};
+        const rows = Object.entries(byModel).map(([name, m]) => {
+          const u = m && m.tokens || {};
+          const cost = typeof m.cost_usd === "number" ? m.cost_usd.toFixed(6) : "\u2014";
+          const taskCount = Number(m?.tasks ?? m?.task_count ?? 0);
+          return {
+            name,
+            prompt: u.prompt_tokens ?? 0,
+            completion: u.completion_tokens ?? 0,
+            total: u.total_tokens ?? 0,
+            cost,
+            tasks: taskCount
+          };
+        });
+        rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0));
+        if (bodyEl) {
+          bodyEl.innerHTML = `<li><strong>${zh8() ? "\u8303\u56F4" : "scope"}</strong><span>${esc2(scoped)}</span></li>` + (rows.length ? rows.slice(0, 4).map((row) => {
+            const unit = zh8() ? "\u4E2A\u4EFB\u52A1" : row.tasks === 1 ? "task" : "tasks";
+            return `<li><strong>${esc2(row.name)}</strong><span>${esc2(`${row.prompt}/${row.completion}/${row.total} \xB7 ${row.tasks} ${unit}`)}</span></li>`;
+          }).join("") : `<li><strong>${zh8() ? "\u6761\u76EE" : "rows"}</strong><span>${esc2("none")}</span></li>`) + `<li><strong>${zh8() ? "\u5B9A\u4EF7\u8986\u76D6" : "Priced coverage"}</strong><span>${esc2(`${priced}/${unpriced} \xB7 ${partialStr}`)}</span></li><li><strong>${zh8() ? "\u603B\u6210\u672C" : "total spend"}</strong><span>${esc2(totalCost == null ? "\u2014" : `$${costStr}`)}</span></li>`;
+        }
+        if (usageEl) {
+          const prompt = usage?.prompt_tokens ?? "\u2014";
+          const completion = usage?.completion_tokens ?? "\u2014";
+          const total = usage?.total_tokens ?? "\u2014";
+          usageEl.textContent = zh8() ? `prompt ${prompt} \xB7 completion ${completion} \xB7 total ${total}${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `prompt ${prompt} \xB7 completion ${completion} \xB7 total ${total}${refreshed ? " \xB7 re-read" : ""}`;
+        }
+      }
+      const channelPromise = requestJson("/api/metrics", {}, 15e3).catch(() => null);
+      channelPromise.then((metrics) => renderChannel(metrics, false));
       function renderRatelimit(stats, refreshed) {
         const bodyEl = $("#adminRatelimitBody");
         const usageEl = $("#adminRatelimitUsage");

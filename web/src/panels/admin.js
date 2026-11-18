@@ -62,7 +62,7 @@ export async function openAdmin() {
   });
 
   async function loadSummary() {
-    const data = await requestJson("/api/admin/summary", {}, 20000).catch(() => null);
+    const data = await requestJson("/api/admin/summary", {}, 45000).catch(() => null);
     const totals = data?.totals ?? {};
     const trend = Array.isArray(data?.trend_7d) ? data.trend_7d : [];
     const tasks = Array.isArray(data?.recent_tasks) ? data.recent_tasks : [];
@@ -574,6 +574,59 @@ export async function openAdmin() {
     }
     const auditPromise = requestJson("/api/oracle-audit-story", {}, 30000).catch(() => null);
     auditPromise.then((story) => renderAudit(story, false));
+    // Model-channel ledger — per-model tokens + cost + priced coverage.
+    function renderChannel(metrics, refreshed) {
+      const bodyEl = $("#adminChannelList");
+      const usageEl = $("#adminChannelUsage");
+      const byEl = $("#adminChannelModel");
+      if (byEl && metrics) byEl.textContent = zh() ? "真实通道" : "real channels";
+      if (!metrics || typeof metrics !== "object") {
+        if (bodyEl) bodyEl.innerHTML = `<li class="admin-brief-pending">${esc(t("admin.channelPending"))}</li>`;
+        if (usageEl) usageEl.textContent = "";
+        return;
+      }
+      const priced = Number(metrics?.priced_tasks ?? 0);
+      const unpriced = Number(metrics?.unpriced_tasks ?? 0);
+      const scoped = String(metrics?.scope ?? "unknown");
+      const totalCost = metrics?.cost_usd;
+      const costStr = typeof totalCost === "number" ? totalCost.toFixed(4) : "null";
+      const partialStr = metrics?.cost_is_partial === true ? "partial" : "complete";
+      const usage = metrics?.usage ?? {};
+      const byModel = metrics?.by_model ?? {};
+      const rows = Object.entries(byModel).map(([name, m]) => {
+        const u = (m && m.tokens) || {};
+        const cost = typeof m.cost_usd === "number" ? m.cost_usd.toFixed(6) : "—";
+        const taskCount = Number(m?.tasks ?? m?.task_count ?? 0);
+        return { name, prompt: u.prompt_tokens ?? 0, completion: u.completion_tokens ?? 0,
+                 total: u.total_tokens ?? 0, cost, tasks: taskCount };
+      });
+      rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0));
+      if (bodyEl) {
+        bodyEl.innerHTML =
+          `<li><strong>${zh() ? "范围" : "scope"}</strong><span>${esc(scoped)}</span></li>` +
+          (rows.length
+            ? rows.slice(0, 4).map((row) => {
+                const unit = zh() ? "个任务" : (row.tasks === 1 ? "task" : "tasks");
+                return `<li><strong>${esc(row.name)}</strong>` +
+                  `<span>${esc(`${row.prompt}/${row.completion}/${row.total} · ${row.tasks} ${unit}`)}</span></li>`;
+              })
+                .join("")
+            : `<li><strong>${zh() ? "条目" : "rows"}</strong><span>${esc("none")}</span></li>`) +
+          `<li><strong>${zh() ? "定价覆盖" : "Priced coverage"}</strong><span>${esc(`${priced}/${unpriced} · ${partialStr}`)}</span></li>` +
+          `<li><strong>${zh() ? "总成本" : "total spend"}</strong><span>${esc(totalCost == null ? "—" : `$${costStr}`)}</span></li>`;
+      }
+      if (usageEl) {
+        const prompt = usage?.prompt_tokens ?? "—";
+        const completion = usage?.completion_tokens ?? "—";
+        const total = usage?.total_tokens ?? "—";
+        usageEl.textContent = zh()
+          ? `prompt ${prompt} · completion ${completion} · total ${total}${refreshed ? " · 已重读" : ""}`
+          : `prompt ${prompt} · completion ${completion} · total ${total}${refreshed ? " · re-read" : ""}`;
+      }
+    }
+    const channelPromise = requestJson("/api/metrics", {}, 15000).catch(() => null);
+    channelPromise.then((metrics) => renderChannel(metrics, false));
+
     // Gateway budget — how close the shared 60s / 20-per-client token bucket is
     // to refusing the panel's own model calls; reads what the gate keeps.
     function renderRatelimit(stats, refreshed) {

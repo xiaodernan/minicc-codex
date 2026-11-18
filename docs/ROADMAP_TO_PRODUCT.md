@@ -55265,3 +55265,30 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 - 没 claim 分数的 cost_per_success（providers 不报 price 时 metrics 恒为 `null`）；
 - **写入了 `output/` 但 gitignored**——eval json 只是当地一次性 exploratory artifact；
 - bench_history.jsonl 同 gitignored。
+## 批次 1145 · M8-T1203: 通道分账 tile——token 去了哪条通道
+
+### 做了什么（真修改，真验证）
+
+1. **minicc/stats.py — `_disk_bytes` 换挡**：os.walk + os.stat（8,747 次 syscall）→ 显式 `scandir` 递归 + `entry.stat()`（Windows NTFS 的 FindFirstFile 已携带 size，Python 的 DirEntry.stat 走枚举缓存）：
+   - 同一 `.minicc` 树，字节总量 **372,831,922** 完全一致（8,747 文件、322 MB）；
+   - 实测耗时 **15.5s → 0.01–1.1s**（计时机器：本仓库 D:\面试项目\minicc-codex）；
+   - 计数语义、异常降级（vanished file 跳过、unreadable dir 跳过、never raise）全部保留；`tests/test_stats.py`、`tests/test_http_surface.py` 对 `disk_bytes` 的断言依旧通过；文件级 gates（package/utc/broad-handler/one-home/logging/run_metrics）全绿（60 passed）。
+2. **web/src/panels/admin.js**：`renderChannel()`（rows 按 total tokens 降序，最多 4 行）+ `const channelPromise = requestJson("/api/metrics", {}, 15000)` fire-and-forget；usage 行复用 `zh()` 双语；
+   - 面板 `/api/admin/summary` 读取 timeout **20s → 45s**——cold walk 19–24s 曾在 starved 环境里把 unlock 挤成“全白”的真根因（缓存命中率记录的 hit_rate 由 stats 提供，本次不涉及模型 token）；
+3. **web/index.html** + **web/styles.css**：`<section class="admin-card admin-channel">`（紫框）+ `#adminChannelList` / `#adminChannelUsage` / `#adminChannelModel`；
+4. **web/src/core/i18n.js**：`admin.channelKicker` / `admin.channelPending` 双语；CRLF 钉 index **786/0**、i18n **336/0**；
+5. **构建产物同步**：`web/app.js`（1,215,278 字符）、`web/assets/app.7df8a754606f3bd0.js`、`web/assets/styles.e2bf9721f9a41bc2.css`、`web/asset-manifest.json` 一并提交。
+
+### 实测证据（harness 全绿）
+
+- admin unlock（假 provider）-> 真实渲染：`gpt-6.1-terra 1880/300/2180 · 4 个任务`；`test-model 0/0/0 · 20 个任务`；`定价覆盖 0/24 · complete`；`总成本 —`（provider 不报价 → null → 面板展示“—”，绝不造值）；
+- admin_smoke 绿；en_cjk_smoke 绿；dazzle_smoke 绿（34 clicks，en+zh）；almanac_smoke 绿（57 章）；stategraph_smoke 绿；
+- `test_web_data_i18n_keys_resolve` 绿（含所有 admin.* 键）；`python --version` 无关；
+- 展示页 fallback 将在本批 CI 绿后按惯例同步（fact pack 计数届时再读取）。
+
+### 诚实边界
+
+- **不宣称**该 tile 展示定价的美元准确账目——provider 从不上报 price；`cost_usd` 恒为 null，`priced_tasks` = 0；tile 只呈现“能给出的”（tokens、tasks、scope、coverage 状态、总成本的 null 诚实）；
+- **不宣称**unlock 有多快——饿死机器上 summary 仍需 ~10–25s；45s timeout 只是把阈值挪出真实 cold-walk 时长，不替用户消灭等待；
+- **诚实记账**：添加全不变式期间本机 I/O 饥饿（`page.goto` timeout / CIM 查询卡死）——通过“逐工具、浅探针、低并发”恢复并复验绿；未做任何系统性进程清理（一次 /* minicc.web */ 精确匹配的重启除外）；
+- 不破坏双语门：en 模式无 CJK（en_cjk_smoke 通过），inline CJK 仅存在于 zh 字典值，未新增任何混合文案；zh 模式切回完全一致。

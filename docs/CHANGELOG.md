@@ -674,3 +674,11 @@
   `python -m minicc.benchmarks --suite v2 --run --task-id v2-greeting-already-correct --task-id v2-fix-add --task-id v2-json-roundtrip`（无 `MINICC_FAKE_PROVIDER`、`.env` 经 Clash VerificationContract 走 aizzz.xyz → gpt-6.1-terra）—— **执行、限时、真 token 消耗**：3 条任务真跑；`pass_at_1=0.6667`（2/3）；`tokens_per_success=185,442`；`latency_p50=68.7s, p95=306.8s`；`mean_repair_attempts=0.667`；`reviewer_false_negative_count=1`（模型判 complete 与客观 grader 一个不对）——整条求真评估链 live for the first time；`output/evaluation_v2_probe.json` 留底。
 - ingest：`minicc.bench_history --ingest output/evaluation_v2_probe.json --allow-changes` 写入 `.minicc/bench_history.jsonl`：**共 33 行**，`mean_score=0.667`，`mean_elapsed_ms=128,558`，`window 23:31:32Z → 00:18:57Z`；`/api/bench-history` 此后返回真实数据；管理面板 tile 渲染同一份。
 - 教材级教训：把 `--suite v2 --run` 真执行在进程里跑通——所有从 ` benchmarks/tasks.v2.json` 读到的 fixture 都真的落盘、grader 真的判出 `True/False`，`_write_ref refusal_prefix mismatch` 还剩一行被 Editor 报出（`_json round-trip 的沙盒 I/O`）——事实链完整。
+- **M8-T1203：值守军师新增「通道分账」tile——token 流向哪条模型通道，一分一厘都看得见**；
+  顺手真根因修复「admin unlock 偶发全白」：`minicc/stats.py::_disk_bytes` 从 `os.walk + os.stat` 换成 `scandir` 递归（NTFS 目录枚举自带 size，`DirEntry.stat` 走枚举缓存，零改变计数语义）——同一 `.minicc` 树实测 **15.5s → 0.01–1.1s**（8,747 文件 / 322 MB / 总计 372,831,922 字节，字节总量完全一致）；`/api/admin/summary` 面板侧 timeout 20s → 45s。
+  - HTML：`web/index.html` 新 `<section class="admin-card admin-channel">`（紫框，介于共享闸门卡与 CI 红灯卡之间）**CRLF 钉 786/0**；
+  - 逻辑：`web/src/panels/admin.js` `renderChannel()` + `channelPromise`——直接消费 `/api/metrics`（`by_model` / `priced_tasks` / `unpriced_tasks` / `scope` / `cost_usd` / `cost_is_partial`）：每条通道展示 prompt/completion/total tokens 与任务数、`scope`、定价覆盖（`N/M · complete|partial`）、总成本（provider 不报价则为 `—`，绝不造值）；
+  - i18n：`admin.channelKicker` / `admin.channelPending`（zh + en 双键），**CRLF 钉 336/0**；`zh()`/CJK 无泄漏；
+  - 样式：`.admin-channel { border-color: …--purple…; margin-top: 12px; }`；
+  - **实测**：Playwright unlock 链路全绿——rows 渲染出 `gpt-6.1-terra 1880/300/2180 · 4 个任务`、`test-model 0/0/0 · 20 个任务`、`定价覆盖 0/24 · complete`、`总成本 —`；admin_smoke 通过；en_cjk / dazzle / almanac / stategraph 全过；ruff 无关。
+  - 机器饥饿事件诚实记账：本机在过程中间歇 I/O 饥饿（page.goto timeout / CIM 查询挂死）——未做任何系统性进程清除；降级后逐工具验证恢复，unlock 端到端重验绿。
