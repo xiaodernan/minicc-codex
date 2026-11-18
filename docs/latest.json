@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T05:52:56.342Z",
+  "generated_at": "2026-11-18T07:04:52.406Z",
   "branch": "main",
-  "head": "048de47",
-  "total_commits": 1940,
+  "head": "c2c93c0",
+  "total_commits": 1942,
   "recent_commits": [
+    {
+      "short": "c2c93c0",
+      "at": "2026-11-18T15:03:53+08:00",
+      "subject": "M8-T1213 (prefix cache verdict): measure and SHOW cache performance live - cache_keeper's _call_gateway rewritten to try chat/completions streaming (stream_opti"
+    },
+    {
+      "short": "f03b04c",
+      "at": "2026-11-18T05:52:56Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "048de47",
       "at": "2026-11-18T13:52:33+08:00",
@@ -19,22 +29,12 @@
       "short": "f3349ee",
       "at": "2026-11-18T13:37:50+08:00",
       "subject": "M8-T1211 (pre-push battery): scripts/pre_push_gates.py - one command that runs the same 16 gates that turned red for this repo across CI red #10/#11/#12 (doc po"
-    },
-    {
-      "short": "1402218",
-      "at": "2026-11-18T04:58:42Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ba50004",
-      "at": "2026-11-18T12:58:20+08:00",
-      "subject": "M8-T1210 (CI red #12 fix): Ubuntu leg caught two invented details - (1) test_evidence_backfill must register the module in sys.modules before exec_module (test_"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 479,
+  "roadmap_batches": 480,
   "changelog_entries": 1,
-  "roadmap_lines": 55447,
+  "roadmap_lines": 55479,
   "tracked_files": 1151,
   "test_files": 743,
   "almanac_chapters": 57,
