@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T14:09:23.869Z",
+  "generated_at": "2026-11-18T14:42:21.804Z",
   "branch": "main",
-  "head": "808d63d",
-  "total_commits": 1970,
+  "head": "cadc8f5",
+  "total_commits": 1972,
   "recent_commits": [
+    {
+      "short": "cadc8f5",
+      "at": "2026-11-18T22:40:23+08:00",
+      "subject": "M8-T1230: Ubuntu leg red on (1) inline _SKIP_DIRS in prompt.py - moved the enumeration to tools/fs.py and imported from there (no dual homes); (2) docstring pin"
+    },
+    {
+      "short": "7a7e345",
+      "at": "2026-11-18T14:09:24Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "808d63d",
       "at": "2026-11-18T22:08:59+08:00",
@@ -19,22 +29,12 @@
       "short": "f806c0f",
       "at": "2026-11-18T22:02:50+08:00",
       "subject": "M8-T1228 (ledger): note the io-card cache baseline swap (73.7/95.9 -> 72.3/97.6, session-family measured 2026-11-18)"
-    },
-    {
-      "short": "a971561",
-      "at": "2026-11-18T13:54:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1f38aa5",
-      "at": "2026-11-18T21:53:22+08:00",
-      "subject": "docs(index): add Ch.LIX archive entry to CHAPTER_DRAFT index - live terra single call, no explicit prompt_cache_key, 4,173 lane-headline cached tokens, json_obj"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 492,
+  "roadmap_batches": 493,
   "changelog_entries": 1,
-  "roadmap_lines": 55771,
+  "roadmap_lines": 55786,
   "tracked_files": 1154,
   "test_files": 745,
   "almanac_chapters": 59,
