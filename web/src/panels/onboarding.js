@@ -24,8 +24,8 @@ const STEPS = [
   },
   {
     id: "sidebar", anchor: "#sidebar",
-    zh: { kicker: "上手演练 · 第 2 步 / 共 10 步", title: "左侧是这台机器的控台", body: "任务、活动、账本、模板、说明书、年鉴、铁律、日志、档案馆——产品的所有面板都从这里打开，而且中文英文两套版本永远同时有效。" },
-    en: { kicker: "Start here · Step 2 of 10", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive — every panel opens from here, in Chinese and English, at parity." },
+    zh: { kicker: "上手演练 · 第 2 步 / 共 10 步", title: "左侧是这台机器的控台", body: "任务、活动、账本、模板、说明书、年鉴、铁律、日志、档案馆——产品所有面板都从这里打开；⌘K 搜「状态图」还能看一眼实时的 StateGraph 路由；中文英文两套版本永远同时有效。" },
+    en: { kicker: "Start here · Step 2 of 10", title: "The left rail is the control deck", body: "Tasks, activity, ledger, templates, manual, almanac, axioms, journal, archive — every panel opens from here; ⌘K to peek at the live StateGraph runbook; always in Chinese and English, at parity." },
   },
   {
     id: "composer", anchor: "#promptInput", interact: "composer",
@@ -59,8 +59,8 @@ const STEPS = [
   },
   {
     id: "almanac", anchor: '.nav-item[data-view="almanac"]',
-    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷五十七的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
-    en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in fifty-seven halls", body: "Fifty-seven chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
+    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷五十八的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
+    en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in fifty-eight halls", body: "Fifty-eight chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
   },
   {
     id: "done", anchor: null,

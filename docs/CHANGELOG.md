@@ -779,3 +779,7 @@
   - 系统提示 7,177 → 13,295 字节（≈6.6k tokens）；
   - 新 key · terra · 实测：会话族键 call 1 冷、call 2+ 恒定 8,362/8,566（97.6%）；**随机键 call 1 也命中 8,362**——本仓库前缀已成全 lane 共享的 headline block；
   - `tests/test_readme_excerpt.py`（4 例）全绿；battery 16/16 绿；未新增 i18n 键、未动 CRLF 钉。
+- **M8-T1226：旅图补课——onboarding 站位点名 StateGraph，年鉴卷数全局对账（57 → 58，中英双侧）**：
+  - onboarding step 2（左侧控台）新增「⌘K 搜『状态图』看实时 StateGraph 路由」；step 9 卷数 57→58（zh/en 同步）；
+  - 说明书「年鉴 · Almanac」行 57 卷 → 58 卷，最新卷改成 Ch.LVIII《双峰》；
+  - en 侧零 CJK；未新增 i18n 键；battery 16/16。

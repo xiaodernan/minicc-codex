@@ -55687,3 +55687,20 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 上述数字仅属本 lane / 本前缀 / 本日；README 自己也是数据，不是指令；
 - **不是每一轮**都把这 6K 的 README 付掉——这段前缀共享，99% 的 turn 都命中（见上）；README 改动时前缀自然重付，这是真实的友谊之代价；
 - `.env` 换成 terra 后本轮所有数字仍在记录之中。
+## 批次 1162 · M8-T1226: 旅图补课——onboarding 主二步点名 StateGraph，年鉴卷数 stale 57→58（中英双侧）
+
+### 为什么做
+
+2026-11-18 旅深继续：总指令再次强调 "别忘了用 stategraph 来优化项目 把它做进项目里面"——用户在教程这一环找不到 StateGraph 的任何线索（onboarding 十个站位没有一个点到它）；与此同时，说明书「年鉴」行与 onboarding step 9 还写着「五十七卷 / fifty-seven」——年鉴已经是 58 卷（本周刚上架的 Ch.LVIII《双峰》）。偏差的点对不上，教学就做不到"看即所得"。
+
+### 做了什么
+
+1. **站位 9、说明书年鉴行数字对账**：
+   - onboarding step 9：zh「卷一到卷五十七」→「卷一到卷五十八」、`The Almanac — a museum in fifty-seven halls` → `fifty-eight`、`Fifty-seven chapters` → `Fifty-eight`；
+   - `web/src/panels/manual.js` 说明书「年鉴 · Almanac」行：卷数 57 → 58；最新卷文案由「卷五十七《绿线》」→「卷五十八《双峰》——terra 停服换 sol、prefix cache 双峰分裂」，中英双侧同步。
+2. **站位 2 明确点名 StateGraph**：
+   - zh 增加「⌘K 搜『状态图』还能看一眼实时的 StateGraph 路由」；
+   - en: "⌘K to peek at the live StateGraph runbook"。
+   - 这样教"怎么找到它"就和产品里真实存在的入口对上了（`Ticket` 命令面板 `minicc:nav`→`stategraph` / `/api/stategraph` live 现读 `minicc/agent/graph.py::build_coding_workflow`）。
+3. 绿线卷 LVII 的「第 57 卷」是冻结的历史叙事，不动；未涉及任何 i18n 键；en 侧零 CJK。
+4. battery **16/16 绿**；中文发布物已核对无残留「五十七」。
