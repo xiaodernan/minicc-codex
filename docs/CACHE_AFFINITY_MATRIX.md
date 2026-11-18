@@ -308,3 +308,12 @@ A-call-1/2 冷→热之后，插入两次 B；A-call-3 仍然 8,362 / 8,566=**97
 ### 结论
 
 "并行 session 把 cache 乱了"是直觉词，但本 lane 的实际行为是 family-sharded by exactly the `session-sxxxx` first 16 hex of sha-256(session_id)` prefixed with `minicc-` —**分区缓存按 family 做**，自我互不顶掉。这和 codex 的线程亲和是同路径。非流命中率看似低，是因为 warm shard 持续在同台 body 上，只不过网关没回传 upstream cached_tokens；真正稳定的总 token 节省写在 `cache_keeper` 的 side-channel 指标中。
+
+## 2026-11-18 深夜 · 真任务端到端两趟（M8-T1232 证据）
+
+| 趟 | tokens | cached | miss | hit% | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| 1（新 workspace `--yolo --max-turns 60`） | 64,310 | 44,957 | 17,811 | 71.6% | 11 次工具调用；sums.py + test_sums.py 生成且 tests 全绿；audit.jsonl 5 行证据 |
+| 2（同 workspace `--resume`，只读） | 18,077 | 8,612 | 9,322 | 48.0% | 零写入；确认测试数=2、方法名两项；家族前缀跨会话过了 TTL |
+
+探针（同字节前缀连发，family 键）稳在 97.6%；真实 agent 的逐轮增长上下文让命中率回落到 48–72%——这是物理事实，记录而不粉饰。
