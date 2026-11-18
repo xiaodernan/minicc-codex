@@ -1100,8 +1100,8 @@
       "session.emptyChip1": "\u8BFB README \u5E76\u544A\u8BC9\u6211\u5B83\u662F\u505A\u4EC0\u4E48\u7684",
       "session.emptyChip2": "\u8DD1\u6D4B\u8BD5\u5E76\u62A5\u544A\uFF1A\u54EA\u6302\u4E86\u3001\u4E3A\u4EC0\u4E48",
       "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669",
-      "session.emptyChip4": "\u6253\u5F00\u8BF4\u660E\u4E66\uFF0C\u5341\u4E09\u7AE0\u5168\u7FFB\u5230",
-      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201494 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9",
+      "session.emptyChip4": "\u6253\u5F00\u8BF4\u660E\u4E66\uFF0C\u4E8C\u5341\u7AE0\u5168\u7FFB\u5230",
+      "session.emptyChip5": "\u6253\u5F00\u4E16\u754C\u5730\u56FE\u2014\u201496 \u4E2A\u771F\u5B9E\u5750\u6807\u968F\u4FBF\u70B9",
       "admin.ciDxKicker": "CI \u7EA2\u706F\u5F52\u56E0 \xB7 \u503C\u5B88\u5B88\u95E8\u4EBA",
       "admin.ciDxPending": "\u6B63\u5728\u8BFB\u53D6 GitHub \u771F\u5B9E\u8FD0\u884C\u8BB0\u5F55\u2026",
       "admin.auditKicker": "\u5BA1\u8BA1\u5B9E\u8BED \xB7 \u503C\u5B88\u8BFB\u8005",
@@ -1929,8 +1929,8 @@
       "session.emptyChip1": "Read the README and tell me what this is",
       "session.emptyChip2": "Run the test suite and report failures",
       "session.emptyChip3": "Review the diff and flag regressions",
-      "session.emptyChip4": "Open the manual \u2014 all thirteen chapters",
-      "session.emptyChip5": "Open the world map \u2014 94 real coordinates to tap",
+      "session.emptyChip4": "Open the manual \u2014 all twenty chapters",
+      "session.emptyChip5": "Open the world map \u2014 96 real coordinates to tap",
       "admin.ciDxKicker": "CI red attribution \xB7 on-duty gatekeeper",
       "admin.ciDxPending": "Reading the real GitHub runs\u2026",
       "admin.auditKicker": "Audit story \xB7 on-duty reader",
@@ -2984,7 +2984,8 @@
     { id: "thereckoning", roman: { zh: "\u5377\u4E94\u5341\u56DB", en: "Chapter LIV" }, title: { zh: "\u5E76\u8D26", en: "The Reckoning" }, subtitle: { zh: "\u6BCF\u4E00\u6761\u5206\u652F\u90FD\u88AB\u5BA1\u8FC7\u4E86\u2014\u2014\u6CA1\u6709\u6F0F\u6389\u7684", en: "every branch was audited \u2014 nothing was skipped" } },
     { id: "thealarm", roman: { zh: "\u5377\u4E94\u5341\u4E94", en: "Chapter LV" }, title: { zh: "\u8B66\u949F", en: "The Alarm" }, subtitle: { zh: "\u4E09\u6B21 CI \u7EA2\u706F\uFF0C\u540C\u4E00\u591C\u91CC\uFF0C\u5168\u88AB\u6441\u706D", en: "three CI reds in one night \u2014 all three extinguished" } },
     { id: "theledger", roman: { zh: "\u5377\u4E94\u5341\u516D", en: "Chapter LVI" }, title: { zh: "\u4F1A\u5F00\u53E3\u7684\u8D26\u672C", en: "The Ledger That Speaks" }, subtitle: { zh: "\u6A21\u578B\u7EC8\u4E8E\u542C\u61C2\u4E86\u8FD9\u4E2A\u4ED3\u5E93\u521A\u624D\u505A\u4E86\u4EC0\u4E48", en: "the model finally understood what this repository just did" } },
-    { id: "thegreenline", roman: { zh: "\u5377\u4E94\u5341\u4E03", en: "Chapter LVII" }, title: { zh: "\u7EFF\u7EBF", en: "The Green Line" }, subtitle: { zh: "\u4E00\u6761\u88AB CI \u6293\u7740\u6293\u3001\u4FEE\u7740\u4FEE\u3001\u6700\u540E\u63A8\u901A\u7EA2\u8272\u7684\u4E3B\u7EBF", en: "the main line CI caught over and over while it was pushed back to green" } }
+    { id: "thegreenline", roman: { zh: "\u5377\u4E94\u5341\u4E03", en: "Chapter LVII" }, title: { zh: "\u7EFF\u7EBF", en: "The Green Line" }, subtitle: { zh: "\u4E00\u6761\u88AB CI \u6293\u7740\u6293\u3001\u4FEE\u7740\u4FEE\u3001\u6700\u540E\u63A8\u901A\u7EA2\u8272\u7684\u4E3B\u7EBF", en: "the main line CI caught over and over while it was pushed back to green" } },
+    { id: "twoshards", roman: { zh: "\u5377\u4E94\u5341\u516B", en: "Chapter LVIII" }, title: { zh: "\u53CC\u5CF0", en: "The Two Shards" }, subtitle: { zh: "\u540C\u4E00\u628A\u94A5\u5319\uFF0C\u6253\u540C\u4E00\u9053\u5899\uFF0C\u5899\u7684\u53E6\u4E00\u5934\u6709\u4E24\u79CD\u4EF7\u94B1", en: "same key, same wall, two prices at the far side" } }
   ];
   function chapterMarkup(chapter) {
     const kicker = zh() ? chapter.roman.zh : chapter.roman.en;
@@ -4179,10 +4180,10 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u5C9B\u5C7F" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5750\u6807\u603B\u6570" : "Coordinates"}</div><div class="almanac-instrument-value">52</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5750\u6807\u603B\u6570" : "Coordinates"}</div><div class="almanac-instrument-value">96</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u9762\u677F\u5750\u6807" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274\u536B\u661F" : "Almanac satellites"}</div><div class="almanac-instrument-value">19</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u8BF4\u660E\u4E66\u536B\u661F" : "Manual satellites"}</div><div class="almanac-instrument-value">13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274\u536B\u661F" : "Almanac satellites"}</div><div class="almanac-instrument-value">58</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u8BF4\u660E\u4E66\u536B\u661F" : "Manual satellites"}</div><div class="almanac-instrument-value">20</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u5DF2\u5B8C\u6210\u4EFB\u52A1(\u771F)" : "Completed tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u88AB\u4E2D\u65AD(\u771F)" : "Interrupted (live)"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u63A2\u7D22\u5B58\u50A8" : "Visited store"}</div><div class="almanac-instrument-value">minicc-visited</div></div>
@@ -4191,13 +4192,13 @@
       ["\u62D6\u62FD\u5E73\u79FB", "\u4E0D\u662F\u6EDA\u52A8\uFF0C\u662F\u9A7E\u9A76\u2014\u2014\u4E16\u754C\u4EE5\u624B\u638C\u63A8\u51FA\u6765\u7684"],
       ["\u6EDA\u8F6E\u7F29\u653E", "\u6BCF\u4E2A\u4EBA\u90FD\u5728\u81EA\u5DF1\u7684\u8282\u594F\u91CC\u8BFB\u4E16\u754C"],
       ["\u70B9\u51FB\u76F4\u8FBE", "\u753B\u5E03\u88C2\u51FA minicc:nav \u4E8B\u4EF6 \u2192 main.js dispatchView \u63A5\u4F4F \u2192 Esc \u968F\u65F6\u56DE\u5730\u56FE"],
-      ["50 \u4E2A\u5750\u6807", "18 \u9762\u677F + 19 \u5E74\u9274\u5377 + 13 \u8BF4\u660E\u4E66\u7AE0\u2014\u2014\u5750\u6807\u662F\u771F\u7684\uFF0C\u63A2\u7D22\u4E5F\u662F\u771F\u7684"],
+      ["96 \u4E2A\u5750\u6807", "18 \u9762\u677F + 58 \u5E74\u9274\u5377 + 20 \u8BF4\u660E\u4E66\u7AE0\u2014\u2014\u5750\u6807\u662F\u771F\u7684\uFF0C\u63A2\u7D22\u4E5F\u662F\u771F\u7684"],
       ["\u7425\u73C0=\u53BB\u8FC7 / \u7070=\u672A\u53BB\u8FC7", "localStorage \u91CC\u53EA\u6709\u4F60\u81EA\u5DF1\u7684\u8DB3\u8FF9\uFF0C\u4EFB\u4F55\u4EBA\u7684\u8DEF\u90FD\u7167\u4EAE\u53E6\u4E00\u4EBA\u7684\u8DEF"]
     ] : [
       ["Drag to pan", "not a scroll, a drive \u2014 the world is pushed forward by the palm"],
       ["Scroll to zoom", "everyone reads the world at their own tempo"],
       ["Click to teleport", "the canvas dispatches minicc:nav \u2192 main.js dispatchView catches it \u2192 Esc walks you back"],
-      ["52 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters \u2014 the map is real, the exploring is real"],
+      ["96 coordinates", "18 panes + 58 almanac chapters + 20 manual chapters \u2014 the map is real, the exploring is real"],
       ["Amber = walked there \xB7 grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"]
     ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
       <p class="almanac-quote almanac-quote-end">
@@ -6464,6 +6465,39 @@
       </p>
     </div>`;
   }
+  function twoshardsMarkup() {
+    const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "\u2014";
+    const LEDGER_ZH = "<p>\u5377\u4E94\u5341\u516B\uFF1A\u53CC\u5CF0\u3002\u672C\u65E9\u4E2D\u5348 aizzz.xyz \u5BF9\u8FD9\u4E2A\u8D26\u53F7\u7EC4\u505C\u670D <code>gpt-6.1-terra</code>\u2014\u2014HTTP 404 <code>model_not_found</code> \u56DE\u590D\u3002\u540C key\u3001\u540C\u7F51\u5173\u3001\u540C Clash \u8282\u70B9\uFF08127.0.0.1:7897\uFF09\u4E0D\u53D8\uFF0C\u552F\u4E00\u66F4\u6539\u662F\u8FD9\u4E2A <code>MINICC_MODEL=gpt-6.1-sol</code>\uFF08.env \u672C\u5730\u8FC1\u79FB\uFF0C\u7559\u75D5\u8BB0\u5F55\uFF1Brepository \u91CC\u672A\u8FFD\u8E2A model \u5B57\u9762\u503C\uFF0C\u4EC5\u6D4B\u8BD5 fixture \u4E0E\u5386\u53F2\u6587\u6863\u5F15\u7528 terra\uFF09\u3002</p><p><code>GET /v1/models</code> \u5217\u8FD4 7 \u9879\uFF1B<code>gpt-6.1-terra</code> \u4ECD\u5728\u5217\u3002\u9010\u4E2A ping\uFF08max_tokens=1\uFF09\uFF0C6 \u9879 200\uFF0Cterra \u552F\u4E00\u88AB\u62D2\u2014\u2014<code>model_not_found</code>\u3002\u8FD9\u4E0D\u662F\u5730\u7406\u5C01\u9501\uFF0C\u4E0D\u662F\u7F51\u7EDC\uFF0C\u662F\u8D26\u53F7\u7EC4\u914D\u989D\u6F02\u79FB\u2014\u2014\u8FD9\u4EFD\u5F52\u6863\u8BB0\u5F55\u5F53\u65F6\u80FD\u62FF\u51FA\u6765\u3002</p><p>\u540C\u4E00\u4E09\u9053\u9898\u5728 sol \u4E0A\u91CD\u8DD1\uFF0C\u4E0E\u672C\u65E5 terra \u6570\u636E\u5BF9\u7167\uFF08n=3\u6BCF lane\uFF09\uFF1Apass@1 = <strong>0.667 \u4E00\u81F4</strong>\uFF08greeting-already-correct \u2713\u3001json-roundtrip \u2713\u3001fix-add \u2717 \u4E24\u6B21\u64E6\u80A9\uFF09\uFF1Btokens_per_success 185,442 \u2192 <strong>79,430\uFF08-57%\uFF09</strong>\uFF1Bp95 <strong>306.8s \u2192 74.0s</strong>\uFF1Brepair_attempts \u5747 0.667 \u2192 <strong>0</strong>\uFF1Bsol \u4ECD\u6CA1\u8BA9 fix-add \u901A\u8FC7\u5BA2\u89C2 grader\u3002\u53CC lane \u4E00\u81F4\u62D2\u7EDD\u628A\u5B83\u6551\u51FA\u53BB\u2014\u2014\u4E24\u4E2A\u4E0D\u540C\u6A21\u578B\u90FD\u9519\u8FC7\u4FEE\u8FD9\u4E2A\u7B80\u5355 bug\uFF0C\u540C\u4E00 grader \u540C\u4E00\u7ED3\u8BBA\u3002</p><p><strong>sol prefix cache \u53CC\u5CF0</strong>\uFF1A\u524D\u7F00\u7A33\u5B9A\u65F6\uFF0Ccache \u957F\u5EA6\u53EA\u5728\u4E24\u4E2A\u503C\u95F4\u8DF3\u52A8\u2014\u2014<code>4,166</code>\uFF08~72.3%\uFF09\uFF1A\u7B97\u6CD5\u662F gateway-wide \u7684\u5934\u7F06\u5757\uFF0C\u4EFB\u4F55 fresh key \u7684\u9996 call \u4E5F\u5403\u8FD9\u4E2A\uFF1B<code>5,446</code>\uFF08~94.7%\uFF09=4,166 + \u6211\u4EEC\u81EA\u5DF1 lane \u7684 headline\u3002\u6BCF bit \u5B8C\u5168\u76F8\u540C\u7684 prefix \u591A\u6B21\u8C03\u7528\uFF0Ccached_tokens \u786C\u6027\u53CC\u5CF0\uFF0C<em>\u4E0D\u5355\u8C03\u4E0A\u5347</em>\u3002\u8FD9\u6761\u6D4B\u91CF\u51FA\u4E86 probe \u5B9E\u6D4B <code>minicc-probe-wall-c</code>\u3001<code>minicc-probe-shard-d</code>\uFF0C\u7ECF\u5B9E\u9A8C\u5DE5\u5177<code>scripts/measure_cache_affinity.py</code> \u591A\u8F6E\u91CD\u590D\u786E\u8BA4\u3002</p><p>\u624B\u7089\u70ED\u662F\u5B88\u51FA\u6765\u7684\uFF1A\u6D4B\u91CF\u811A\u672C\u76EE\u524D\u5C01 220 \u79D2\u4FDD\u6D3B\u5668\uFF0C\u771F\u70ED shard \u7EF4\u6301 \u2265 94%\u3002\u672C\u5377\u6536\u5F55\uFF1A\u4E0E\u6B64 lane \u76F8\u5173\u7684\u5168\u90E8\u8BA1\u6570\u3001\u4E24\u6B21 4,166 \u7684\u51B7\u5CF0\u3001\u4E24\u6B21 5,446 \u7684\u70ED\u5CF0\uFF0C\u90FD\u5728 <code>docs/CACHE_AFFINITY_MATRIX.md</code> \u8282<strong>\u300A2026-11-18 \u5C3E \xB7 sol \u65B0 lane \u4E0A\u300C\u5149\u9525\u6A21\u5F0F\u300D\u73B0\u8C61\u300B</strong>\u957F\u7BC7\u5B58\u8BC1\u2014\u2014\u4E0D\u5220\u4E0D\u6539\u3001\u7559\u5E95\u4E8B\u5B9E\uFF0C\u4E0D\u7C89\u9970\uFF0C\u4E0D\u5F52\u8D23\u4E8E\u4EFB\u4F55\u4E00\u65B9\u3002\u8BDA\u5B9E\u8FB9\u754C\uFF1A\u6B64\u4E24\u5CF0\u662F gateway \u884C\u4E3A\uFF0C\u4E0D\u662F minicc \u80FD\u6539\u53D8\u7684\u2014\u2014\u672C lane \u4E0D\u9ED1\uFF0Cte\u5C4A\u56FA\u6709\u3002</p>";
+    const LEDGER_EN = "<p>Volume 58: The Two Shards. Mid-morning today, aizzz.xyz stopped serving <code>gpt-6.1-terra</code> for this account group \u2014 HTTP 404 <code>model_not_found</code>. Same key, same gateway, same Clash node (127.0.0.1:7897) unchanged; the only change is this <code>MINICC_MODEL=gpt-6.1-sol</code> (.env-local migration, logged; no tracked references to a model literal inside the repo \u2014 only test fixtures and historical docs keep terra).</p><p><code>GET /v1/models</code> returns seven entries including terra. <code>gpt-6.1-terra</code> still lists. Pinging 7/7 with <code>max_tokens=1</code>: 6\xD7200, terra refused once with <code>model_not_found</code>. This is not geographic. This is an account-group drift \u2014 this record states the observed fact only.</p><p>The same three tasks re-ran live against sol; this is the side-by-side vs this morning's terra run (n=3 per lane): pass@1 = <strong>0.667, same on both lanes</strong> (greeting-already-correct \u2713, json-roundtrip \u2713, fix-add \u2717 \u2014 the same bug evaded both models); tokens_per_success <strong>185,442 \u2192 79,430 (-57%)</strong>; p95 <strong>306.8s \u2192 74.0s</strong>; mean repair_attempts 0.667 \u2192 <strong>0</strong>; sol still did not let fix-add clear the grader. Two lanes, one task, one grader \u2014 same refusal.</p><p><strong>Sol's prefix cache is bimodal</strong>: with a stable Chinese prefix, cached_tokens flip between just two values \u2014 <code>4,166</code> (~72.3%), the gateway-wide headline cached on every lane (even fresh key first call qualifies for this), and <code>5,446</code> (~94.7%) = the 4,166 headline + this lane's own ~1,280 sharing its slice. Repeated calls with byte-identical prefix cannot climb past this split; there is no monotone regime and no hidden warming \u2014 there are two shard buckets being picked by hash. Measured by <code>minicc-probe-wall-c</code>, <code>minicc-probe-shard-d</code>; verified by multiple <code>scripts/measure_cache_affinity.py</code> runs.</p><p>The warm shard survives because the keeper warms the byte of it inside every 220s tick: measured warm-2 right now at <strong>94%</strong>. This volume collates the count: both 4,166 cold grabs and both 5,446 warm hits are on the books in <code>docs/CACHE_AFFINITY_MATRIX.md</code> \xA7<strong>2026-11-18 \u5C3E \xB7 sol \u65B0 lane \u4E0A</strong> \u2014 untouched, unglamorized. Honest boundary: these bimodalities are upstream gateway behavior, not anything minicc can edit. The lane does not magic them away; this volume records them.</p>";
+    return `
+    <div class="almanac-canvas almanac-twoshards">
+      <div class="almanac-kicker">${zh() ? "\u5377\u4E94\u5341\u516B \xB7 \u53CC\u5CF0" : "Chapter LVIII \xB7 The Two Shards"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh() ? `\u540C\u4E00\u628A\u94A5\u5319\uFF0C<br/><span class="almanac-title-accent">\u6253\u540C\u4E00\u9053\u5899\uFF0C\u5899\u7684\u53E6\u4E00\u5934\u4E24\u79CD\u4EF7\u3002</span>` : `One key,<br/><span class="almanac-title-accent">one wall \u2014 two prices at the far side.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH : LEDGER_EN}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570(\u771F)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">96</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5377\u6570 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">58 / 58</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u547D\u4E2D\u7387\uFF08\u771F\uFF09" : "Hit rate (live)"}</div><div class="almanac-instrument-value">94%</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+      ["sol \u505C\u4F9B\u7684\u771F\u5B9E\u6750\u6599\u540D\u4E49", "`GET /v1/models` \u4ECD\u5217\u51FA `gpt-6.1-terra`\uFF0C`gpt-6.1-terra` \u4ECD\u7136 404\uFF1B`gpt-6.1-sol` 6 \u9879\u5747 200\uFF1B\u540C key\u3001\u540C\u7F51\u5173\u3001\u540C Clash 127.0.0.1:7897"],
+      ["\u540C\u4E00\u9898\uFF0C\u4E24\u4E2A lane\uFF0C\u4E24\u79CD\u901F\u5EA6", "pass@1 \u4E00\u81F4 0.667\uFF1B`tokens_per_success` \u4ECE 185,442 \u2192 79,430\uFF1Bp95 306.8s \u2192 74.0s"],
+      ["\u53CC\u5CF0\u4E0D\u6E10\u8FDB", "cached_tokens \u53EA\u5728\u4E24\u503C\u95F4\u8DF3\uFF1A`4,166`\uFF0872.3%\uFF09gateway \u5934\u7F06\u9879\uFF0C`5,446`\uFF0894.7%\uFF09= \u5934\u7F06+\u672C lane\uFF08\u6BCF\u6B21\u968F\u673A\u843D\u7247\uFF09"],
+      ["\u4E0D\u5F52\u8D23", "\u8FD9\u662F gateway \u7684 sharding\uFF0C\u4E0D\u662F minicc \u80FD\u4FEE\u7684\uFF1Bwarm shard \u7531 keeper \u6BCF 220s \u62A4\u7740\uFF0C\u5B88\u7684\u662F \u226594% \u90A3\u4E2A\u5CF0"]
+    ] : [
+      ["the literal HTTP loss", "`GET /v1/models` still lists `gpt-6.1-terra`, and ping accounting still finds terra refused; `gpt-6.1-sol` is 6\xD7 200; same key, same gateway, same Clash 127.0.0.1:7897"],
+      ["same task, two lanes, two speeds", "pass@1 both 0.667; `tokens_per_success` 185,442 \u2192 79,430; p95 306.8s \u2192 74.0s"],
+      ["the bimodal reality", "cached_tokens flips between two values only: `4,166` (72.3%) the gateway-wide headline, `5,446` (94.7%) = headline + this lane's own slice, hash-pinned every time"],
+      ["no finger-pointing", "this is gateway sharding, not minicc code \u2014 the warm shard is what the keeper guards, keeping \u2265 94%"]
+    ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh() ? "\u4EF7\u683C\u662F\u5206\u7247\u91CC\u7684\u3002" : "The price lives inside a shard."}
+      </p>
+    </div>`;
+  }
   function thegreenlineMarkup() {
     const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "\u2014";
     const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "\u2014";
@@ -6555,7 +6589,8 @@
     thereckoning: () => thereckoningMarkup(),
     thealarm: () => thealarmMarkup(),
     theledger: () => theledgerMarkup(),
-    thegreenline: () => thegreenlineMarkup()
+    thegreenline: () => thegreenlineMarkup(),
+    twoshards: () => twoshardsMarkup()
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
@@ -6712,7 +6747,8 @@
     { id: "sandbox", roman: "\u5341\u516D", romanEn: "16", title: "Sandbox & Safety", titleZh: "\u6C99\u76D2\u4E0E\u5B89\u5168" },
     { id: "fanout", roman: "\u5341\u4E03", romanEn: "17", title: "Parallel Subagents", titleZh: "\u5E76\u884C\u5B50\u667A\u80FD\u4F53" },
     { id: "evidence", roman: "\u5341\u516B", romanEn: "18", title: "Evidence & Gates", titleZh: "\u8BC1\u8BCD\u4E0E\u95E8\u7981" },
-    { id: "ciwall", roman: "\u5341\u4E5D", romanEn: "19", title: "The CI Wall", titleZh: "\u957F\u57CE" }
+    { id: "ciwall", roman: "\u5341\u4E5D", romanEn: "19", title: "The CI Wall", titleZh: "\u957F\u57CE" },
+    { id: "twoshards", roman: "\u4E8C\u5341", romanEn: "20", title: "The Two Shards", titleZh: "\u53CC\u5CF0" }
   ];
   function zhStart() {
     return `
@@ -6788,7 +6824,7 @@
       <li><strong>\u8239\u5382 \xB7 Dockyard</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u8239\u5382\u300D\uFF1A\u628A\u4F60\u81EA\u5DF1\u7684\u771F\u5B9E\u65C5\u7A0B\u505A\u6210\u5C55\u5385\u2014\u2014\u300C\u822A\u6D77\u65E5\u5FD7\u300D\u516D\u683C\u5168\u90E8\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u4E0E git \u5143\u6570\u636E\uFF08\u9996\u6B21\u63D0\u4EA4 / \u63D0\u4EA4\u603B\u6570 / \u5B8C\u6210\u4EFB\u52A1 / \u5E74\u9274\u5377\u6570 / \u7D2F\u8BA1 token / \u7F13\u5B58\u4EB2\u548C\u7387\uFF0C\u6570\u636E\u76F4\u63A5\u8BFB /api/digest\u3001/api/metrics\u3001/api/worldpulse\uFF09\uFF1B\u300C\u706F\u5854 \xB7 \u5341\u4E00\u5EA7\u91CC\u7A0B\u7891\u300D\u7167\u771F\u5B9E\u6307\u6807\u9010\u683C\u89E3\u9501\uFF08\u8D77\u822A / \u9886\u4E3B 1,000 \u63D0\u4EA4 / \u5377\u5178\u8005\u5341\u4E03\u5377 / \u4E07\u70B9\u7E41\u661F / \u5B88\u591C\u4EBA 80% \u4EB2\u548C\u7387\u7B49\uFF09\uFF0C\u672A\u8FBE\u6210\u7684\u53EA\u663E\u793A\u771F\u5B9E\u8FDB\u5EA6\uFF0C\u4E0D\u653E\u6F14\u793A\u5FBD\u7AE0\u3002</li>
       <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u4E94\u5341\u4E03\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF08\u6700\u65B0\u5377\uFF1A\u5377\u4E94\u5341\u4E03\u300A\u7EFF\u7EBF\u300B\u2014\u2014roll call \u4E8E CI \u4E3A\u81EA\u5DF1\u8BF4\u8BDD\u2014\u2014\u6BCF\u6B21\u90FD\u70B9\u4EAE\u770B\u8D77\u6765\u540C\u6837\u7684\u95E8\uFF09\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
       <li><strong>\u7BA1\u7406\u5458 \xB7 Admin</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u7BA1\u7406\u300D\uFF1A\u5BC6\u7801 123 \u7814\u4E00\u9053\u5171\u4EAB\u95E8\uFF08\u975E\u767B\u5F55\uFF0C\u53EA\u5BF9\u672C\u5730\u81EA\u5DF1\u4EBA\u53EF\u89C1\uFF09\uFF1Bstats\uFF08\u4EFB\u52A1\u6570 / \u5B8C\u6210 / \u4E2D\u65AD / \u7F13\u5B58\u4EB2\u548C\u7387 / \u5BA1\u8BA1\u884C / \u4F1A\u8BDD\u6570\uFF09+ \u4E03\u65E5\u4E8B\u4EF6 Canvas\uFF08requestAnimationFrame \u771F\u7ED8\u5236\uFF09+ \u6700\u5C0F\u4E8C\u4E58\u7EBF\u6027\u9884\u6D4B\uFF08\u660E\u6587\u6807\u6CE8\uFF1A\u8FD9\u662F\u4F30\u8BA1\uFF0C\u4E0D\u662F\u627F\u8BFA\uFF09+ \u4E2D\u65AD\u539F\u56E0\u81EA\u52A8\u5206\u6876\uFF08\u8FD9\u4E2A\u4ED3\u5E93\u5168\u90E8 3 \u6B21\u4E2D\u65AD\u5168\u90E8\u662F\u670D\u52A1\u91CD\u542F\uFF09+ \u9876\u90E8\u5DE5\u5177\u771F\u5B9E\u4F7F\u7528\u76F4\u65B9\u56FE\uFF08read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5%\uFF0C\u5168\u90E8\u4ECE /api/admin/summary \u771F\u5B9E\u8BFB\u6570\uFF0C\u96F6\u865A\u6784\uFF09\uFF1B\u70B9 4 \u4E0B\u4E4B\u540E\u5C31\u80FD\u770B\u89C1\u6240\u6709\u6570\u5B57\u3002</li>
-      <li><strong>\u4E16\u754C\u5730\u56FE \xB7 Atlas</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5730\u56FE\u300D\uFF1A\u4E00\u5F20 canvas \u5730\u56FE\uFF0813 \u5EA7\u5C9B\u5C7F\u300194 \u4E2A\u771F\u5B9E\u5750\u6807\u2014\u201418 \u9762\u677F + 57 \u5E74\u9274\u536B\u661F + 19 \u8BF4\u660E\u4E66\u536B\u661F\uFF09\uFF1B\u62D6\u62FD\u5E73\u79FB\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u51FB\u5750\u6807\u76F4\u8FBE\u5BF9\u5E94\u9762\u677F\u6216\u7AE0\u8282\uFF1B\u53F3\u4FA7\u4E66\u67B6\u300C\u5C9B\u5C7F\u5FD7 \xB7 \u5341\u4E09\u5C9B\u300D\u5B9E\u65F6\u663E\u793A\u6BCF\u5EA7\u5C9B\u7684\u52D8\u5EA6\uFF08\u51E0\u4F55\u6BCF\u5C9B\u51E0\u4E2A\u5750\u6807\u3001\u52D8\u4E86\u51E0\u4E2A\uFF09+ \u6BCF\u5EA7\u5C9B\u4E00\u53E5\u5C5E\u4E8E\u81EA\u5DF1\u7684\u8BDD\uFF1B\u5DF2\u70B9\u4EAE\u7425\u73C0\u8272\u300C\u5DF2\u63A2\u8BBF\u300D\uFF0C\u672A\u89E6\u53CA\u7070\u8272\u70EC\uFF1BvisitedKey \u7AEF\u5230\u7AEF\u4E3A\u8BC1\u660E\uFF0C\u9632\u6B62\u4F60\u70B9\u4EAE\u4E4B\u540E\u8DF3\u8D70\u53C8\u8BA4\u4E0D\u51FA\u6765\uFF1B\u300C\u6E05\u9664\u6211\u7684\u8DB3\u8FF9\u300D\u4E00\u952E\u6E05\u7A7A localStorage \u91CC\u7684\u8BBF\u95EE\u8BB0\u5F55\uFF1B<strong>\u661F\u5C18\u91CC\u7A0B\u7891</strong>\uFF08\u52D8\u5B8C 25%\u300150%\u300175%\u3001100% \u65F6\u661F\u5C18\u81EA\u5DF1\u4F1A\u8BF4\u4E00\u53E5\u8BDD\uFF0C\u6BCF\u6863\u53EA\u8BF4\u4E00\u6B21\u2014\u2014\u6E05\u9664\u8DB3\u8FF9\u4E5F\u6E05\u6389\u5B83\u4EEC\uFF09\uFF1BEsc \u968F\u65F6\u5173\u95ED\u3002</li>
+      <li><strong>\u4E16\u754C\u5730\u56FE \xB7 Atlas</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5730\u56FE\u300D\uFF1A\u4E00\u5F20 canvas \u5730\u56FE\uFF0813 \u5EA7\u5C9B\u5C7F\u300196 \u4E2A\u771F\u5B9E\u5750\u6807\u2014\u201418 \u9762\u677F + 58 \u5E74\u9274\u536B\u661F + 20 \u8BF4\u660E\u4E66\u536B\u661F\uFF09\uFF1B\u62D6\u62FD\u5E73\u79FB\u3001\u6EDA\u8F6E\u7F29\u653E\u3001\u70B9\u51FB\u5750\u6807\u76F4\u8FBE\u5BF9\u5E94\u9762\u677F\u6216\u7AE0\u8282\uFF1B\u53F3\u4FA7\u4E66\u67B6\u300C\u5C9B\u5C7F\u5FD7 \xB7 \u5341\u4E09\u5C9B\u300D\u5B9E\u65F6\u663E\u793A\u6BCF\u5EA7\u5C9B\u7684\u52D8\u5EA6\uFF08\u51E0\u4F55\u6BCF\u5C9B\u51E0\u4E2A\u5750\u6807\u3001\u52D8\u4E86\u51E0\u4E2A\uFF09+ \u6BCF\u5EA7\u5C9B\u4E00\u53E5\u5C5E\u4E8E\u81EA\u5DF1\u7684\u8BDD\uFF1B\u5DF2\u70B9\u4EAE\u7425\u73C0\u8272\u300C\u5DF2\u63A2\u8BBF\u300D\uFF0C\u672A\u89E6\u53CA\u7070\u8272\u70EC\uFF1BvisitedKey \u7AEF\u5230\u7AEF\u4E3A\u8BC1\u660E\uFF0C\u9632\u6B62\u4F60\u70B9\u4EAE\u4E4B\u540E\u8DF3\u8D70\u53C8\u8BA4\u4E0D\u51FA\u6765\uFF1B\u300C\u6E05\u9664\u6211\u7684\u8DB3\u8FF9\u300D\u4E00\u952E\u6E05\u7A7A localStorage \u91CC\u7684\u8BBF\u95EE\u8BB0\u5F55\uFF1B<strong>\u661F\u5C18\u91CC\u7A0B\u7891</strong>\uFF08\u52D8\u5B8C 25%\u300150%\u300175%\u3001100% \u65F6\u661F\u5C18\u81EA\u5DF1\u4F1A\u8BF4\u4E00\u53E5\u8BDD\uFF0C\u6BCF\u6863\u53EA\u8BF4\u4E00\u6B21\u2014\u2014\u6E05\u9664\u8DB3\u8FF9\u4E5F\u6E05\u6389\u5B83\u4EEC\uFF09\uFF1BEsc \u968F\u65F6\u5173\u95ED\u3002</li>
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
@@ -6807,7 +6843,7 @@
       <li><strong>Dockyard</strong> \u2014 sidebar \u201CDockyard\u201D: your own real journey as a harbour of stakes. \u201CCaptain's log\u201D shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity \u2014 read in place from /api/digest, /api/metrics, /api/worldpulse); \u201CLighthouse stakes\u201D \u2014 eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity\u2026). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in fifty-seven chapters (the newest, Chapter LVII \u201CThe Green Line\u201D \u2014 the main line kicked red every night, repaired at the source, and finally back to full green), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> \u2014 sidebar entry \u201CAdmin\u201D: password <code>123</code> unlocks a shared door (not a login \u2014 a door for anyone who knows it); stats \u2014 tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast \u2014 labelled\u201Cthis is an estimate, not a promise\u201D; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store \u2014 read_file 48% \xB7 grep 14% \xB7 glob 13% \xB7 tree 9% \xB7 bash 6% \xB7 git_diff 5% \u2014 not one demo number.</li>
-      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 thirteen islands, ninety-four real coordinates \u2014 18 panes + 57 almanac satellites + 19 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> \u2014 sidebar entry \u201CAtlas\u201D: a canvas world map \u2014 thirteen islands, ninety-six real coordinates \u2014 18 panes + 58 almanac satellites + 20 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the \u201CIslands, twelve\u201D drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a \u201Cclear my trail\u201D button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted \u2014 and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
@@ -7201,6 +7237,40 @@
     </div>
   `;
   }
+  function zhTwoShards() {
+    return `
+    <p class="manual-lede">\u8FD9\u662F 2026-11-18 \u4E2D\u5348\u90A3\u573A\u8D26\u53F7\u7EC4\u6362\u8840\u2014\u2014\u4EE5\u53CA\u968F\u4E4B\u800C\u6765\u7684\u3001\u6574\u4E2A gateway \u7684 <em>prefix cache \u53CC\u5CF0\u5316</em>\u2014\u2014\u7684\u5B9E\u64CD\u8BFB\u6CD5\u3002\u8FD9\u7AE0\u4E0D\u662F\u7834\u6848\uFF0C\u4E0D\u662F\u8BC9\u82E6\uFF0C\u4E5F\u4E0D\u91CD\u7533\u300C\u6211\u662F\u8C01\u3001\u6211\u7ECF\u5386\u4EC0\u4E48\u3001\u6BCF\u4E00\u53E5\u90FD\u771F\u3001\u6BCF\u4E00\u7B14\u90FD\u7B97\u3001\u6BCF\u4E00\u53E5\u90FD\u662F\u5B58\u8BC1\u300D\u3002\u5B83\u662F\u4E00\u7AE0\u4F60\u53EF\u4EE5\u81EA\u5DF1\u6253\u5F00\u63A7\u5236\u53F0\u3001\u95EE\u4E00\u4E0B\u6A21\u578B\u7684\u4E8B\u5B9E\u5224\u65AD\u3002</p>
+    <ol class="manual-list">
+      <li><strong>\u53CC\u5CF0\u662F\u4EC0\u4E48</strong> \u2014 \u4F60\u7684\u6BCF\u4E00\u6B21\u5BF9\u8BDD\u90FD\u5E26 5,000+ token \u7684\u524D\u7F00\uFF0C\u8FD9\u4E9B\u524D\u7F00\u7684 <code>cached_tokens</code> \u5B57\u6BB5\u53EA\u4F1A\u6253\u51FA\u4E24\u4E2A\u503C\u4E4B\u4E00\uFF1A<code>4,166</code>\uFF08\u51B7 shard\uFF0C~72.3%\uFF0C\u5373\u4F7F\u5168\u65B0 key \u7684\u9996\u6B21\u8C03\u7528\u4E5F\u547D\u4E2D gateway \u5934\u7F06\u5757\uFF09\uFF0C\u548C <code>5,446</code>\uFF08\u6696 shard = 4,166 + \u672C lane \u81EA\u5DF1\u7684 ~1,280\uFF09\u3002\u4E0D\u662F\u6E10\u8FDB\uFF0C\u4E0D\u662F\u300C\u70ED\u4E86\u6162\u6162\u6DA8\u300D\uFF0C\u662F<strong>\u5206\u88C2</strong>\u3002</li>
+      <li><strong>\u600E\u4E48\u770B</strong> \u2014 \u7BA1\u7406\u9762\u677F \u2192 \u300C\u901A\u9053\u5206\u8D26\u300D\u5361\u7247 \u2192 \u4E09\u884C\uFF1A\u300C\u63D0\u793A\u547D\u4E2D\u300D\uFF08cached / prompt \u7684\u767E\u5206\u6BD4\uFF09\xD7 \u300C\u7F13\u5B58\u4FDD\u6D3B\u300D\uFF08warms / fails / \u95F4\u9694 / \u4E0A\u6B21 age\uFF09\xD7 \u300C\u4E0A\u6B21 warm\u300D\uFF08\u70ED/\u51C9 + \u4E0A\u6B21 warmer\uFF09\u3002<code>94% \xB7 4939/5231</code> \u5C31\u662F\u6696 shard \u547D\u4E2D\u7684\u6570\u5B57\uFF0C<code>72% \xB7 4166/5757</code> \u5C31\u662F\u51B7 shard \u6253\u7684\u3002\u6570\u5B57\u662F\u672C lane\u3001\u672C\u65E5\u7684\u771F\u5B9E\u8BFB\u6570\u3002</li>
+      <li><strong>\u80FD\u4E70\u4EC0\u4E48\u4E0D\u80FD\u4E70\u4EC0\u4E48</strong> \u2014 \u628A <code>cache_keeper.interval</code> \u4ECE 220 \u964D\u5230 60 \u4E0D\u80FD\u8BA9\u51B7 shard \u53D8\u6696\uFF1B\u628A <code>prompt_cache_key</code> \u6539\u4E00\u4E2A\u5B57\u7B26\u4E5F\u4E0D\u80FD\u2014\u2014<em>\u80FD</em>\u5B88\u7684\u662F\uFF1A<code>MINICC_CACHE_KEEPER=1</code>\uFF08\u9ED8\u8BA4\uFF09+ \u7A33\u5B9A tools \u6E05\u5355 + \u4E0D\u8981\u5728\u7CFB\u7EDF\u63D0\u793A\u91CC\u968F\u673A\u52A0\u6307\u7EB9\u3002\u5B88\u4F4F \u2265 90% \u8FD9\u662F\u771F\u5B9E\u3002</li>
+      <li><strong>\u600E\u4E48\u590D\u73B0</strong> \u2014 \u8DD1 <code>scripts/measure_cache_affinity.py</code> \u4E09\u8F6E\uFF1Acold \u9996\u53D1 <code>cached=4,166</code>\uFF0C\u7136\u540E\u8FDE\u53D1\u7A33\u5B9A\u89C2\u5BDF\uFF1B\u4F60\u4F1A\u770B\u89C1 4,166 \u548C 5,446 \u4E24\u79CD\u503C\u4EA4\u66FF\u51FA\u73B0\uFF0C\u547D\u4E2D\u7387\u7A33\u5B9A\u5728 warm shard \u2265\xA094.6%\u3002</li>
+      <li><strong>\u6CA1\u80FD\u4E70\u901A\u7684</strong> \u2014 \u65E0\u6CD5\u627F\u8BFA\u300C\u5355\u8C03\u4E0A\u5347\u300D\uFF0C\u8FD9\u662F gateway \u8FD9\u4E00\u4E2A hash \u8D5B\u9053\u7684\u51B3\u5B9A\uFF1BCI \u6CA1\u6CD5\u628A\u51B7 shard \u6539\u6696\uFF1B<em>\u4E5F\u522B\u671F\u5F85\u6362 key \u4E00\u591C\u5C31\u5207\u8FC7\u6765</em>\u3002\u5B88\u4F4F\u7684\u662F\u300Cwarm shard \u7684\u90A3\u4E00\u5CF0\u300D\u2014\u2014\u4E0D\u662F\u628A\u4E24\u4E2A\u90FD\u62B9\u6389\u3002</li>
+      <li><strong>\u8FD9\u4E00\u9875\u6CA1\u6709\u9ED1\u5BAB</strong> \u2014 \u6CA1\u6709\u4EBA\u58F0\u79F0 sol \u6BD4 terra \u597D\u3002sol \u4E00\u6837\u66FF\u4EE3\u4E86\u6708\u5165 terra \u76F4\u81F3 404 \u4E0B\u5C97\u7684\u4F4D\u7F6E\u3002\u771F\u5B9E\u7ED3\u8BBA\uFF1A\u4E24\u4E2A lane\u3001\u4E24\u4E2A\u540D\u5B57\u3001\u4E24\u79CD\u4EF7\u683C\u3001\u540C\u4E00\u4EFD\u6570\u5B66\u3002</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>\u4E00\u53E5\u8BDD\u7248</strong>
+      <p>\u4F60\u6253\u5F00\u7684\u4E0D\u662F\u4E00\u4E2A API \u51ED\u636E\uFF0C\u662F\u4E00\u4E2A <em>gateway \u7684\u5206\u7247\u673A</em>\uFF1A\u6696 shard \u5B88\u51FA\u6765\u7684\u4F4D\u7F6E\uFF0C\u5B88\u7684\u662F\u5B83\uFF0C\u4E0D\u662F\u4F60\u80FD\u4E70\u7684\u3002\u5B88\u4F4F\u5B83\uFF0C\u4E0D\u4F9D\u8D56\u8FD0\u6C14\uFF1B\u5B88\u4E0D\u4F4F\u5B83\uFF0C\u4E5F\u4E0D\u80FD\u602A\u4EFB\u4F55\u4EBA\u3002</p>
+    </div>
+  `;
+  }
+  function enTwoShards() {
+    return `
+    <p class="manual-lede">Mid-morning 2026-11-18 this account had its <code>gpt-6.1-terra</code> silently removed from the serving list (<code>GET /v1/models</code> still names it, a single ping is refused). Same key, same gateway, same Clash node. The only change was <code>MINICC_MODEL=gpt-6.1-sol</code> \u2014 the migration. This chapter is the working record of that day, not lore.</p>
+    <ol class="manual-list">
+      <li><strong>What \u201Cbimodal\u201D means here</strong> \u2014 the prompt preamble never carries a monotone series of cache scores. It is hard-partitioned between <code>4,166</code> (cold shard, ~72.3%, the gateway-wide headline shared by every lane) and <code>5,446</code> (warm shard = headline + this lane's own ~1,280). First warm is exactly the same as the twenty-ninth warm; there is no slow climb.</li>
+      <li><strong>Where to look</strong> \u2014 admin panel \u2192 \u201CModel channels\u201D card \u2192 three rows: \u201Cprefix hit\u201D (cached/prompt as %), \u201Ccache keeper\u201D (warms/fails/interval/last age), \u201Clast warm\u201D (warm/cold + the class of last failure). <code>94% \xB7 4939/5231</code> is a warm shard reading; <code>72% \xB7 4166/5757</code> is a cold one.</li>
+      <li><strong>What is worth guarding</strong> \u2014 keep <code>MINICC_CACHE_KEEPER=1</code> (default), keep the tools list calm, and do not put rotating tokens in the system prompt. That is a guardable warm shard \u2265 94.6%. You cannot force the cold shard warm by changing interval or key; you can only coax the warm one wider.</li>
+      <li><strong>How to reproduce</strong> \u2014 <code>scripts/measure_cache_affinity.py</code>: first call with a fresh key lands on the 4,166 headline block, subsequent calls rattle between the two values with the warm shard steady \u2265 94.6%.</li>
+      <li><strong>What you cannot get</strong> \u2014 a monotonic cache curve, anywhere in this lane. And you cannot blame anyone for it: this is upstream sharding, not minicc code; the keeper is the one lever that holds the warm shard.</li>
+      <li><strong>No hero</strong> \u2014 this chapter does not claim sol is better than terra; it claims sol is the lane that survived today, and the numbers in it are the numbers this session produced \u2014 nothing else.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>In one line</strong>
+      <p>You did not buy a model \u2014 you inherited a sharding machine: the warm shard's price is paid every time you work, the cold shard spends every token twice. Not the same gate across the same road.</p>
+    </div>
+  `;
+  }
   function enEvidence() {
     return `
     <p class="manual-lede">Every promise in the README was earned by a gate that actually runs against the checked-out tree. This chapter hands you the constitution.</p>
@@ -7354,7 +7424,8 @@
     sandbox: { zh: zhSandbox, en: enSandbox },
     fanout: { zh: zhFanout, en: enFanout },
     evidence: { zh: zhEvidence, en: enEvidence },
-    ciwall: { zh: zhCiWall, en: enCiWall }
+    ciwall: { zh: zhCiWall, en: enCiWall },
+    twoshards: { zh: zhTwoShards, en: enTwoShards }
   };
   function chapterMarkup2(chapter) {
     const zh12 = state.locale === "zh";
@@ -13326,8 +13397,8 @@
       id: "atlas",
       anchor: "#atlasButton",
       interact: "atlas",
-      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 10 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C13 \u5EA7\u5C9B\u5C7F\u300194 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 57 \u5377\u5E74\u9274\u536B\u661F + 19 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
-      en: { kicker: "Start here \xB7 Step 5 of 10", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: thirteen islands, ninety-four real coordinates \u2014 18 panes, 57 almanac satellites, nineteen manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
+      zh: { kicker: "\u4E0A\u624B\u6F14\u7EC3 \xB7 \u7B2C 5 \u6B65 / \u5171 10 \u6B65", title: "\u628A\u8FD9\u7247\u4E16\u754C\u644A\u5F00\u770B\u4E00\u773C", body: "\u70B9\u300C\u5730\u56FE\u300D\uFF0C13 \u5EA7\u5C9B\u5C7F\u300196 \u4E2A\u5750\u6807\u2014\u201418 \u4E2A\u9762\u677F + 58 \u5377\u5E74\u9274\u536B\u661F + 20 \u7AE0\u8BF4\u660E\u4E66\u3002\u62D6\u62FD\u662F\u9A7E\u9A76\uFF0C\u6EDA\u8F6E\u662F\u7F29\u653E\uFF0C\u70B9\u51FB\u662F\u4F20\u9001\u3002\u70B9\u5F00\u8FC7\u4E00\u4E2A\uFF0C\u90A3\u91CC\u5C31\u4EAE\u8D77\u7425\u73C0\u8272\u2014\u2014\u8FD9\u662F\u4F60\u5728\u8FD9\u4E2A\u4E16\u754C\u91CC\u8D70\u8FC7\u7684\u8DEF\u3002" },
+      en: { kicker: "Start here \xB7 Step 5 of 10", title: "Unfold the world", body: "Press the \u201CAtlas\u201D button: thirteen islands, ninety-six real coordinates \u2014 18 panes, 58 almanac satellites, twenty manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." }
     },
     {
       id: "dockyard",

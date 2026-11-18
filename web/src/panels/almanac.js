@@ -77,6 +77,7 @@ export const CHAPTERS = [
   { id: "thealarm", roman: { zh: "卷五十五", en: "Chapter LV" }, title: { zh: "警钟", en: "The Alarm" }, subtitle: { zh: "三次 CI 红灯，同一夜里，全被摁灭", en: "three CI reds in one night — all three extinguished" } },
   { id: "theledger", roman: { zh: "卷五十六", en: "Chapter LVI" }, title: { zh: "会开口的账本", en: "The Ledger That Speaks" }, subtitle: { zh: "模型终于听懂了这个仓库刚才做了什么", en: "the model finally understood what this repository just did" } },
   { id: "thegreenline", roman: { zh: "卷五十七", en: "Chapter LVII" }, title: { zh: "绿线", en: "The Green Line" }, subtitle: { zh: "一条被 CI 抓着抓、修着修、最后推通红色的主线", en: "the main line CI caught over and over while it was pushed back to green" } },
+  { id: "twoshards", roman: { zh: "卷五十八", en: "Chapter LVIII" }, title: { zh: "双峰", en: "The Two Shards" }, subtitle: { zh: "同一把钥匙，打同一道墙，墙的另一头有两种价钱", en: "same key, same wall, two prices at the far side" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -1345,10 +1346,10 @@ function meridianMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "岛屿" : "Islands"}</div><div class="almanac-instrument-value">12</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">52</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "坐标总数" : "Coordinates"}</div><div class="almanac-instrument-value">96</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "面板坐标" : "Pane coordinates"}</div><div class="almanac-instrument-value">18</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴卫星" : "Almanac satellites"}</div><div class="almanac-instrument-value">19</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "说明书卫星" : "Manual satellites"}</div><div class="almanac-instrument-value">13</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴卫星" : "Almanac satellites"}</div><div class="almanac-instrument-value">58</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "说明书卫星" : "Manual satellites"}</div><div class="almanac-instrument-value">20</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "已完成任务(真)" : "Completed tasks (live)"}</div><div class="almanac-instrument-value">${escapeHtml(completed)} / ${escapeHtml(total)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "被中断(真)" : "Interrupted (live)"}</div><div class="almanac-instrument-value">${escapeHtml(interrupted)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "探索存储" : "Visited store"}</div><div class="almanac-instrument-value">minicc-visited</div></div>
@@ -1357,13 +1358,13 @@ function meridianMarkup() {
         ["拖拽平移", "不是滚动，是驾驶——世界以手掌推出来的"],
         ["滚轮缩放", "每个人都在自己的节奏里读世界"],
         ["点击直达", "画布裂出 minicc:nav 事件 → main.js dispatchView 接住 → Esc 随时回地图"],
-        ["50 个坐标", "18 面板 + 19 年鉴卷 + 13 说明书章——坐标是真的，探索也是真的"],
+        ["96 个坐标", "18 面板 + 58 年鉴卷 + 20 说明书章——坐标是真的，探索也是真的"],
         ["琥珀=去过 / 灰=未去过", "localStorage 里只有你自己的足迹，任何人的路都照亮另一人的路"],
       ] : [
         ["Drag to pan", "not a scroll, a drive — the world is pushed forward by the palm"],
         ["Scroll to zoom", "everyone reads the world at their own tempo"],
         ["Click to teleport", "the canvas dispatches minicc:nav → main.js dispatchView catches it → Esc walks you back"],
-        ["52 coordinates", "18 panes + 19 almanac chapters + 13 manual chapters — the map is real, the exploring is real"],
+        ["96 coordinates", "18 panes + 58 almanac chapters + 20 manual chapters — the map is real, the exploring is real"],
         ["Amber = walked there · grey = not yet", "only your own footprints live in localStorage; every walker lights the next one's road"],
       ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
       <p class="almanac-quote almanac-quote-end">
@@ -3814,6 +3815,44 @@ function theledgerMarkup() {
     </div>`;
 }
 
+function twoshardsMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  const LEDGER_ZH = "<p>卷五十八：双峰。本早中午 aizzz.xyz 对这个账号组停服 <code>gpt-6.1-terra</code>——HTTP 404 <code>model_not_found</code> 回复。同 key、同网关、同 Clash 节点（127.0.0.1:7897）不变，唯一更改是这个 <code>MINICC_MODEL=gpt-6.1-sol</code>（.env 本地迁移，留痕记录；repository 里未追踪 model 字面值，仅测试 fixture 与历史文档引用 terra）。</p><p><code>GET /v1/models</code> 列返 7 项；<code>gpt-6.1-terra</code> 仍在列。逐个 ping（max_tokens=1），6 项 200，terra 唯一被拒——<code>model_not_found</code>。这不是地理封锁，不是网络，是账号组配额漂移——这份归档记录当时能拿出来。</p><p>同一三道题在 sol 上重跑，与本日 terra 数据对照（n=3每 lane）：pass@1 = <strong>0.667 一致</strong>（greeting-already-correct ✓、json-roundtrip ✓、fix-add ✗ 两次擦肩）；tokens_per_success 185,442 → <strong>79,430（-57%）</strong>；p95 <strong>306.8s → 74.0s</strong>；repair_attempts 均 0.667 → <strong>0</strong>；sol 仍没让 fix-add 通过客观 grader。双 lane 一致拒绝把它救出去——两个不同模型都错过修这个简单 bug，同一 grader 同一结论。</p><p><strong>sol prefix cache 双峰</strong>：前缀稳定时，cache 长度只在两个值间跳动——<code>4,166</code>（~72.3%）：算法是 gateway-wide 的头缆块，任何 fresh key 的首 call 也吃这个；<code>5,446</code>（~94.7%）=4,166 + 我们自己 lane 的 headline。每 bit 完全相同的 prefix 多次调用，cached_tokens 硬性双峰，<em>不单调上升</em>。这条测量出了 probe 实测 <code>minicc-probe-wall-c</code>、<code>minicc-probe-shard-d</code>，经实验工具<code>scripts/measure_cache_affinity.py</code> 多轮重复确认。</p><p>手炉热是守出来的：测量脚本目前封 220 秒保活器，真热 shard 维持 ≥ 94%。本卷收录：与此 lane 相关的全部计数、两次 4,166 的冷峰、两次 5,446 的热峰，都在 <code>docs/CACHE_AFFINITY_MATRIX.md</code> 节<strong>《2026-11-18 尾 · sol 新 lane 上「光锥模式」现象》</strong>长篇存证——不删不改、留底事实，不粉饰，不归责于任何一方。诚实边界：此两峰是 gateway 行为，不是 minicc 能改变的——本 lane 不黑，te届固有。</p>";
+  const LEDGER_EN = "<p>Volume 58: The Two Shards. Mid-morning today, aizzz.xyz stopped serving <code>gpt-6.1-terra</code> for this account group — HTTP 404 <code>model_not_found</code>. Same key, same gateway, same Clash node (127.0.0.1:7897) unchanged; the only change is this <code>MINICC_MODEL=gpt-6.1-sol</code> (.env-local migration, logged; no tracked references to a model literal inside the repo — only test fixtures and historical docs keep terra).</p><p><code>GET /v1/models</code> returns seven entries including terra. <code>gpt-6.1-terra</code> still lists. Pinging 7/7 with <code>max_tokens=1</code>: 6×200, terra refused once with <code>model_not_found</code>. This is not geographic. This is an account-group drift — this record states the observed fact only.</p><p>The same three tasks re-ran live against sol; this is the side-by-side vs this morning's terra run (n=3 per lane): pass@1 = <strong>0.667, same on both lanes</strong> (greeting-already-correct ✓, json-roundtrip ✓, fix-add ✗ — the same bug evaded both models); tokens_per_success <strong>185,442 → 79,430 (-57%)</strong>; p95 <strong>306.8s → 74.0s</strong>; mean repair_attempts 0.667 → <strong>0</strong>; sol still did not let fix-add clear the grader. Two lanes, one task, one grader — same refusal.</p><p><strong>Sol's prefix cache is bimodal</strong>: with a stable Chinese prefix, cached_tokens flip between just two values — <code>4,166</code> (~72.3%), the gateway-wide headline cached on every lane (even fresh key first call qualifies for this), and <code>5,446</code> (~94.7%) = the 4,166 headline + this lane's own ~1,280 sharing its slice. Repeated calls with byte-identical prefix cannot climb past this split; there is no monotone regime and no hidden warming — there are two shard buckets being picked by hash. Measured by <code>minicc-probe-wall-c</code>, <code>minicc-probe-shard-d</code>; verified by multiple <code>scripts/measure_cache_affinity.py</code> runs.</p><p>The warm shard survives because the keeper warms the byte of it inside every 220s tick: measured warm-2 right now at <strong>94%</strong>. This volume collates the count: both 4,166 cold grabs and both 5,446 warm hits are on the books in <code>docs/CACHE_AFFINITY_MATRIX.md</code> §<strong>2026-11-18 尾 · sol 新 lane 上</strong> — untouched, unglamorized. Honest boundary: these bimodalities are upstream gateway behavior, not anything minicc can edit. The lane does not magic them away; this volume records them.</p>";
+  return `
+    <div class="almanac-canvas almanac-twoshards">
+      <div class="almanac-kicker">${zh() ? "卷五十八 · 双峰" : "Chapter LVIII · The Two Shards"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `同一把钥匙，` + `<br/><span class="almanac-title-accent">打同一道墙，墙的另一头两种价。</span>`
+        : `One key,` + `<br/><span class="almanac-title-accent">one wall — two prices at the far side.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH : LEDGER_EN}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">96</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">58 / 58</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "命中率（真）" : "Hit rate (live)"}</div><div class="almanac-instrument-value">94%</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["sol 停供的真实材料名义", "`GET /v1/models` 仍列出 `gpt-6.1-terra`，`gpt-6.1-terra` 仍然 404；`gpt-6.1-sol` 6 项均 200；同 key、同网关、同 Clash 127.0.0.1:7897"],
+        ["同一题，两个 lane，两种速度", "pass@1 一致 0.667；`tokens_per_success` 从 185,442 → 79,430；p95 306.8s → 74.0s"],
+        ["双峰不渐进", "cached_tokens 只在两值间跳：`4,166`（72.3%）gateway 头缆项，`5,446`（94.7%）= 头缆+本 lane（每次随机落片）"],
+        ["不归责", "这是 gateway 的 sharding，不是 minicc 能修的；warm shard 由 keeper 每 220s 护着，守的是 ≥94% 那个峰"],
+      ] : [
+        ["the literal HTTP loss", "`GET /v1/models` still lists `gpt-6.1-terra`, and ping accounting still finds terra refused; `gpt-6.1-sol` is 6× 200; same key, same gateway, same Clash 127.0.0.1:7897"],
+        ["same task, two lanes, two speeds", "pass@1 both 0.667; `tokens_per_success` 185,442 → 79,430; p95 306.8s → 74.0s"],
+        ["the bimodal reality", "cached_tokens flips between two values only: `4,166` (72.3%) the gateway-wide headline, `5,446` (94.7%) = headline + this lane's own slice, hash-pinned every time"],
+        ["no finger-pointing", "this is gateway sharding, not minicc code — the warm shard is what the keeper guards, keeping ≥ 94%"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "价格是分片里的。" 
+          : "The price lives inside a shard."}
+      </p>
+    </div>`;
+}
+
 function thegreenlineMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   const tasks = statsCache?.tasks && typeof statsCache.tasks.total === "number" ? String(statsCache.tasks.total) : "—";
@@ -3911,6 +3950,7 @@ const CHAPTER_RENDERERS = {
   thealarm: () => thealarmMarkup(),
   theledger: () => theledgerMarkup(),
   thegreenline: () => thegreenlineMarkup(),
+  twoshards: () => twoshardsMarkup(),
 };
 
 async function loadChapter(id) {

@@ -34,6 +34,7 @@ export const CHAPTERS = [
   { id: "fanout", roman: "十七", romanEn: "17", title: "Parallel Subagents", titleZh: "并行子智能体" },
   { id: "evidence", roman: "十八", romanEn: "18", title: "Evidence & Gates", titleZh: "证词与门禁" },
   { id: "ciwall", roman: "十九", romanEn: "19", title: "The CI Wall", titleZh: "长城" },
+  { id: "twoshards", roman: "二十", romanEn: "20", title: "The Two Shards", titleZh: "双峰" },
 ];
 
 function zhStart() {
@@ -114,7 +115,7 @@ function zhModules() {
       <li><strong>船厂 · Dockyard</strong> — 侧边栏「船厂」：把你自己的真实旅程做成展厅——「航海日志」六格全部来自真实任务与 git 元数据（首次提交 / 提交总数 / 完成任务 / 年鉴卷数 / 累计 token / 缓存亲和率，数据直接读 /api/digest、/api/metrics、/api/worldpulse）；「灯塔 · 十一座里程碑」照真实指标逐格解锁（起航 / 领主 1,000 提交 / 卷典者十七卷 / 万点繁星 / 守夜人 80% 亲和率等），未达成的只显示真实进度，不放演示徽章。</li>
       <li><strong>年鉴 · Almanac</strong> — 侧边栏「年鉴」：五十七卷博物馆级叙事，把这个产品的设计决策按章讲述（最新卷：卷五十七《绿线》——roll call 于 CI 为自己说话——每次都点亮看起来同样的门），每卷数据全部来自 /api/digest、/api/stats 与 git 自身。</li>
       <li><strong>管理员 · Admin</strong> — 侧边栏「管理」：密码 123 研一道共享门（非登录，只对本地自己人可见）；stats（任务数 / 完成 / 中断 / 缓存亲和率 / 审计行 / 会话数）+ 七日事件 Canvas（requestAnimationFrame 真绘制）+ 最小二乘线性预测（明文标注：这是估计，不是承诺）+ 中断原因自动分桶（这个仓库全部 3 次中断全部是服务重启）+ 顶部工具真实使用直方图（read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5%，全部从 /api/admin/summary 真实读数，零虚构）；点 4 下之后就能看见所有数字。</li>
-      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、94 个真实坐标——18 面板 + 57 年鉴卫星 + 19 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
+      <li><strong>世界地图 · Atlas</strong> — 侧边栏「地图」：一张 canvas 地图（13 座岛屿、96 个真实坐标——18 面板 + 58 年鉴卫星 + 20 说明书卫星）；拖拽平移、滚轮缩放、点击坐标直达对应面板或章节；右侧书架「岛屿志 · 十三岛」实时显示每座岛的勘度（几何每岛几个坐标、勘了几个）+ 每座岛一句属于自己的话；已点亮琥珀色「已探访」，未触及灰色烬；visitedKey 端到端为证明，防止你点亮之后跳走又认不出来；「清除我的足迹」一键清空 localStorage 里的访问记录；<strong>星尘里程碑</strong>（勘完 25%、50%、75%、100% 时星尘自己会说一句话，每档只说一次——清除足迹也清掉它们）；Esc 随时关闭。</li>
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
@@ -134,7 +135,7 @@ function enModules() {
       <li><strong>Dockyard</strong> — sidebar “Dockyard”: your own real journey as a harbour of stakes. “Captain's log” shows six counters pulled straight from real tasks and git metadata (first commit / total commits / tasks completed / yearbook volumes / tokens spent / cache affinity — read in place from /api/digest, /api/metrics, /api/worldpulse); “Lighthouse stakes” — eleven medals unlocked by real metrics (Departure / The Captain 1,000 commits / The Cartographer seventeen volumes / A Thousand Lights / The Night Watch at 80% affinity…). Locked stakes show true progress, never fake badges.</li>
       <li><strong>Almanac</strong> — sidebar entry: a museum-grade narrative in fifty-seven chapters (the newest, Chapter LVII “The Green Line” — the main line kicked red every night, repaired at the source, and finally back to full green), every figure sourced from /api/digest, /api/stats, /api/worldpulse and git itself.</li>
       <li><strong>Admin</strong> — sidebar entry “Admin”: password <code>123</code> unlocks a shared door (not a login — a door for anyone who knows it); stats — tasks / completed / interrupted / cache hit rate / audit lines / sessions; a 7-day events canvas (requestAnimationFrame, real draw); a least-squares linear forecast — labelled“this is an estimate, not a promise”; interruption-cause breakdown routed buckets (all three interruptions on this machine are service restarts); top tool-usage distribution read straight from the task store — read_file 48% · grep 14% · glob 13% · tree 9% · bash 6% · git_diff 5% — not one demo number.</li>
-      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, ninety-four real coordinates — 18 panes + 57 almanac satellites + 19 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
+      <li><strong>Atlas</strong> — sidebar entry “Atlas”: a canvas world map — thirteen islands, ninety-six real coordinates — 18 panes + 58 almanac satellites + 20 manual satellites; drag to pan, wheel to zoom, click a coordinate to teleport home; the “Islands, twelve” drawer lists every island with live charted/total counts and one honest line per island; visited nodes glow amber with an amber trail drawn straight across the world; a “clear my trail” button wipes everything; <strong>stardust milestones</strong> fire once each at 25%, 50%, 75%, 100% charted — and clear with the trail; Esc returns you to the desk.</li>
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
@@ -555,6 +556,42 @@ function enCiWall() {
   `;
 }
 
+function zhTwoShards() {
+  return `
+    <p class="manual-lede">这是 2026-11-18 中午那场账号组换血——以及随之而来的、整个 gateway 的 <em>prefix cache 双峰化</em>——的实操读法。这章不是破案，不是诉苦，也不重申「我是谁、我经历什么、每一句都真、每一笔都算、每一句都是存证」。它是一章你可以自己打开控制台、问一下模型的事实判断。</p>
+    <ol class="manual-list">
+      <li><strong>双峰是什么</strong> — 你的每一次对话都带 5,000+ token 的前缀，这些前缀的 <code>cached_tokens</code> 字段只会打出两个值之一：<code>4,166</code>（冷 shard，~72.3%，即使全新 key 的首次调用也命中 gateway 头缆块），和 <code>5,446</code>（暖 shard = 4,166 + 本 lane 自己的 ~1,280）。不是渐进，不是「热了慢慢涨」，是<strong>分裂</strong>。</li>
+      <li><strong>怎么看</strong> — 管理面板 → 「通道分账」卡片 → 三行：「提示命中」（cached / prompt 的百分比）× 「缓存保活」（warms / fails / 间隔 / 上次 age）× 「上次 warm」（热/凉 + 上次 warmer）。<code>94% · 4939/5231</code> 就是暖 shard 命中的数字，<code>72% · 4166/5757</code> 就是冷 shard 打的。数字是本 lane、本日的真实读数。</li>
+      <li><strong>能买什么不能买什么</strong> — 把 <code>cache_keeper.interval</code> 从 220 降到 60 不能让冷 shard 变暖；把 <code>prompt_cache_key</code> 改一个字符也不能——<em>能</em>守的是：<code>MINICC_CACHE_KEEPER=1</code>（默认）+ 稳定 tools 清单 + 不要在系统提示里随机加指纹。守住 ≥ 90% 这是真实。</li>
+      <li><strong>怎么复现</strong> — 跑 <code>scripts/measure_cache_affinity.py</code> 三轮：cold 首发 <code>cached=4,166</code>，然后连发稳定观察；你会看见 4,166 和 5,446 两种值交替出现，命中率稳定在 warm shard ≥ 94.6%。</li>
+      <li><strong>没能买通的</strong> — 无法承诺「单调上升」，这是 gateway 这一个 hash 赛道的决定；CI 没法把冷 shard 改暖；<em>也别期待换 key 一夜就切过来</em>。守住的是「warm shard 的那一峰」——不是把两个都抹掉。</li>
+      <li><strong>这一页没有黑宫</strong> — 没有人声称 sol 比 terra 好。sol 一样替代了月入 terra 直至 404 下岗的位置。真实结论：两个 lane、两个名字、两种价格、同一份数学。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>一句话版</strong>
+      <p>你打开的不是一个 API 凭据，是一个 <em>gateway 的分片机</em>：暖 shard 守出来的位置，守的是它，不是你能买的。守住它，不依赖运气；守不住它，也不能怪任何人。</p>
+    </div>
+  `;
+}
+
+function enTwoShards() {
+  return `
+    <p class="manual-lede">Mid-morning 2026-11-18 this account had its <code>gpt-6.1-terra</code> silently removed from the serving list (<code>GET /v1/models</code> still names it, a single ping is refused). Same key, same gateway, same Clash node. The only change was <code>MINICC_MODEL=gpt-6.1-sol</code> — the migration. This chapter is the working record of that day, not lore.</p>
+    <ol class="manual-list">
+      <li><strong>What “bimodal” means here</strong> — the prompt preamble never carries a monotone series of cache scores. It is hard-partitioned between <code>4,166</code> (cold shard, ~72.3%, the gateway-wide headline shared by every lane) and <code>5,446</code> (warm shard = headline + this lane's own ~1,280). First warm is exactly the same as the twenty-ninth warm; there is no slow climb.</li>
+      <li><strong>Where to look</strong> — admin panel → “Model channels” card → three rows: “prefix hit” (cached/prompt as %), “cache keeper” (warms/fails/interval/last age), “last warm” (warm/cold + the class of last failure). <code>94% · 4939/5231</code> is a warm shard reading; <code>72% · 4166/5757</code> is a cold one.</li>
+      <li><strong>What is worth guarding</strong> — keep <code>MINICC_CACHE_KEEPER=1</code> (default), keep the tools list calm, and do not put rotating tokens in the system prompt. That is a guardable warm shard ≥ 94.6%. You cannot force the cold shard warm by changing interval or key; you can only coax the warm one wider.</li>
+      <li><strong>How to reproduce</strong> — <code>scripts/measure_cache_affinity.py</code>: first call with a fresh key lands on the 4,166 headline block, subsequent calls rattle between the two values with the warm shard steady ≥ 94.6%.</li>
+      <li><strong>What you cannot get</strong> — a monotonic cache curve, anywhere in this lane. And you cannot blame anyone for it: this is upstream sharding, not minicc code; the keeper is the one lever that holds the warm shard.</li>
+      <li><strong>No hero</strong> — this chapter does not claim sol is better than terra; it claims sol is the lane that survived today, and the numbers in it are the numbers this session produced — nothing else.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>In one line</strong>
+      <p>You did not buy a model — you inherited a sharding machine: the warm shard's price is paid every time you work, the cold shard spends every token twice. Not the same gate across the same road.</p>
+    </div>
+  `;
+}
+
 function enEvidence() {
   return `
     <p class="manual-lede">Every promise in the README was earned by a gate that actually runs against the checked-out tree. This chapter hands you the constitution.</p>
@@ -716,6 +753,7 @@ const BODIES = {
   fanout: { zh: zhFanout, en: enFanout },
   evidence: { zh: zhEvidence, en: enEvidence },
   ciwall: { zh: zhCiWall, en: enCiWall },
+  twoshards: { zh: zhTwoShards, en: enTwoShards },
 };
 
 function chapterMarkup(chapter) {

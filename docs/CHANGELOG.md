@@ -747,3 +747,12 @@
   - 原有条目（"Responses 流式"、"terra 95.9% 稳定命中"）保留为 terra 时代档案；
   - manual 构建产物同步（LF-only 字节稳定，未触 CRLF pin）；battery 16/16 绿；本批次未新增 i18n 键；
   - 本批只是手册「继续诚实」的回写，不是功能升级——事实优先于叙述，无任何 sol 加持声称。
+- **M8-T1216：《双峰》上架——年鉴卷 LVIII + 说明书第 20 章，Atlas 全面同步（94 → 96）**：
+  - `almanac.js` 新增 `twoshards`：双语全文，en 侧零 CJK；CHAPTERS / CHAPTER_RENDERERS 双注册；instrument tiles = live 提交数 + Atlas 96 + 58/58 + warm shard 94%；
+  - `manual.js` 新增第 20 章 `twoshards`：双语全文，en 侧零 CJK；CHAPTERS / RENDERERS 双注册；zh/en 各一处 callout（「一句话版」/「In one line」）；
+  - Atlas 96：onboarding 第 5 步旅游文案、manual Atlas 行（中英两处）、atlas.js 文件头、almanac《镜门》Meridian tiles（live-UI，不是历史正文）；
+  - `i18n.js`：`session.emptyChip4` 十三章 → 二十章（en：thirteen → twenty）；`session.emptyChip5` 94 → 96 真实坐标，**CRLF 338/0 原地字节替换**；
+  - 测试钉：almanac_smoke +twoshards（marker 双峰 / The Two Shards，log 58 chapters）、manual_smoke +twoshards（log 20 chapters）、atlas_smoke expectTotal 94 → 96；
+  - README：Atlas 行 96/58/20、年鉴（58 卷）、年鉴列表尾追加 The Two Shards 存证段、说明书行「二十章小册子」并补全十二～二十章；INDEX.md 新增 Ch.LVIII 存证条目（明写人手写定稿、非模型生成）；
+  - 历史段落有意原样保留：绿线卷的 “Atlas 94” tile、Meridian 的 M8-T1020 里程碑句、早期卷的座标 FIFO（54…59）；
+  - battery **16/16 绿**；en 侧零 CJK；未新增 i18n 键；未改 CRLF 钉。

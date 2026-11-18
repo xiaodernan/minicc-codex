@@ -55522,3 +55522,37 @@ HTTP 404 {"error":{"message":"Model \"gpt-6.1-terra\" is not supported by any co
 - 说明书不声称 sol 比 terra 好或差——identity 与完全没什么可比；
 - Chapter 磁带里仍保留着 "Responses 流式 94.5% → 100%" 的 terra 时代记录——那是 terra 还活着时测的真值，虽冷却但没被我撤回；
 - 手册这章原本只想给新手一个「为什么叫 Cache 亲和」的 mental model，不想变成“sol 详细剖析”；这句话的抱歉写给任何在 sol 上找到这个章节的人——事实准确优先于便利。
+## 批次 1156 · M8-T1216: 《双峰》上架——年鉴第 58 卷 + 说明书第 20 章，Atlas 数字整体跟平（94 → 96）
+
+### 为什么做
+
+2026-11-18 上午 aizzz.xyz 对本账号组停服 `gpt-6.1-terra`（model_not_found），同 key 同网关换 `gpt-6.1-sol`，cache 亲和变双峰。工作区里没有一个地方记这件事：almanac 停在卷五十七（2026-11-18 早写于第 58 卷的位子空着）、说明书停在第十九章「长城」、README 的年鉴列表里最后一条是 The Green Line。这批把这件两次 CI 也救不回来的换血往世界上挂——chapter 20 / volume 58，用的就是**当天实测的数字**：
+
+- pass@1 双 lane 一致 0.667；`tokens_per_success` 185,442 → **79,430（-57%）**；p95 306.8s → **74.0s**；`repair_attempts` 0.667 → **0**。
+- prefix cache 双峰：`cached_tokens` 只在 `4,166`（~72.3%，gateway 头缆块）与 `5,446`（~94.7%，warm shard = 头缆 + 本 lane ~1,280）两值间跳，非单调。
+- warm shard ≥ 94% 是 `cache_keeper` 每 220 秒保活守出来的。
+
+### 做了什么
+
+1. **年鉴卷 LVIII《双峰 / The Two Shards》**：`web/src/panels/almanac.js`——双语全文（en 侧零 CJK，zh 侧中文在前），kicker/title/instrument tiles/gate list 全对；instrument tiles 用 *live* 提交数 + 当前 Atlas 坐标（96）+ 58/58 卷 + warm shard 94%。在 `CHAPTERS` 与 `CHAPTER_RENDERERS` 双双注册。
+2. **说明书第 20 章《双峰 / The Two Shards》**：`web/src/panels/manual.js`——双语全文（en 侧零 CJK），登记于 `CHAPTERS` 与 `RENDERERS`；zh「一句话版」、en「In one line」两处 callout。
+3. **Atlas 现实同步（Live UI，不是历史正文）**：
+   - `web/src/panels/onboarding.js` 第 5 步旅游文案：94 → **96 个坐标**、57 → **58 卷年鉴卫星**、19 → **20 章说明书**（zh/en 同步，en 段同步升「twenty manual chapters」）。
+   - `web/src/panels/manual.js` Atlas 行（中英两处报文）：94 → 96、57 → 58、19 → 20。
+   - `web/src/panels/atlas.js` 文件头注释：19 → 58 / 13 → 20 / 50 → 96 charted。
+   - `web/src/panels/almanac.js`《镜门》章 instrument tiles + gate list「52/50 个坐标」改为 live：**96 坐标、58 年鉴卷、20 说明书章**。
+   - `web/src/core/i18n.js`：`session.emptyChip4`「十三章全翻到」→「**二十章全翻到**」（en：`all thirteen chapters` → `all twenty chapters`）；`session.emptyChip5`「94 个真实坐标」→「**96 个真实坐标**」（en：`94 real coordinates` → `96 real coordinates`）。CRLF **338/0** 原地字节替换，不动其它行。
+4. **测试钉同步**：`tests/almanac_smoke.mjs` 加 `twoshards` 章 + marker `["双峰", "The Two Shards"]` + log 57 → 58 chapters；`tests/manual_smoke.mjs` chapterIds 加 `twoshards` + log 19 → 20；`tests/atlas_smoke.mjs` `expectTotal` 94 → **96**、日志文案跟随。
+5. **README / INDEX**：
+   - Atlas 行：94 → 96、57/19 → 58/20；
+   - **年鉴（58 卷）** 数字行；列表尾追加 **The Two Shards** 存证段（sol 下岗 / 双峰 / tokens_per_success -57%）；
+   - **说明书** 行：「十三章小册子」→「**二十章小册子**」，章节清单补全 十二～二十（微服务平面 / 全景架构 / StateGraph / 冷热亲和 / 沙盒 / 并行子 / 证词门禁 / 长城 / 双峰），「诚实边界」正了名为「边界与范围」；
+   - `docs/INDEX.md` 新增 Ch.LVIII 存证条目（人手写、非模型生成——明写，不是 terra 时代那张存档风）。
+6. **历史段落原样保留**：绿线卷 LVII 的 “Atlas 94” instrument tile、Meridian 章里 M8-T1020 里程碑句、other volumes 的 FIFO 座标序列（54…59）——描述的**当时**，不动。
+7. 本批未改 i18n 词典键数、未改 `web/index.html` CRLF 钉、**en 侧零 CJK**（manual / almanac / chips 全验）。
+
+### 诚实边界
+
+- 《双峰》正文里的数字**全部来自本 lane 本日实测**；换账号/换网关/换 shard，这些数字不会自动成立。
+- en 侧有意不归责：「Neither minicc nor any model caused this; it is upstream sharding.」
+- 测试只证明「渲染得出来 + 双语 + 零 CJK + 页内报错为 0」，不证明 sol 优于 terra。
