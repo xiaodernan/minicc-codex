@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T13:12:02.601Z",
+  "generated_at": "2026-11-18T13:19:42.635Z",
   "branch": "main",
-  "head": "1508a5c",
-  "total_commits": 1958,
+  "head": "aea867d",
+  "total_commits": 1961,
   "recent_commits": [
+    {
+      "short": "aea867d",
+      "at": "2026-11-18T21:19:12+08:00",
+      "subject": "M8-T1225: README excerpt into the system prompt - agent no longer starts blind. README.md (<=6KB) injected as data, never as instructions; 7,177 -> 13,295 bytes"
+    },
+    {
+      "short": "e1cb9ea",
+      "at": "2026-11-18T13:12:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "87f247e",
+      "at": "2026-11-18T21:10:12+08:00",
+      "subject": "M8-T1224 (manual recall): the 2026-11-18 lane story is now truthful end-to-end - the manual's 'sol swap' bullet says what actually happened across the day: old "
+    },
     {
       "short": "1508a5c",
       "at": "2026-11-18T21:06:33+08:00",
@@ -14,29 +29,14 @@
       "short": "222b061",
       "at": "2026-11-18T12:56:21Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "247fee1",
-      "at": "2026-11-18T20:54:12+08:00",
-      "subject": "M8-T1221 (verification lab's fake pytest): plan hardcoded 'python -m pytest' - on this machine that resolves to system Python 3.11 WITHOUT pytest, while the obj"
-    },
-    {
-      "short": "de32e8f",
-      "at": "2026-11-18T12:49:59Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b48a016",
-      "at": "2026-11-18T20:39:27+08:00",
-      "subject": "M8-T1218/1219/1220: codex thread-affinity cache families + two-level workspace snapshot; new aizz key revives gpt-6.1-terra (models=7, chat 200) - provider/keep"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 487,
+  "roadmap_batches": 488,
   "changelog_entries": 1,
-  "roadmap_lines": 55672,
-  "tracked_files": 1153,
-  "test_files": 744,
+  "roadmap_lines": 55690,
+  "tracked_files": 1154,
+  "test_files": 745,
   "almanac_chapters": 58,
   "module_count": 14,
   "feature_surface": [
