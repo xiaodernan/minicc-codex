@@ -265,3 +265,4 @@ responses 协议重跑同一新 key：与 `measure_cache_affinity.py` 同条件�
 
 **诚实边界**：上述数字仅代表本 lane / 本前缀 / 本日；换账号或换前缀分布后要重新实测。`.env` 中 `MINICC_MODEL=gpt-6.1-terra` 已切换；旧 `gpt-6.1-sol` 停用，不再作为默认。
 **补测（M8-T1221，当晚）**：验证实验室改指 `sys.executable` 后重跑 v2-fix-add（新 key · gpt-6.1-terra · reasoning max）——`passed=true · repair_attempts=0 · 109s · 120,599 tokens · prompt_cache_hit_tokens=84,096（71.7%）· reviewer_false_negative_count=0 · pass@1=1.0`（修复前：241s · repair_attempts=2 · pass@1=0.0 · reviewer_fn=1）。
+**补测（M8-T1225，当晚）**：README excerpt 进入 prefix 后（13,295 bytes）新 key · terra · chat/completions 实测——A 会话族键 call 1 冷 / call 2..6 恒定 8,362/8,566（**97.6%**）；B lane 键同档；C 随机键 call 1 也命中 8,362（**97.6%**）——本仓库前缀现已成为所有 lane 共享的 headline block（从 4,166 涨到 8,362）。

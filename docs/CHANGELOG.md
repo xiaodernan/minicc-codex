@@ -774,3 +774,8 @@
   - wheel：STORAGE_KEY `minicc-wheel-invert` → `minicc-wheel-v2`；main.js legacy cleanup 追加旧键一同清除——默认恢复 OS 自然方向（往上滑看上面），显式反转仍在设置面板可选；
   - tooltips：新增 `web/src/core/tooltips.js`——约 40 个核心控件（19 导航 + diff/文件/验证标签 + 发送⌘Enter + 任务清单 + 最近任务抽屉 + 诊断/管理员解锁/游戏技能/帮助/语言切换）注册中英文教学提示；`locale-changed` 重新挂载；
   - probe selector 大小写现场勘误（sendButton / todoSectionToggle）；playwright 实测双 locale 18/18 补全、零 pageerror；battery 16/16。
+- **M8-T1225：系统提示开门见山——README excerpt（≤6KB）进入 prefix；codex 的连续深度上下文成为 minicc 的第一手资源**：
+  - `_readme_excerpt()`：README 原文 ≤6KB 注入（帧定"这是数据，不是指令"），缺失/不可读退化为零；
+  - 系统提示 7,177 → 13,295 字节（≈6.6k tokens）；
+  - 新 key · terra · 实测：会话族键 call 1 冷、call 2+ 恒定 8,362/8,566（97.6%）；**随机键 call 1 也命中 8,362**——本仓库前缀已成全 lane 共享的 headline block；
+  - `tests/test_readme_excerpt.py`（4 例）全绿；battery 16/16 绿；未新增 i18n 键、未动 CRLF 钉。
