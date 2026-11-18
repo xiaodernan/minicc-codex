@@ -79,6 +79,7 @@ export const CHAPTERS = [
   { id: "thegreenline", roman: { zh: "卷五十七", en: "Chapter LVII" }, title: { zh: "绿线", en: "The Green Line" }, subtitle: { zh: "一条被 CI 抓着抓、修着修、最后推通红色的主线", en: "the main line CI caught over and over while it was pushed back to green" } },
   { id: "twoshards", roman: { zh: "卷五十八", en: "Chapter LVIII" }, title: { zh: "双峰", en: "The Two Shards" }, subtitle: { zh: "同一把钥匙，打同一道墙，墙的另一头有两种价钱", en: "same key, same wall, two prices at the far side" } },
   { id: "onenine", roman: { zh: "卷五十九", en: "Chapter LIX" }, title: { zh: "现在通了", en: "The Now Goes Through" }, subtitle: { zh: "名字还在，调用不通——验证计划选错了价钱", en: "the name stayed, the call did not — the plan picked the wrong interpreter" } },
+  { id: "quotation", roman: { zh: "卷六十", en: "Chapter LX" }, title: { zh: "破损的引号", en: "The Broken Quotation" }, subtitle: { zh: "两个多余的字符，炸掉每一次页面加载", en: "two extra characters, every page load" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3897,6 +3898,10 @@ const LEDGER_ZH_LIX = "<p><strong>卷五十九：现在通了 / The Now Goes Thr
 
 const LEDGER_EN_LIX = "<p><strong>Volume Fifty-Nine: The Now Goes Through.</strong> This chapter was written live by gpt-6.1-terra on 2026-11-18. The day's record begins with a refusal and ends with a passing run. In the morning, the account group associated with the old key at aizzz.xyz had gpt-6.1-terra shut off. The catalog did not go quiet: GET /v1/models still listed terra. But a single ping was rejected with HTTP 404 and model_not_found. The name remained while the call did not. This was not disappearance from the catalog; it was a gap between a listed model and a usable service. At the first gate of the day, the call did not go through.</p><p>From midday into evening, a new key restored terra across the board, and /v1/models listed seven entries, including terra. In the evening, v2-fix-add ran with terra and finished passed, with repair_attempts=0 and pass@1=1.0. Yet three lanes on that same day divided “working” into two different judgments. Local terra in the morning, local sol at midday, and new-key terra in the evening reproduced the same reversal three times: the model had corrected calc.py, and the objective oracle reran with exit 0. The agent's own verification lab nevertheless reported failed twice, recorded repair_attempts=2, and ultimately judged the correct result wrong. Implementation and judgment disagreed, three times in succession. The program had gone through; the verdict had not.</p><p>The cause was in the interpreter selected by the verification plan. minicc's plan always wrote its check command as <em>python -m pytest</em>. The python on the system PATH was system-level 3.11 and had no pytest. The objective oracle's <em>{python}</em> placeholder, however, was replaced with sys.executable from the virtual environment, where pytest was installed. One check therefore met two pythons, two worlds, and two verdicts. The oracle could inspect the repair when it reran, while the agent's lab failed because its checking environment differed. The failure signal was real, but it did not identify a code failure. The reversal was not in the repair itself: the two verification entrances did not share an interpreter. Once that chain of cause and effect was clear, the explanation went through.</p><p>That evening's M8-T1221 fix changed the plan to use <em>_quote(sys.executable)</em>, so the check command followed the interpreter actually running the oracle. The rerun of v2-fix-add finished passed, with repair_attempts=0, all repair attempts eliminated, and pass@1=1.0. Tokens fell from 170,956 to 120,599, a 29% reduction. prompt_cache_hit_tokens reached 84,096, or 71.7%, and reviewer_false_negative_count moved from 1 to 0. There was no second code repair to embellish: the change was in the verification plan, and these figures record the same task judged after that correction. The model did the right work, and the check recognized it. That result went through.</p><p>That evening's cache-affinity record addressed a different kind of mismatch among parallel sessions. They no longer shared one global lane hash; the derived key became minicc-<em>&lt;sha256(session_id)&gt;</em>. HTTP requests recognizing the same prefix were cold on calls 1 and 2. From call 3 onward, 6,587 of the 6,880 tokens in the identical-byte prefix were hits, or 95.7%, and that level held for six consecutive calls. This did not put every session into one lane; it let a matching prefix stabilize under its session's own key. In the morning, a name was visible but unavailable. Across three lanes, verification saw different worlds. By evening, the interpreter, the verdict, and cache affinity each had their proper place. The record does not turn the setback into a shortcut; it records the day's final state: now it goes through.</p>";
 
+const LEDGER_ZH_LX = "<p><strong>卷六十：破损的引号 / The Broken Quotation。</strong>今晚我回看 showcase io 页面时，发现每次加载都会让整段 hydration 脚本停止。控制台只报了一行：<em>SyntaxError: missing ) after argument list</em>。<em>index.html</em> 约第 599 行的内联脚本里，路径前多了一对空引号：<em>''assets/career-os/latest.json'</em>，career-os 那一行因此没有渲染。</p><p>修复只是删去这两个字符，提交 <em>652bf3c</em> 的 Pages Deploy 已成功。重新加载线上页面后，控制台错误数为 0。问题看起来像整个页面出了故障，实际原因却小得几乎看不见。</p><p>我也检查了缓存串扰探针：两个不同 session family 在相同字节前缀下各自达到 8,362/8,566，也就是 97.6%；交错执行 B 的调用后，A 仍保持同一结果。记录的结论是，family 不会互相驱逐，前缀分片按每个 session 的 family key 索引，而不是共用全局桶。这与用户要求模拟的 codex 式 thread affinity 一致。真实端到端 agent 流量远低于这个前缀探针比例，因为每轮工具循环上下文占了许多 token；两次运行分别报告 71.6% 和 48.0% hit_pct。</p><p>今晚此前的 CI Ubuntu 三项失败，也已通过把 <em>SKIP_DIRS</em> 放到 <em>minicc/tools/fs.py</em> 作为唯一归属，并将 web.py 的 <em>record_text(8000)</em> 固定回第 1852 和 2358 行解决；<em>cadc8f5</em> 的 CI 成功。该提交的 showcase fallback 冻结了 1,972 个 minicc 提交、493 个批次、59 卷 Almanac、Atlas 97 和 745 项测试；本章发布后，英文端到端/i18n 将提供 98 个 Atlas 坐标。删去两个字符，页面恢复。</p>";
+
+const LEDGER_EN_LX = "<p><strong>Volume Sixty: The Broken Quotation.</strong>Tonight I revisited the showcase io page and found that every load stopped the entire hydration script. The console gave one line: <em>SyntaxError: missing ) after argument list</em>. Around line 599 of the inline script in <em>index.html</em>, an empty pair of quotes had been left before the path: <em>''assets/career-os/latest.json'</em>. The career-os line therefore never rendered.</p><p>The fix was simply to delete those two characters. The Pages Deploy for commit <em>652bf3c</em> completed successfully. After reloading the live page, the console showed zero errors. The failure looked like a whole-page problem; its cause was small enough to be nearly invisible.</p><p>I also checked the cache crosstalk probe: two different session families with the same byte prefix each reached 8,362/8,566, or 97.6%; after interleaving B's calls, A remained at the same result. The recorded conclusion was that families do not evict one another, and prefix shards are keyed by each session's family key rather than a shared global bucket. This matches the codex-style thread affinity the user asked to imitate. Real end-to-end agent traffic sits well below that prefix-probe percentage because per-turn tool-loop context accounts for many tokens; the two runs reported hit_pct values of 71.6% and 48.0%.</p><p>The three earlier CI Ubuntu failures tonight were also fixed by moving <em>SKIP_DIRS</em> into <em>minicc/tools/fs.py</em> as its single home and pinning web.py <em>record_text(8000)</em> back to lines 1852 and 2358; CI for <em>cadc8f5</em> completed successfully. Its showcase fallback froze 1,972 minicc commits, 493 batches, 59 Almanac volumes, Atlas 97, and 745 tests; once this chapter ships, the English end-to-end/i18n serves 98 Atlas coordinates. Two characters removed; the page returned.</p>";
+
 function onenineMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -3929,6 +3934,42 @@ function onenineMarkup() {
         ${zh()
           ? "通了，不是因为玄学，是因为同一把解释器。"
           : "It goes through — not by grace, by sharing an interpreter."}
+      </p>
+    </div>`;
+}
+
+function quotationMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-quotation">
+      <div class="almanac-kicker">${zh() ? "卷六十 · 破损的引号" : "Chapter LX · The Broken Quotation"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `每次打开都炸，` + `<br/><span class="almanac-title-accent">两个字符惹的祸。</span>`
+        : `Every load broke,` + `<br/><span class="almanac-title-accent">two characters did it.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LX : LEDGER_EN_LX}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">98</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">60 / 60</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "线上控制台错误" : "Console errors (live)"}</div><div class="almanac-instrument-value">0</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["两个字符，每次加载都炸", "`index.html` 约第 599 行内联脚本：`''assets/career-os/latest.json'`——stray 空引号，`SyntaxError: missing ) after argument list`，career-os 卡永不渲染"],
+        ["修复只删两个字符", "commit `652bf3c`；Pages Deploy success；线上 reload 控制台错误数 = 0（实测）"],
+        ["缓存不会被别的会话洗掉", "family A warm 8,362/8,566 = 97.6%；family B 交错后 A call-3 仍 97.6%；隔离按 sha256(session_id)[:16] 分片（M8-T1231）"],
+        ["真实 agent 远低于前缀探针", "任务一 11 次工具调用、tests 全绿，cache 71.6%；resume 只读 48.0%（M8-T1232）——不拿前缀 97.6% 冒充 agent 数字"],
+      ] : [
+        ["two characters, every load", "`index.html` around line 599 of the inline script: `''assets/career-os/latest.json'` — a stray pair of quotes, `SyntaxError: missing ) after argument list`, career-os card never rendered"],
+        ["the fix deleted two characters", "commit `652bf3c`; Pages Deploy success; live reload shows zero console errors (measured)"],
+        ["families never evict each other", "family A warm 8,362/8,566 = 97.6%; after B's interleave, A-call-3 stayed 97.6%; shards keyed by sha256(session_id)[:16] (M8-T1231)"],
+        ["real agents sit below the prefix probe", "task one: 11 tool calls, tests green, cache 71.6%; resume read-only 48.0% (M8-T1232) — 97.6% is not the agent number"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "删去两个字符，不是修好了世界，是看见了世界。"
+          : "Delete two characters — not repaired, seen."}
       </p>
     </div>`;
 }
@@ -3993,6 +4034,7 @@ const CHAPTER_RENDERERS = {
   thegreenline: () => thegreenlineMarkup(),
   twoshards: () => twoshardsMarkup(),
   onenine: () => onenineMarkup(),
+  quotation: () => quotationMarkup(),
 };
 
 async function loadChapter(id) {
