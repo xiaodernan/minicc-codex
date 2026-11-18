@@ -713,3 +713,8 @@
   - `test_a_module_is_registered_before_a_loader_executes_it`：`tests/test_evidence_backfill.py` 用 spec_from_file_location + exec_module 却未注册 sys.modules——修复为先 `sys.modules[spec.name] = module` 再 exec；
   - `test_the_palette_has_one_home`：`.admin-evidence-log` 引用 `var(--bg-raised)`——该 token **不存在**；修复为真实存在的 `--surface-raised`（color-mix 80%），styles hash 改变；
   - 复检：两个门 + evidence_backfill + census **17/17 绿**；build:web 重产（styles.fa1c4c7233747654.css）；本次起 claim battery 全跑落锚后才 push。
+- **M8-T1211：推送前一键 battery——`scripts/pre_push_gates.py`**——CI 红 #10/#11/#12 的教训：三轮红都是同一类事故（pusher 本地没走 CI 同款门禁直到推上去才知道）。本脚本把能把我推红的每道门集中成一条命令：
+  - `python scripts/pre_push_gates.py`：16 道 gate 按序跑（doc pointers / route coverage / impact floor / resource_hygiene / stylesheet encoding / content-addressed quotes / palette / package imports / loader registers / logging / census / utc / broad handlers / filenames one-home / run metrics one-home / web i18n resolve），末尾给汇总 `N/16 gates green`，任一红即 exit 1 并打印末尾输出；
+  - `--list` 列出全部 gate；`--only <substr>` 过滤；`--self-test`（exit 3）给测试用合成红蓝对；
+  - **它自己第一轮就抓住了自己作者**：loader-register 测试（我忘记 sys.modules）和 census（未跟踪新文件）——两处全部维护性修复后运行 **16/16 GREEN（224s）**；
+  - audience：`tests/test_pre_push_gates.py`（4 legs：list 保证 ≥10 且唯一、self-test exit 3、--only 子串过滤、--only 无匹配 → exit 2）。

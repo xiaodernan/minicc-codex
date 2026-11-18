@@ -55385,3 +55385,32 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 - `test_a_module_is_registered_before_a_loader_executes_it`、`test_the_palette_has_one_home`、`test_evidence_backfill`、`test_tracked_evidence_census` **17/17 绿**；
 - `npm run build:web` 绿（styles hash 更新，asset-manifest 同步）；claim battery 三项本地 exit 0；i18n resolve 未触碰本轮文件；
 - 教训的真实收获：**两个都不是“检查环境”**——是同兄弟法则的不同侧面：内容库里没有的字不准用（palette），执行计划外的模块不准偷偷跑（sys.modules）。写代码之前必须先逐个跑过对应的门禁，不是最后才补。
+## 批次 1151 · M8-T1211: 推送前一键 battery——把 CI 的红提前到本机
+
+### 为什么
+
+CI red #10（Ubuntu+Win：content-addressed 引文 + scandir）、#11（impact floor：evidence_backfill 无人认）、#12（Ubuntu：loader 未注册 + 不存在的 palette token `--bg-raised`）——三轮、五个失败、全是同一类事故：**本地没人跑 CI 同款门禁，推上去才知道**。每道本该抓住它们的门都在仓库里——集中成一条命令即可。
+
+### 做了什么
+
+1. **`scripts/pre_push_gates.py`**：16 道 gate 按序执行（资源与编码类便宜门靠前）：
+   doc pointers → route coverage → impact floor → resource hygiene → stylesheet encoding →
+   content-addressed quotes → palette → package imports → loader-registers →
+   logging contract → census → utc one-home → broad handlers → filenames one-home →
+   run metrics one-home → web i18n keys resolve。
+   - 失败 gate 打印末尾 14 行，退出码 1，汇总行给出 `N/16 gates green`；
+   - `--list` / `--only <substr>` / `--self-test`（exit 3，供 pytest）；
+   - 只读，不碰网络，不代推，不动工作树。
+2. **`tests/test_pre_push_gates.py`**：4 legs——`--list` ≥10 且去重；`--self-test` exit 3 且包含合成失败行；`--only doc` 正常返回 0/1；`--only zzzz` → exit 2（`no gate matches`）。
+3. **它自己第一轮就抓住了自己作者**：`test_a_module_is_registered_before_a_loader_executes_it`（我没把模块登记进 sys.modules）与 `test_tracked_evidence_census`（未跟踪新文件）——两处全部修掉；
+   终态：**16/16 gates green，224s**（本机 PowerShell 计时值；正确性优先于速度）。
+
+### 定稿纪律
+
+从本批起，任何 minicc push 前都先跑 `.venv\Scripts\python.exe scripts/pre_push_gates.py`，出现非零即回去修，**不再代替 CI 裁决**；自此“批次 1149 的教训”（claim battery 三项 exit 0 才可推）扩为 **16 道门 exit 0**。
+
+### 诚实边界
+
+- 该 battery **不是 CI 的复制品**：CI 有 Ubuntu/Windows 双腿、PR eval gate、Playwright、多份互斥检查；本机命令没有 Ubuntu 的文件系统语义，不做出双腿结论（#R 的 Windows 专属失败也曾在 Ubuntu 外出现过）；但它把我本轮全部五个真红都涵盖了；
+- 未上 `--self-test` 之外的合成红场景（不制造假失败门），故无 flakes；
+- 无文档 pointer、不代写 `# noqa`，不动任何门禁本体。
