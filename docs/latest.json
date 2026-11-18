@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T05:38:46.541Z",
+  "generated_at": "2026-11-18T05:52:56.342Z",
   "branch": "main",
-  "head": "f3349ee",
-  "total_commits": 1938,
+  "head": "048de47",
+  "total_commits": 1940,
   "recent_commits": [
+    {
+      "short": "048de47",
+      "at": "2026-11-18T13:52:33+08:00",
+      "subject": "M8-T1212 (lane mid-flight swap): aizzz.xyz stopped serving gpt-6.1-terra to this account group mid-day (HTTP 404 model_not_found, key/endpoint/Clash unchanged);"
+    },
+    {
+      "short": "a97e1a1",
+      "at": "2026-11-18T05:38:46Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f3349ee",
       "at": "2026-11-18T13:37:50+08:00",
@@ -19,22 +29,12 @@
       "short": "ba50004",
       "at": "2026-11-18T12:58:20+08:00",
       "subject": "M8-T1210 (CI red #12 fix): Ubuntu leg caught two invented details - (1) test_evidence_backfill must register the module in sys.modules before exec_module (test_"
-    },
-    {
-      "short": "c43c8af",
-      "at": "2026-11-18T04:30:59Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a2e8550",
-      "at": "2026-11-18T12:30:22+08:00",
-      "subject": "docs(ledger): M8-T1209 / batch 1149 - record CI red #11 truthfully (evidence backfill script had no audience; fixed with a 4-leg test that actually runs it); co"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 478,
+  "roadmap_batches": 479,
   "changelog_entries": 1,
-  "roadmap_lines": 55417,
+  "roadmap_lines": 55447,
   "tracked_files": 1151,
   "test_files": 743,
   "almanac_chapters": 57,
