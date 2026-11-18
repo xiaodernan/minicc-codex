@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T14:04:16.140Z",
+  "generated_at": "2026-11-18T14:09:23.869Z",
   "branch": "main",
-  "head": "f806c0f",
-  "total_commits": 1968,
+  "head": "808d63d",
+  "total_commits": 1970,
   "recent_commits": [
+    {
+      "short": "808d63d",
+      "at": "2026-11-18T22:08:59+08:00",
+      "subject": "M8-T1229: keeper default 220s -> 60s - measured live on the NEW lane: identical prefix + family cache key goes cold after 150s of silence (3 calls logged: cold "
+    },
+    {
+      "short": "1aa4230",
+      "at": "2026-11-18T14:04:16Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f806c0f",
       "at": "2026-11-18T22:02:50+08:00",
@@ -19,22 +29,12 @@
       "short": "1f38aa5",
       "at": "2026-11-18T21:53:22+08:00",
       "subject": "docs(index): add Ch.LIX archive entry to CHAPTER_DRAFT index - live terra single call, no explicit prompt_cache_key, 4,173 lane-headline cached tokens, json_obj"
-    },
-    {
-      "short": "13fe7d3",
-      "at": "2026-11-18T21:53:22+08:00",
-      "subject": "M8-T1227: CH.LIX 现在通了 - written live by gpt-6.1-terra itself (prompt 5,072 / completion 1,939 / cached 4,173 lane-headline / 0 explicit key, temperature 0.2, js"
-    },
-    {
-      "short": "4d3c375",
-      "at": "2026-11-18T13:33:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 491,
+  "roadmap_batches": 492,
   "changelog_entries": 1,
-  "roadmap_lines": 55742,
+  "roadmap_lines": 55771,
   "tracked_files": 1154,
   "test_files": 745,
   "almanac_chapters": 59,
