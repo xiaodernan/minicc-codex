@@ -704,3 +704,8 @@
   4. **真实捕获**：`java -jar evidence-0.1.0.jar`（JAVA_TOOL_OPTIONS 里的 Clash 7897 + 本地 gh 会话 token 仅出站）→ `scripts/evidence_backfill.py --run-id 44229273754` → 捕获真实 run（结论 success、job PR eval gate、20 行真实 logs_tail、job_id 134550024877、sha 2a23ec3、snake_case envelope）→ 面板 tile 同一张真实的卡（chip 绿 ✓、末 6 行日志在屏上）。
   5. 加了两腿回归单测（missing-store backfill→200/200、服务层 17 可移植 legs 全绿）；mvn reactor 8 模块 BUILD SUCCESS。
   6. **教训记一行**：514 测试全绿也抓不住“数字 id 是个 number 不是个 string”——活验证（真 GitHub）抓住了（unit 套不覆盖真 wire 类型）。token 仅出站、未入日志/响应/store；匿名 60 req/h 已撞顶，真回填需要 token。
+- **M8-T1209：CI 红 #11 复盘——impact floor 抓住我名下的陌生人**（run 44236647987）：
+  - claim checkers 挂在 impacted_tests：`modules no test reaches: scripts.evidence_backfill`——脚本没人“认识”它，门禁拒收；
+  - 修法：`tests/test_evidence_backfill.py`（4 legs 真跑 `main(argv)`：非数字 run_id 被拒、后端不可达→exit 1、无效 JSON→exit 1、真捕获→exit 0 打印 capture 行）；`main(argv)` 签名的脚本形状本身合规；
+  - 复检：impact floor / doc_pointers / route coverage 三项本地 exit 0；tracked_evidence_census 因新文件未入 git 而两腿红→入库后绿；
+  - **更正**：批次 1148 曾写“claim checkers 保持绿”——当时并不成立（该 run 红）；本条即史实订正，修复后 HEAD 的裁决以本批推送后的 CI 为准。

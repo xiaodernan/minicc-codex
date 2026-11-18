@@ -55349,3 +55349,25 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 - 不声称 Java 网格每时每刻都被 CI 运行——`Service plane tests (mvn)` job 全绿（证据模块随 reactor 编译+测试）；
 - 不声称匿名访问可用 sane times 实测——本机 anonymous 60 req/h 共享 IP 已撞顶，**live 回填需 token**；匿名路径已撞 403 如实记录（assertion 未被默许绕过）；
 - 未把 `scripts/evidence_backfill.py` 接入任何自动触发（nightly job 是否回填由后续批决定）。
+## 批次 1149 · M8-T1209: CI 红 #11——脚本没人认，门不同意
+
+### 事实
+
+`ecea788c`（批次 1148）的 CI（run 44236647987）：claim checkers 红——`impacted_tests --check` 报 `modules no test reaches: scripts.evidence_backfill`。其余两项（doc_pointers / route_coverage）**未红**（本地复检 exit 0）；Service plane mvn 绿；Python 腿在跑时已被本修复前置。
+
+### 修法
+
+- `scripts/evidence_backfill.py`：`main(argv=None)` 参数化（行为零变化）；
+- 新增 `tests/test_evidence_backfill.py`：同目录直引脚本名（满足 STRING_REF audience），4 legs 真行为：
+  1. `--run-id abc123` → SystemExit（argparse 拒绝）；
+  2. 后端不可达（模拟 TimeoutError）→ `main()` 返回 **1**，stdout 含 `evidence backfill failed`；
+  3. 回包非 JSON → `main()` 返回 **1**；
+  4. 回包为合法 success envelope → `main()` 返回 **0**，stdout 含 `captured run 44229273754` 与 `conclusion=success`；
+- `tracked_evidence_census` 两腿曾因新文件未入 git 而红 → 入库后绿（红的原因 = 修复流程的一部分，不是门禁问题）；
+- 本地复检全绿：`impacted_tests --check` exit 0、`doc_pointers --check` exit 0、`route_coverage --check` 42/42、
+  `tests/test_evidence_backfill.py` 4/4、`test_the_stylesheet_is_not_mixed_encoding`/`test_tracked_evidence_census` 64/64。
+
+### 更正记录
+
+- 批次 1148 段落“claim checkers 保持绿”**当时不成立**（该 push 的 CI 红）；本条为史实订正；批次 1148 其余事实不受影响；
+- 教训：**推送前必须把 claim battery 三项（`impacted_tests`/`doc_pointers`/`route_coverage`）全部跑绿**，不再依赖“上个跑通的 run 替我挡”；本批起以本地 exit 0 为准绳。
