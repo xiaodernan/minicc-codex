@@ -768,7 +768,7 @@
         </p>`}
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
-        <div><div class="almanac-instrument-label">${o()?"\u5B88\u62A4 interval":"Keeper interval"}</div><div class="almanac-instrument-value">220 s</div></div>
+        <div><div class="almanac-instrument-label">${o()?"\u5B88\u62A4 interval":"Keeper interval"}</div><div class="almanac-instrument-value">60 s</div></div>
         <div><div class="almanac-instrument-label">${o(),"warm #1"}</div><div class="almanac-instrument-value">0</div></div>
         <div><div class="almanac-instrument-label">${o()?"warm #2 \u547D\u4E2D":"warm #2 hit"}</div><div class="almanac-instrument-value">95.4%</div></div>
         <div><div class="almanac-instrument-label">${o(),"warm failures"}</div><div class="almanac-instrument-value">0</div></div>

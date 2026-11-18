@@ -480,10 +480,10 @@ def build_summary(workspace: Path) -> dict[str, Any]:
             {
                 "id": "keeper-window",
                 "priority": "high",
-                "title_zh": "保持前缀缓存热度——把 keeper 拉到 220 s 间隔",
-                "title_en": "Keep the prefix warm — raise the keeper to a tighter beat",
-                "why_zh": f"当前样本缓存命中率 {cache_rate * 100:.1f}%，说低。检查 .minicc/sessions 中大任务是否跨过了上游 TTL（5 分钟），调整 MINICC_CACHE_KEEPER_INTERVAL。",
-                "why_en": f"Aggregate cache hit rate is {cache_rate * 100:.1f}% — lower than it should be. Check .minicc/sessions for long tasks that span the upstream TTL (~5 min), and shorten MINICC_CACHE_KEEPER_INTERVAL.",
+                "title_zh": "保持前缀缓存热度——60 s 间隔的 keeper 已解决\"中途掉缓存\"（2026-11-18 实测 TTL ≤150 s）",
+                "title_en": "Keep the prefix warm — the default is now 60 s (measured upstream TTL ≤ 150 s, 2026-11-18)",
+                "why_zh": f"当前样本缓存命中率 {cache_rate * 100:.1f}%。实测新 lane 的同前缀 ≤150 s 无 warm 即被 evict（2026-11-18）——上一版 220 s 间隔从未让 lane 持续暖住；现在 MINICC_CACHE_KEEPER_INTERVAL 默认 60 s，60 s 保活即可。若订阅量再低，也别低于 60 s。",
+                "why_en": f"Aggregate cache hit rate is {cache_rate * 100:.1f}%. Measured on this lane (2026-11-18): a byte-identical prefix is evicted within ≤150 s of silence — the old 220 s cadence could never hold the warmth; the default is now 60 s. Do not raise it above 60 s without new data.",
             }
         )
     if completion_streak and completion_streak["best"] >= 3 and completion_streak["current"] == 0:

@@ -789,3 +789,7 @@
   - `onenineMarkup()` 直渲模型原文；CHAPTERS / CHAPTER_RENDERERS / almanac_smoke 注册；
   - README / INDEX / 手册 / onboarding / i18n chips（96→97，CRLF 338/0）/ atlas_smoke / manual / Meridian 全部对账；
   - battery 16/16；三支 smoke 全绿（atlas 97 / manual 20 / almanac 59）。
+- **M8-T1229：cache keeper 默认 220s → 60s——2026-11-18 晚实测：同前缀同 family 键 ≤150 s 静默后 shard 驱逐至 0；之前默认从未护住真次（同 prefix 三调用：冷 → 97.6% → 0%）**：
+  - keeper `_DEFAULT_INTERVAL = 60.0`（附测量过程注释）；`MINICC_CACHE_KEEPER_INTERVAL` 仍可显式覆盖；
+  - admin tile 建议文案改为结论版（TTL ≤ 150 s · 60 s 默认 · 别调高）；almanac 守护 tile 220 s → **60 s**；
+  - 历史（双峰、浅深探）不改写；battery 16/16 绿；i18n 无键变更、无 CRLF 触碰。

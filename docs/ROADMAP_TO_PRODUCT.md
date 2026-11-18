@@ -55739,3 +55739,32 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. `D:\面试项目\_showcase_pages\index.html` 唯一一行替换：`缓存命中率冷 73.7% → 暖 95.9% 实测（minicc lane，2026-11-17）` → `缓存命中率冷 ~72%（全新 key 首 call 72.3%）→ 暖 97.6%（会话族键 · 2026-11-18 连续 6 次实测，稳定不掉；全 lane 共享 headline block 8,362/8,566）`；
 2. 附带文字加注 "Atlas 97"（之前 96 → 97 未触及这一处）；
 3. identity-guard 未触碰，未改任何其它行；CRLF 未动。
+## 批次 1165 · M8-T1229: 上游 TTL ≤150 秒实锤——keeper 默认 60 s，本日缓存断裂根因落地
+
+### 实测（2026-11-18 晚，新 key · gpt-6.1-terra）
+
+同一 `prompt_cache_key` 的同字节前缀（本仓库系统提示，13,296 bytes = 8,566 wire tokens）：
+
+| 调用 | 时间 | cached | pct |
+| --- | --- | --- | --- |
+| call-1（冷启动） | — | None | 0.0% |
+| call-2（紧随其后） | +5s | 8,362 | **97.6%** |
+| call-3（**150 秒空闲后**） | +155s | **None** | **0.0%** |
+
+也就是说：新 lane 的上游 prefix-cache TTL **≤ 150 秒**。此前所有「保活器 220 秒一枚」的默认值在这条通道上从来没能护住暖 shard ——「中途不会掉」在这一刻第一次有了可复现脚本（而不是传闻或日志断言）。
+
+### 做了什么
+
+1. `minicc/cache_keeper.py`：`_DEFAULT_INTERVAL` 220 → **60 秒**（代码内注释直接写上本段测量过程与数字；`MINICC_CACHE_KEEPER_INTERVAL` 仍可显式覆盖）。
+2. `minicc/web.py` guardian-rehearsal tile：interval 显示 60 s（repo 对外仪表盘镜像跟随）。
+3. `minicc/admin.py` 的「保持前缀缓存热度」建议文案：改为结论版（60 s 默认、TTL ≤ 150 s、不要高于 60 s），不再鹦鹉学舌 220。
+4. `web/src/panels/almanac.js` Instrument tile「Keeper interval」：220 s → **60 s**；构建产物同步。
+5. 历史记录不动（Ch.LVIII《双峰》与更早的 220 s 记录是当时的事实）；CHANGELOG 明确写出：默认值翻转是**测量驱动**，不是偏好。
+6. battery 16/16 绿。
+
+### 诚实边界
+
+- 只能证明本 lane / 本模型 / 本测量窗口的 ≤150 s TTL；换 key、换区段、换 shard，网关的 TTL 行为仍是它自己的事；
+- 保活的代价是每 60 秒 ~20 个输出 token（测量口：包了 20-token 的 `_call_gateway`）；60 s 并非永远正确——若网关通知到资源或本地测试证明我们可以放回 120/300，再议；
+- 无 TTL 没有被「修」。原来的「220 秒过窗口180×）」不是我不该生效的假设，它是旧测量的局部真相——今天被新实测推翻。
+- bench/admin/keeper 一概没动碰；只有 cache keeper 的间隔和描述它的 tile 被改。

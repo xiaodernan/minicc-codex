@@ -30,7 +30,11 @@ from typing import Any
 
 LOG = logging.getLogger(__name__)
 
-_DEFAULT_INTERVAL = 220.0  # seconds; comfortably under the observed upstream TTL
+# 60 s: measured 2026-11-18 on this gateway (aizzz.xyz / new key / terra): a
+# byte-identical warm prefix is evicted in under 150 s of silence, so the old
+# 220 s cadence could never keep the lane warm. 60 s sits comfortably under
+# that measured eviction window; a warm costs ~20 output tokens.
+_DEFAULT_INTERVAL = 60.0
 _MIN_INTERVAL = 60.0
 _MAX_INTERVAL = 900.0
 
