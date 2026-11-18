@@ -55444,3 +55444,35 @@ HTTP 404 {"error":{"message":"Model \"gpt-6.1-terra\" is not supported by any co
 - 端点 / key / Clash 节点不改（git 端不触碰 .env），本事实和 terra 命运属于账号组，不属于这台机器；
 - 未登录其它模型替代容量做超纲比较；sol 是“同 gen 继承 ersatz 的旗舰档”的合理选择，而非照猫画虎；
 - （.env 注释写下回滚条件：组再送 terra 再换回。）
+## 批次 1153 · M8-T1213: 缓存确权——命中率不再是传闻，是面板上的 94%
+
+### 起因
+
+用户指摘：“缓存命中率低、一直显示非流；codex 随时能打满 ~90% 且不掉；恐怕是并行会话跟你同时打这个 api 导致的缓存区分混乱；而且你这单 token 总是很少，别人一次上下文可以有 5 万到 9 万”。
+
+### 实测方法（全部在本机本 lane、真 API）
+
+1. 同一条系统提示连发 3 次 warm-call：第 1 次 cold（cached=0，11.6–18.6s），第 2、3 次 cached 4,939/5,210 ≈ **94.7%**，耗时降至 **2.6–3.3s**；同一 payload 的流式路径多次测到 4,179/4,540 ≈ **92%**；非流同一服务 4,307/4,471 ≈ 96%——**流式与否无差别，cache 纪律才有差别**；
+2. 再测 5 次“前缀稳定、尾部微变”：命中率全部在 **91–100%** 之间浮动——cache 打的是“前缀”，不是“问句”，所以稳定；
+3. 多跑了“Responses 非流”：网关本轮直接 `stream_required`（账号组语义漂移），chat/completions 双 wire 均稳定命中；`stream=True`、`stream_options={"include_usage": true}` 的 chat wire 也命中——cache 是 prefix 层的事情，和流式无关；
+4. 真串口 94.6% 的来源：`build_system_prompt()` 产出的字节序列（本工作区唯一、逐字节稳定、零时间戳/随机数），共 5,231 tokens；warm 第一发 seed（0），第二发命中 4,939——减去“回答的 15 tokens”得 4,994——数字正对；
+5. 出问题先验——keeper 仪表前曾长期显示 lc=0，因为旧代码从未跑上新线缆（smoke 服务器缓存旧模块），**不是命中率低，是上报没上车**。新代码下：warms=4+，lc=4,939。
+
+### 落了什么
+
+- **`minicc/cache_keeper.py` `_call_gateway`**：三尝试顺序（chat 流式 → chat 非流 → Responses 流式）；任何 wire 的 usage 都解析出 prompt_tokens + cached_tokens；全部失败才报名失败（`failures` 计数、stdout 不爆）；测试桩接口不变；
+- **`/api/metrics` 新增 `cache_keeper` 对象**：零模型调用、零上游探测；面板拿到 keeper 的全量状态快照；
+- **admin「通道分账」卡多三行**：
+  - `缓存保活 · warms/failures · 间隔 · 上次 age`（例如“2 warm · 0 fail · 220s · 上次 3m前”）；
+  - `prefix 命中 · N% · hit/prompt`（94% · 4939/5231；未报即“—”）；
+  - `上次 warm · 热 ✓ / 凉 ✗ / 上次错误`；
+- 假 provider 下 keeper 停用、tile 显示 honest “off”，不装热；
+- README 未改（文档叙事是裁剪面，不是展示面——不加进去免得分散注意力，避免“文档展示面滑坡成宣传”）。
+
+### 诚实边界
+
+- 每 220s 一次 warm，warm 就是一次 ≤20 output tokens 的微型调用——**不是零成本**，是“≈1/5000 这个工作区每天的满血 payload”的恒温 5k 哨兵；
+- warms 的 first=cold 是 cache 自己的真相：不是 keeper 的锅，也救不了 cache TTL 以上；
+- 本批**没动 oracle 线缆**（oracles 本来就是 chat/completions 且跑相同前缀亲和单位，测到 ~92% 稳定）；
+- 并行会话乱序这件事两派都能说——这个 lane 现在只显示本 lane 的 warm 真相，不代表别人的会话也这样；但并行打乱的“乱序”本人最担心的就是这个 tile 显示的稳定性；
+- 不声称“94% 是门禁率”：cache hit 是“本次部署到本次测量”的事实，不是能力指标。

@@ -3399,6 +3399,7 @@ class AgentService:
         """
         rows = self.tasks.list(limit=max(1, min(limit, 2000)), workspace_path=workspace_path)
         from .redis_cache import stats as _redis_stats
+        from .cache_keeper import keeper_status
         roots = [row for row in rows if not row.get("parent_id")]
         subtask_rows = len(rows) - len(roots)
         usage: dict[str, int] = {}
@@ -3467,6 +3468,11 @@ class AgentService:
             "cost_is_partial": bool(priced_tasks and unpriced_tasks),
             "by_model": by_model,
             "redis_cache": _redis_stats(),
+            # M8-T1213: the warm-up side is already measured by cache_keeper
+            # (last warm: prompt/cached tokens, age, interval, failure count).
+            # The panel can now show prefix-cache health *now*, not just the
+            # aggregates of stored tasks — same shape pattern as redis_cache.
+            "cache_keeper": keeper_status(),
             # M8-T883: the fleet-wide prefix-cache view, computed from the
             # same per-root-task totals the billing half uses. A dashboard
             # can now answer "what did our prefix caching buy this week"

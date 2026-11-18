@@ -575,6 +575,25 @@ export async function openAdmin() {
     const auditPromise = requestJson("/api/oracle-audit-story", {}, 30000).catch(() => null);
     auditPromise.then((story) => renderAudit(story, false));
     // Model-channel ledger — per-model tokens + cost + priced coverage.
+    function renderKeeper(keeper) {
+      if (!keeper || keeper.enabled === false) {
+        const off = zh() ? "未启用（MINICC_CACHE_KEEPER=0 或服务未起）" : "off (MINICC_CACHE_KEEPER=0 or not booted)";
+        return `<li><strong>${zh() ? "prefix 缓存" : "prefix cache"}</strong><span>${esc(off)}</span></li>`;
+      }
+      const warms = Number(keeper.warms ?? 0);
+      const fails = Number(keeper.failures ?? 0);
+      const interval = Number(keeper.interval_seconds ?? 220);
+      const ageS = keeper.last_warm_at ? Math.max(0, Math.round(Date.now() / 1000 - Number(keeper.last_warm_at))) : null;
+      const ageTxt = ageS == null ? "—" : (ageS < 90 ? `${ageS}s` : `${Math.round(ageS / 60)}m`);
+      const pt = Number(keeper.last_prompt_tokens ?? 0) || 0;
+      const ct = Number(keeper.last_cached_tokens ?? 0) || 0;
+      const ratio = pt > 0 ? `${Math.round((ct / pt) * 100)}% · ${ct}/${pt}` : "—";
+      const ok = keeper.last_ok === true ? (zh() ? "热 ✓" : "warm ✓") : keeper.last_ok === false ? (zh() ? "凉 ✗" : "cold ✗") : "—";
+      const reason = keeper.last_error ? ` · ${String(keeper.last_error).slice(0, 60)}` : "";
+      return `<li><strong>${zh() ? "缓存保活" : "cache keeper"}</strong><span>${esc(`${warms} warm · ${fails} fail · ${Math.round(interval)}s · ${zh() ? "上次" : "last"} ${ageTxt}${zh() ? "前" : " ago"}`)}</span></li>` +
+        `<li><strong>${zh() ? "prefix 命中" : "prefix hit"}</strong><span>${esc(ratio)}</span></li>` +
+        `<li><strong>${zh() ? "上次 warm" : "last warm"}</strong><span>${esc(ok + reason)}</span></li>`;
+    }
     function renderChannel(metrics, refreshed) {
       const bodyEl = $("#adminChannelList");
       const usageEl = $("#adminChannelUsage");
@@ -613,7 +632,8 @@ export async function openAdmin() {
                 .join("")
             : `<li><strong>${zh() ? "条目" : "rows"}</strong><span>${esc("none")}</span></li>`) +
           `<li><strong>${zh() ? "定价覆盖" : "Priced coverage"}</strong><span>${esc(`${priced}/${unpriced} · ${partialStr}`)}</span></li>` +
-          `<li><strong>${zh() ? "总成本" : "total spend"}</strong><span>${esc(totalCost == null ? "—" : `$${costStr}`)}</span></li>`;
+          `<li><strong>${zh() ? "总成本" : "total spend"}</strong><span>${esc(totalCost == null ? "—" : `$${costStr}`)}</span></li>` +
+          renderKeeper(metrics?.cache_keeper);
       }
       if (usageEl) {
         const prompt = usage?.prompt_tokens ?? "—";

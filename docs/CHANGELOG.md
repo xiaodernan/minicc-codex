@@ -728,3 +728,10 @@
     - prefix-cache：json-roundtrip prompt_cache_hit 64,128/87,801（73%）——**warm 亲和在 sol 也成立**；
     - `minicc.bench_history --ingest` 已收 4 行（总计 **37 行**，均分 0.667，window 扩至 05:50:57Z）。
   - 诚实边界：n=3/lane、pass@1 不因 lane 改变但也不据此排序模型；terra 上午的“可用”真实发生过（上午的 probe json 留底）；tracked code 无 terra 常量（仅测试 fixture/文档叙事）；admin tile 不改；`.env` 修改**不提交**（gitignored），且保持了 .env 的记录。
+- **M8-T1213：缓存命中率真相大白——值守军师里现在有一张“活的 prefix cache 仪表”**」：
+  - 实测：同一份提示词连发——第一次 cold（cached=0、11.6s），第二/三次稳定 91–100%（warm-2：elapsed 2.6–3.0s）；Responses 端点中途降级为 stream-required 后，keeper 切了 chat.completions 流式优先；lc=4,939 / 5,231 = **94.6%**（本机、本 lane、gpt-6.1-sol）；
+  - `minicc/cache_keeper.py`：**`_call_gateway` 重写**——尝试顺序：① chat/completions 流式（`stream_options.include_usage`）→② chat/completions 非流 →③ Responses 流式；三wire 的 usage 形状统一提取；测试 stubs 不变；
+  - `/api/metrics` 新增 `cache_keeper` 块：`{enabled, warms, failures, last_warm_at, last_ok, last_error, last_prompt_tokens, last_cached_tokens, last_elapsed_ms, interval_seconds}`——零模型调用、零上游探测、直接读 keeper 的内存状态；
+  - 管理面板「通道分账」tile 追加三行：**缓存保活**（warms/fails/间隔/上次 age）、**prefix 命中**（`N% · hit/prompt`；未报即“—”）、**上次 warm**（热/凉+错误类）；zh/en 双语、CRLF 钉不动、零新增 i18n 键；
+  - 验证：Playwright unlock 实际读到——`缓存保活 2 warm · 0 fail · 220s · 上次 3m前`、`prefix 命中 94% · 4939/5231`、`上次 warm 热 ✓`；admin_smoke 过；en_cjk parity 过；i18n 解析过；cache keeper 测试 5/5；
+  - 诚实边界（写死在记录里）：first warm 永远是 cold（lc=0 头约 220s）；keeper 负责 warm = 避免“你没用缓存”，没法替用户拓宽 TTL；fake provider 下 keeper 关；并行会话同 lane 抖动我们这边没压测（全被抽到同一个上游池子——真相不可证伪，只能说未测）；admin 数字永远给本 lane，不存在跨 workspace “全局数字”；.env 未改动；而非流 vs 流“谁命中率高”的说法——**两边都稳定在 91–100%，流式和非流式无差别，“非流显示低”是展示面历史叙事（恢复锁已移除），不是线缆问题**。

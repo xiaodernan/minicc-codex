@@ -108,26 +108,91 @@ async def _call_gateway(
 ) -> dict[str, Any]:
     """One warm decision; isolated into its own async callable so tests stub it.
 
-    The gateway rejects a lone system message with
-    ``upstream_error: one of input / previous_response_id / prompt / conversation``;
-    it only answers at least one user turn, so the warm carries a single-token
-    user stub — irrelevant to affinity, which keys on the shared prefix only.
+    The intended call is the shared system prefix + a “在” stub: a one-token
+    user message, irrelevant to affinity, which keys on the shared prefix only.
+
+    The wire shape this gateway accepts moved mid-flight (2026-11-18: the
+    Responses endpoint downgraded to stream-required, and different account groups
+    answer differently), so the call tries, in order:
+
+    1. chat/completions with ``stream=True`` (this lane's stable, cache-friendly path,
+       verified live: 91-100% of the shared prefix hits on the second call);
+    2. chat/completions non-streaming (a fallback under the same wire);
+    3. Responses streaming (last resort for lanes that only speak Responses).
+
+    Every attempt parses whichever usage shape the answer carries:
+    ``prompt_tokens_details`` (chat/completions) or ``input_tokens_details``
+    (Responses).  The first attempt that answers is the verdict; a fully
+    rejected sequence raises and is counted by ``_note_fail`` as usual.
     """
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(base_url=base_url.rstrip("/"), api_key=api_key, timeout=60, max_retries=0)
     try:
-        resp = await client.responses.create(
+        warm = {
+            "role": "user",
+            "content": "在",
+        }
+        system = {"role": "system", "content": system_prompt}
+
+        # -- attempt 1: chat/completions, streaming, include usage --------------
+        try:
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=[system, warm],
+                max_tokens=4,
+                temperature=0,
+                prompt_cache_key=cache_key,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            usage = None
+            async for chunk in stream:
+                if getattr(chunk, "usage", None) is not None:
+                    usage = chunk.usage
+            details = getattr(usage, "prompt_tokens_details", None) if usage else None
+            return {
+                "prompt_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
+                "cached_tokens": int(getattr(details, "cached_tokens", 0) or 0),
+            }
+        except Exception:  # noqa: BLE001 - attempt 2 exists so attempt 1 may fail without a verdict on warm fate
+            pass
+
+        # -- attempt 2: chat/completions, non-streaming ------------------------
+        try:
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=[system, warm],
+                max_tokens=4,
+                temperature=0,
+                prompt_cache_key=cache_key,
+            )
+            usage = getattr(resp, "usage", None)
+            details = getattr(usage, "prompt_tokens_details", None) if usage else None
+            return {
+                "prompt_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
+                "cached_tokens": int(getattr(details, "cached_tokens", 0) or 0),
+            }
+        except Exception:  # noqa: BLE001 - attempt 3 exists so attempt 2 may fail without a verdict on warm fate
+            pass
+
+        # -- attempt 3: Responses streaming ------------------------------------
+        stream = await client.responses.create(
             model=model,
             input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": "在"},
             ],
             store=False,
+            stream=True,
             prompt_cache_key=cache_key,
         )
-        usage = getattr(resp, "usage", None)
-        details = getattr(usage, "input_tokens_details", None)
+        usage = None
+        async for event in stream:
+            if getattr(event, "type", None) == "response.completed":
+                response = getattr(event, "response", None)
+                usage = getattr(response, "usage", None) if response else None
+        details = getattr(usage, "input_tokens_details", None) if usage else None
         return {
             "prompt_tokens": int(getattr(usage, "input_tokens", 0) or 0),
             "cached_tokens": int(getattr(details, "cached_tokens", 0) or 0),

@@ -8517,6 +8517,23 @@
       }
       const auditPromise = requestJson("/api/oracle-audit-story", {}, 3e4).catch(() => null);
       auditPromise.then((story) => renderAudit(story, false));
+      function renderKeeper(keeper) {
+        if (!keeper || keeper.enabled === false) {
+          const off = zh8() ? "\u672A\u542F\u7528\uFF08MINICC_CACHE_KEEPER=0 \u6216\u670D\u52A1\u672A\u8D77\uFF09" : "off (MINICC_CACHE_KEEPER=0 or not booted)";
+          return `<li><strong>${zh8() ? "prefix \u7F13\u5B58" : "prefix cache"}</strong><span>${esc2(off)}</span></li>`;
+        }
+        const warms = Number(keeper.warms ?? 0);
+        const fails = Number(keeper.failures ?? 0);
+        const interval = Number(keeper.interval_seconds ?? 220);
+        const ageS = keeper.last_warm_at ? Math.max(0, Math.round(Date.now() / 1e3 - Number(keeper.last_warm_at))) : null;
+        const ageTxt = ageS == null ? "\u2014" : ageS < 90 ? `${ageS}s` : `${Math.round(ageS / 60)}m`;
+        const pt = Number(keeper.last_prompt_tokens ?? 0) || 0;
+        const ct = Number(keeper.last_cached_tokens ?? 0) || 0;
+        const ratio = pt > 0 ? `${Math.round(ct / pt * 100)}% \xB7 ${ct}/${pt}` : "\u2014";
+        const ok = keeper.last_ok === true ? zh8() ? "\u70ED \u2713" : "warm \u2713" : keeper.last_ok === false ? zh8() ? "\u51C9 \u2717" : "cold \u2717" : "\u2014";
+        const reason = keeper.last_error ? ` \xB7 ${String(keeper.last_error).slice(0, 60)}` : "";
+        return `<li><strong>${zh8() ? "\u7F13\u5B58\u4FDD\u6D3B" : "cache keeper"}</strong><span>${esc2(`${warms} warm \xB7 ${fails} fail \xB7 ${Math.round(interval)}s \xB7 ${zh8() ? "\u4E0A\u6B21" : "last"} ${ageTxt}${zh8() ? "\u524D" : " ago"}`)}</span></li><li><strong>${zh8() ? "prefix \u547D\u4E2D" : "prefix hit"}</strong><span>${esc2(ratio)}</span></li><li><strong>${zh8() ? "\u4E0A\u6B21 warm" : "last warm"}</strong><span>${esc2(ok + reason)}</span></li>`;
+      }
       function renderChannel(metrics, refreshed) {
         const bodyEl = $("#adminChannelList");
         const usageEl = $("#adminChannelUsage");
@@ -8553,7 +8570,7 @@
           bodyEl.innerHTML = `<li><strong>${zh8() ? "\u8303\u56F4" : "scope"}</strong><span>${esc2(scoped)}</span></li>` + (rows.length ? rows.slice(0, 4).map((row) => {
             const unit = zh8() ? "\u4E2A\u4EFB\u52A1" : row.tasks === 1 ? "task" : "tasks";
             return `<li><strong>${esc2(row.name)}</strong><span>${esc2(`${row.prompt}/${row.completion}/${row.total} \xB7 ${row.tasks} ${unit}`)}</span></li>`;
-          }).join("") : `<li><strong>${zh8() ? "\u6761\u76EE" : "rows"}</strong><span>${esc2("none")}</span></li>`) + `<li><strong>${zh8() ? "\u5B9A\u4EF7\u8986\u76D6" : "Priced coverage"}</strong><span>${esc2(`${priced}/${unpriced} \xB7 ${partialStr}`)}</span></li><li><strong>${zh8() ? "\u603B\u6210\u672C" : "total spend"}</strong><span>${esc2(totalCost == null ? "\u2014" : `$${costStr}`)}</span></li>`;
+          }).join("") : `<li><strong>${zh8() ? "\u6761\u76EE" : "rows"}</strong><span>${esc2("none")}</span></li>`) + `<li><strong>${zh8() ? "\u5B9A\u4EF7\u8986\u76D6" : "Priced coverage"}</strong><span>${esc2(`${priced}/${unpriced} \xB7 ${partialStr}`)}</span></li><li><strong>${zh8() ? "\u603B\u6210\u672C" : "total spend"}</strong><span>${esc2(totalCost == null ? "\u2014" : `$${costStr}`)}</span></li>` + renderKeeper(metrics?.cache_keeper);
         }
         if (usageEl) {
           const prompt = usage?.prompt_tokens ?? "\u2014";
