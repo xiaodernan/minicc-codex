@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T11:51:01.470Z",
+  "generated_at": "2026-11-18T12:04:47.064Z",
   "branch": "main",
-  "head": "97abfaf",
-  "total_commits": 1950,
+  "head": "15204a3",
+  "total_commits": 1952,
   "recent_commits": [
+    {
+      "short": "15204a3",
+      "at": "2026-11-18T20:03:49+08:00",
+      "subject": "M8-T1217 (en_cjk rescue): almanac CH.LVIII en ledger leaked a Chinese section name (CACHE_AFFINITY_MATRIX.md late-2026-11-18 entry) - local almanac_smoke caught"
+    },
+    {
+      "short": "efef2ec",
+      "at": "2026-11-18T11:51:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "97abfaf",
       "at": "2026-11-18T19:49:07+08:00",
@@ -19,22 +29,12 @@
       "short": "2ef87d1",
       "at": "2026-11-18T19:31:07+08:00",
       "subject": "M8-T1215 (manual recall): write the 2026-11-18 sol lane swap into Manual Chapter 15 - both in zh and en; new bullet calls out that sol's prefix cache is bimodal"
-    },
-    {
-      "short": "335664a",
-      "at": "2026-11-18T19:02:44+08:00",
-      "subject": "docs(cache-affinity): record the bimodal warm/cold discovery from sol lane - call 0 always lands 4,166 (gateway-wide shared headline), warm-2 onwards pops betwe"
-    },
-    {
-      "short": "b87f28c",
-      "at": "2026-11-18T10:32:52Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 483,
+  "roadmap_batches": 484,
   "changelog_entries": 1,
-  "roadmap_lines": 55559,
+  "roadmap_lines": 55585,
   "tracked_files": 1151,
   "test_files": 743,
   "almanac_chapters": 58,
