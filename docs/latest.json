@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T04:30:59.011Z",
+  "generated_at": "2026-11-18T04:58:41.951Z",
   "branch": "main",
-  "head": "a2e8550",
-  "total_commits": 1934,
+  "head": "ba50004",
+  "total_commits": 1936,
   "recent_commits": [
+    {
+      "short": "ba50004",
+      "at": "2026-11-18T12:58:20+08:00",
+      "subject": "M8-T1210 (CI red #12 fix): Ubuntu leg caught two invented details - (1) test_evidence_backfill must register the module in sys.modules before exec_module (test_"
+    },
+    {
+      "short": "c43c8af",
+      "at": "2026-11-18T04:30:59Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a2e8550",
       "at": "2026-11-18T12:30:22+08:00",
@@ -19,22 +29,12 @@
       "short": "8d0030a",
       "at": "2026-11-18T04:20:44Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ecea788",
-      "at": "2026-11-18T12:20:11+08:00",
-      "subject": "M8-T1206..1208 (evidence gate live): Python /api/evidence bridge (memos 30s, never 5xx, honest present:false) + route_coverage B 42/42; admin tile 'evidence gat"
-    },
-    {
-      "short": "c83a6a1",
-      "at": "2026-11-18T03:16:58Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 476,
+  "roadmap_batches": 477,
   "changelog_entries": 1,
-  "roadmap_lines": 55374,
+  "roadmap_lines": 55388,
   "tracked_files": 1149,
   "test_files": 742,
   "almanac_chapters": 57,
