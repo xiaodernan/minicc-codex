@@ -65,3 +65,5 @@
 若要部署：[SERVICE_PLANE_OPERATOR.md](SERVICE_PLANE_OPERATOR.md)。
 若要扩展：[PLUGIN_API.md](PLUGIN_API.md) + [ONE_FACT_ONE_HOME.md](ONE_FACT_ONE_HOME.md)。
 若要审计：[AUDIT_2026-09-20.md](AUDIT_2026-09-20.md) + [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)。
+
+- [CHAPTER_DRAFT.md](CHAPTER_DRAFT.md) —— Ch.LIX《现在通了 / The Now Goes Through》2026-11-18 现场存档：单次 chat/completions 调 terra（temperature 0.2 · `response_format=json_object` · prompt 5,072 · completion 1,939 · cached 4,173（82.3%）· 未显式 prompt_cache_key）；zh/en 双字段直接渲染、未经改写；本卷渲染于当晚——Atlas 97 / 卷数 59 / pass@1=1.0。
