@@ -621,6 +621,7 @@ class OpenAICompatibleProvider:
         plan_base_url: str = "",
         plan_api_key: str = "",
         prompt_cache_key: str = "",
+        session_id: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -630,7 +631,16 @@ class OpenAICompatibleProvider:
         # common OpenAI-compatible proxy shape) route similar requests to the
         # same shard by this key; without it the same 22k-token system prompt
         # can land on a cold shard on every call.  Empty means "derive".
+        # M8-T1218 (codex parity, openai/codex client.rs::prompt_cache_key):
+        # when the caller is a conversation, pin the cache family to it.
+        # Codex keys each Responses session on the thread's session id; the
+        # whole thread stays on one shard while unrelated traffic does not
+        # thrash it (this is exactly why parallel minicc lanes used to fight:
+        # every lane hashed to one gateway-wide bucket).  Session-derived
+        # keys are checked before the lane-derived fallback, explicit
+        # MINICC_PROMPT_CACHE_KEY still wins over both.
         self._prompt_cache_key = str(prompt_cache_key or "").strip()[:64]
+        self._session_id = str(session_id or "").strip()[:64]
         self._api_key = api_key
         self._max_retries = max(0, max_retries)
         if protocol not in LLM_PROTOCOLS:
@@ -678,12 +688,19 @@ class OpenAICompatibleProvider:
     def _effective_prompt_cache_key(self) -> str:
         """Stable affinity key for the gateway's upstream prefix cache.
 
-        The derived default is a salted hash of gateway+model — opaque and
-        free of workspace paths, but stable across processes so a warm cache
-        survives restarts.  An explicit MINICC_PROMPT_CACHE_KEY always wins.
+        Resolution order (M8-T1218): an explicit MINICC_PROMPT_CACHE_KEY
+        always wins; then a conversation-scoped key derived from the
+        caller-supplied ``session_id`` (the Codex thread-affinity shape -
+        one family per conversation, immune to parallel lanes elsewhere on
+        the same account); finally the legacy salted hash of
+        gateway+model, kept so single-shot and keeper traffic that never
+        sets a session still route deterministically.
         """
         if self._prompt_cache_key:
             return self._prompt_cache_key
+        if self._session_id:
+            digest = hashlib.sha256(self._session_id.encode("utf-8")).hexdigest()[:16]
+            return f"minicc-{digest}"
         digest = hashlib.sha256(f"{self.base_url}|{self.model}".encode("utf-8")).hexdigest()[:16]
         return f"minicc-{digest}"
 

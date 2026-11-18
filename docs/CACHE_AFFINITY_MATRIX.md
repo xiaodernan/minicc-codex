@@ -242,3 +242,25 @@ read-back 验证：同样脚本在 `.env` 写入 `HTTPS_PROXY=http://127.0.0.1:7
 **读法**：本 lane 每 220 秒一枚微型 warm（≤20 output token）持续 5,231 token 共享前缀——admin 面板现在真实地显示它：这不是缓存“重新设计”，是把早已在偷偷工作的东西，从第一天起摆上了唯一正确的位置——一个人们永远能看到的指示器上。在这之前 94.6% 是静默事实；现在它是句子的主语。
 **工程收尾**：`scripts/measure_cache_affinity.py` 现在自动从 gitignored `.env` 继承 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`（仅当 shell 未预置）——不再要求 shell 预置代理，dry-run 默认跑通，零网络、零输出 key。
 
+## 2026-11-18 尾 · codex thread-affinity 参照落地（新 key · gpt-6.1-terra）
+
+**背景**：2026-11-18 下午换新 lane key（aizzz.xyz，本账号）。`GET /v1/models` 返回 7 项（含 `gpt-6.1-terra` / `gpt-6.1-sol` / `codex-auto-review` / `gpt-5.6-terra`）；同 key 打 `gpt-6.1-terra` 返回 200。旧 key 的 terra 停服事件只属于旧账号组。本轮以 openai/codex 的亲和实现为参照（可 clone `openai/codex`，见 `codex-rs/core/src/client.rs::prompt_cache_key`——亲和键派生自 **线程 session id**，而不是全局 `sha256(gateway|model)`；整场会话共享一个 shard，并行车道互不颠簸）。
+
+**minicc 落地（M8-T1218 + M8-T1219）**：
+
+- provider 与 cache_keeper 的亲和键统一为三级优先：`MINICC_PROMPT_CACHE_KEY` > 会话族键 `minicc-<sha256(session_id)[:16]>`（web 每工作区一个族、CLI 每次运行一个族、子代理共享父族；两者共享 `_ws_family_key`）> 旧 lane 自派生 `minicc-<sha256(base|model)[:16]>`。
+- 系统提示里的「顶层结构」快照升为两层（M8-T1219）：每个普通顶层目录展开最多 14 个孩子，整体 ≤ 6.5KB；`node_modules/.venv/.git/dist/build/target/__pycache__/vendor/...` 只计数不展开；`.minicc` 也只计数不展开（`audit.jsonl` 每轮都在长，展开它就是保证每轮都重付前缀）。
+
+**实测**（本机 Clash `127.0.0.1:7897`，chat/completions，同字节前缀 7,177 bytes ≈ 6,880 tokens，max_tokens=3）：
+
+| 族 | call 1 | call 2 | call 3 | call 4-6 | 稳定性 |
+| --- | --- | --- | --- | --- | --- |
+| A 会话族键（`ws-…`） | 吃冷 | 吃冷 | **6,587（95.7%）** | 6,587 × 3 | 不掉 |
+| B lane 全局键 | 吃冷 | 吃冷 | 6,587（95.7%） | — | 单工作区同档 |
+| C 每次随机键 | 吃冷 | — | — | — | 永远 0 |
+
+responses 协议重跑同一新 key：与 `measure_cache_affinity.py` 同条件下复现 terra lane 的 `cached=4,166 → 5,446` 双值行为，与 sol 完全一致——分裂是 gateway 的物理分片，不是模型行为。
+
+**结论**：「突然掉缓存」的两个主因：（1）affinity key 全局共享，并行车道互相挤占同一 shard 的缓存容量；（2）prefix 本身随工具/轮次/文件而变。M8-T1218 修 (1)，M8-T1219 修 (2)。新 key 下 terra 全线可用、命中率稳定 ≥ 95%。
+
+**诚实边界**：上述数字仅代表本 lane / 本前缀 / 本日；换账号或换前缀分布后要重新实测。`.env` 中 `MINICC_MODEL=gpt-6.1-terra` 已切换；旧 `gpt-6.1-sol` 停用，不再作为默认。

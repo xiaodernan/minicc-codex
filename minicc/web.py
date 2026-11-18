@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import threading
 import time
@@ -444,6 +445,16 @@ def _models_payload(
     return payload
 
 
+def _ws_family_key(workspace: Path) -> str:
+    """Family id for the Codex-style session cache key (one per workspace).
+
+    Shared by the provider factory and the cache keeper so a warm lane is
+    the lane the user actually rides - the provider and the keeper must not
+    land on different shard families.
+    """
+    return f"ws-{hashlib.sha256(str(workspace).encode('utf-8')).hexdigest()[:16]}"
+
+
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
 
@@ -476,6 +487,7 @@ class AgentService:
                     model=str(getattr(self.config, "model", "") or ""),
                     api_key=str(getattr(self.config, "api_key", "") or ""),
                     system_prompt=self.system_prompt,
+                    session_id=_ws_family_key(self.workspace),
                 )
                 self.cache_keeper.start()
             else:
@@ -1417,6 +1429,7 @@ class AgentService:
                     reasoning_effort or getattr(self.config, "reasoning_effort", "high")
                 ),
                 prompt_cache_key=str(getattr(self.config, "prompt_cache_key", "") or ""),
+                session_id=_ws_family_key(self.workspace),
                 on_status=status_callback,
             )
         if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
@@ -1443,6 +1456,7 @@ class AgentService:
                 reasoning_effort or getattr(self.config, "reasoning_effort", "high")
             ),
             prompt_cache_key=str(getattr(self.config, "prompt_cache_key", "") or ""),
+            session_id=_ws_family_key(self.workspace),
             on_status=status_callback,
         )
 

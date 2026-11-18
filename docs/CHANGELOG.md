@@ -760,3 +760,8 @@
   - LEDGER_EN 里原样抄入中文小节名《2026-11-18 尾 · sol 新 lane 上「光锥模式」现象》，en 模式 zero-CJK 承诺被自己打破；改为 `under the late-2026-11-18 sol-lane entry`；
   - LEDGER_ZH 一处乱码残迹「te届固有」改为「两峰是上游 sharding 的固有行为——本卷只负责把它记下来」；
   - 本地复验：`almanac_smoke` 58 chapters 全双语零 CJK；`manual_smoke` 20 chapters；`atlas_smoke` 96 coordinates；未放松任何门；en_cjk parity 完整。
+- **M8-T1218 + M8-T1219：会话族 cache affinity（codex thread-affinity 参照）+ 两层快照 + 新 key terra 复活实测**：
+  - `openai_provider.py` 新增 `session_id=`；`_effective_prompt_cache_key()` 三级优先：显式 env > 会话族键 `minicc-<sha256(sid)[:16]>` > 旧 lane；`_make_provider`（web，每工作区一族 `ws-…`，provider/keeper 共享）与 `main.py`（CLI，每次一个 `cli-…` 族）接好 `session_id`；
+  - `cache_keeper.py::derive_family_cache_key()` 三级镜像；web keeper 构造器接 `session_id`；`.minicc` 不展开（audit.jsonl 每轮都长）；系统提示 3,969 → 7,177 bytes；
+  - `docs/CACHE_AFFINITY_MATRIX.md` 新增 2026-11-18 尾节：新 key · terra · chat 6,880 tokens · 同字节前缀 · 6 连发——A 族 call 3+ 稳定 6,587（95.7%），B lane 同档，C 随机键全冷；responses 复验双峰仍是 gateway 分片；
+  - `tests/test_session_cache_affinity.py`（8 例）+ 既有 66 例全绿；手册「什么决定命中率」/`What decides a hit` 两语同步改写为三级派生并附实测；`.env` 切 `gpt-6.1-terra`（gitignored，不追踪）。

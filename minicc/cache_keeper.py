@@ -54,6 +54,24 @@ def _derive_cache_key(base_url: str, model: str) -> str:
     return f"minicc-{digest}"
 
 
+def derive_family_cache_key(base_url: str, model: str, session_id: str) -> str:
+    """Affinity key for a conversation family (codex thread-affinity shape).
+
+    Precedence mirrors the provider's: an explicit MINICC_PROMPT_CACHE_KEY
+    wins; a supplied ``session_id`` scopes the family; otherwise the legacy
+    lane-derived key is returned unchanged so keeper status replies keep the
+    same shape they always had.
+    """
+    explicit = (os.environ.get("MINICC_PROMPT_CACHE_KEY") or "").strip()
+    if explicit:
+        return explicit[:64]
+    sid = (session_id or "").strip()
+    if sid:
+        digest = hashlib.sha256(sid.encode("utf-8")).hexdigest()[:16]
+        return f"minicc-{digest}"
+    return _derive_cache_key(base_url, model)
+
+
 def anthropic_wire(provider_type: str) -> bool:
     return (provider_type or "").strip().lower() == "anthropic"
 
@@ -215,13 +233,15 @@ class CacheKeeper:
         api_key: str,
         system_prompt: str,
         interval: float | None = None,
+        session_id: str | None = None,
     ) -> None:
         self._base = (base_url or "").rstrip("/")
         self._model = str(model or "")
         self._api_key = str(api_key or "")
         self._system = str(system_prompt or "")
         self._interval = max(_MIN_INTERVAL, float(interval if interval is not None else _interval()))
-        self._cache_key = _derive_cache_key(self._base, self._model)
+        self._session_id = str(session_id or "")
+        self._cache_key = derive_family_cache_key(self._base, self._model, self._session_id)
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._enabled = bool(enabled()) and bool(self._base) and bool(self._model) and bool(self._api_key) and bool(self._system)

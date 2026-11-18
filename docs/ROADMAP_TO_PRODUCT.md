@@ -55582,3 +55582,35 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 - 这是一道被 en_cjk 门"当回一脚"的批次：1216 的 CI 还在排队时我本地先跑现场验了，抓到就修，不等 red 到 main。
 - 中文小节名原样保留在 zh 侧——zh 允许的东西不能被 en 便宜了它，这就是 parity。
+## 批次 1158 · M8-T1218 + M8-T1219: 会话族 cache affinity（codex thread-affinity 参照）+ 两层快照
+
+### 为什么做
+
+2026-11-18 下午换了新 lane key，terra 复活（旧账号组停服的是旧 key 的事）：`GET /v1/models` 7 项，`gpt-6.1-terra` chat/completions 200。用户再次反映缓存命中时高时低、怀疑并行会话撞车（正确——全局 lane 键把 bench/keeper/agent/chapter 全塞进同一 shard），并且对照 codex 的 90%+ 稳定维持不掉。深查 openai/codex（`codex-rs/core/src/client.rs::prompt_cache_key`，本地 clone 对照）：Codex 的亲和键派生自 **线程 session id**，而不是全局 `sha256(gateway|model)`。
+
+### 做了什么
+
+**M8-T1218 · provider/keeper 三级亲和键**：
+1. `openai_provider.py::OpenAICompatibleProvider` 新增 `session_id=` 参数；`_effective_prompt_cache_key()` 现按①显式 `MINICC_PROMPT_CACHE_KEY` >②会话族键 `minicc-<sha256(session_id)[:16]>` >③旧 lane 自派生 三级解析。
+2. web 路径：`_ws_family_key(workspace) = ws-<sha256(workspace)[:16]>`，同一进程所有对话共享一个族，provider 与 keeper 都用它（`minicc/web.py::_make_provider` + keeper 构造器）。
+3. CLI 路径：`minicc/main.py::_build_provider` 每次运行生成一个 `cli-<uuid>` 族，一族贯穿其子代理。
+4. `cache_keeper.py::derive_family_cache_key()` 与 provider 同规则；`CacheKeeper(..., session_id=...)` 可注入；默认不传则保持旧 lane 行为（back-compat）。
+
+**M8-T1219 · 快照两层化**：
+5. `prompt.py::_workspace_inventory` 从「仅顶层 28 项」升为两层：普通顶层目录展开最多 14 个孩子（文件带大小、子目录带项数），整体 ≤ 6,500 字节，超了追加 `…（快照已截断）`。`node_modules/.git/.venv/dist/build/…` 只计数不展开；`.minicc` 也不展开（audit.jsonl 每轮增长，展开它 = 保证每轮重付前缀）。
+6. 系统提示 3,969 → **7,177 字节**（相关性真实提升：agent 开场自带一层目录骨架；不是用空白凑 tokens）。
+
+**M8-T1220 · 实测立档**（`docs/CACHE_AFFINITY_MATRIX.md` 2026-11-18 尾节）：
+同字节前缀 6,880 tokens、chat/completions、max_tokens=3：A 会话族 call 1-2 冷，call 3 起稳定 6,587（95.7%）、连续 6 次不掉；B lane 键同档；C 随机键永远 0。responses 协议重跑 terra lane：仍是 4,166 ↔ 5,446 双值——分裂是 gateway 物理分片，不是模型行为。
+
+### 诚实边界
+
+- 会话族键的目的是「让一族待在同一 shard」，不是跨族共享——跨族共享本来就不存在（prefix 都不一样）。
+- `.env` 已切 `MINICC_MODEL=gpt-6.1-terra`；旧 `gpt-6.1-sol` 不再默认。terra 的可用性由每次调用自己的 200 证明；`/v1/models` 仍列 7 项。
+- 上述命中率数字只属于本 lane/本前缀/本日。
+- 测试只证明「派生规则 + 边界不变量」，不证明网关行为（那是网关的事）。
+
+### 测试
+
+- 新增 `tests/test_session_cache_affinity.py`：三级优先（构造器/keeper/sha）、族键稳定/区分、快照两层/有界/跳过、缺失目录鲁棒——8 个用例全绿。
+- `tests/test_core_agent.py` / `test_memory.py` / 写作风格套件：66 个全绿。

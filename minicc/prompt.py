@@ -26,15 +26,32 @@ def _workspace_guidance(workspace: Path) -> str:
 
 
 _MAX_INVENTORY_ENTRIES = 28
+_MAX_CHILDREN_PER_DIR = 14
+_MAX_INVENTORY_BYTES = 6_500
 _INVENTORY_PREFIX = "顶层结构："
+# Vendored / derived trees add bytes but no information; walking them only
+# risks churning the prefix for cache-warming sessions (deps change often),
+# so they are listed but never descended into.
+_SKIP_DIRS = frozenset({
+    "node_modules", ".venv", ".git", "dist", "build", "target", "__pycache__",
+    ".next", ".cache", "coverage", ".pytest_cache", ".idea", ".mypy_cache",
+    ".ruff_cache", "htmlcov", ".gradle", "out", "vendor", ".turbo", ".nuxt",
+    # .minicc is the agent's own state dir: audit.jsonl grows every turn,
+    # sessions/ and tasks.db churn constantly - listing them would guarantee
+    # a prefix re-pay on nearly every turn. Counted, never descended.
+    ".minicc",
+})
 
 
 def _workspace_inventory(workspace: Path) -> str:
-    """A compact, byte-stable snapshot of the workspace's top-level layout.
+    """A byte-stable snapshot of the workspace's layout, two levels deep.
 
-    Lists only top-level entries; children counts are direct scans with no
-    subtree walk - the snapshot's shape must be constant from one turn to the
-    next, and the flat scan keeps it cheap to rebuild on every turn.
+    Lists top-level entries sorted by name, then the children of each
+    ordinary top-level directory (vendored/derived trees are named but never
+    descended into).  Sizes are direct ``stat`` calls with no recursion - the
+    shape of the snapshot must stay constant from one turn to the next, so
+    the scan stays cheap and the section stays within
+    ``_MAX_INVENTORY_BYTES`` however large the repo.
     """
     try:
         entries = list(sorted(workspace.iterdir(), key=lambda p: p.name.lower()))
@@ -51,22 +68,49 @@ def _workspace_inventory(workspace: Path) -> str:
                 count = 0
                 for _child in entry.iterdir():
                     count += 1
-                lines.append(f"{entry.name}/  · {count} 项")
+                skip = entry.name.lower() in _SKIP_DIRS
+                lines.append(f"{entry.name}/  · {count} 项" + ("  （跳过深入）" if skip else ""))
+                if not skip and shown < _MAX_INVENTORY_ENTRIES:
+                    shown += 1
+                    try:
+                        children = list(sorted(entry.iterdir(), key=lambda p: p.name.lower()))
+                    except OSError:
+                        children = []
+                    per_dir = 0
+                    for child in children:
+                        if per_dir >= _MAX_CHILDREN_PER_DIR:
+                            lines.append("  …")
+                            break
+                        if child.name.startswith(".") and child.name not in {".minicc", ".github", ".circleci"}:
+                            continue
+                        try:
+                            if child.is_dir():
+                                inner = sum(1 for _ in child.iterdir())
+                                lines.append(f"  {child.name}/  · {inner} 项")
+                            else:
+                                size = child.stat(follow_symlinks=False).st_size
+                                lines.append(f"  {child.name}  · {_fmt_bytes(size)}")
+                        except OSError:
+                            lines.append(f"  {child.name}  · ?")
+                        per_dir += 1
             else:
                 try:
                     size = entry.stat(follow_symlinks=False).st_size
                 except OSError:
                     size = 0
                 lines.append(f"{entry.name}  · {_fmt_bytes(size)}")
+                shown += 1
         except OSError:
             lines.append(f"{entry.name}  · ?")
-        shown += 1
         if shown >= _MAX_INVENTORY_ENTRIES:
             lines.append("…")
             break
+        if sum(len(line) + 4 for line in lines) > _MAX_INVENTORY_BYTES:
+            lines.append("…（快照已截断）")
+            break
     if not lines:
         return ""
-    return _INVENTORY_PREFIX + "  " + "  ".join(lines)
+    return _INVENTORY_PREFIX + "\n" + "\n".join(lines)
 
 
 def _fmt_bytes(size: int) -> str:

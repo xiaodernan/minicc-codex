@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
+import uuid
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, NoReturn
@@ -1063,6 +1064,7 @@ def main(argv: list[str] | None = None) -> int:
                 protocol=config.llm_protocol,
                 reasoning_effort=effort,
                 prompt_cache_key=str(getattr(config, "prompt_cache_key", "") or ""),
+                session_id=session_family,
             )
         if str(getattr(config, "provider_type", "openai")) == "anthropic":
             from .llm.anthropic_provider import AnthropicProvider
@@ -1087,8 +1089,10 @@ def main(argv: list[str] | None = None) -> int:
             protocol=config.llm_protocol,
             reasoning_effort=effort,
             prompt_cache_key=str(getattr(config, "prompt_cache_key", "") or ""),
+            session_id=session_family,
         )
 
+    session_family = f"cli-{uuid.uuid4().hex[:16]}"
     provider = _build_provider(model=cli_model, timeout=cli_timeout, effort=cli_effort, spec=provider_spec)
 
     def _task_provider() -> Any:
