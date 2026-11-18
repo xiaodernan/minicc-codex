@@ -626,6 +626,69 @@ export async function openAdmin() {
     }
     const channelPromise = requestJson("/api/metrics", {}, 15000).catch(() => null);
     channelPromise.then((metrics) => renderChannel(metrics, false));
+    // Evidence gate — read-only facts from minicc-cloud-evidence (8088).
+    // Zero model involvement; the verdict is the job's own boolean + timestamp.
+    function renderEvidence(payload, refreshed) {
+      const bodyEl = $("#adminEvidenceBody");
+      const usageEl = $("#adminEvidenceUsage");
+      const byEl = $("#adminEvidenceBy");
+      if (byEl) byEl.textContent = zh() ? "真实 CI 事实" : "real CI facts";
+      if (!payload || payload.present !== true) {
+        const reason = payload && payload.reason
+          ? String(payload.reason).slice(0, 140)
+          : (zh() ? "证据门未达（8088 离线或为空）" : "evidence gate unavailable (8088 down or empty)");
+        if (bodyEl) {
+          bodyEl.innerHTML =
+            `<p class="admin-brief-pending">${esc(t("admin.evidenceOutage"))}</p>` +
+            `<p class="admin-evidence-reason">${esc(reason)}</p>`;
+        }
+        if (usageEl) usageEl.textContent = "";
+        return;
+      }
+      const latest = payload.latest ?? (Array.isArray(payload.entries) ? payload.entries[payload.entries.length - 1] : null);
+      if (!latest) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.evidenceOutage"))}</p>`;
+        return;
+      }
+      const verdictRaw = String(latest.conclusion ?? payload.conclusion ?? "").toLowerCase();
+      const running = !verdictRaw;
+      const ok = verdictRaw === "success";
+      const badgeClass = running ? "open" : (ok ? "ok" : "bad");
+      const badgeText = running
+        ? (zh() ? "进行中" : "in progress")
+        : (ok ? (zh() ? "绿 ✓ 通过" : "green ✓ pass") : (zh() ? `红 ✗ ${verdictRaw}` : `red ✗ ${verdictRaw}`));
+      const sha = String(latest.head_sha ?? "").slice(0, 7);
+      const shaHtml = sha ? `<code>${esc(sha)}</code>` : "—";
+      const job = esc(String(latest.job_name ?? "—"));
+      const step = latest.step_name ? esc(String(latest.step_name)) : null;
+      const wf = esc(String(latest.workflow_name ?? "CI"));
+      const at = esc(String(latest.started_at ?? latest.captured_at ?? ""));
+      const runId = esc(String(latest.run_id ?? ""));
+      const tail = Array.isArray(latest.logs_tail) ? latest.logs_tail.slice(-6) : [];
+      if (bodyEl) {
+        bodyEl.innerHTML =
+          `<div class="admin-evidence-head">` +
+            `<span class="admin-evidence-badge ${badgeClass}">${esc(badgeText)}</span>` +
+            `<span class="admin-evidence-wf">${wf}</span>` +
+          `</div>` +
+          `<ul class="admin-evidence-facts">` +
+            `<li><strong>run</strong><span>${runId ? `<code>#${runId}</code> · ${shaHtml}` : "—"}</span></li>` +
+            `<li><strong>${zh() ? "任务" : "job"}</strong><span>${job}${step ? ` · ${step}` : ""}</span></li>` +
+            `<li><strong>${zh() ? "开始" : "started"}</strong><span>${at || "—"}</span></li>` +
+          `</ul>` +
+          (tail.length
+            ? `<pre class="admin-evidence-log">${esc(tail.join("\n"))}</pre>`
+            : `<p class="admin-evidence-reason">${zh() ? "日志未抓取（作业结论 = 事实，日志行按需回填）" : "log not captured (the job verdict is the fact; log lines backfill on demand)"}</p>`);
+      }
+      if (usageEl) {
+        usageEl.textContent = zh()
+          ? `run #${runId} · ${sha || "—"} · 纯事实 · 零模型${refreshed ? " · 已重读" : ""}`
+          : `run #${runId} · ${sha || "—"} · pure facts · zero model${refreshed ? " · re-read" : ""}`;
+      }
+    }
+    const evidencePromise = requestJson("/api/evidence", {}, 15000).catch(() => null);
+    evidencePromise.then((payload) => renderEvidence(payload, false));
+
 
     // Gateway budget — how close the shared 60s / 20-per-client token bucket is
     // to refusing the panel's own model calls; reads what the gate keeps.

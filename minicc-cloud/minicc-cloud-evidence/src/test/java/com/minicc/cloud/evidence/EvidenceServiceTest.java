@@ -61,4 +61,24 @@ class EvidenceServiceTest {
         assertThatThrownBy(service::latest)
                 .isInstanceOf(EvidenceStoreUnavailableException.class);
     }
+
+    @Test
+    void runBackfillsAgainstAMissingStoreAndCreatesIt() {
+        Path missing = temp.resolve("fresh-store.jsonl");
+        Path parent = missing.getParent();
+        assertThat(parent).exists();
+        EvidenceFixture.CountingFetcher fetcher =
+                new EvidenceFixture.CountingFetcher(EvidenceFixture.entry(8100L, "2026-11-18T00:00:00Z", "failure"));
+        EvidenceService service = new EvidenceService(
+                new EvidenceStore(EvidenceFixture.properties(missing)), fetcher);
+
+        EvidenceResponse response = service.forRun(8100L);
+
+        assertThat(response.present()).isTrue();
+        assertThat(response.latest().runId()).isEqualTo(8100L);
+        assertThat(missing).exists();
+        assertThat(fetcher.calls()).isEqualTo(1);
+        EvidenceStore reopened = new EvidenceStore(EvidenceFixture.properties(missing));
+        assertThat(reopened.find(8100L)).isPresent();
+    }
 }

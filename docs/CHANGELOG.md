@@ -695,3 +695,12 @@
   - `test_resource_hygiene::test_project_code_never_opens_a_scandir_iterator`：minicc/stats.py 直呼 `os.scandir`——门禁是**绝对禁令**（minicc/、scripts/ 不得出现该符号，哪怕 `with`）。修法（不逃门、不改门禁）：`_disk_bytes` 重写回 `os.walk` + `concurrent.futures.ThreadPoolExecutor(16)` 分块 `os.stat`（阻塞 I/O 会释放 GIL）；同树字节总量 **372,831,922 一致**，冷启动 **15.5s → 4.22s**（计时机器本仓库）；120s TTL 不变、语义不变；
   - 本地复跑：content-bundle 门 + resource_hygiene + test_stats **17/17 绿**；推送后 Ubuntu+Windows 全量 CI 复验为最终裁决；
   - **Windows 腿未被赦免**——两腿红因同，本修法同治；推送后全量 CI 复验。
+- **M8-T1206：Python 桥直送证据门——`/api/evidence`**：`minicc/evidence.py`（stdlib urllib，4s 超时，never-raise，无 token 读物）把 `?latest=1` 包成 same-origin 200；`webserver.py` 路由加在 bench-history 之后，`service._memo_http("evidence", 30.0)`；**404/403/崩溃/挂起一律 200 + `present:false` + `reason`**（从不 5xx，从不假绿）；route_coverage B 计数 **42/42**（新增第 42 条 GET）。
+- **M8-T1207：管理面板「证据门 · 真实 CI」tile 上墙**（admin-evidence，薄荷绿描边卡）：`renderEvidence` 直吃 `/api/evidence`——verdict 徽章只读 job 自己的布尔（success→绿 ✓ / 其它→红；in-progress→灰）、run_id、sha 短码、job/step、started_at、末 6 行 logs_tail（`<pre>` 等宽、role=无叙事）；「纯事实 · 零模型」usage 行；i18n 双语三键（`evidenceKicker/Pending/Outage`，CRLF 钉 **791/0**、**338/0**）；双端实测：stubbed 绿（chip 绿）、无 Java 503（chip 红态 + reason 直示 8088 离线线索）。
+- **M8-T1208：live backfill 实战修掉三颗隐藏雷、证据门从“单测全绿好看”变成“真 GitHub 真跑”**：
+  1. `forRun` 对**不存在的 store** 直接 readAll→503——backfill 永远造不出第一行 → 修复为 missing 时 readAll/find/appendIfAbsent 自洽（latest=1 缺失仍 503 诚实，run_id 缺失路径自愈创建；unreadable 仍拒）；
+  2. `text()` 只接 textual ——GitHub 的 run/job/step **id 全是 JSON number**——首捕 job_id 空→logs_tail 静默 [] → 修复为 number 也接；
+  3. `EvidenceResponse` 没挂 SnakeCaseStrategy → envelope `generatedAt/skippedLines` camelCase 与 entries snake_case 混用 → 修复为全 snake_case；
+  4. **真实捕获**：`java -jar evidence-0.1.0.jar`（JAVA_TOOL_OPTIONS 里的 Clash 7897 + 本地 gh 会话 token 仅出站）→ `scripts/evidence_backfill.py --run-id 44229273754` → 捕获真实 run（结论 success、job PR eval gate、20 行真实 logs_tail、job_id 134550024877、sha 2a23ec3、snake_case envelope）→ 面板 tile 同一张真实的卡（chip 绿 ✓、末 6 行日志在屏上）。
+  5. 加了两腿回归单测（missing-store backfill→200/200、服务层 17 可移植 legs 全绿）；mvn reactor 8 模块 BUILD SUCCESS。
+  6. **教训记一行**：514 测试全绿也抓不住“数字 id 是个 number 不是个 string”——活验证（真 GitHub）抓住了（unit 套不覆盖真 wire 类型）。token 仅出站、未入日志/响应/store；匿名 60 req/h 已撞顶，真回填需要 token。

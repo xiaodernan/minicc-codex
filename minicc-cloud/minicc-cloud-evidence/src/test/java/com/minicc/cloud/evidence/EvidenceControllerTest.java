@@ -103,6 +103,18 @@ class EvidenceControllerTest {
     }
 
     @Test
+    void run_idBackfillsAgainstAMissingStoreAndReturns200() throws Exception {
+        Path missing = temp.resolve("fresh-store.jsonl");
+        service = new EvidenceService(new EvidenceStore(EvidenceFixture.properties(missing)), fetcher);
+
+        JsonNode body = answer("run_id=99", 200);
+
+        assertThat(body.get("present").asBoolean()).isTrue();
+        assertThat(body.get("latest").get("run_id").asLong()).isEqualTo(99);
+        assertThat(missing).exists();
+    }
+
+    @Test
     void run_idCacheHitNeverReachesGitHub() throws Exception {
         Files.writeString(store, "", StandardCharsets.UTF_8);
         answer("run_id=99", 200);

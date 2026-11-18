@@ -59,6 +59,8 @@ public class GithubApiClient implements RunFetcher {
         List<String> tail;
         if (job == null) {
             tail = List.of();
+        } else if (jobId == null) {
+            tail = List.of("job id not captured; logs unavailable");
         } else {
             tail = logTail(jobId);
         }
@@ -219,7 +221,17 @@ public class GithubApiClient implements RunFetcher {
 
     private static String text(JsonNode node, String field) {
         JsonNode value = node.get(field);
-        return value != null && value.isTextual() && !value.asText().isBlank() ? value.asText() : null;
+        if (value == null) {
+            return null;
+        }
+        if (value.isTextual() && !value.asText().isBlank()) {
+            return value.asText();
+        }
+        if (value.isNumber()) {
+            // GitHub emits ids (run/job/step) as JSON numbers - they are ids, not measures.
+            return value.asText();
+        }
+        return null;
     }
 
     private static String firstNonBlank(String first, String second) {

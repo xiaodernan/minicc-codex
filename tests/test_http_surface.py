@@ -1409,3 +1409,45 @@ def test_get_bench_history_never_500s(live: _LiveServer, monkeypatch) -> None:
     payload = json.loads(body)
     assert payload["present"] is False
     assert "sk-" not in body.decode("utf-8", "replace")
+
+
+def test_get_evidence_never_500s(live: _LiveServer, monkeypatch) -> None:
+    import minicc.evidence as ev_mod
+
+    monkeypatch.setattr(ev_mod, "latest", lambda workspace=None, **kwargs: {
+        "present": False, "reason": "simulated outage",
+        "count": 0, "entries": [], "source": "minicc-cloud-evidence",
+    })
+    status, _, body = _request(f"{live.url}/api/evidence", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["present"] is False
+    assert "sk-" not in body.decode("utf-8", "replace")
+
+
+def test_get_evidence_backend_crash_yields_present_false(live: _LiveServer, monkeypatch) -> None:
+    import minicc.evidence as ev_mod
+
+    def _raise(workspace=None, **kwargs):
+        raise RuntimeError("boom for the route-level guard")
+
+    monkeypatch.setattr(ev_mod, "latest", _raise)
+    status, _, body = _request(f"{live.url}/api/evidence", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["present"] is False
+
+
+def test_evidence_bridge_reports_unreachable(monkeypatch) -> None:
+    import urllib.request
+
+    import minicc.evidence as ev_mod
+
+    def _hang(*args, **kwargs):
+        raise TimeoutError("simulated hang")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _hang)
+    out = ev_mod.latest()
+    assert out["present"] is False
+    assert "unreachable" in out["reason"]
+    assert out["entries"] == []

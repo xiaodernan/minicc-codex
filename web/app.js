@@ -1119,6 +1119,9 @@
       "admin.benchHistoryAbsent": "\u6682\u65E0 bench_history.jsonl\u2014\u2014\u5148\u8DD1\u4E00\u904D v2 \u8BC4\u4F30\uFF08python -m minicc.bench_tasks --suite v2\uFF09",
       "admin.channelKicker": "\u901A\u9053\u5206\u8D26 \xB7 \u771F\u82B1\u7684\u6BCF\u4E00\u5206 token",
       "admin.channelPending": "\u6B63\u5728\u8BFB\u53D6 metrics \u901A\u9053\u6570\u636E\u2026",
+      "admin.evidenceKicker": "\u8BC1\u636E\u95E8 \xB7 \u771F\u5B9E CI",
+      "admin.evidencePending": "\u6B63\u5728\u8BFB\u53D6\u8BC1\u636E\u95E8\u2026",
+      "admin.evidenceOutage": "\u8BC1\u636E\u95E8\u4E0D\u53EF\u8FBE\u2014\u2014\u5148\u628A minicc-cloud-evidence \u8D77\u5728 8088",
       "admin.ratelimitKicker": "\u7F51\u5173\u9884\u7B97 \xB7 \u5171\u4EAB\u95F8\u95E8",
       "admin.ratelimitPending": "\u6B63\u5728\u8BFB\u5171\u4EAB\u95F8\u5C3A\u2026",
       "admin.ratelimitOutage": "\u95F8\u95E8\u8BA1\u6570\u6682\u65F6\u4E0D\u53EF\u8BFB\u2014\u2014\u95F8\u672C\u8EAB fail-open \u7167\u5E38\u653E\u884C\uFF0C\u8D26\u672C\u7167\u8BB0\u3002",
@@ -1945,6 +1948,9 @@
       "admin.benchHistoryAbsent": "No bench history yet \u2014 run the v2 suite once to draw the first line",
       "admin.channelKicker": "Model channels \xB7 where the tokens went",
       "admin.channelPending": "Reading metrics \u2026",
+      "admin.evidenceKicker": "Evidence gate \xB7 real CI",
+      "admin.evidencePending": "Reading the evidence gate \u2026",
+      "admin.evidenceOutage": "Evidence gate unreachable \u2014 start minicc-cloud-evidence on 8088",
       "admin.ratelimitKicker": "Gateway budget \xB7 shared gate",
       "admin.ratelimitPending": "Reading the shared bucket\u2026",
       "admin.ratelimitOutage": "The gate counters are unreadable \u2014 the gate itself fails open and keeps counting.",
@@ -8558,6 +8564,46 @@
       }
       const channelPromise = requestJson("/api/metrics", {}, 15e3).catch(() => null);
       channelPromise.then((metrics) => renderChannel(metrics, false));
+      function renderEvidence(payload, refreshed) {
+        const bodyEl = $("#adminEvidenceBody");
+        const usageEl = $("#adminEvidenceUsage");
+        const byEl = $("#adminEvidenceBy");
+        if (byEl) byEl.textContent = zh8() ? "\u771F\u5B9E CI \u4E8B\u5B9E" : "real CI facts";
+        if (!payload || payload.present !== true) {
+          const reason = payload && payload.reason ? String(payload.reason).slice(0, 140) : zh8() ? "\u8BC1\u636E\u95E8\u672A\u8FBE\uFF088088 \u79BB\u7EBF\u6216\u4E3A\u7A7A\uFF09" : "evidence gate unavailable (8088 down or empty)";
+          if (bodyEl) {
+            bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.evidenceOutage"))}</p><p class="admin-evidence-reason">${esc2(reason)}</p>`;
+          }
+          if (usageEl) usageEl.textContent = "";
+          return;
+        }
+        const latest = payload.latest ?? (Array.isArray(payload.entries) ? payload.entries[payload.entries.length - 1] : null);
+        if (!latest) {
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.evidenceOutage"))}</p>`;
+          return;
+        }
+        const verdictRaw = String(latest.conclusion ?? payload.conclusion ?? "").toLowerCase();
+        const running = !verdictRaw;
+        const ok = verdictRaw === "success";
+        const badgeClass = running ? "open" : ok ? "ok" : "bad";
+        const badgeText = running ? zh8() ? "\u8FDB\u884C\u4E2D" : "in progress" : ok ? zh8() ? "\u7EFF \u2713 \u901A\u8FC7" : "green \u2713 pass" : zh8() ? `\u7EA2 \u2717 ${verdictRaw}` : `red \u2717 ${verdictRaw}`;
+        const sha = String(latest.head_sha ?? "").slice(0, 7);
+        const shaHtml = sha ? `<code>${esc2(sha)}</code>` : "\u2014";
+        const job = esc2(String(latest.job_name ?? "\u2014"));
+        const step = latest.step_name ? esc2(String(latest.step_name)) : null;
+        const wf = esc2(String(latest.workflow_name ?? "CI"));
+        const at = esc2(String(latest.started_at ?? latest.captured_at ?? ""));
+        const runId = esc2(String(latest.run_id ?? ""));
+        const tail = Array.isArray(latest.logs_tail) ? latest.logs_tail.slice(-6) : [];
+        if (bodyEl) {
+          bodyEl.innerHTML = `<div class="admin-evidence-head"><span class="admin-evidence-badge ${badgeClass}">${esc2(badgeText)}</span><span class="admin-evidence-wf">${wf}</span></div><ul class="admin-evidence-facts"><li><strong>run</strong><span>${runId ? `<code>#${runId}</code> \xB7 ${shaHtml}` : "\u2014"}</span></li><li><strong>${zh8() ? "\u4EFB\u52A1" : "job"}</strong><span>${job}${step ? ` \xB7 ${step}` : ""}</span></li><li><strong>${zh8() ? "\u5F00\u59CB" : "started"}</strong><span>${at || "\u2014"}</span></li></ul>` + (tail.length ? `<pre class="admin-evidence-log">${esc2(tail.join("\n"))}</pre>` : `<p class="admin-evidence-reason">${zh8() ? "\u65E5\u5FD7\u672A\u6293\u53D6\uFF08\u4F5C\u4E1A\u7ED3\u8BBA = \u4E8B\u5B9E\uFF0C\u65E5\u5FD7\u884C\u6309\u9700\u56DE\u586B\uFF09" : "log not captured (the job verdict is the fact; log lines backfill on demand)"}</p>`);
+        }
+        if (usageEl) {
+          usageEl.textContent = zh8() ? `run #${runId} \xB7 ${sha || "\u2014"} \xB7 \u7EAF\u4E8B\u5B9E \xB7 \u96F6\u6A21\u578B${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `run #${runId} \xB7 ${sha || "\u2014"} \xB7 pure facts \xB7 zero model${refreshed ? " \xB7 re-read" : ""}`;
+        }
+      }
+      const evidencePromise = requestJson("/api/evidence", {}, 15e3).catch(() => null);
+      evidencePromise.then((payload) => renderEvidence(payload, false));
       function renderRatelimit(stats, refreshed) {
         const bodyEl = $("#adminRatelimitBody");
         const usageEl = $("#adminRatelimitUsage");

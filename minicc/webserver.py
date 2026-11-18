@@ -720,6 +720,24 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                             "count": 0,
                             "entries": []}, 200)
             return
+        if path == "/api/evidence":
+            # M8-T1206: read-only bridge to the evidence gate (minicc-cloud-evidence).
+            # Absent / hanging / broken Java service becomes an honest
+            # present:false 200, never a 5xx, never a fake green light.
+            try:
+                from .evidence import latest as evidence_latest
+
+                self._json(self.server.service._memo_http(
+                    "evidence",
+                    30.0,
+                    lambda: evidence_latest(self.server.service.workspace),
+                ))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"present": False,
+                            "reason": f"{type(exc).__name__}: {exc}",
+                            "count": 0,
+                            "entries": []}, 200)
+            return
         if path == "/api/oracle-recommendations":
             # M8-T1196: the model reads the merged diagnostic snapshot and
             # writes three next-step deep moves, each with a concrete

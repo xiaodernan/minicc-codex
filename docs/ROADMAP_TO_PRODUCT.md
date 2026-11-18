@@ -55153,7 +55153,7 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 
 ### 工单 B：证据门的远程执行
 
-状态（2026-11-18 · 批次 1146）：本节蓝图的 **Java 模块已落地**——第九个 Spring 模块 `minicc-cloud-evidence`（8088）：只读 `?latest=1`/`?run_id=`，自有 `evidence.jsonl` 缓存，15 legs 全绿，全 reactor 2:20 绿；**admin tile 尚未接线**；本节其余文字仍为蓝图“为什么”档。
+状态（2026-11-18 · 批次 1148）：本蓝图已**全链路落地**——模块（批次 1146）→ Python 桥 `/api/evidence`（批次 1148）→ admin tile「证据门 · 真实 CI」→ 本机实测捕获真实 run `44229273754`（结论 success）；本节其余文字仍为蓝图“为什么”档。
 
 
 **目标**：让“证据门”能在一个发行版里**在线跑一份真实记录**——同一条 CI 红例可以在 GitHub 里见到、在 admin 里点“复盘”时再跑一遍得到同款结论。
@@ -55315,3 +55315,37 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 5. **compose**：evidence 独立 `/evidence:rw` 挂载（`../.minicc/evidence` 默认），Python 引擎态（tasks/audit/sessions）**绝不挂载给 evidence**；gateway `depends_on` 补 evidence；`MINICC_CLOUD_EVIDENCE_PORT:-8088`；`docker compose config` 形状与既有一致。
 6. **cloud README**：模块表加 8088 行（含 `/api/evidence?latest=1` 与 `run_id` curl 示例，示例 run_id 用真实的 44225251410）；`mvn -B test` 行从 seven → eight modules。
 7. **诚实边界**：admin tile「证据门」**尚未接线**——`/api/evidence` 目前可由 8088 直连消费（README curl 可验证）；live GitHub 调用未实测（测试全程假实现）；gateway 路由未加（`one-home` 治理域不碰）；config-repo 未动；未 dispatch/rerun 任何 run。
+## 批次 1148 · M8-T1206/1207/1208: 证据门合龙——从模块到面板到真数据
+
+### 起点
+
+批次 1146 落了 Java 模块（8088）。本批让它从“存在但看不见”变成“刷开即见、且是真的”。
+
+### 做了什么
+
+1. **Python 侧新桥 `minicc/evidence.py`**：same-origin `/api/evidence`（latest=1 直透）；`urllib`、4s、never-raise、失败全是 `present:false + reason`（URLError/超时/坏 JSON 全一）；新增第 42 条 GET dispatch site；route coverage B **42/42**（tests/test_http_surface.py 三腿：出吃outage、route 级 crash→present:false、bridge TimeoutError→unreachable）；claim checkers 保持绿。
+2. **admin tile「证据门 · 真实 CI」**：绿/红徽章只来自 GitHub 自己的 job.conclusion；零模型、零叙事；
+   - HTML：薄荷描边卡（节奏接在 model-channel 卡之后、CI 红灯卡之前共 net +5 CRLF 行 → **791/0**）；
+   - JS：`renderEvidence` + `evidencePromise`；
+   - i18n：`admin.evidenceKicker/Pending/Outage` 双语（i18n.js → **338/0**）；
+   - 双端实测：424-stub 绿、Java 下线红（reason 直示 8088 离线）。
+3. **`scripts/evidence_backfill.py`**：显式操作员工具——`--run-id` 触发 8088 回填一次，打印抓捕事实（非 CI 流水、非 re-run）。本机已实测：
+   - 捕获真实 run **44229273754**（workflow CI、conclusion **success**、head **2a23ec3**、job「PR eval gate (fake provider, <15m)」、**job_id 134550024877**、started 2026-11-18T03:16:46Z、**20 行真实 log tail**、captured_at 诚实填充）；
+   - envelope 全 snake_case（修掉混血 camelCase 问题）；
+   - store 在 /tmp 外（repo 零污染）。
+4. **实战抓住且修掉三个半单元测试抓不到的定性 bug**：
+   - missing-store 下 `forRun` 先 readAll→503：回填永远造不出第一行（修为 missing 自愈：readAll/find/appendIfAbsent）；`latest=1` 缺失仍 503（设计不变）；
+   - GitHub JSON `id` 是 **number**：`text()` 只认 textual → job_id 丢、logs 静默空 → 修为 number 接收；+test 双腿（missing-store 回填→200、controller 200）；
+   - envelope camelCase / entries snake_case 混血 → `@JsonNaming(SnakeCaseStrategy)` 全链；
+   - 回归：mvn -rf :minicc-cloud-evidence test **17 legs 绿**；全 reactor **8 模块 BUILD SUCCESS（2:01）**。
+5. **SERVICE_PLANE_PLAN 蓝图 note 更新**：工单 B 现已全链路落地（模块+桥+面板+实测）。
+
+### 诚实边界
+
+- **Java 证据门本身的 live 回填本机验证通过，但该值不是持久凭据**：临时 store 在 /tmp、repo 零提交、任何用户自有 token/-store 行为自定；
+- `logs_tail` 是**选中 job**（失败 job 优先，无失败则第一 job）的 log 尾 20 行——不承诺覆盖整个 run（per-job 粒度，设计声明）；
+- **tile 不显示原因分析**，只显示 job 结论+时间+标识——叙事由 oracle tile 承担，不双重计账；
+- `GITHUB_TOKEN` 使用记录：仅用于本机 live 验证（`gh auth token` → 进程 env），从未写入仓库/日志/store/响应；
+- 不声称 Java 网格每时每刻都被 CI 运行——`Service plane tests (mvn)` job 全绿（证据模块随 reactor 编译+测试）；
+- 不声称匿名访问可用 sane times 实测——本机 anonymous 60 req/h 共享 IP 已撞顶，**live 回填需 token**；匿名路径已撞 403 如实记录（assertion 未被默许绕过）；
+- 未把 `scripts/evidence_backfill.py` 接入任何自动触发（nightly job 是否回填由后续批决定）。

@@ -42,7 +42,7 @@ public class EvidenceStore {
     /** Snapshot of everything retained; corrupt lines counted, never thrown on. */
     public Snapshot readAll() {
         if (!Files.isRegularFile(path)) {
-            throw new EvidenceStoreUnavailableException("evidence store does not exist: " + path);
+            throw EvidenceStoreUnavailableException.missing("evidence store does not exist: " + path);
         }
         List<EvidenceEntry> entries = new ArrayList<>();
         long skipped = 0;
@@ -71,7 +71,17 @@ public class EvidenceStore {
 
     /** Idempotent per runId: a second capture of the same run is a no-op. */
     public boolean appendIfAbsent(EvidenceEntry entry) {
-        Snapshot snapshot = readAll();
+        Snapshot snapshot;
+        try {
+            snapshot = readAll();
+        } catch (EvidenceStoreUnavailableException exc) {
+            // The file does not exist yet - this append is the first-ever line; nothing to dedupe against.
+            // An *unreadable* (exists-but-broken) store still refuses to be papered over.
+            if (!exc.isMissing()) {
+                throw exc;
+            }
+            snapshot = new Snapshot(List.of(), 0);
+        }
         for (EvidenceEntry existing : snapshot.entries()) {
             if (existing.runId() == entry.runId()) {
                 return false;
@@ -91,9 +101,18 @@ public class EvidenceStore {
         }
     }
 
-    /** The freshest entry with this run id, if any. */
+    /** The freshest entry with this run id, if any. Missing store reads as empty; unreadable still refuses. */
     public Optional<EvidenceEntry> find(long runId) {
-        return readAll().entries().stream()
+        Snapshot snapshot;
+        try {
+            snapshot = readAll();
+        } catch (EvidenceStoreUnavailableException exc) {
+            if (exc.isMissing()) {
+                return Optional.empty();
+            }
+            throw exc;
+        }
+        return snapshot.entries().stream()
                 .filter(entry -> entry.runId() == runId)
                 .reduce((first, second) -> second);
     }

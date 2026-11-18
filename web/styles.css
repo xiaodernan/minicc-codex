@@ -5812,3 +5812,18 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .admin-ratelimit-list span { font-family: var(--font-mono); color: var(--text); }
 
 .admin-channel { border-color: color-mix(in srgb, var(--purple) 42%, var(--line)); margin-top: 12px; }
+
+.admin-evidence { border-color: color-mix(in srgb, var(--mint) 46%, var(--line)); margin-top: 12px; }
+.admin-evidence-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.admin-evidence-badge { font-family: var(--font-mono); font-size: 11px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.admin-evidence-badge.ok { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 45%, transparent); }
+.admin-evidence-badge.bad { color: var(--coral); border-color: color-mix(in srgb, var(--coral) 45%, transparent); }
+.admin-evidence-badge.open { color: var(--quiet); }
+.admin-evidence-wf { font-family: var(--font-mono); color: var(--muted); font-size: 12px; }
+.admin-evidence-facts { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.admin-evidence-facts li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px solid var(--line); padding: 6px 2px; }
+.admin-evidence-facts li:last-child { border-bottom: 0; }
+.admin-evidence-facts strong { color: var(--muted); font-weight: 600; }
+.admin-evidence-facts span { font-family: var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
+.admin-evidence-log { font-family: var(--font-mono); font-size: 10px; line-height: 1.45; color: var(--quiet); background: color-mix(in srgb, var(--bg-raised) 80%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.admin-evidence-reason { font-size: 11px; color: var(--quiet); margin: 4px 0 0; }
