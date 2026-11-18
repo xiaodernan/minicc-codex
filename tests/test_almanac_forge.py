@@ -103,6 +103,19 @@ def test_forge_fails_after_repeated_cjk_leak(tmp_path, monkeypatch):
     assert calls["n"] >= 2
 
 
+def test_forge_missing_key_does_not_crash_it_fails_loudly(tmp_path, monkeypatch):
+    module = _load()
+    usage = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+    zh_only = json.dumps({"zh": ZH_BODY}, ensure_ascii=False)
+    fake, calls = _stub_runtime(module, [zh_only], usage)
+    monkeypatch.setattr(module, "_load_runtime", lambda: fake())
+    with pytest.raises(RuntimeError) as excinfo:
+        module.forge(_facts(tmp_path), chapter="LXII", title_zh="锻造台", title_en="The Forge",
+                     out=tmp_path / "chapter.json")
+    assert "KeyError" not in str(excinfo.value)
+    assert calls["n"] >= 2
+
+
 def test_verify_chapter_contract():
     module = _load()
     ok, reasons = module.verify_chapter({"zh": ZH_BODY, "en": EN_BODY})

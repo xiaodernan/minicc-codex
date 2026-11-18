@@ -827,3 +827,9 @@
   - 使用：`python scripts/forge_facts.py --out docs/_facts.txt --chapter LXII`；
   - `tests/test_forge_facts.py`（2 条：fixture 数据集含全部锚点 + 缺文件降级为 gaps 不崩溃）全绿；
   - 本批直接用自动生成的事实滚动喂给 Ch.LXII（terra 停服期间改由 `MINICC_MODEL=gpt-6.1-sol` 单次 env 覆盖；.env 未动）：**attempts=2（首次草拟未过 verify，repair 带错改单，第二次过审）** · cached 8,379/13,851（60%）· zh 1,260 / en 2,141 字符 · en 零 CJK · status passed——**锻造台的修复回路第一次在真实章节上被触发并证明自己有用**。
+- **M8-T1236：锻造台被 live 现场用出真 bug——`repair` 直取 `parsed["zh"]` 抛 `KeyError: 'zh'`；防御性修复 + 回归单测**：
+  - 触发：2026-11-19 晚间 terra 仍在间歇停服的边缘窗口，forge 第一次跑 Ch.LXIII 时 draft 返回的 JSON 缺 `zh` 键，verify 按流程退回 repair；repair 写回时无条件取键 → `KeyError: 'zh'` → runner 把异常包成 `RuntimeError('zh')`；
+  - 修复：`draft` / `repair` 全部改为 `.get()` 取值 + verify 判分；repair 在 parsed 非 dict 时 `_node_fail` 明话退回（仍按既有边到 verify）；**任何模式下都不允许再因缺键而 KeyError，只能按契约失败并 loud 停**；
+  - 新增回归 `test_forge_missing_key_does_not_crash_it_fails_loudly`：stub 永远返回 `{"zh": …}`（无 `en`）——forge 必须抛 RuntimeError、`calls >= 2`、异常字符串里不含 `KeyError`；
+  - forge 测试合计 5/5 全绿；顺带修：package-imports gate 此前抓到 `scripts/forge_facts.py:58` unannotated silent handler（缺少边界注释）——补注释后复绿；
+  - 修后 live 再跑（terra 窗口内）：**Ch.LXIII《锻造的世界 / The Forged World》attempts=1 首过，cached 4,154/6,997（59%）**，zh 616 / en 1,678 字符、en 零 CJK；正文诚实写明「不替事实包缺失的部分补写事件」与「压力测试在假提供方环境跑出」——模型本身守住了缺口纪律。

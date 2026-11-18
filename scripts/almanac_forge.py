@@ -142,7 +142,7 @@ def forge(facts_path: Path, *, chapter: str, title_zh: str, title_en: str, out: 
         if not isinstance(parsed, dict):
             return _node_fail("draft did not return a JSON object", {"usage": call.get("usage"), "raw": call.get("text", "")[:400]})
         ok, reasons = verify_chapter(parsed)
-        return _node_ok({"zh": parsed["zh"], "en": parsed["en"],
+        return _node_ok({"zh": parsed.get("zh"), "en": parsed.get("en"),
                          "usage": call.get("usage"), "model": call.get("model"),
                          "verification": {"attempts": 1, "status": "passed" if ok else "failed", "reasons": reasons}})
 
@@ -162,10 +162,11 @@ def forge(facts_path: Path, *, chapter: str, title_zh: str, title_en: str, out: 
                           response_format={"type": "json_object"}, request_timeout=240)
         parsed = parse_json_object(call["text"])
         if not isinstance(parsed, dict):
-            return _node_fail("repair did not return a JSON object", {"usage": call.get("usage")})
+            return _node_fail(f"repair did not return a JSON object (got {type(parsed).__name__})", {"usage": call.get("usage")})
         attempts = int((draft_out.get("verification") or {}).get("attempts") or 1) + 1
         ok, vreasons = verify_chapter(parsed)
-        return _node_ok({"zh": parsed["zh"], "en": parsed["en"],
+        # Keys may be missing — verify will say so; never crash here.
+        return _node_ok({"zh": parsed.get("zh"), "en": parsed.get("en"),
                          "usage": _merge_usage((draft_out.get("usage") or {}), call.get("usage") or {}),
                          "model": call.get("model"),
                          "verification": {"attempts": attempts,
