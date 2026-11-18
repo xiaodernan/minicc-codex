@@ -80,6 +80,7 @@ export const CHAPTERS = [
   { id: "twoshards", roman: { zh: "卷五十八", en: "Chapter LVIII" }, title: { zh: "双峰", en: "The Two Shards" }, subtitle: { zh: "同一把钥匙，打同一道墙，墙的另一头有两种价钱", en: "same key, same wall, two prices at the far side" } },
   { id: "onenine", roman: { zh: "卷五十九", en: "Chapter LIX" }, title: { zh: "现在通了", en: "The Now Goes Through" }, subtitle: { zh: "名字还在，调用不通——验证计划选错了价钱", en: "the name stayed, the call did not — the plan picked the wrong interpreter" } },
   { id: "quotation", roman: { zh: "卷六十", en: "Chapter LX" }, title: { zh: "破损的引号", en: "The Broken Quotation" }, subtitle: { zh: "两个多余的字符，炸掉每一次页面加载", en: "two extra characters, every page load" } },
+  { id: "parallelwind", roman: { zh: "卷六十一", en: "Chapter LXI" }, title: { zh: "并发的风", en: "The Parallel Wind" }, subtitle: { zh: "六条线程、两个家庭，谁也不动谁", en: "six threads, two families, neither moves the other" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -3938,6 +3939,10 @@ function onenineMarkup() {
     </div>`;
 }
 
+const LEDGER_ZH_LXI = "<p><strong>卷六十一：并发的风 / The Parallel Wind。</strong>在 2026-11-18 的 aizzz.xyz 夜航里，io 页面曾被一处破损的引号截断：第 599 行附近的内联脚本写成了 <em>''assets/career-os/latest.json'</em>。每次访问都会抛出 <em>SyntaxError: missing ) after argument list</em>，hydration 因而完全停止，career-os 一线也没有出现。提交 652bf3c 删除了两个字符，Pages Deploy 以 success 完成；重新加载线上页面后，console errors = 0。</p><p>缓存串扰探针 M8-T1231 让两个家庭各自留下了轨迹：family A 冷启动为 0%，随后达到 8,362/8,566 = 97.6%；family B 也保持同样的隔离，交错访问之后 A-call-3 仍为 8,362 = 97.6%。同日，io 页 README 的旧 relay 数字 73.7/95.9 被实测的 72.3/97.6 替换。真正的并发探针 M8-T1233 进一步安排了 2 个 family、每个 3 个线程、每线程 4 次调用，共享同一个 13,296 字节的 system prefix：每个线程的 call-1 都是冷的，call-2 起稳定在 8,362/8,566 = 97.6%，6 次冷调用、18 次热调用，零抖动，两个 family 从未互相驱逐。</p><p>端到端 agent 运行给出了另一层尺度。全新 git workspace 以 <em>--yolo --max-turns 60</em> 发起，11 次工具调用创建了 <em>sums.py</em> 的 <em>total(nums)</em> 与含两个 unittest case 的 <em>test_sums.py</em>；<em>python -m unittest -v</em> 退出码为 0，两个测试均通过。此次 usage 为 64,310 tokens，cached 44,957，miss 17,811，hit_pct 71.6%；同一 workspace 只读 <em>--resume</em> 则为 18,077、8,612、9,322、48.0%。因此 97.6% 描绘的是逐字节相同的 prefix，而非不断增长的 tool-loop context。</p><p>Almanac LX《破损的引号》由 gpt-6.1-terra 于 2026-11-18 现场写成，并随提交 8f49dbb4 出航；Atlas 从 97 到 98，记录为 18 panes、60 almanac chapters、20 manual chapters，smoke log 也写明 60 chapters fully bilingual。i18n chips CRLF 固定在 338/0，showcase fallback 固定于 b15ea5d4：1,981 commits、493 batches、Atlas 98、745 tests、55,786 roadmap lines。8f49dbb4 推送前的 16 道 pre_push_gates.py 全绿，cadc8f5 的 Ubuntu CI 以 success 完成；更新推送的 CI 显示为 supersede-by-newer-push 的 cancelled，而非红色结论，Update docs/latest.json 每次都成功。到 2026-11-19，Spring Cloud 服务平面也已由 Maven 在本地建成，覆盖 Eureka、gateway、config 与 Redis cache tier，产出 8 个 jars，并在首次尝试后以 BUILD SUCCESS 收束。</p><p><strong>并发不喧哗，它只留下稳定的回声。</strong></p>";
+
+const LEDGER_EN_LXI = "<p><strong>Volume Sixty-One: The Parallel Wind.</strong>During the late session on 2026-11-18, the io page on the aizzz.xyz lane was stopped by one broken quotation mark: near line 599, the inline script contained <em>''assets/career-os/latest.json'</em>. Every visitor load raised <em>SyntaxError: missing ) after argument list</em>, so hydration died and the career-os line never rendered. Commit 652bf3c deleted two characters. Pages Deploy completed with conclusion success, and a reload of the live page showed console errors = 0.</p><p>The cache crosstalk probe M8-T1231 left two isolated trails. Family A began cold at 0%, then reached 8,362/8,566 = 97.6%; family B showed the same isolation, and after interleaving B, A-call-3 was still 8,362 = 97.6%. That same day, the README bake on the io page replaced stale relay figures of 73.7/95.9 with measured figures of 72.3/97.6. The true concurrent probe M8-T1233 used 2 families, 3 threads per family, and 4 calls per thread against the same 13,296-byte system prefix. Every thread was cold on call-1 and steady at 8,362/8,566 = 97.6% from call-2 onward: 6 cold calls, 18 warm calls, zero jitter, and no family evicted the other.</p><p>The end-to-end agent runs showed a different scale. In a fresh git workspace, <em>--yolo --max-turns 60</em> used 11 tool calls to create <em>sums.py</em> with <em>total(nums)</em> and <em>test_sums.py</em> with exactly two unittest cases. <em>python -m unittest -v</em> exited 0 and both tests passed. Usage was 64,310 tokens, with 44,957 cached, 17,811 missed, and hit_pct 71.6%. The same workspace with read-only <em>--resume</em> used 18,077 tokens, with 8,612 cached, 9,322 missed, and hit_pct 48.0%. Thus 97.6% measures an identical-byte prefix, not the growing tool-loop context.</p><p>Almanac Chapter LX, \"The Broken Quotation\", was written live by gpt-6.1-terra on 2026-11-18 and shipped in commit 8f49dbb4. Atlas moved from 97 to 98, recorded as 18 panes, 60 almanac chapters, and 20 manual chapters; the smoke log now says 60 chapters fully bilingual. i18n chips CRLF stayed pinned at 338/0, while the showcase fallback was baked at b15ea5d4 with 1,981 commits, 493 batches, Atlas 98, 745 tests, and 55,786 roadmap lines. The 16 pre_push_gates.py gates were green before the 8f49dbb4 push. Ubuntu CI for cadc8f5 completed with conclusion success; newer push runs showed cancelled from supersede-by-newer-push, never a red conclusion, and Update docs/latest.json succeeded for every push. On 2026-11-19, the Spring Cloud service plane was also built locally with Maven across Eureka, gateway, config, and the Redis cache tier, producing 8 jars and a clean BUILD SUCCESS after the first attempt.</p><p><strong>Concurrency leaves a steady echo.</strong></p>";
+
 function quotationMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -3970,6 +3975,42 @@ function quotationMarkup() {
         ${zh()
           ? "删去两个字符，不是修好了世界，是看见了世界。"
           : "Delete two characters — not repaired, seen."}
+      </p>
+    </div>`;
+}
+
+function parallelwindMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-parallelwind">
+      <div class="almanac-kicker">${zh() ? "卷六十一 · 并发的风" : "Chapter LXI · The Parallel Wind"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `六条线程，` + `<br/><span class="almanac-title-accent">谁也不动谁。</span>`
+        : `Six threads,` + `<br/><span class="almanac-title-accent">none of them moves another.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXI : LEDGER_EN_LXI}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">99</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">61 / 61</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造首过（真）" : "Forge pass (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["六路并发，零跨 family 驱逐", "M8-T1233：2 个 family × 3 线程 × 4 次同前缀调用——每线程 call-1 冷 0%，call-2+ 全部 8,362/8,566 = 97.6%，6 冷 18 暖，零抖动"],
+        ["顺序交错也压不垮 shard", "M8-T1231：family A 暖后插入 B 两次，A-call-3 仍 8,362 = 97.6%；codex thread-affinity 同法律模型"],
+        ["真 agent 口径远低于前缀", "M8-T1232：任务一 11 次工具调用 tests 全绿 71.6%；resume 只读 48.0%——不拿前缀 97.6% 冒充 agent 数字"],
+        ["本卷由锻造台亲手淬出", "StateGraph 进 → 草拟 → 校验 → 修复（有界 2）→ 落账；2026-11-19 terra 停服（404 model_not_found），lane 切 gpt-6.1-sol 后首次调用即过审，attempts=1，cached 4,169 / 5,408（77%）"],
+      ] : [
+        ["six concurrent calls, zero cross-family eviction", "M8-T1233: 2 families x 3 threads x 4 same-prefix calls each — every call-1 cold at 0%, call-2+ steady at 8,362/8,566 = 97.6%; 6 cold, 18 warm, zero jitter"],
+        ["sequential interleave never breaks a shard", "M8-T1231: after B's calls intervene, A-call-3 still reads 8,362 = 97.6%; same legal model as codex thread-affinity"],
+        ["real agents sit well below the prefix", "M8-T1232: task one — 11 tool calls, tests green, cache 71.6%; resume read-only 48.0% — the 97.6% prefix number is not the agent number"],
+        ["this volume came out of the forge", "StateGraph intake -> draft -> verify -> repair (bounded 2) -> ledger; on 2026-11-19 terra stayed suspended (404 model_not_found), the lane moved to gpt-6.1-sol and the first call passed the contract, attempts=1, cached 4,169 / 5,408 (77%)"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "并发不喧哗，它只留下稳定的回声。"
+          : "Concurrency leaves a steady echo."}
       </p>
     </div>`;
 }
@@ -4035,6 +4076,7 @@ const CHAPTER_RENDERERS = {
   twoshards: () => twoshardsMarkup(),
   onenine: () => onenineMarkup(),
   quotation: () => quotationMarkup(),
+  parallelwind: () => parallelwindMarkup(),
 };
 
 async function loadChapter(id) {

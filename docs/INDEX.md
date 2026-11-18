@@ -68,3 +68,4 @@
 
 - [CHAPTER_DRAFT.md](CHAPTER_DRAFT.md) —— Ch.LIX《现在通了 / The Now Goes Through》2026-11-18 现场存档：单次 chat/completions 调 terra（temperature 0.2 · `response_format=json_object` · prompt 5,072 · completion 1,939 · cached 4,173（82.3%）· 未显式 prompt_cache_key）；zh/en 双字段直接渲染、未经改写；本卷渲染于当晚——Atlas 97 / 卷数 59 / pass@1=1.0。
 - [CHAPTER_DRAFT.md](CHAPTER_DRAFT.md) —— Ch.LX《破损的引号 / The Broken Quotation》2026-11-18 晚 terra 现场存档：showcase io 页第 599 行内联脚本 `''…` 空引号对——每次加载整段 hydration 炸裂 `SyntaxError: missing ) after argument list`；commit `652bf3c` 删两个字符修复后线上控制台错误 = 0；并行会话缓存交错实测（A/B family 各占 97.6%、互不驱逐）；e2e 两趟口径（71.6% / 48.0%），不以前缀探针冒充 agent 数字；en 侧零 CJK
+- [CHAPTER_DRAFT.md](CHAPTER_DRAFT.md) —— Ch.LXI《并发的风 / The Parallel Wind》2026-11-19 由 StateGraph 锻造台生成并过审：terra 停服后锻造 lane 切 `gpt-6.1-sol`，首次调用即过契约（attempts=1、cached 4,169/5,408、en 零 CJK；zh 1,591/en 2,621 字符）；事实锚点：M8-T1231（交错 A/B）/ M8-T1232（agent 两趟 71.6/48.0）/ M8-T1233（c=6 真并发，零跨 family 驱逐）/ M8-T1234（forge 本身）

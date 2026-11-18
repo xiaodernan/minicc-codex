@@ -39,8 +39,8 @@ const STEPS = [
   },
   {
     id: "atlas", anchor: "#atlasButton", interact: "atlas",
-    zh: { kicker: "上手演练 · 第 5 步 / 共 10 步", title: "把这片世界摊开看一眼", body: "点「地图」，13 座岛屿、98 个坐标——18 个面板 + 60 卷年鉴卫星 + 20 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
-    en: { kicker: "Start here · Step 5 of 10", title: "Unfold the world", body: "Press the “Atlas” button: thirteen islands, ninety-eight real coordinates — 18 panes, 60 almanac satellites, twenty manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
+    zh: { kicker: "上手演练 · 第 5 步 / 共 10 步", title: "把这片世界摊开看一眼", body: "点「地图」，13 座岛屿、99 个坐标——18 个面板 + 61 卷年鉴卫星 + 20 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
+    en: { kicker: "Start here · Step 5 of 10", title: "Unfold the world", body: "Press the “Atlas” button: thirteen islands, ninety-nine real coordinates — 18 panes, 61 almanac satellites, twenty manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
   },
   {
     id: "dockyard", anchor: "#dockyardButton", interact: "dockyard",

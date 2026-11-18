@@ -2,7 +2,7 @@
    Minicc Atlas — the world map.
 
    A canvas-rendered chart of everything this product actually is:
-   18 panes, 60 almanac chapters, 20 manual chapters — 98 charted
+   18 panes, 61 almanac chapters, 20 manual chapters — 99 charted
    coordinates on one navigable star-map. Pan by dragging, zoom with
    the wheel, click a coordinate to walk into it. Visited coordinates
    stay lit; unvisited ones stay honest about being cartography, not
