@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T04:58:41.951Z",
+  "generated_at": "2026-11-18T05:38:46.541Z",
   "branch": "main",
-  "head": "ba50004",
-  "total_commits": 1936,
+  "head": "f3349ee",
+  "total_commits": 1938,
   "recent_commits": [
+    {
+      "short": "f3349ee",
+      "at": "2026-11-18T13:37:50+08:00",
+      "subject": "M8-T1211 (pre-push battery): scripts/pre_push_gates.py - one command that runs the same 16 gates that turned red for this repo across CI red #10/#11/#12 (doc po"
+    },
+    {
+      "short": "1402218",
+      "at": "2026-11-18T04:58:42Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ba50004",
       "at": "2026-11-18T12:58:20+08:00",
@@ -19,24 +29,14 @@
       "short": "a2e8550",
       "at": "2026-11-18T12:30:22+08:00",
       "subject": "docs(ledger): M8-T1209 / batch 1149 - record CI red #11 truthfully (evidence backfill script had no audience; fixed with a 4-leg test that actually runs it); co"
-    },
-    {
-      "short": "71ef48d",
-      "at": "2026-11-18T12:28:15+08:00",
-      "subject": "M8-T1209 (CI red #11 fix): claim checkers were right - scripts/evidence_backfill.py had no audience; give it one that actually runs it: tests/test_evidence_back"
-    },
-    {
-      "short": "8d0030a",
-      "at": "2026-11-18T04:20:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 477,
+  "roadmap_batches": 478,
   "changelog_entries": 1,
-  "roadmap_lines": 55388,
-  "tracked_files": 1149,
-  "test_files": 742,
+  "roadmap_lines": 55417,
+  "tracked_files": 1151,
+  "test_files": 743,
   "almanac_chapters": 57,
   "module_count": 14,
   "feature_surface": [
