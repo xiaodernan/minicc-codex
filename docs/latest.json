@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T12:56:20.927Z",
+  "generated_at": "2026-11-18T13:12:02.601Z",
   "branch": "main",
-  "head": "247fee1",
-  "total_commits": 1956,
+  "head": "1508a5c",
+  "total_commits": 1958,
   "recent_commits": [
+    {
+      "short": "1508a5c",
+      "at": "2026-11-18T21:06:33+08:00",
+      "subject": "M8-T1222/1223 wheel + teaching tooltips: wheel STORAGE_KEY bumped to minicc-wheel-v2 (legacy minicc-wheel-invert sticky inversion discarded on boot); web/src/co"
+    },
+    {
+      "short": "222b061",
+      "at": "2026-11-18T12:56:21Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "247fee1",
       "at": "2026-11-18T20:54:12+08:00",
@@ -19,23 +29,13 @@
       "short": "b48a016",
       "at": "2026-11-18T20:39:27+08:00",
       "subject": "M8-T1218/1219/1220: codex thread-affinity cache families + two-level workspace snapshot; new aizz key revives gpt-6.1-terra (models=7, chat 200) - provider/keep"
-    },
-    {
-      "short": "5f053ba",
-      "at": "2026-11-18T12:04:47Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "15204a3",
-      "at": "2026-11-18T20:03:49+08:00",
-      "subject": "M8-T1217 (en_cjk rescue): almanac CH.LVIII en ledger leaked a Chinese section name (CACHE_AFFINITY_MATRIX.md late-2026-11-18 entry) - local almanac_smoke caught"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 486,
+  "roadmap_batches": 487,
   "changelog_entries": 1,
-  "roadmap_lines": 55641,
-  "tracked_files": 1152,
+  "roadmap_lines": 55672,
+  "tracked_files": 1153,
   "test_files": 744,
   "almanac_chapters": 58,
   "module_count": 14,
