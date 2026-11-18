@@ -8,6 +8,7 @@ of dying on it.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import threading
@@ -179,6 +180,16 @@ def _llm_cache_stats(state: Path, workspace: Path | None = None) -> dict[str, An
 
 
 _DISK_TTL_SECONDS = 120.0
+
+
+def _stat_size(path_str: str) -> int:
+    """Best-effort size of one file; unreadable/vanished contributes 0."""
+    try:
+        return os.stat(path_str).st_size
+    except OSError:
+        # A file vanished mid-walk; count what we saw, skip silently.
+        return 0
+
 # Monotonic-clock cache of the "walk .minicc and count bytes" scan. The
 # tree routinely holds 322MB in thousands of files and the walk is the
 # slowest part of the inventory; every caller polling /api/stats for
@@ -214,30 +225,18 @@ def _disk_bytes(path: Path) -> int:
         if cached is not None and now - cached[0] < _DISK_TTL_SECONDS:
             return cached[1]
         total = 0
-        # Explicit scandir recursion: the directory enumeration itself
-        # carries the file sizes on NTFS (FindFirstFile), so DirEntry's
-        # cached stat() collapses one stat syscall per file instead of the
-        # 8k+ cold calls the os.walk+os.stat loop paid (measured 15.5s ->
-        # 1.1s on the same 322MB / 8,747-file tree, byte-identical total).
-        # Vanished files stay silent; unreadable directories are skipped —
-        # the walk is best-effort, never a 500.
-        stack = [str(path)]
-        while stack:
-            current = stack.pop()
-            try:
-                with os.scandir(current) as entries:
-                    for entry in entries:
-                        try:
-                            if entry.is_dir(follow_symlinks=False):
-                                stack.append(entry.path)
-                            elif entry.is_file(follow_symlinks=False):
-                                total += entry.stat(follow_symlinks=False).st_size
-                        except OSError:
-                            # A file vanished mid-walk; count what we saw, skip silently.
-                            continue
-            except OSError:
-                # An unreadable directory degrades to "not counted", never a raise.
-                continue
+        # os.walk yields DirEntry-backed listings; the gate on "no raw os.scandir"
+        # (tests/test_resource_hygiene.py) rules out a hand-rolled scandir loop, so
+        # the stat storm is fanned out instead: os.stat is blocking I/O and releases
+        # the GIL, so a modest pool collapses 8k+ serialized stalls into a fraction
+        # of the wall time. Byte-identical semantics: vanished files and
+        # unreadable directories contribute 0 and 0 is counted, never an exception.
+        jobs: list[str] = []
+        for dirpath, _dirs, files in os.walk(path):
+            prefix = os.path.join(dirpath, "")
+            jobs.extend(prefix + name for name in files)
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            total = sum(pool.map(_stat_size, jobs, chunksize=32))
         _disk_cache[key] = (now, total)
         return total
 

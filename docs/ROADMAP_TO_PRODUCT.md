@@ -55153,6 +55153,9 @@ probe 观测：首次 `/api/oracle-recommendations` 墙钟 24.61s。原因：`_s
 
 ### 工单 B：证据门的远程执行
 
+状态（2026-11-18 · 批次 1146）：本节蓝图的 **Java 模块已落地**——第九个 Spring 模块 `minicc-cloud-evidence`（8088）：只读 `?latest=1`/`?run_id=`，自有 `evidence.jsonl` 缓存，15 legs 全绿，全 reactor 2:20 绿；**admin tile 尚未接线**；本节其余文字仍为蓝图“为什么”档。
+
+
 **目标**：让“证据门”能在一个发行版里**在线跑一份真实记录**——同一条 CI 红例可以在 GitHub 里见到、在 admin 里点“复盘”时再跑一遍得到同款结论。
 
 **现有可复用件**：
@@ -55269,15 +55272,16 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 
 ### 做了什么（真修改，真验证）
 
-1. **minicc/stats.py — `_disk_bytes` 换挡**：os.walk + os.stat（8,747 次 syscall）→ 显式 `scandir` 递归 + `entry.stat()`（Windows NTFS 的 FindFirstFile 已携带 size，Python 的 DirEntry.stat 走枚举缓存）：
+1. **minicc/stats.py — `_disk_bytes` 换挡**：os.walk + os.stat 单列 → `os.walk` 收集待标文件 + `concurrent.futures.ThreadPoolExecutor(16)` 分块 `os.stat`（os.stat 是阻塞 I/O 且会释放 GIL；先试过显式 `scandir` 递归，但仓库门禁 `test_resource_hygiene` 明令 `minicc/` 不得直呼 `os.scandir`——尊守门）：
    - 同一 `.minicc` 树，字节总量 **372,831,922** 完全一致（8,747 文件、322 MB）；
-   - 实测耗时 **15.5s → 0.01–1.1s**（计时机器：本仓库 D:\面试项目\minicc-codex）；
-   - 计数语义、异常降级（vanished file 跳过、unreadable dir 跳过、never raise）全部保留；`tests/test_stats.py`、`tests/test_http_surface.py` 对 `disk_bytes` 的断言依旧通过；文件级 gates（package/utc/broad-handler/one-home/logging/run_metrics）全绿（60 passed）。
+   - 实测冷启动 **15.5s → 4.22s**（计时机器：本仓库 D:\面试项目\minicc-codex；NTFS 缓存温时会更快）；
+   - 计数语义、异常降级（vanished file 跳过、unreadable dir 跳过、never raise）全部保留；`tests/test_stats.py`、`tests/test_http_surface.py` 对 `disk_bytes` 的断言依旧通过；文件级 gates（package/utc/broad-handler/one-home/logging/run_metrics）全绿；
+   - 门禁记账：Ubuntu `pytest-junit-ubuntu-latest` 首次红在 `test_no_document_quotes_a_content_addressed_bundle`（本文件 55280 当时引 hash 名）与 `test_resource_hygiene`（minicc/stats.py 直呼 os.scandir）——均已修，见 批次 1147。trics）全绿（60 passed）。
 2. **web/src/panels/admin.js**：`renderChannel()`（rows 按 total tokens 降序，最多 4 行）+ `const channelPromise = requestJson("/api/metrics", {}, 15000)` fire-and-forget；usage 行复用 `zh()` 双语；
    - 面板 `/api/admin/summary` 读取 timeout **20s → 45s**——cold walk 19–24s 曾在 starved 环境里把 unlock 挤成“全白”的真根因（缓存命中率记录的 hit_rate 由 stats 提供，本次不涉及模型 token）；
 3. **web/index.html** + **web/styles.css**：`<section class="admin-card admin-channel">`（紫框）+ `#adminChannelList` / `#adminChannelUsage` / `#adminChannelModel`；
 4. **web/src/core/i18n.js**：`admin.channelKicker` / `admin.channelPending` 双语；CRLF 钉 index **786/0**、i18n **336/0**；
-5. **构建产物同步**：`web/app.js`（1,215,278 字符）、`web/assets/app.7df8a754606f3bd0.js`、`web/assets/styles.e2bf9721f9a41bc2.css`、`web/asset-manifest.json` 一并提交。
+5. **构建产物同步**：`web/app.js`（1,215,278 字符）、`web/styles.css`、`web/asset-manifest.json`（stable → hashed 映射的家）以及构建自产的 hash 资源一并提交。
 
 ### 实测证据（harness 全绿）
 
@@ -55292,3 +55296,22 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 - **不宣称**unlock 有多快——饿死机器上 summary 仍需 ~10–25s；45s timeout 只是把阈值挪出真实 cold-walk 时长，不替用户消灭等待；
 - **诚实记账**：添加全不变式期间本机 I/O 饥饿（`page.goto` timeout / CIM 查询卡死）——通过“逐工具、浅探针、低并发”恢复并复验绿；未做任何系统性进程清理（一次 /* minicc.web */ 精确匹配的重启除外）；
 - 不破坏双语门：en 模式无 CJK（en_cjk_smoke 通过），inline CJK 仅存在于 zh 字典值，未新增任何混合文案；zh 模式切回完全一致。
+## 批次 1146 · M8-T1204: 工单 B 先落身体——minicc-cloud-evidence 模块
+
+### 目标
+
+本文件自身蓝图小节「工单 B：证据门的远程执行」——让“某次 CI 红”能在 admin 之外被客观地读出一次真实记录。先落地一半是对的：先有只读服务，再谈 tile。
+
+### 做了什么
+
+1. **第九个 Spring 模块** `minicc-cloud-evidence`（端口 **8088**）：
+   - `GET /api/evidence?latest=1`（10 分钟 memo）：本机缓存里 **started_at 最新**的一条；store 缺失→503 `present:false`；store 空→200 `present:false reason:"no evidence recorded yet"`；
+   - `GET /api/evidence?run_id=<1-20 位数字>`：cache-hit 直回；cache-miss 经 `RunFetcher` 回填**一次**（竞态单飞：append 幂等 per run_id）；
+   - 判词 = `{conclusion, status, started_at}` + `head_sha / workflow_name / job_name / step_name / logs_tail[20]`——**无叙事字段**，模型不在线；
+   - 响应 envelope 恒定：`{present, generated_at, count, skipped_lines, reason?, latest?, entries[]}`；非法输入→400；未知错误→500 仅类名。
+2. **`EvidenceStore`**：`${MINICC_EVIDENCE_STORE}` 默认 `../.minicc/evidence/evidence.jsonl`（compose 里挂为 `/evidence:rw`，独立于 Python 引擎态）；坏行跳过计数（`skipped_lines`）；超过 `max-entries=200` 尾窗；**写入只在 backfill 成功后发生**（失败零半行——测试 `run_idBackfillFailureIs503NeverAGreenLight` 断言文件仍为空）。
+3. **`RunFetcher` 接口 seam** + `GithubApiClient`：`java.net.http.HttpClient`（followRedirects=NORMAL）→ run 元数据→ jobs（失败 job 优先）→ job logs（rolling 1MB tail；split；末 20 行）；**token 仅出站 Header 永不落响应/异常/日志**；未配置 token 走匿名公开读（60 req/h）；所有 HTTP 失败→503 `evidence-backfill-failed`，永不把 GitHub 的响应内容回填进 message。
+4. **15 legs 单测**（4 store / 3 service / 8 controller），全部假实现，零网络零 token；**全 reactor `mvn -B test` 绿（2:20，8 模块：bridge/registry/config/inspector/tasks/insights/evidence/gateway）**。
+5. **compose**：evidence 独立 `/evidence:rw` 挂载（`../.minicc/evidence` 默认），Python 引擎态（tasks/audit/sessions）**绝不挂载给 evidence**；gateway `depends_on` 补 evidence；`MINICC_CLOUD_EVIDENCE_PORT:-8088`；`docker compose config` 形状与既有一致。
+6. **cloud README**：模块表加 8088 行（含 `/api/evidence?latest=1` 与 `run_id` curl 示例，示例 run_id 用真实的 44225251410）；`mvn -B test` 行从 seven → eight modules。
+7. **诚实边界**：admin tile「证据门」**尚未接线**——`/api/evidence` 目前可由 8088 直连消费（README curl 可验证）；live GitHub 调用未实测（测试全程假实现）；gateway 路由未加（`one-home` 治理域不碰）；config-repo 未动；未 dispatch/rerun 任何 run。

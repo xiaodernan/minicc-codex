@@ -682,3 +682,16 @@
   - 样式：`.admin-channel { border-color: …--purple…; margin-top: 12px; }`；
   - **实测**：Playwright unlock 链路全绿——rows 渲染出 `gpt-6.1-terra 1880/300/2180 · 4 个任务`、`test-model 0/0/0 · 20 个任务`、`定价覆盖 0/24 · complete`、`总成本 —`；admin_smoke 通过；en_cjk / dazzle / almanac / stategraph 全过；ruff 无关。
   - 机器饥饿事件诚实记账：本机在过程中间歇 I/O 饥饿（page.goto timeout / CIM 查询挂死）——未做任何系统性进程清除；降级后逐工具验证恢复，unlock 端到端重验绿。
+- **M8-T1204：证据门真的有了身体——`minicc-cloud-evidence`（端口 8088），GitHub Actions 的只读证据】**：
+  - 第九个 Spring 模块：`?latest=1`（10 分钟 memo）回答“本机抓的最新一跑”；`?run_id=<1-20 位数字>` cache-hit 直回，cache-miss 经 `RunFetcher` 接口回填一次落 `evidence.jsonl`；**判词只有布尔加时间戳，无叙事字段**；
+  - `EvidenceStore`（JSONL 自有缓存）：坏行跳过并计数、`max-entries=200` 尾窗、缺失文件→503 `present:false`（绝不把“不知道”讲成“绿了”）；
+  - `GithubApiClient`：java.net.http、redirect follow、失败 job 优先、jobs 的 logs 尾 20 行（rolling 1MB tail 防内存爆）；**token 仅出站 Header，永不进日志/响应/异常**；无 token 则公开仓库匿名读（60 req/h）；
+  - `EvidenceFailureAdvice`：store 挂→503、backfill 失败→503（绝不写半行）、参数错误→400、兜底→500 只给类名；
+  - **15 legs 单测全绿**（Store/Service/Controller；全程 CountingFetcher/ExplodingFetcher 假实现，零网络零 token）；全 reactor `mvn -B test` **8 模块 BUILD SUCCESS（2:20）**；
+  - compose：evidence 独立 `/evidence` rw 挂载（Python 引擎态绝不挂载、绝不写）；gateway `depends_on` 补 evidence；cloud README 加 8088 行 + curl 示例（含真实 run_id 44225251410）；
+  - **诚实边界**：admin tile 尚未接线（`/api/evidence` 可经 8088 直连验证，另一批）；未做任何 dispatch/rerun，纯只读；本批不声称活体 GitHub 调用通过——测试零网络；i18n 双语门不受影响（本批零 i18n 键）；config-repo 未动，`ShippedConfigHomesAgree` 治理域不变（9 键如故）。
+- **M8-T1205：CI 红 #10 复盘——两个自注入的门禁触犯，当场修**（run 44225251410，Ubuntu+Windows 同红同因）：
+  - `test_no_document_quotes_a_content_addressed_bundle`：批次 1145 的账本引了 `web/assets/app.<hash>.js` 式 content-addressed 名——下次重建即悬垂。修法：两处引文全部改成 stable 名（`web/app.js` / `web/styles.css` / `web/asset-manifest.json` 注册 hash 映射的家），ROADMAP 措辞同步为“hash 资源由 manifest 家记”；
+  - `test_resource_hygiene::test_project_code_never_opens_a_scandir_iterator`：minicc/stats.py 直呼 `os.scandir`——门禁是**绝对禁令**（minicc/、scripts/ 不得出现该符号，哪怕 `with`）。修法（不逃门、不改门禁）：`_disk_bytes` 重写回 `os.walk` + `concurrent.futures.ThreadPoolExecutor(16)` 分块 `os.stat`（阻塞 I/O 会释放 GIL）；同树字节总量 **372,831,922 一致**，冷启动 **15.5s → 4.22s**（计时机器本仓库）；120s TTL 不变、语义不变；
+  - 本地复跑：content-bundle 门 + resource_hygiene + test_stats **17/17 绿**；推送后 Ubuntu+Windows 全量 CI 复验为最终裁决；
+  - **Windows 腿未被赦免**——两腿红因同，本修法同治；推送后全量 CI 复验。
