@@ -82,6 +82,7 @@ export const CHAPTERS = [
   { id: "quotation", roman: { zh: "卷六十", en: "Chapter LX" }, title: { zh: "破损的引号", en: "The Broken Quotation" }, subtitle: { zh: "两个多余的字符，炸掉每一次页面加载", en: "two extra characters, every page load" } },
   { id: "parallelwind", roman: { zh: "卷六十一", en: "Chapter LXI" }, title: { zh: "并发的风", en: "The Parallel Wind" }, subtitle: { zh: "六条线程、两个家庭，谁也不动谁", en: "six threads, two families, neither moves the other" } },
   { id: "ownscale", roman: { zh: "卷六十二", en: "Chapter LXII" }, title: { zh: "按自己的尺度", en: "On Its Own Scale" }, subtitle: { zh: "同一把尺，量每一段路", en: "one rule, every road measured the same way" } },
+  { id: "forgedworld", roman: { zh: "卷六十三", en: "Chapter LXIII" }, title: { zh: "锻造的世界", en: "The Forged World" }, subtitle: { zh: "波动不被抹去，被记清", en: "the variance is not erased; it is recorded" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4020,6 +4021,10 @@ function parallelwindMarkup() {
     </div>`;
 }
 
+const LEDGER_ZH_LXIII = "<p><strong>卷六十三：锻造的世界 / The Forged World。</strong>本卷的锻造，始于一份从仓库状态自动组装的事实包。最新记录列出 1990 次提交、493 个路线图批次、62 篇历书、747 个测试文件、1158 个受跟踪文件，以及 55,786 行路线图。春云模块清单从 bridge、registry、config 延伸到 inspector、tasks、insights、evidence 与 gateway，构成这次记录的工作底图。</p><p>缓存测量呈现出稳定，也呈现边界：同一热前缀连续命中可达 8,362/8,566，即 97.6%；但真实代理任务随着上下文逐轮增长，命中率回落至 48–72%。一段 10 次调用序列中，首轮为冷，第二至第十轮几乎全命；第九轮在 26 秒长尾之后出现一次完整冷命。150 秒闲置后也曾归零，因此记录保留 60 秒 keeper 默认值，而不把命中写成必然。</p><p>压力测试账本记录了三波累计 33,600 次请求，非 2xx 与连接失败均为 0；另一个累计口径为 25,470 次，同样零非 2xx、零连接失败。当天所有压力运行合计 59,070 次请求，非 2xx 为 0。这里的数字来自本机假提供方环境，账本明确记下了这一背景。</p><p>若干新近提交标记了事实组装、StateGraph 历书生成与并发缓存测量；但本卷不替事实包缺失的部分补写事件。它只并列呈现测得的热命中、偶发冷却与压力结果。</p><p><strong>锻造，不是抹去波动，而是把它记清。</strong></p>";
+
+const LEDGER_EN_LXIII = "<p><strong>Volume Sixty-Three: The Forged World.</strong>This volume begins with a fact pack assembled automatically from repository state. The latest record lists 1,990 commits, 493 roadmap batches, 62 almanac chapters, 747 test files, 1,158 tracked files, and 55,786 roadmap lines. The Spring Cloud module list runs from bridge, registry, and config through inspector, tasks, insights, evidence, and gateway, forming the working landscape for this account.</p><p>The cache measurements show both stability and limits: repeated hits on the same warm prefix reach 8,362/8,566, or 97.6%; but as a real agent task grows its context turn by turn, the hit rate falls to 48–72%. In one sequence of 10 calls, the first was cold and calls two through ten were almost entirely hits; call nine went fully cold after a 26-second long tail. The cache also dropped to zero after 150 seconds idle, so the record keeps the 60-second keeper default without treating hits as inevitable.</p><p>The pressure-test ledger records 33,600 requests across three waves, with 0 non-2xx responses and 0 connection failures; another cumulative measure is 25,470 requests, likewise with zero non-2xx responses and zero connection failures. Across all pressure runs that day, the total was 59,070 requests, with 0 non-2xx responses. These figures come from a local fake-provider environment, a condition the ledger explicitly records.</p><p>Several recent commits mark fact assembly, StateGraph almanac generation, and concurrent cache measurements; this volume does not supply events where the fact pack is silent. It sets the measured warm hits beside the occasional cold miss and the pressure results.</p><p><strong>Forging does not erase variation; it records it clearly.</strong></p>";
+
 function ownscaleMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4052,6 +4057,42 @@ function ownscaleMarkup() {
         ${zh()
           ? "尺子不抬高，量自己才诚实。"
           : "Hold the ruler level — that is how you measure honestly."}
+      </p>
+    </div>`;
+}
+
+function forgedworldMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-forgedworld">
+      <div class="almanac-kicker">${zh() ? "卷六十三 · 锻造的世界" : "Chapter LXIII · The Forged World"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `波动不被抹去，` + `<br/><span class="almanac-title-accent">被记清。</span>`
+        : `The variance is not erased,` + `<br/><span class="almanac-title-accent">it is recorded.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXIII : LEDGER_EN_LXIII}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">101</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">63 / 63</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["事实全从仓库自己的账上读", "forge-facts（M8-T1235)：git log + docs/latest.json + pom modules + 缓存/压测 regex 行——缺就标 missing"],
+        ["锻造台被 live 现场用出真 bug", "repair 直取 parsed['zh'] → KeyError；M8-T1236 防御性修后：.get() + verify 判分 + 回归单测锁死"],
+        ["模型自己守缺口纪律", "zh/en 双端诚实写明 pressure 测试跑在 fake-provider 上；'不替事实包缺失的部分补写事件'"],
+        ["terra 再次上膛", "2026-11-19 晚间 terra 站住了起来——attempts=1 首过；cached 4,154 / 6,997（59%）"],
+      ] : [
+        ["every fact came from the repo's own ledger", "forge-facts (M8-T1235): git log + docs/latest.json + pom modules + regex-extracted cache/pressure lines; gaps are marked missing"],
+        ["live use found a real bug in the forge", "repair read parsed['zh'] directly -> KeyError; M8-T1236 made draft/repair read with .get(), verify judges; regression test locks it"],
+        ["the model kept the missing-facts discipline itself", "both bodies state the pressure tests ran under a fake-provider environment, and this volume does not supply events where the fact pack is silent"],
+        ["terra held the window this time", "2026-11-19 evening — attempts=1, passed first call, cached 4,154 / 6,997 (59%)"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "锻造，不是抹去波动，而是把它记清。"
+          : "Forging does not erase variation; it records it clearly."}
       </p>
     </div>`;
 }
@@ -4119,6 +4160,7 @@ const CHAPTER_RENDERERS = {
   quotation: () => quotationMarkup(),
   parallelwind: () => parallelwindMarkup(),
   ownscale: () => ownscaleMarkup(),
+  forgedworld: () => forgedworldMarkup(),
 };
 
 async function loadChapter(id) {

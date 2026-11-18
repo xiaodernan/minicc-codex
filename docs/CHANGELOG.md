@@ -833,3 +833,10 @@
   - 新增回归 `test_forge_missing_key_does_not_crash_it_fails_loudly`：stub 永远返回 `{"zh": …}`（无 `en`）——forge 必须抛 RuntimeError、`calls >= 2`、异常字符串里不含 `KeyError`；
   - forge 测试合计 5/5 全绿；顺带修：package-imports gate 此前抓到 `scripts/forge_facts.py:58` unannotated silent handler（缺少边界注释）——补注释后复绿；
   - 修后 live 再跑（terra 窗口内）：**Ch.LXIII《锻造的世界 / The Forged World》attempts=1 首过，cached 4,154/6,997（59%）**，zh 616 / en 1,678 字符、en 零 CJK；正文诚实写明「不替事实包缺失的部分补写事件」与「压力测试在假提供方环境跑出」——模型本身守住了缺口纪律。
+- **M8-T1237：第 63 卷《锻造的世界 / The Forged World》上架——Atlas 100 → 101，63/63 卷全双语**：
+  - forge live（terra 当晚窗口）：**attempts=1，首过即过契约**；cached_tokens=4,154 / 6,997（59%）；zh 616 / en 1,678 字符；en 零 CJK；
+  - 事实源：git log + docs/latest.json 八字段 + minicc-cloud pom modules + 缓存/压测 regex 实测行（`scripts/forge_facts.py`, M8-T1235）；缺就标 missing，模型本身守住缺口纪律（en 正文原样写明「不替事实包缺失的部分补写事件」「pressure 测试跑在 fake-provider 环境」）；
+  - 治理：en body 零 CJK、`<script` 禁行、keys {zh,en}、≥600 字符双端——全部由 verify 现场持守；attempts=1 证明门都站住了；
+  - Landing：62 → 63 卷 pin 全链同步（README/INDEX/CHAPTER_DRAFT/almanac.js（LXIII 注入）/atlas.js（101）/i18n.js CRLF 338/0/manual.js/onboarding/测试 ×3：atlas_smoke（101 个坐标）/almanac_smoke（63 chapters + marker）/parity（en 零 CJK 全绿））；
+  - 沙盒诚实：attempts 计数、fake-provider 环境声明、缺口纪律均原文照实，无一处粉饰；
+  - 配套：M8-T1236 锻造台防御修复先行（repair 直取缺键 → KeyError；现已 .get() + verify 判分 + 回归测试锁定）。
