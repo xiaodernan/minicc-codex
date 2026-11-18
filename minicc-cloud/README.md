@@ -26,7 +26,7 @@ standalone fallbacks, not a second source of truth.
 
 ```bash
 cd minicc-cloud
-mvn -B test                 # seven modules, no network needed
+mvn -B test                 # eight modules, no network needed
 mvn -DskipTests package
 docker compose build
 docker compose up
@@ -37,6 +37,8 @@ curl localhost:8888/minicc-cloud-gateway/default     # what the config server se
 curl localhost:8080/api/changes?workspace=/workspaces/target
 curl localhost:8080/api/insights/summary             # gateway -> insights (task + audit totals)
 curl localhost:8080/api/insights/fleet               # gateway -> insights -> Eureka registry (service topology)
+curl localhost:8088/api/evidence?latest=1             # the freshest captured CI run (or an honest present:false)
+curl localhost:8088/api/evidence?run_id=44225251410   # one run; backfill once from GitHub, then cached
 ```
 
 ## Why Java here at all

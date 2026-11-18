@@ -1,0 +1,45 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: minicc-cloud-evidence
+  config:
+    # Same optional stance as the rest of the plane: standalone keeps the values
+    # below; when the config server answers, its minicc.cloud.evidence.* keys are additive.
+    import: optional:configserver:${CONFIG_SERVER:http://localhost:8888}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+minicc:
+  cloud:
+    evidence:
+      # The JSONL cache this service owns and only this service writes.
+      store: ${MINICC_EVIDENCE_STORE:../.minicc/evidence/evidence.jsonl}
+      # GitHub REST base; override for GitHub Enterprise Server.
+      api-base: ${MINICC_EVIDENCE_API_BASE:https://api.github.com}
+      # The foreign run to backfill; public repo, so a blank token still reads (60 req/h).
+      repo-owner: ${MINICC_EVIDENCE_REPO_OWNER:xiaodernan}
+      repo-name: ${MINICC_EVIDENCE_REPO_NAME:minicc-codex}
+      # Read from the environment only. Never logged, never echoed, never in a body.
+      token: ${GITHUB_TOKEN:}
+      # Floors, never targets: totals and bytes are honest ceilings.
+      max-entries: ${MINICC_EVIDENCE_MAX_ENTRIES:200}
+      max-tail-lines: ${MINICC_EVIDENCE_MAX_TAIL_LINES:20}
+      max-log-bytes: ${MINICC_EVIDENCE_MAX_LOG_BYTES:1048576}
+      connect-ms: ${MINICC_EVIDENCE_CONNECT_MS:4000}
+      read-ms: ${MINICC_EVIDENCE_READ_MS:8000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized

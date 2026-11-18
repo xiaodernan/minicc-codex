@@ -32,6 +32,7 @@
     <module>minicc-cloud-inspector</module>
     <module>minicc-cloud-tasks</module>
     <module>minicc-cloud-insights</module>
+    <module>minicc-cloud-evidence</module>
     <module>minicc-cloud-gateway</module>
   </modules>
 

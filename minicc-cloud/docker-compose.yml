@@ -150,6 +150,36 @@ services:
       retries: 30
       start_period: 25s
 
+  evidence:
+    build:
+      context: ..
+      dockerfile: minicc-cloud/minicc-cloud-evidence/Dockerfile
+    image: minicc-cloud-evidence:0.1.0
+    ports:
+      - "${MINICC_CLOUD_EVIDENCE_PORT:-8088}:8088"
+    environment:
+      EUREKA_ZONE: http://registry:8761/eureka/
+      CONFIG_SERVER: http://config:8888
+      # Falls back to unauthenticated public-repo reads (60 req/h). The token
+      # is consumed outbound only; it never lands in a response or a log.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      MINICC_EVIDENCE_STORE: /evidence/evidence.jsonl
+    volumes:
+      # This service's own cache, read-write and scoped to it; the Python
+      # engine's state (tasks, audit, sessions) is never mounted, never written.
+      - ${MINICC_EVIDENCE_STATE:-../.minicc/evidence}:/evidence:rw
+    depends_on:
+      registry:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8088"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 25s
+
   gateway:
     build:
       context: ..
@@ -188,4 +218,6 @@ services:
       tasks:
         condition: service_healthy
       insights:
+        condition: service_healthy
+      evidence:
         condition: service_healthy
