@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T02:43:03.858Z",
+  "generated_at": "2026-11-18T03:16:58.247Z",
   "branch": "main",
-  "head": "5d7d9d8",
-  "total_commits": 1926,
+  "head": "2a23ec3",
+  "total_commits": 1929,
   "recent_commits": [
+    {
+      "short": "2a23ec3",
+      "at": "2026-11-18T11:16:33+08:00",
+      "subject": "M8-T1204 (evidence plane): ninth service-plane module minicc-cloud-evidence (port 8088) - read-only GitHub Actions evidence gate: GET /api/evidence?latest=1 (10"
+    },
+    {
+      "short": "8d29f5b",
+      "at": "2026-11-18T11:16:33+08:00",
+      "subject": "M8-T1205 (CI red #10 fix): Ubuntu+Windows both red for two self-inflicted gate hits - (1) ROADMAP ledger quoted content-addressed bundle hashes (gate: no doc ma"
+    },
+    {
+      "short": "48449a1",
+      "at": "2026-11-18T02:43:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5d7d9d8",
       "at": "2026-11-18T10:42:09+08:00",
@@ -14,28 +29,13 @@
       "short": "09b8e5f",
       "at": "2026-11-18T00:20:17Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5b2d6d3",
-      "at": "2026-11-18T08:19:48+08:00",
-      "subject": "M8-T1202 (real bench run): first end-to-end --suite v2 against the live gateway - 3 tasks real-API, 2 pass 1 fail, pass_at_1=0.6667, tokens_per_success=185,442,"
-    },
-    {
-      "short": "652c16d",
-      "at": "2026-11-17T23:40:10Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8f7a095",
-      "at": "2026-11-18T07:39:20+08:00",
-      "subject": "M8-T1201 (bench v2 gets its first taste of data): ingest_report() translates benchmarks output into bench_history.jsonl rows - 1 suite_run summary + N per-task "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 473,
+  "roadmap_batches": 474,
   "changelog_entries": 1,
-  "roadmap_lines": 55295,
-  "tracked_files": 1127,
+  "roadmap_lines": 55318,
+  "tracked_files": 1146,
   "test_files": 741,
   "almanac_chapters": 57,
   "module_count": 14,
