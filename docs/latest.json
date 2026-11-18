@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T10:32:52.424Z",
+  "generated_at": "2026-11-18T11:32:26.112Z",
   "branch": "main",
-  "head": "c0c2c49",
-  "total_commits": 1945,
+  "head": "2ef87d1",
+  "total_commits": 1948,
   "recent_commits": [
+    {
+      "short": "2ef87d1",
+      "at": "2026-11-18T19:31:07+08:00",
+      "subject": "M8-T1215 (manual recall): write the 2026-11-18 sol lane swap into Manual Chapter 15 - both in zh and en; new bullet calls out that sol's prefix cache is bimodal"
+    },
+    {
+      "short": "335664a",
+      "at": "2026-11-18T19:02:44+08:00",
+      "subject": "docs(cache-affinity): record the bimodal warm/cold discovery from sol lane - call 0 always lands 4,166 (gateway-wide shared headline), warm-2 onwards pops betwe"
+    },
+    {
+      "short": "b87f28c",
+      "at": "2026-11-18T10:32:52Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c0c2c49",
       "at": "2026-11-18T18:30:18+08:00",
@@ -14,27 +29,12 @@
       "short": "624d5f9",
       "at": "2026-11-18T15:32:47+08:00",
       "subject": "docs(cache-affinity-matrix): append the 2026-11-18 lane-swap incident with today's live measurements - terra 404 mid-day on this account group (model_not_found)"
-    },
-    {
-      "short": "29ffd3e",
-      "at": "2026-11-18T07:04:52Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c2c93c0",
-      "at": "2026-11-18T15:03:53+08:00",
-      "subject": "M8-T1213 (prefix cache verdict): measure and SHOW cache performance live - cache_keeper's _call_gateway rewritten to try chat/completions streaming (stream_opti"
-    },
-    {
-      "short": "f03b04c",
-      "at": "2026-11-18T05:52:56Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 481,
+  "roadmap_batches": 482,
   "changelog_entries": 1,
-  "roadmap_lines": 55502,
+  "roadmap_lines": 55525,
   "tracked_files": 1151,
   "test_files": 743,
   "almanac_chapters": 57,
