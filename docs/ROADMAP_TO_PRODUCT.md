@@ -55728,3 +55728,14 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 存档卷（LVII 绿线、LIX 现在通了）均保留在 docs/CHAPTER_DRAFT.md，与本提交一同可复现。
 - Atlas 97 = 18+59+20 的勾股和，全圈现场读数，不是宣传数字；不改历史卷的 instrument tiles（绿线卷 Atlas 94、双峰卷 Atlas 96 都是当时的现场计数，保留）。
 - 本卷 en 直接出 terra、未二次改写；en_cjk 门绿。
+## 批次 1164 · M8-T1228: io 主页 minicc 卡缓存行从 2026-11-17 旧数据换成当晚实测——73.7→95.9 换成 72.3→**97.6**（会话族键）
+
+### 为什么做
+
+2026-11-18 上午那张"缓存命中率冷 73.7% → 暖 95.9%"的行，当时是没带任何 lane 分段的粗测，而且会随 cache family 演进迅速过时——今晚的事实是：新 key + gpt-6.1-terra 下，全新 key 首 call 即 72.3%；持有同一 session-family 键的同字节前缀连续 6 次稳定 8,362/8,566（97.6%），并包括随机键首 call 也命中 8,362 的现象（本仓库前缀现在自己就是所有 lane 共享的 headline block）。页面的第一号 card 必须讲实话——不是讲更漂亮但已过时的旧数字。
+
+### 做了什么
+
+1. `D:\面试项目\_showcase_pages\index.html` 唯一一行替换：`缓存命中率冷 73.7% → 暖 95.9% 实测（minicc lane，2026-11-17）` → `缓存命中率冷 ~72%（全新 key 首 call 72.3%）→ 暖 97.6%（会话族键 · 2026-11-18 连续 6 次实测，稳定不掉；全 lane 共享 headline block 8,362/8,566）`；
+2. 附带文字加注 "Atlas 97"（之前 96 → 97 未触及这一处）；
+3. identity-guard 未触碰，未改任何其它行；CRLF 未动。
