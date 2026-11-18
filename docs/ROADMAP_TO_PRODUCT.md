@@ -55228,3 +55228,40 @@ M8-T1199 立起了「bench history 只读」路由 + tile，但数据从不写�
 - bench v2 还**没**被模型跑过——这是 skeleton 结果，没产生任何分数，不算能力评估；
 - 不声称本批对 v2 fixture census 做任何性能测量；
 - 不声称 seed 数据入仓——`.minicc/` 被 gitignored 故意；1 次本地产物，CI 不见。
+## 批次 1144 · M8-T1202: bench v2 真跑——2 过 1 跪，Token 在流血
+
+### 实测事实（真 API，非 fake provider）
+
+`python -m minicc.benchmarks --suite v2 --run --task-id v2-greeting-already-correct --task-id v2-fix-add --task-id v2-json-roundtrip`，无 `MINICC_FAKE_PROVIDER`（默认就是真 provider），.env 经 Clash Verge 的 127.0.0.1:7897，模型 `gpt-6.1-terra`：
+
+| task | grader | passed | latency |
+| --- | --- | --- | --- |
+| `v2-greeting-already-correct` | file_contract | ✓ True | 43.5s |
+| `v2-fix-add` | command_contract (`pytest -q`) | ✗ False | 333.3s |
+| `v2-json-roundtrip` | file_contract | ✓ True | 68.7s |
+
+汇总（`output/evaluation_v2_probe.json` 留底）：
+
+- **execution_completion_rate = 0.6667**（2/3）
+- **pass_at_1 = 0.6667**（2/3）
+- **tokens_per_success = 185,442**（两次成功烧掉 ~370k tokens）
+- **latency_p50 = 68.7s，p95 = 306.8s，mean_repair_attempts = 0.667**
+- **reviewer_false_negative_count = 1**——模型 self-grade 认为 complete 而客观 grader 拒（v2-fix-add）
+- **task v2-fix-add 真没过**——模型陷进 edit 修复 → 325s 后跑测试仍红 → 该 task 打。
+
+### 然后做了什么
+
+1. `minicc.bench_history --ingest output/evaluation_v2_probe.json --allow-changes` → **33 行**齐了：
+   1 suite_run 行 + 3 task 行 + 此前 skeleton 留下的 29 行（null 均分占位）；
+   均值算法把 null 跳过，`mean_score = 0.667`，`mean_elapsed_ms = 128,558`；`window 23:31:32Z → 00:18:57Z`。
+2. `/api/bench-history` 直接回这个真流水：
+   `present: true`、`count: 33`、`mean_score: 0.667`、`mean_elapsed_ms: 128558.25`、`window_from/to`、`skipped_lines: 0`。
+3. 管理面板 tile「评估时序 · bench v2」（本轮前一批刚上架、零 token 展示）——此后展示真实样本数 33，均分 0.667，均耗时 ~128,558 ms。
+
+### 诚实记录
+
+- **没**声称数字是可信任的模型能力评估——只有 3 条任务样样品，样本太小；
+- **没**声称 v2 完整套件跑过——只跑 3 条；
+- 没 claim 分数的 cost_per_success（providers 不报 price 时 metrics 恒为 `null`）；
+- **写入了 `output/` 但 gitignored**——eval json 只是当地一次性 exploratory artifact；
+- bench_history.jsonl 同 gitignored。
