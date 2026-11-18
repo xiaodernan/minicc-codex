@@ -29,18 +29,7 @@ _MAX_INVENTORY_ENTRIES = 28
 _MAX_CHILDREN_PER_DIR = 14
 _MAX_INVENTORY_BYTES = 6_500
 _INVENTORY_PREFIX = "顶层结构："
-# Vendored / derived trees add bytes but no information; walking them only
-# risks churning the prefix for cache-warming sessions (deps change often),
-# so they are listed but never descended into.
-_SKIP_DIRS = frozenset({
-    "node_modules", ".venv", ".git", "dist", "build", "target", "__pycache__",
-    ".next", ".cache", "coverage", ".pytest_cache", ".idea", ".mypy_cache",
-    ".ruff_cache", "htmlcov", ".gradle", "out", "vendor", ".turbo", ".nuxt",
-    # .minicc is the agent's own state dir: audit.jsonl grows every turn,
-    # sessions/ and tasks.db churn constantly - listing them would guarantee
-    # a prefix re-pay on nearly every turn. Counted, never descended.
-    ".minicc",
-})
+from .tools.fs import SKIP_DIRS as _SKIP_DIRS
 
 
 def _workspace_inventory(workspace: Path) -> str:

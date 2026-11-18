@@ -209,7 +209,6 @@ APPROVAL_TIMEOUT_SECONDS = 60.0
 NODE_AGENT_MAX_TURNS = 12
 NODE_AGENT_MAX_DURATION_SECONDS = 300.0
 
-
 @dataclass
 class _ApprovalGroup:
     """One pending approval; identical in-flight calls merge into it."""
@@ -221,7 +220,6 @@ class _ApprovalGroup:
     resolved: bool = False
     timed_out: bool = False
 
-
 def _validate_thread_id(raw: Any) -> str:
     thread_id = require_text(raw, "thread_id")
     if len(thread_id) > _THREAD_ID_MAX_LEN:
@@ -230,7 +228,6 @@ def _validate_thread_id(raw: Any) -> str:
         raise ValueError("thread_id 含非法控制字符")
     return thread_id
 
-
 def unknown_audit_level_message(level: object) -> str:
     """The one wording of the unknown-audit-level refusal.
 
@@ -238,7 +235,6 @@ def unknown_audit_level_message(level: object) -> str:
     the level is a parameter, the vocabulary is AUDIT_LEVELS.
     """
     return f"未知审计级别: {level}（可选：{', '.join(AUDIT_LEVELS)}）"
-
 
 def _audit_level_filter(
     *,
@@ -445,16 +441,6 @@ def _models_payload(
     return payload
 
 
-def _ws_family_key(workspace: Path) -> str:
-    """Family id for the Codex-style session cache key (one per workspace).
-
-    Shared by the provider factory and the cache keeper so a warm lane is
-    the lane the user actually rides - the provider and the keeper must not
-    land on different shard families.
-    """
-    return f"ws-{hashlib.sha256(str(workspace).encode('utf-8')).hexdigest()[:16]}"
-
-
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
 
@@ -487,7 +473,7 @@ class AgentService:
                     model=str(getattr(self.config, "model", "") or ""),
                     api_key=str(getattr(self.config, "api_key", "") or ""),
                     system_prompt=self.system_prompt,
-                    session_id=_ws_family_key(self.workspace),
+                    session_id=f"ws-{hashlib.sha256(str(self.workspace).encode('utf-8')).hexdigest()[:16]}",
                 )
                 self.cache_keeper.start()
             else:
@@ -1429,7 +1415,7 @@ class AgentService:
                     reasoning_effort or getattr(self.config, "reasoning_effort", "high")
                 ),
                 prompt_cache_key=str(getattr(self.config, "prompt_cache_key", "") or ""),
-                session_id=_ws_family_key(self.workspace),
+                session_id=f"ws-{hashlib.sha256(str(self.workspace).encode('utf-8')).hexdigest()[:16]}",
                 on_status=status_callback,
             )
         if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
@@ -1456,7 +1442,7 @@ class AgentService:
                 reasoning_effort or getattr(self.config, "reasoning_effort", "high")
             ),
             prompt_cache_key=str(getattr(self.config, "prompt_cache_key", "") or ""),
-            session_id=_ws_family_key(self.workspace),
+            session_id=f"ws-{hashlib.sha256(str(self.workspace).encode('utf-8')).hexdigest()[:16]}",
             on_status=status_callback,
         )
 

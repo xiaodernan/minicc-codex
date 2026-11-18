@@ -42,6 +42,10 @@ SKIP_DIRS = {
     ".git", ".hg", ".svn", "__pycache__", ".venv", "venv", "node_modules",
     ".minicc", ".pytest_cache", ".mypy_cache", ".ruff_cache", "dist",
     "build", ".idea", ".vscode", "target", ".graders",
+    # M8-T1219: derived/.vendored trees the inventory walk must not descend —
+    # extended in-place to keep the single skip-dirs home authoritative.
+    ".next", ".cache", "coverage", "htmlcov", ".gradle", "out",
+    "vendor", ".turbo", ".nuxt",
 }
 
 SENSITIVE_NAMES = {

@@ -793,3 +793,7 @@
   - keeper `_DEFAULT_INTERVAL = 60.0`（附测量过程注释）；`MINICC_CACHE_KEEPER_INTERVAL` 仍可显式覆盖；
   - admin tile 建议文案改为结论版（TTL ≤ 150 s · 60 s 默认 · 别调高）；almanac 守护 tile 220 s → **60 s**；
   - 历史（双峰、浅深探）不改写；battery 16/16 绿；i18n 无键变更、无 CRLF 触碰。
+- **M8-T1230：Ubuntu CI 三红——`_SKIP_DIRS` 归位 `fs.py`，`web.py:1852 / 2358` pinned line 重归 pin，`test_a_line_a_test_docstring_cites_can_be_read` 复读通过**：
+  - `tools/fs.py` 的 `SKIP_DIRS` 原地扩容（v1 coverage / .cache / .next / .gradle / out / vendor / .turbo / .nuxt / htmlcov）；`prompt.py` 自定义集合删除并改 `from .tools.fs import SKIP_DIRS as _SKIP_DIRS`；
+  - `web.py` 顶 `_ws_family_key` 模块函数删除并改为 inline 单行 hash；i18n 空白行精裁 4 行——`record_text(8000)` 精确回到行 1852、`tool_result.record_text(8000)` 回到 2358；
+  - battery 16/16 绿、`tests/test_a_line_a_test_docstring_cites_can_be_read.py` 6/6 + `tests/test_the_skip_dirs_have_one_home.py` 4/4 全绿；CI 将重跑确认（808d63dc 为失败 commit，不回改；push 后 `main` 将 supersede）。
