@@ -807,3 +807,7 @@
   - **任务二（同 workspace `--resume`，只读核验）**：read_file ×2 → 确认 `total`、测试数=2、两个测试方法名（empty-list 与 typical-list 两例）；零写入、零命令；**usage total_tokens=18,077 · cache_hit=8,612 · cache_miss=9,322 · `cache_hit_pct=48.0`**——续会话的 prompt 更短，family prefix 在本机 cache 中仍冷（会话结束后 shard 已过 TTL）；
   - 两趟皆在同一台机器、同 `.env`（新 key）、同 aizzz.xyz / Clash 7897 / gpt-6.1-terra 上跑；两趟均**未改任何已有文件**（任务二明示只读）；401 中转（首开 .env 路径写错导致 INVALID_API_KEY）被如实记下，随后路径修正成功重跑，无副作用（失败点在首次 LLM 调用前）；
   - 诚实口径：两趟 cache 命中都**显著低于**纯前缀探针的 97.6%——真实 agent 调用里大部分 token 是逐轮变化的 tool-loop 上下文，前缀只占 8,362 中的稳定 headline；命中率随任务阶段波动，这是 lane 的物理事实，不是回归；不能拿它当作 97.6% 的 counter-evidence（探针测的是同字节前缀连发），也不能宣称 agent 场景恒 90%+。
+- **M8-T1233：真并发 c=6 交错实测——并行会话互不驱逐 cache**：
+  - 2 家族（conc-alpha / conc-beta）× 各 3 线程，每线程 4 次同前缀调用：每线程 call-1 = 0%，call-2+ 全部 8,362/8,566 = **97.6%**；
+  - 6 路并发零跨 family 驱逐、零抖动；冷成本仅 family 首注册（2×3=6 次），其余 18 次全暖；
+  - 结论：「并行会话把 cache 乱了」是被实验否定的直觉——shard 隔离按 family key 成立，codex thread-affinity 同法律模型；剩余 TTL 风险已由 60s keeper 覆盖。
