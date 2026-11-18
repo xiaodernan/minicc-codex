@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-17T23:40:10.110Z",
+  "generated_at": "2026-11-18T00:20:17.223Z",
   "branch": "main",
-  "head": "8f7a095",
-  "total_commits": 1922,
+  "head": "5b2d6d3",
+  "total_commits": 1924,
   "recent_commits": [
+    {
+      "short": "5b2d6d3",
+      "at": "2026-11-18T08:19:48+08:00",
+      "subject": "M8-T1202 (real bench run): first end-to-end --suite v2 against the live gateway - 3 tasks real-API, 2 pass 1 fail, pass_at_1=0.6667, tokens_per_success=185,442,"
+    },
+    {
+      "short": "652c16d",
+      "at": "2026-11-17T23:40:10Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8f7a095",
       "at": "2026-11-18T07:39:20+08:00",
@@ -19,22 +29,12 @@
       "short": "661bed2",
       "at": "2026-11-18T06:54:23+08:00",
       "subject": "M8-T1200 (CI red #9, three same-release gates): bench_history's main() printed three times - stdout is cli_io's alone (moved to cli_out with file=sys.stderr for"
-    },
-    {
-      "short": "1e6d3ec",
-      "at": "2026-11-17T22:31:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "466f1a9",
-      "at": "2026-11-18T06:30:24+08:00",
-      "subject": "M8-T1199 (bench v2 history live): read-only /api/bench-history over .minicc/bench_history.jsonl - honest absent-state returns, mean_score/mean_elapsed_ms rollup"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 471,
+  "roadmap_batches": 472,
   "changelog_entries": 1,
-  "roadmap_lines": 55231,
+  "roadmap_lines": 55268,
   "tracked_files": 1127,
   "test_files": 741,
   "almanac_chapters": 57,
