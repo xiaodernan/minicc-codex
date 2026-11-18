@@ -1,33 +1,33 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T15:47:20.332Z",
+  "generated_at": "2026-11-18T15:53:56.706Z",
   "branch": "main",
-  "head": "6039719",
-  "total_commits": 1975,
+  "head": "c65332a",
+  "total_commits": 1977,
   "recent_commits": [
     {
-      "short": "6039719",
+      "short": "c65332aa",
+      "at": "2026-11-18T23:51:16+08:00",
+      "subject": "ledger: real end-to-end agent runs on the live lane - task1 fresh workspace 11 tool calls tests green cache 71.6%, task2 resume read-only cache 48%; recorded wi"
+    },
+    {
+      "short": "03e2f072",
+      "at": "2026-11-18T15:47:20Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "60397199",
       "at": "2026-11-18T23:46:46+08:00",
       "subject": "ledger: crosstalk probe - A/B families never share warm shards (A warm, B cold, A still warm after interleave); 97.6% steady per-family; recorded as M8-T1231"
     },
     {
-      "short": "6663be9",
+      "short": "6663be95",
       "at": "2026-11-18T23:42:33+08:00",
       "subject": "ledger: append the 2026-11-18 evening live measurement - new lane 150s eviction fact and 10-call sequence with one cold call-9; keeper 60s given the measured ev"
     },
     {
-      "short": "76945a5",
+      "short": "76945a5d",
       "at": "2026-11-18T14:42:22Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "cadc8f5",
-      "at": "2026-11-18T22:40:23+08:00",
-      "subject": "M8-T1230: Ubuntu leg red on (1) inline _SKIP_DIRS in prompt.py - moved the enumeration to tools/fs.py and imported from there (no dual homes); (2) docstring pin"
-    },
-    {
-      "short": "7a7e345",
-      "at": "2026-11-18T14:09:24Z",
       "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
