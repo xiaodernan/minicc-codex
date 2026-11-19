@@ -871,11 +871,13 @@
   - 纪律照旧：`.env` 含 proxy 元不入库；任何 tracked 文档不得出现密钥明文。
 ---
 
-## 2026-11-19（Arcade 懒注入期的诚实反馈 · M8-T1242）
+## 2026-11-19（Arcade 懒注入期缓冲 + 诚实反馈 · M8-T1242）
 
-- **M8-T1242：点「小游戏」不再像按了没按——/game.js 懒注入期间的临时态**：
-  - `web/src/core/arcade.js` `openArcade()`：`setArcadeBusy(true)` → `pending` 期间按钮 `disabled` + `aria-busy="true"` + `.nav-item-busy`；finally 完成复位（还原 disabled / aria-busy / class）；
-  - 样式 `.nav-item-busy { opacity: .66; }` + `.nav-item-busy svg|span { animation: pulse-soft 1.15s ease-in-out infinite; }`（复用现有 `pulse-soft` keyframes，无新增 keyframes、无 i18n 键、两种语言一致）;
-  - 动机实测：/game.js 单次 GET 本机 150–750 ms；同机高负载窗口（并行 next dev server + 多 chrome）下 2 s+ 并不鲜见；**死按钮期 = 最难受的小故障**（点击无反馈 ≈ 以为按钮坏了）；
-  - `node scripts/build-web.mjs` 重建；`web/app.js` + `web/assets/app.2920c15803bd73b7.js`（replacing `app.003ccd25a8ff935a.js`）+ `web/styles.css` & bundle `styles.641d6e84dba2a4c5.css`（replacing `styles.fa1c4c7233747654.css`）；`--check` 绿；
-  - doc_pointers 证据指针同步更新（app.2920c15803bd73b7.js 入库）；en_cjk parity 推送前重跑为绿。
+- **M8-T1242：点「小游戏」不再像按了没按——/game.js 懒注入期的对策（两段式）**：
+  - 根因（确定）：`nutshell`——同机满载窗口下，懒注入把 `/game.js`挂进浏览器 HTTP/1.1 每主机 6 条连接预算，用户点完按钮 bundle 挂起永远到不了 → `#gameModal.show` 永不成立。冒烟侧可复现：diag=`{"openGame":"undefined","gameScripts":["/assets/game.413b6323be75704e.js"],"modalShow":false}`、`waitForSelector #gameModal.show` 超时。不是函数没写对，是**延迟加载 + 连接预算**差的锅；
+  - 对策（不是把超时调长，是从根上解决）：
+    1. **预注入**：idle 期 `preloadArcade()`（`requestIdleCallback`, timeout 2.5 s，fallback setTimeout 1.5 s）把 bundle 挂上去；与 `openArcade()` 共享同一个 `pending` promise——双调用去重，用户真的去点时 openArcade 直接短路 `window.openGame?.()`；
+    2. **诚实反馈**：`openArcade()` 期间按钮 `disabled` + `aria-busy="true"` + `.nav-item-busy`（opacity .66 + `pulse-soft` 动画复用既有 keyframes），finally 分支复位
+  - 测量链记录（不是断言）：`npm run test:parity` 连红两次（`[arcade] waitForSelector timeout` / `[arcade-guide] waitForSelector timeout`）→ 应用两段式修复后 `exit=0`：en 模式全站零 CJK（12 视图 + 6 舞台 + admin-unlock + arcade tutorial 明细全过），中文模式切换正常；
+  - 样式：`.nav-item-busy { opacity: .66; }` + `.nav-item-busy svg|span { animation: pulse-soft 1.15s ease-in-out infinite; }`（无新增 keyframes / 无 i18n 键、两种语言一致）;
+  - `node scripts/build-web.mjs` 重建；`web/app.js` + `web/assets/app.2920c15803bd73b7.js`（replacing `app.003ccd25a8ff935a.js`）+ `web/styles.css` + bundle `styles.641d6e84dba2a4c5.css`（replacing `styles.fa1c4c7233747654.css`）；`--check` 绿；doc_pointers 证据指针指向新 bundle；en_cjk parity 已验证绿。
