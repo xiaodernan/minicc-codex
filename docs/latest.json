@@ -1,34 +1,34 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-18T22:37:29.069Z",
+  "generated_at": "2026-11-19T01:32:23.654Z",
   "branch": "main",
-  "head": "1a0c6b3",
-  "total_commits": 1994,
+  "head": "524b5a3",
+  "total_commits": 1998,
   "recent_commits": [
+    {
+      "short": "524b5a36",
+      "at": "2026-11-19T09:23:35+08:00",
+      "subject": "almanac: Ch.LXIV The Seventh Day of the Forge - terra attempt=1, en zero CJK, zh 1,783 chars; forge now mandates length minima up front (fixes the missing-lengt"
+    },
+    {
+      "short": "b31cef39",
+      "at": "2026-11-19T08:42:41+08:00",
+      "subject": "tooltips: fix the two stale hover hints shipped pre-LXIII - almanac now says 63 bilingual volumes (was 58), atlas now says 101 real coordinates (was 96); rebuil"
+    },
+    {
+      "short": "8db329ce",
+      "at": "2026-11-19T07:29:58+08:00",
+      "subject": "prompt: ship the byte-stable _WORLD_MAP - the prompt now carries the repo's own compass: live product facts, the 20-chapter manual TOC (bilingual), and the 63-v"
+    },
+    {
+      "short": "ba7a001e",
+      "at": "2026-11-18T22:37:29Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1a0c6b38",
       "at": "2026-11-19T06:37:02+08:00",
       "subject": "almanac: Ch.LXIII The Forged World - terra-era live forge run attempt=1, cached 4,154/6,997 (59%), zh 616/en 1,678 chars, en zero CJK, full facts bridge (M8-T12"
-    },
-    {
-      "short": "18c579ca",
-      "at": "2026-11-18T20:13:53Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "420db326",
-      "at": "2026-11-19T03:57:22+08:00",
-      "subject": "forge: never KeyError on a missing chapter key - draft/repair read with .get() and let verify judge; repair returns _node_fail 'not a dict' rather than crashing"
-    },
-    {
-      "short": "f111524f",
-      "at": "2026-11-18T19:39:12Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "f53a2b66",
-      "at": "2026-11-19T03:38:32+08:00",
-      "subject": "almanac: Ch.LXII On Its Own Scale - forged entirely from auto-assembled repo facts (forge-facts, M8-T1235): terra flapped 404 all evening, forge ran on gpt-6.1-"
     }
   ],
   "first_commit_at": "2026-08-24",
@@ -37,7 +37,7 @@
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 63,
+  "almanac_chapters": 64,
   "module_count": 14,
   "feature_surface": [
     "workbench",
