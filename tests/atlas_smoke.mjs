@@ -23,8 +23,8 @@ async function checkMode(locale, expectCjk) {
   assert.ok(await page.locator(".atlas-hud .atlas-title").innerText());
 
   const charted = await page.locator("#atlasCharted").innerText();
-  const expectTotal = expectCjk ? "/ 114 个坐标" : "/ 114 coordinates";
-  assert.ok(charted.includes(expectTotal), `charted line must carry the 114-coordinate contract, saw: ${charted}`);
+  const expectTotal = expectCjk ? "/ 115 个坐标" : "/ 115 coordinates";
+  assert.ok(charted.includes(expectTotal), `charted line must carry the 115-coordinate contract, saw: ${charted}`);
 
   // islands ledger: opens via the toggle, lists thirteen regions, every row real
   await page.click("#atlasIslandsToggle");
@@ -53,5 +53,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("atlas smoke passed: nav button bilingual, panel opens, 114-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror");
+console.log("atlas smoke passed: nav button bilingual, panel opens, 115-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror");
 await browser.close();

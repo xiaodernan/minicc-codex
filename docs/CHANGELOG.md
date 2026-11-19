@@ -1075,3 +1075,11 @@
   - Atlas 113 → 114 = 18 panes + 76 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十六卷）、onboarding.js 中英（one hundred fourteen / seventy-six halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXVI` + `thenighttheledgerturnedgreenMarkup` + `CHAPTER_RENDERERS.thenighttheledgerturnedgreen`；前十二卷仪表同步 114/76）；tests：atlas_smoke（114 坐标）、almanac_smoke（76 chapters + `thenighttheledgerturnedgreen` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十六卷目录（追加《卷七十六 全绿的那一夜》）；`Atlas = 114 真实坐标`；产品现状 2,030+ 提交 / Atlas 114 / 76 卷；
   - README 年鉴段追加 LXXVI 卷记录（75 → 76 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-20（Ch.LXXVII 落架 · Atlas 115 · M8-T1264）
+
+- **M8-T1264：第 77 卷《等 CI 的那一夜 / The Night the CI Answered》上架——Atlas 114 → 115，77/77 卷全双语**：
+  - forge live（2026-11-20，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 7,020 · cached 4,153（59.0%）· completion 3,739`；payload `facts_sha256=1fd35af27460f15a985d88edbac95dcc0e65520b9cc8edd5a08d76444cdc4384`；zh 3,311 / en 5,821 字符；**en 零 CJK**；
+  - 题材=本夜 CI 链结论：`44558327232`（LXXV CI）**conclusion=success**（双腿 Python tests 全绿）；`44567683171`（LXXVI CI）被 bot 新推送 supersede，除 Python 双腿外全部 job success；两轮双绿的 CI 证据与 supersede 都在此卷如实入账；
+  - Atlas 114 → 115 = 18 panes + 77 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十七卷）、onboarding.js 中英（one hundred fifteen / seventy-seven halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXVII` + `thenighttheciansweredMarkup` + `CHAPTER_RENDERERS.thenightthecianswered`；前十三卷仪表同步 115/77）；tests：atlas_smoke（115 坐标）、almanac_smoke（77 chapters + `thenightthecianswered` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十七卷目录（追加《卷七十七 等 CI 的那一夜》）；`Atlas = 115 真实坐标`；产品现状 2,030+ 提交 / Atlas 115 / 77 卷；
+  - README 年鉴段追加 LXXVII 卷记录（76 → 77 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
