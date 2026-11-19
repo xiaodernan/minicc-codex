@@ -922,3 +922,13 @@
   - `tests/admin_smoke.mjs` 增条：`#adminPlanList .admin-apply-one[data-apply-index="0"]` 存在 → 点击 → 断言 `/api/tasks?limit=20` 里出现 `message` 含前 40 字符原句的任务；结束行打印 `apply dispatches a real task when a plan exists`（假提供方 + 真 .env 双腿皆绿）。
   - 不动 i18n 字典（零新键）；所有 aria-label 内联 `${zh() ? … : …}` 与现存模式一致。
 - 纪律照旧：不动任何对外门禁（12 条门禁全部保持）、不默认开启任何“应用”行为（按钮是显式点击、逐条派发、可观测）。
+---
+
+## 2026-11-19（_WORLD_MAP 从 4.4 KB 到 7.2 KB · M8-T1246）
+
+- **M8-T1246：把"为什么输入上下文这么小"当成真问题来答——系统提示带地图出发，读完地图就落地**：
+  - `minicc/prompt.py` `_WORLD_MAP`：产品现状（提交/Atlas/66 卷/20 章/Spring Cloud 8 模块/59,070 压测/家族键命中率实录）+ 20 个面板逐一命名 + StateGraph 节点（intake→plan→inspect→implement→verify→repair→summarize，verify/repair max_retries=2）+ Spring Cloud 平面与网关 8080/配置 8888/注册 8761/检查 8090/证据 8091/任务 8095/洞察 8087/桥 8092 + 缓存亲和的诚实表述（纯前缀 97.6% · 真实 agent 48–72%）+ 双语零 CJK 的边界 + 59,070/104 数字全部出自仓内账本，不编；
+  - `_WORLD_MAP` 4,444 → **7,165 bytes**（+61%）；CRLF i18n 338/0 未动；PROMPT_CACHE_KEY 仍是三级优先（env > 会话族键 > lane）；
+  - 数字全部标注来源文件（latest.json / CHANGELOG / LOAD_TESTING / stats.py）——提示词内部没有外部幻觉；没有用"听上去对"填充空洞；
+  - `tests/test_prompt_cache_key.py` 7/7 绿。
+- 下一步：可继续深挖 almanac 年鉴 grounding，让「问仓库」BM25 与 `docs/latest.json` 的结构化事实直接挂接，不再逐 chunk 猜。
