@@ -50,3 +50,61 @@ missing permission, a timeout, or a redacted stderr line has exactly one place
 to be fixed.
 
 The plan is in [`../docs/SERVICE_PLANE_PLAN.md`](../docs/SERVICE_PLANE_PLAN.md).
+
+## Verified end-to-end (2026-11-19, Windows, Temurin JDK 25.0.1)
+
+The plane is not just built — it runs. The proof, recorded so it can be
+re-run without guessing:
+
+```powershell
+# jars already built by `mvn -B -DskipTests package`
+$work = "$env:TEMP\minicc-cloud-smoke"          # ASCII workdir: the real path
+Copy-Item minicc-cloud-*\target\*.jar $work     # is full of CJK, which
+                                                # breaks `-jar` with spaces
+
+# 1. Eureka registry (port 19500)
+java -jar $work\minicc-cloud-registry.jar --server.port=19500
+
+# 2. Inspector (port 19592) — the bridge needs a REAL python, and cwd = repo
+#    root so `from minicc.changes import ChangeInspector` resolves
+java -jar $work\minicc-cloud-inspector.jar `
+  --server.port=19592 `
+  --eureka.client.serviceUrl.defaultZone=http://127.0.0.1:19500/eureka/ `
+  --minicc.python="C:\Users\<you>\AppData\Local\Python\bin\python.exe"
+
+# 3. Gateway (port 19080)
+java -jar $work\minicc-cloud-gateway.jar `
+  --server.port=19080 `
+  --eureka.client.serviceUrl.defaultZone=http://127.0.0.1:19500/eureka/ `
+  --spring.data.redis.host=127.0.0.1 --spring.data.redis.port=26379 `
+  --management.health.rabbit.enabled=false
+```
+
+Observed:
+
+- Eureka `UP` at ~500ms; inspector registered in ~40s (Eureka renewal window).
+- `GET 127.0.0.1:19592/api/changes?workspace=D:\minicc-smoke` → **200**
+  (same body through `127.0.0.1:19080/api/changes` → **200** — full chain:
+  gateway → Eureka discovery → inspector → Python bridge → live audit data).
+- Gateway `/actuator/health` → **200** (with the RabbitMQ health indicator
+  disabled; see below).
+
+Three environment traps this run exposed, in order of how long they cost:
+
+1. **`localhost` resolves as `localhost/<unresolved>` inside the JDK here.**
+   Pin `--spring.data.redis.host=127.0.0.1` (and prefer `127.0.0.1` in every
+   flag) or Lettuce fails with `RedisConnectionException` even though
+   `Test-NetConnection 127.0.0.1 26379` says the port is fine.
+2. **A down RabbitMQ broker flips actuator health to 503.** For a standalone
+   laptop run pass `--management.health.rabbit.enabled=false`. In the full
+   `docker compose` deployment the broker exists and the indicator stays on.
+3. **The `minicc.python` default is bare `python`,** which does not exist on
+   this machine. Pass the absolute interpreter path; the bridge deliberately
+   has no silent fallback — it reports `BridgeUnavailableException` instead of
+   inventing an empty change set.
+
+Port choices above avoid clashing with the Docker Desktop containers already
+listening on 26379 (Redis) and 18081/18888/19883 (crossrealm game/ai/config).
+The Eureka instance ID registered as `host.docker.internal:…` because
+`hosts` maps that name to this machine's LAN address; that resolves fine
+here, but inside compose use `prefer-ip-address: true` (already set).
