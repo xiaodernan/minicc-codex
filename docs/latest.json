@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T06:55:15.099Z",
+  "generated_at": "2026-11-19T07:25:14.419Z",
   "branch": "HEAD",
-  "head": "9898a30",
-  "total_commits": 2011,
+  "head": "c2f0636",
+  "total_commits": 2013,
   "recent_commits": [
+    {
+      "short": "c2f06367",
+      "at": "2026-11-19T15:17:32+08:00",
+      "subject": "admin: model-written next moves become workbench tasks - one click on a plan or recommendation item dispatches it through /api/tasks with the chat's permission "
+    },
+    {
+      "short": "8c8c88df",
+      "at": "2026-11-19T06:55:15Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9898a301",
       "at": "2026-11-19T06:48:05Z",
@@ -19,21 +29,11 @@
       "short": "d65824e5",
       "at": "2026-11-19T06:37:45Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a8afc404",
-      "at": "2026-11-19T14:33:28+08:00",
-      "subject": "docs: stop citing content-addressed bundles in CHANGELOG (gate test_no_document_quotes_a_content_addressed_bundle) - point at web/app.js and web/styles.css inst"
-    },
-    {
-      "short": "8101adb0",
-      "at": "2026-11-19T14:20:05+08:00",
-      "subject": "rag: ask-the-repo gets sharper - full chunks handed to the model (no silent 400-char truncation of the cited evidence), prompt tells the model to answer partial"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 6,
+  "changelog_entries": 7,
   "roadmap_lines": 55786,
   "tracked_files": 1160,
   "test_files": 747,
