@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T15:28:42.805Z",
+  "generated_at": "2026-11-19T15:46:03.092Z",
   "branch": "main",
-  "head": "4ca12a9",
-  "total_commits": 2044,
+  "head": "e2cbb7a",
+  "total_commits": 2046,
   "recent_commits": [
+    {
+      "short": "e2cbb7a1",
+      "at": "2026-11-19T23:44:50+08:00",
+      "subject": "almanac: Ch.LXXV The Ladder Snaps, the World Does Not - Atlas 112 -> 113 - attempts=1, en zero CJK (M8-T1262)"
+    },
+    {
+      "short": "53a38836",
+      "at": "2026-11-19T15:28:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4ca12a90",
       "at": "2026-11-19T23:25:41+08:00",
@@ -19,25 +29,15 @@
       "short": "2c7e0c04",
       "at": "2026-11-19T23:07:56+08:00",
       "subject": "almanac: Ch.LXXIII The Verifier Declines - Atlas 110 -> 111 - attempts=1, en zero CJK (M8-T1260)"
-    },
-    {
-      "short": "a6742ff0",
-      "at": "2026-11-19T14:51:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "335b27ef",
-      "at": "2026-11-19T22:51:30+08:00",
-      "subject": "docs(readme): drop the --minicc.python flag token - it tripped the README capability-claims gate (no parser declares --minicc); test_readme_capability_claims 8/"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 22,
+  "changelog_entries": 23,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 74,
+  "almanac_chapters": 75,
   "module_count": 14,
   "feature_surface": [
     "workbench",
