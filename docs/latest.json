@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T08:39:50.725Z",
+  "generated_at": "2026-11-19T08:43:24.746Z",
   "branch": "HEAD",
-  "head": "820b99d",
-  "total_commits": 2020,
+  "head": "0f8ea9a",
+  "total_commits": 2022,
   "recent_commits": [
+    {
+      "short": "0f8ea9ad",
+      "at": "2026-11-19T16:40:11+08:00",
+      "subject": "almanac: Ch.LXVIII One Click, Many Hands - 6.2-sol attempts=1, en zero CJK, zh 687/en 2,246 chars; Atlas 105 -> 106; _WORLD_MAP almanac TOC now 68; gate fix: en"
+    },
+    {
+      "short": "71b4aad9",
+      "at": "2026-11-19T08:39:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "820b99db",
       "at": "2026-11-19T08:30:44Z",
@@ -19,25 +29,15 @@
       "short": "2d9d0766",
       "at": "2026-11-19T16:02:08+08:00",
       "subject": "ledger(cache): report 87.1% warm on gpt-6.2-sol this window (first two calls 32.0% the empty shard registering 4,096, third onwards 11,138/12,786=87.1%); family"
-    },
-    {
-      "short": "4c4e6002",
-      "at": "2026-11-19T15:55:57+08:00",
-      "subject": "prompt: world map is now genuinely dense - almanac TOC 67 + manual TOC 20 listed inline (9,720 bytes); model reads full chapter titles without looking outward"
-    },
-    {
-      "short": "bbab8ef8",
-      "at": "2026-11-19T15:43:16+08:00",
-      "subject": "almanac: Ch.LXVII The Dense Map - 6.2-sol attempts=1, en zero CJK, zh 2,904/en 6,061 chars; Atlas 104 -> 105 (105 = 18 panes + 67 almanac + 20 manual); 67/67 bi"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 12,
+  "changelog_entries": 14,
   "roadmap_lines": 55786,
   "tracked_files": 1160,
   "test_files": 747,
-  "almanac_chapters": 67,
+  "almanac_chapters": 68,
   "module_count": 14,
   "feature_surface": [
     "workbench",
