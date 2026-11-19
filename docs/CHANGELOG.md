@@ -1059,3 +1059,11 @@
   - Atlas 111 → 112 = 18 panes + 74 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十四卷）、onboarding.js 中英（one hundred twelve / seventy-four halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXIV` + `theredinthecapabilitylistMarkup` + `CHAPTER_RENDERERS.theredinthecapabilitylist`；前十卷仪表同步 112/74）；tests：atlas_smoke（112 坐标）、almanac_smoke（74 chapters + `theredinthecapabilitylist` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十四卷目录（追加《卷七十四 红在能力清单那一页》）；`Atlas = 112 真实坐标`；产品现状 2,030+ 提交 / Atlas 112 / 74 卷；
   - README 年鉴段追加 LXXIV 卷记录（73 → 74 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-19（Ch.LXXV 落架 · Atlas 113 · M8-T1262）
+
+- **M8-T1262：第 75 卷《梯子断了，世界没断 / The Ladder Snaps, the World Does Not》上架——Atlas 112 → 113，75/75 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 7,030 · cached 4,153（59.0%）· completion 2,123`；payload `facts_sha256=5abdb311be125ea22f1338d478e34a9b0d355bc535c152032999d8c63488b7d2`；zh 1,711 / en 4,378 字符；**en 零 CJK**；
+  - 题材实况：forge 首次调用遇 `APIConnectionError`（该 shell 进程未继承用户级 Clash Verge 代理）；显式 `HTTPS_PROXY/HTTP_PROXY=127.0.0.1:7897` 后一次过审，forge 链路完成；`.env → load_config` 已有代理导出（M8-T1174），本次抖动为 transient gateway 波动而非配置错误；
+  - Atlas 112 → 113 = 18 panes + 75 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十五卷）、onboarding.js 中英（one hundred thirteen / seventy-five halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXV` + `theladdersnapsMarkup` + `CHAPTER_RENDERERS.theladdersnaps`；前十一卷仪表同步 113/75）；tests：atlas_smoke（113 坐标）、almanac_smoke（75 chapters + `theladdersnaps` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十五卷目录（追加《卷七十五 梯子断了，世界没断》）；`Atlas = 113 真实坐标`；产品现状 2,030+ 提交 / Atlas 113 / 75 卷；
+  - README 年鉴段追加 LXXV 卷记录（74 → 75 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。

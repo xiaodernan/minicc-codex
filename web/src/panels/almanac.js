@@ -94,6 +94,7 @@ export const CHAPTERS = [
   { id: "thestaleassertion", roman: { zh: "卷七十二", en: "Chapter LXXII" }, title: { zh: "过时的断言", en: "The Stale Assertion" }, subtitle: { zh: "红，然后门修好", en: "red first, then the door was repaired" } },
   { id: "theverifierdeclines", roman: { zh: "卷七十三", en: "Chapter LXXIII" }, title: { zh: "验证器说不行", en: "The Verifier Declines" }, subtitle: { zh: "护栏说不，世界仍在", en: "the guard said no; the work remained" } },
   { id: "theredinthecapabilitylist", roman: { zh: "卷七十四", en: "Chapter LXXIV" }, title: { zh: "红在能力清单那一页", en: "The Red in the Capability List" }, subtitle: { zh: "旗语不许凭空造词", en: "no flag without a parser behind it" } },
+  { id: "theladdersnaps", roman: { zh: "卷七十五", en: "Chapter LXXV" }, title: { zh: "梯子断了，世界没断", en: "The Ladder Snaps, the World Does Not" }, subtitle: { zh: "抖一下，继续写", en: "one stumble, and the writing went on" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4130,8 +4131,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4171,8 +4172,8 @@ function etchedwaterlineMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4212,8 +4213,8 @@ function theclickMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4253,8 +4254,8 @@ function densemapMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4289,8 +4290,8 @@ function oneclickmanyhandsMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4328,8 +4329,8 @@ function thelivepageMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4367,8 +4368,8 @@ function therunnerwithoutbashMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=2</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4406,8 +4407,8 @@ function theplanethatansweredMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4445,8 +4446,8 @@ function thestaleassertionMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4484,8 +4485,8 @@ function theverifierdeclinesMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4523,8 +4524,8 @@ function theredinthecapabilitylistMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">112</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">74 / 74</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4542,6 +4543,45 @@ function theredinthecapabilitylistMarkup() {
         ${zh()
           ? "契约不认不存在的字，README 也是契约。"
           : "The contract does not recognize a word that does not exist."}
+      </p>
+    </div>`;
+}
+
+// ---- Ch.LXXV · The Ladder Snaps, the World Does Not · 梯子断了，世界没断 (Atlas 113) ----
+const LEDGER_ZH_LXXV = "<p>梯子断了，世界没断</p><p>卷LXXV写在一个容易把相邻刻度误认为同一时刻的日子里。最近的日志把卷LXXIV记为《能力列表里的红色》，把卷LXXIII记为《验证器拒绝》，把卷LXXII记为《过期断言》；它们之间还有一次 README 文档改动，移除了 <code>--minicc.python</code> 这个会触发能力声明门禁的词项，相关测试为 8/8 通过。日期都是 2026-11-19。另有一份事实包把仓库快照标作 head <code>2c7e0c0</code>，生成于 15:09:00.592Z，记录 2042 次提交、493 个路线图批次、73 章年鉴、747 个测试文件、1158 个跟踪文件，以及 55786 行路线图。此处的章数是那份快照所记的章数；它没有替眼前这一章预先改写数字。</p><p>本章的题目借来一架梯子，也借来它断裂后的安静。缓存亲和记录说，wkapi.pro 的上游分片会把 prefix-cache shard 与客户端的 <code>prompt_cache_key</code> 当作路由提示；没有 key，同一前缀会逐次落到冷分片，有了 key，热度周期内的命中率稳定在约 94–100%。minicc 始终自动派生这个 key。使用量解析只回传网关实际报告的 <code>cached_tokens</code>：有才带上 <code>prompt_cache_hit_tokens</code>，没有便不伪造；RAG 用量条相应显示命中数量与比例，或明确显示尚未上报。一次小任务记录了 15568 个总 token、7040 个命中 token、8456 个未命中 token，命中率 45.4%。数字说明两轮任务里首轮全付、次轮命中前缀；随着约 4.2k-token 的系统提示与工具 schema 在开放会话内复用，命中率可能接近先前探针记录的 82–96%。真实 agent 的上下文逐轮增长，记录的命中率则回落至 48–72%；这也是记录所说的物理事实，不由探针的漂亮数字抹去。</p><p>稳定的台阶有明确边界。2026-11-18 的新 lane key 测量中，模型列表仍有 7 项，terra 返回 200；首轮冷，随后两次 warm 命中 8362/8566，即 97.6%。空闲 150 秒后，第三次调用归零，key 没变；旧的 220 秒 keeper 从未护住这个 lane 的 shard，记录给出的窗口是 TTL ≤150 秒。后来十次序列里，第一次冷，第二至第十次几乎全命，只有长尾 26 秒后的第九次完整变冷；全序列加权命中约 8/10，也就是约 80%。因此 60 秒 keeper 被保留为默认间隔，并以 <code>cache_keeper status</code> 外显运行轨迹。热前缀的 8362 个 token 是各 lane 共享的 headline block，另 204 个属于自己的尾段；同字节前缀探针稳定在 97.6%，真实会话却不能保证同样比例。并发测试中，A、B 两组线程从各自冷启动后的第二次起都命中 8362/8566，记录为零抖动、零跨家族驱逐；这没有把网关的轮换或上下文变化变成不存在。</p><p>压测账本也把边界写得具体。Wave 3 在 c=128、12 秒条件下，每条路径 n=2380，总计 14280 个请求，0 错误，全部返回 200；账本还记载，在同一台 Windows 机器、<code>127.0.0.1:8899</code>、<code>MINICC_FAKE_PROVIDER=1</code> 的本地假 provider cockpit 上，三轮累计 33600 个请求，没有非 2xx，也没有连接失败。另一个同日累计记录为 25470 个请求，三轮同样没有非 2xx 或连接失败；日累计把 33600 与 25470 相加，得到 59070 个请求，0 个非 2xx。云模块清单则只列出八项：bridge、registry、config、inspector、tasks、insights、evidence、gateway。材料没有说明这些数字之间存在额外因果，也没有给出梯子为何断裂的单一解释；它让冷命中、热命中、过期窗口、成功响应各自留在原位。</p><p>梯子断了，世界仍按账本前行。</p>";
+const LEDGER_EN_LXXV = "<p>The Ladder Snaps, the World Does Not</p><p>Almanac LXXV is written on a day when adjacent marks can easily be mistaken for the same moment. The recent log records LXXIV as “The Red in the Capability List,” LXXIII as “The Verifier Declines,” and LXXII as “The Stale Assertion.” Between them came a README documentation change that removed the <code>--minicc.python</code> token, which had tripped the capability-claims gate; the related tests passed 8/8. The dates are all 2026-11-19. A separate fact pack labels a repository snapshot with head <code>2c7e0c0</code>, generated at 15:09:00.592Z, and records 2042 commits, 493 roadmap batches, 73 almanac chapters, 747 test files, 1158 tracked files, and 55786 roadmap lines. The chapter count here is the count in that snapshot; it does not rewrite the number in advance for the chapter now before us.</p><p>This chapter's title borrows a ladder, and the quiet after it breaks. The cache-affinity record says that wkapi.pro's upstream shards use the prefix-cache shard and the client's <code>prompt_cache_key</code> as routing hints. Without a key, the same prefix lands on cold shards in turn; with one, the hit rate stays around 94–100% during the hot period. minicc always derives this key automatically. Usage parsing returns only the <code>cached_tokens</code> actually reported by the gateway: when present it includes <code>prompt_cache_hit_tokens</code>, and when absent it does not fabricate a value. The RAG usage bar accordingly shows the hit count and rate, or explicitly says that the hit was not reported. One small task recorded 15568 total tokens, 7040 hit tokens, and 8456 miss tokens, for a 45.4% hit rate. The figures describe a two-round task in which the first round paid in full and the second hit the prefix; as the roughly 4.2k-token system prompt and tool schema are reused within an open session, the hit rate may approach the earlier probe record of 82–96%. The real agent's context grows with each turn, however, and its recorded hit rate falls to 48–72%. The record calls this a physical fact, not one to be erased by the probe's more attractive numbers.</p><p>The stable steps have definite boundaries. In the new lane-key measurement on 2026-11-18, the model list still had 7 entries and terra returned 200; the first call was cold, then the next two warm calls hit 8362/8566, or 97.6%. After 150 seconds idle, the third call fell to zero, with the key unchanged; the old 220-second keeper had never protected this lane's shard, and the recorded window was TTL ≤150 seconds. In the later ten-call sequence, the first call was cold and calls two through ten were almost entirely hits; only call nine, after a 26-second long tail, went fully cold. The weighted hit rate for the whole sequence was about 8/10, or about 80%. The 60-second keeper was therefore retained as the default interval, with its operating trace exposed as <code>cache_keeper status</code>. Of the warm prefix, 8362 tokens are the headline block shared by all lanes, while the remaining 204 belong to its own tail; the same-byte-prefix probe held at 97.6%, but real sessions cannot promise the same rate. In the concurrency test, A and B threads both hit 8362/8566 from their second call onward after their respective cold starts; the record describes zero jitter and zero cross-family eviction. That does not make gateway rotation or changing context disappear.</p><p>The pressure ledger also states its boundaries concretely. Wave 3 ran at c=128 for 12 seconds, with n=2380 per path and 14280 requests in total: 0 errors, all returning 200. The ledger also records that, on the same Windows machine, a local fake-provider cockpit at <code>127.0.0.1:8899</code> with <code>MINICC_FAKE_PROVIDER=1</code> handled 33600 requests across three waves, with no non-2xx responses and no connection failures. Another same-day cumulative record lists 25470 requests across three waves, likewise with no non-2xx responses or connection failures. The daily total adds 33600 and 25470 to reach 59070 requests and 0 non-2xx responses. The cloud-module list contains exactly eight entries: bridge, registry, config, inspector, tasks, insights, evidence, and gateway. The material gives no further causal relation among these figures and offers no single explanation for why the ladder snapped; it leaves cold hits, warm hits, the expiration window, and successful responses in their own places.</p><p>The ladder snapped; the world kept moving by the ledger.</p>";
+function theladdersnapsMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-theladdersnaps">
+      <div class="almanac-kicker">${zh() ? "卷七十五 · 梯子断了，世界没断" : "Chapter LXXV · The Ladder Snaps, the World Does Not"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `梯子抖了一下，` + `<br/><span class="almanac-title-accent">世界没停下来。</span>`
+        : `The ladder shook,` + `<br/><span class="almanac-title-accent">and the world did not stop.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXXV : LEDGER_EN_LXXV}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">113</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">75 / 75</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["APIConnectionError 不是世界尽头", "forge 先调了一次，连接失败；显式带上 Clash Verge 代理后重跑，attempts=1，一次过审"],
+        ["代理是梯子，不是地板", "User 级 HTTPS_PROXY/HTTP_PROXY=127.0.0.1:7897；工具进程若读不到它，就显式带上；.env 里写着，load_config 里导出，双保险"],
+        ["抖一下不算数，落账才算", "cached 4,153 / prompt 7,030；61 秒把卷写完；世界从不因为一次抖动罢工"],
+        ["并行会话没有吵起来", "crossrealm/football/specproof 同时在推，rebase 两次，谁也没覆盖谁；每个 commit 自己落自己的账"],
+      ] : [
+        ["APIConnectionError is not the end of the world", "the forge was called once, the connection dropped; with Clash Verge passed explicitly, the retry passed on attempt one"],
+        ["the proxy is a ladder, not a floor", "user-scope HTTPS_PROXY/HTTP_PROXY=127.0.0.1:7897; when a tool process cannot see it, pass it explicitly; .env carries it and load_config exports it - two locks"],
+        ["a wobble does not count; the ledger does", "cached 4,153 / prompt 7,030; the chapter was written in under a minute; the world does not go on strike for one bad call"],
+        ["the parallel sessions did not shout at each other", "crossrealm, football and specproof pushed concurrently; two rebases, nobody overwrote anybody; every commit lands its own ledger"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "梯子抖了，世界还在写。"
+          : "The ladder shook; the world kept writing."}
       </p>
     </div>`;
 }
@@ -4621,6 +4661,7 @@ const CHAPTER_RENDERERS = {
   thestaleassertion: () => thestaleassertionMarkup(),
   theverifierdeclines: () => theverifierdeclinesMarkup(),
   theredinthecapabilitylist: () => theredinthecapabilitylistMarkup(),
+  theladdersnaps: () => theladdersnapsMarkup(),
 };
 
 async function loadChapter(id) {
