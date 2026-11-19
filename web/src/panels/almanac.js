@@ -84,6 +84,7 @@ export const CHAPTERS = [
   { id: "ownscale", roman: { zh: "卷六十二", en: "Chapter LXII" }, title: { zh: "按自己的尺度", en: "On Its Own Scale" }, subtitle: { zh: "同一把尺，量每一段路", en: "one rule, every road measured the same way" } },
   { id: "forgedworld", roman: { zh: "卷六十三", en: "Chapter LXIII" }, title: { zh: "锻造的世界", en: "The Forged World" }, subtitle: { zh: "波动不被抹去，被记清", en: "the variance is not erased; it is recorded" } },
   { id: "seventhday", roman: { zh: "卷六十四", en: "Chapter LXIV" }, title: { zh: "冶炼的第七日", en: "The Seventh Day of the Forge" }, subtitle: { zh: "火有边界，留白不粉饰", en: "the fire has edges; the ledger keeps them" } },
+  { id: "etchedwaterline", roman: { zh: "卷六十五", en: "Chapter LXV" }, title: { zh: "水纹的刻度", en: "The Etched Waterline" }, subtitle: { zh: "刻痕不是承诺，是痕迹", en: "a calibrated line — a trace, not a promise" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4102,6 +4103,11 @@ function forgedworldMarkup() {
     </div>`;
 }
 
+// ---- Ch.LXV · The Etched Waterline · 水纹的刻度 (Atlas 103) ----
+const LEDGER_ZH_LXV = "卷LXV，题为《水纹的刻度》，写在一次把仓库自身事实带入提示的更新之后。提交记录显示，2026-11-19 的世界地图探针记录了 9,892 个提示词元，其中 9,629 个为缓存命中，命中率 97.3%；提示长度为 17,559 字节，包含 README 摘录、手册目录，以及双语的 64 章年鉴目录。同日，LXIV《锻炉的第七日》记录 terra 首次尝试、英文零 CJK、中文 1,783 字，并把长度下限前置到锻造流程；此前一项工具提示修正则把年鉴卷数更新为 63，把图集中真实坐标数更新为 101。记录并非平静的水面：它保存每一次读数，也保留读数的边界。\n\n仓库快照给出另一组刻度：head 为 1a0c6b3，生成时间为 2026-11-18T22:37:29.069Z；总提交数 1,994，路线图批次 493，年鉴章节 63，测试文件 747，跟踪文件 1,158，路线图 55,786 行。这些数值与章节 LXV 并置，说明快照中的年鉴计数仍为 63，而提交记录已在推进下一章。它们不是互相替代的说法：一个是文档快照的字段，一个是随后发生的工作记录。云端 pom 列出八个模块：bridge、registry、config、inspector、tasks、insights、evidence 与 gateway；它们各自占据同一项目结构中的位置，构成可核对的目录，而非额外推论。\n\n缓存记录讲的是亲和，不是保证。wkapi.pro 的上游分片以 prefix-cache shard 和客户端 `prompt_cache_key` 作为路由提示；没有 key，同一前缀会逐次落入冷分片，有 key 后，热度周期内的命中率可稳定在约 94–100%。minicc 始终自动派生该 key。usage 解析器如实转发网关报告的 `prompt_tokens_details.cached_tokens`：有值才附带 `prompt_cache_hit_tokens`，没有就不伪造；RAG 用量条相应显示缓存命中数量与比例，或显示缓存命中未上报。一次小任务的读数是总计 15,568 个词元、命中 7,040、未命中 8,456，命中率 45.4%。这是两轮任务的实测，首轮全付、次轮前缀命中；记录还指出，真实 agent 的逐轮增长上下文会让命中率回落到 48–72%，探针的稳定读数不能代替它。\n\n同字节前缀探针在 family key 下稳定命中 8,362/8,566，即 97.6%；新 lane key 的首 call 约为 72%，随后两次 warm call 达到 97.6%。然而，150 秒空闲后 call-3 的缓存命中归零，说明不变的 key 并没有保住分片；水冷 shard 的 TTL 不超过 150 秒。后续十次序列中，call-1 冷，call-2 至 call-10 几乎全命，call-9 在 26 秒长尾后又出现一次完整 cold，整段全局命中权重约为 8/10，即 80%。旧的 220 秒 keeper 间隔没有保护这个 lane；60 秒默认间隔被保留。命中率不是 100%，轨迹把稳定与例外一并留下：连续 warm 命中、一次反缓存，以及网关仍会按 shard hash 轮换。\n\n压力测试也以计数留下刻度。Wave 3 在 c=128、12 秒条件下，每条路径 n=2,380，总计 14,280 个请求，零错误，全部返回 200。三波累计记录为 33,600 个请求，没有非 2xx，也没有连接失败；另一组同机三波记录为 25,470 个请求，同样零非 2xx、零连接失败。当天全部压力运行的日累计为 59,070 个请求、零非 2xx。测试环境注明为 Windows、`minicc-web` 运行于 `127.0.0.1:8899`，并启用 `MINICC_FAKE_PROVIDER=1`。这些数字界定了证据的范围：它们属于本地假提供方驾驶舱，不被写成别处的承诺。<em>水线刻下命中，也刻下未命中。</em>";
+
+const LEDGER_EN_LXV = "Volume LXV, titled \"The Etched Waterline,\" follows an update that brought the repository's own facts into its prompt. The commit record for 2026-11-19 reports a world-map probe with 9,892 prompt tokens, of which 9,629 were cached, for a 97.3% hit rate. The prompt measured 17,559 bytes and included a README excerpt, the manual table of contents, and a bilingual table of contents for 64 almanac chapters. On the same day, LXIV, \"The Seventh Day of the Forge,\" recorded a first terra attempt, zero CJK characters in English, and 1,783 Chinese characters; it also moved the minimum-length requirements to the start of the forge process. An earlier tooltip correction updated the almanac count to 63 volumes and the atlas count to 101 real coordinates. This is not a still surface: the record keeps each reading and the limits around it.\n\nThe repository snapshot gives another set of marks: head 1a0c6b3, generated at 2026-11-18T22:37:29.069Z; 1,994 total commits, 493 roadmap batches, 63 almanac chapters, 747 test files, 1,158 tracked files, and 55,786 roadmap lines. Set beside Volume LXV, these figures show that the almanac count in the snapshot remains 63 while the commit record advances the next chapter. These statements do not replace one another: one is a field in a document snapshot, the other a record of subsequent work. The cloud pom lists eight modules: bridge, registry, config, inspector, tasks, insights, evidence, and gateway. Each occupies a place in the same project structure; the list is an auditable inventory, not an added inference.\n\nThe cache record describes affinity, not a guarantee. Upstream shards at wkapi.pro use the prefix-cache shard and the client's `prompt_cache_key` as routing hints. Without the key, the same prefix lands on cold shards in succession; with it, the hit rate can remain around 94-100% during the warm period. minicc always derives this key automatically. The usage parser reports `prompt_tokens_details.cached_tokens` as returned by the gateway: it adds `prompt_cache_hit_tokens` only when a value is present and does not fabricate one when absent. The RAG usage bar accordingly shows the cache-hit count and percentage, or says that cache hits were not reported. One small task measured 15,568 total tokens, 7,040 hits, 8,456 misses, and a 45.4% hit rate. This was a two-round measurement: the first round was fully paid, and the second hit the prefix. The record also notes that the growing context of a real agent brings the hit rate back down to 48-72%; a probe's stable reading cannot stand in for that.\n\nA same-byte-prefix probe using the family key held at 8,362/8,566 hits, or 97.6%. With a new lane key, the first call was about 72%, and the next two warm calls reached 97.6%. But after 150 seconds idle, cache hits on call 3 fell to zero, showing that an unchanged key did not preserve the shard; the water-cooled shard's TTL was no more than 150 seconds. In the following sequence of ten calls, call 1 was cold, calls 2 through 10 were almost entirely hits, and call 9 had one complete cold result after a 26-second long tail. The global hit weight for the sequence was about 8/10, or 80%. The old 220-second keeper interval had not protected this lane, so the 60-second default interval was retained. The hit rate is not 100%. The trace preserves both the steady run and the exception: continuous warm hits, one anti-cache event, and the gateway's continued shard-hash rotation.\n\nThe pressure tests leave their marks in counts as well. Wave 3, at c=128 for 12 seconds, recorded n=2,380 per path and 14,280 requests total: zero errors, all responses 200. Across three waves, the cumulative record is 33,600 requests, with no non-2xx responses and no connection failures. A separate three-wave run on the same machine recorded 25,470 requests, likewise with zero non-2xx responses and zero connection failures. The daily cumulative total across all pressure runs was 59,070 requests and zero non-2xx responses. The test environment is specified as Windows, with `minicc-web` on `127.0.0.1:8899` and `MINICC_FAKE_PROVIDER=1`. These figures define the scope of the evidence: they belong to a stock-local fake-provider cockpit and are not written as a promise about other environments. <em>The waterline records hits, and it records misses.</em>";
+
 function seventhdayMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4115,8 +4121,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">102</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">64 / 64</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">103</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">65 / 65</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4134,6 +4140,42 @@ function seventhdayMarkup() {
         ${zh()
           ? "记录炉火所及，不把热度写成永恒。"
           : "Record how far the fire reaches; do not call its heat eternal."}
+      </p>
+    </div>`;
+}
+
+function etchedwaterlineMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-etchedwaterline">
+      <div class="almanac-kicker">${zh() ? "卷六十五 · 水纹的刻度" : "Chapter LXV · The Etched Waterline"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `水纹不许诺，` + `<br/><span class="almanac-title-accent">刻度只留下量过的痕迹。</span>`
+        : `The water keeps no promises —` + `<br/><span class="almanac-title-accent">a calibrated line remembers being measured.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXV : LEDGER_EN_LXV}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">103</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">65 / 65</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["事实包逐条对齐 git 与快照", "forge-facts 自动组装：git log + docs/latest.json + pom 模块清单 + 缓存/压力 regex；缺失标 missing，不替账册补写"],
+        ["一次过审；en 零 CJK", "attempts=1，契约 keys{zh,en}、≥600 字符；sol 亲笔现场过审（terra 时段网关连接失败，切 sol 实测 200，cached 4,152 / 7,151 = 58.1%）"],
+        ["两份快照读数并存、不抹平", "快照写明 1,994 提交 / 63 卷；git 实况继续前进——账册只并列呈现，不替它们对齐口径"],
+        ["命中只报网关真回传的部分", "usage 原样入账：prompt 7,151 / cached 4,152（58.1%）；LXIV 的 97.6% 纯前缀稳态与 48–72% 真 agent 是两条分开的记录"],
+      ] : [
+        ["facts align line-by-line with the repo", "forge-facts assembles from git log + docs/latest.json + pom list + cache/pressure regex; gaps are marked missing, never completed"],
+        ["one-pass verify; en zero CJK", "attempts=1; contract keys{zh,en}, ≥600 chars; sol authored live (terra-side gateway connection failed; switched to sol: HTTP 200, cached 4,152 / 7,151 = 58.1%)"],
+        ["two snapshot readings, side by side", "the snapshot says 1,994 commits / 63 volumes; the log keeps moving — the ledger presents both and reconciles neither"],
+        ["cache hits as returned, nothing more", "usage verbatim: prompt 7,151 / cached 4,152 (58.1%); LXIV's 97.6% warm-prefix steady state and 48–72% agent traffic remain two separate records"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "刻度不是保证，刻度只证明：这里，量过了。"
+          : "The line does not guarantee; the line records — here, measured."}
       </p>
     </div>`;
 }
@@ -4203,6 +4245,7 @@ const CHAPTER_RENDERERS = {
   ownscale: () => ownscaleMarkup(),
   forgedworld: () => forgedworldMarkup(),
   seventhday: () => seventhdayMarkup(),
+  etchedwaterline: () => etchedwaterlineMarkup(),
 };
 
 async function loadChapter(id) {

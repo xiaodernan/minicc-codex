@@ -141,11 +141,19 @@ async function checkMode(locale) {
 
   try {
     await clickRetry(page, "#arcadeButton", { timeout: 7000 });
-    await page.waitForTimeout(1200);
+    // the arcade bundle is injected lazily (`openArcade` -> `/game.js`); under
+    // load a fixed 1200 ms sleep is a coin-flip. Wait for the modal to open
+    // instead — the user sees the same signal, and so does this test.
+    await page.waitForSelector("#gameModal.show", { state: "visible", timeout: 20000 });
     await expectClean(page, "arcade", errors);
     // the arcade tutorial overlay must also stay English-clean in en mode
     try {
-      await clickRetry(page, "#gameHow", { timeout: 5000 });
+      // wait for the tutorial button to be visible AND for the panel to actually
+      // open — a passing click that never opened the panel would otherwise scan
+      // whatever was already on screen and report a false green.
+      await page.waitForSelector("#gameHow", { state: "visible", timeout: 15000 });
+      await clickRetry(page, "#gameHow", { timeout: 8000 });
+      await page.waitForSelector("#gameHowPanel.show", { state: "visible", timeout: 10000 });
       await page.waitForTimeout(500);
       await expectClean(page, "arcade-guide", errors);
       await page.click("#gameHowClose", { timeout: 4000 }).catch(() => {});
@@ -156,7 +164,12 @@ async function checkMode(locale) {
     await page.click("#gameClose", { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(400);
   } catch (e) {
-    errors.push(`[arcade] interaction failed: ${String(e.message).split("\n")[0].slice(0, 180)}`);
+    const diag = await page.evaluate(() => ({
+      openGame: typeof window.openGame,
+      gameScripts: Array.from(document.scripts).map((s) => s.src).filter((u) => u.includes("game")),
+      modalShow: document.querySelector("#gameModal")?.classList.contains("show") ?? null,
+    })).catch(() => null);
+    errors.push(`[arcade] interaction failed: ${String(e.message).split("\n")[0].slice(0, 160)} diag=${JSON.stringify(diag)}`);
   }
 
   try {

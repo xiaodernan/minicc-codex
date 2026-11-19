@@ -38,7 +38,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 说明书二十章（Manual · 双语 · 本地内嵌，非 .md）
   一 五分钟上手 / Quick Start · 二 工作台导览 / The Workbench · 三 七个模块，一个世界 / The Modules · 四 命令与快捷键 / Commands & Shortcuts · 五 游戏厅教程 / Playbook · 六 排错 / Troubleshooting · 七 边界与范围 / Honest Limits · 八 密钥与金库 / Keys & Vault · 九 安静的房间 / The Quiet Room · 十 问仓库 / Ask the Repo · 十一 压测与容量 / Load & Capacity · 十二 微服务平面 / Spring Cloud plane · 十三 前后端全景架构 / Full Stack · 十四 状态图 / StateGraph · 十五 冷热亲和 / Cache Affinity · 十六 沙盒与安全 / Sandbox & Safety · 十七 并行子智能体 / Parallel Subagents · 十八 证词与门禁 / Evidence & Gates · 十九 长城 / The CI Wall · 二十 双峰 / The Two Shards
 
-年鉴六十三卷（Almanac · 双语 · 叙事日记，每卷双语并存）
+年鉴六十五卷（Almanac · 双语 · 叙事日记，每卷双语并存）
   序章 一封给未来的信 / The Letter
   第一章 火种 / The Spark
   第二章 深度 / The Depth
@@ -102,6 +102,8 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
   卷六十一 并发的风 / The Parallel Wind
   卷六十二 按自己的尺度 / On Its Own Scale
   卷六十三 锻造的世界 / The Forged World
+  卷六十四 冶炼的第七日 / The Seventh Day of the Forge
+  卷六十五 水纹的刻度 / The Etched Waterline
 """
 
 

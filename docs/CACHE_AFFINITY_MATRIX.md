@@ -353,3 +353,25 @@ thread B1/B2/B3 (family=sha256('conc-beta-session')[:16])
 - 扩大 20% 的前缀（13,295 → 17,559 bytes）只让命中率下调 0.3pp，没有侵蚀 cache affinity
 - 这直接回应 "为什么你的输入上下文总是那么少"：prompt 内置 README excerpt + 顶层目录 + 手册 20 章标题目录 + 年鉴 64 卷标题目录；模型从「每次嗅一遍文件系统」变为「带地图出发」
 - 并行会话重签名 cache key（session_id 派生 family）就是 codex 的 thread-affinity 同路径
+## 2026-11-19 · Atlas 103（65 卷上架 · M8-T1240）
+
+- 系统提示 `_WORLD_MAP` 同步为"年鉴六十五卷"（新增《卷六十四 冶炼的第七日 / The Seventh Day of the Forge》、《卷六十五 水纹的刻度 / The Etched Waterline》两行目录），`minicc/prompt.py` 字节稳定纪律不变；
+- Atlas 102 → 103 = 18 panes + 65 almanac satellites + 20 manual satellites；65/65 卷全双语、en 零 CJK；
+- LXIV 仪表（Atlas 坐标 / 年鉴 · 双语）在 LXV 落架提交中重 pin 为 103 / 65/65——面板读数本就是 digestCache 的镜像，跟着真实计数走；
+- 「Atlas 101 milestone」那个 snapshot 与 master 实况的关系，仍以 `docs/latest.json`（CI 自动刷新）为准；ledger 不自宫。
+
+## 2026-11-19 · Ch.LXV 锻造实测（M8-T1240）
+
+Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由 `MINICC_MODEL=gpt-6.1-sol` 重跑（本机 Clash 7897；`.env` 本就指向 gpt-6.1-sol，未动 `.env`）：
+
+| 量 | 实测 |
+| --- | --- |
+| 模型 | gpt-6.1-sol（terra 本日 `Connection error`；sol 系 probe 一律 200） |
+| attempts | 1（首过即过 verify 契约 keys{zh,en}、≥600 字符、en 零 CJK） |
+| usage | `prompt 7,151 · cached 4,152（58.1%）· completion 2,205` |
+| 事实包 | `45227558cf16d74334b648dfbb3fa97a24f8cd66ef35a3740e89f15a8a702fc9`（`forge_facts.py` 自动组装：git log + docs/latest.json + pom modules + 缓存/压测 regex） |
+| en CJK | 0 字（regex 复核） |
+
+- 与 Ch.LXIV 同档（LXIV：4,152 / 7,107 = 58%）；「attempts=1 单轮短对话」的固有形态，不是 cache 亲和回归；
+- 两份快照读数（docs/latest.json `1,994 commits` / almanac 63 vs git log 实况）在 en 正文里原样并存，模型没有替它们抹平口径；
+- 锻造台的 `verify → repair` 在本轮未被触发（attempts=1）——这只是测量，不是承诺。

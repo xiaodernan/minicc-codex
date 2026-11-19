@@ -845,3 +845,16 @@
   - 实测 `session-family key worldmap-probe-hash` 8 次调用，call-1 cold，call-2+ 稳定 97.3% ≥ 90%（Clash 7897 · 2026-11-19 · 本机 log）；
   - answer 直接回应 "为什么你的输入上下文总是那么少"：prefix 内置 README excerpt（≤6 KB）+ 顶层目录快照 + 手册目录 + 年鉴目录，模型不再 '嗅一遍文件系统' 而直接从手册/年鉴阶段命名；
   - battery 12/12 prompt 门绿；i18n chips 未新增键，CRLF 338/0 不动。
+---
+
+## 2026-11-19（Ch.LXV 落架 · Atlas 103 · M8-T1240）
+
+- **M8-T1240：第 65 卷《水纹的刻度 / The Etched Waterline》上架——Atlas 102 → 103，65/65 卷全双语**：
+  - forge live（2026-11-19 当日，Clash 7897；terra 当日 `Connection error`；sol 系 probe 一律 200（平凡 ping 上 `cached 4,180`）；`.env` 本就指向 `gpt-6.1-sol`，未动 `.env`）；
+  - **attempts=1 首过即过 verify**；`usage = prompt 7,151 · cached 4,152（58.1%）· completion 2,205`；payload `facts_sha256=45227558cf16d74334b648dfbb3fa97a24f8cd66ef35a3740e89f15a8a702fc9`；en 正文把两份快照读数并存（1,994 提交 / 63 卷 vs git log 实况前行）而不替它们抹平口径；en 零 CJK（1,690 中文字符 / 4,308 英文字符）；
+  - Atlas 102 → 103 = 18 panes + 65 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 头注释、`manual.js` 中英双文、`onboarding.js` 中英双文（含「one hundred three」英文词形）、`i18n.js` `session.emptyChip5` ×2（CRLF 338/0 不变）、`tooltips.js` ×4（almanac 65 / atlas 103）、`almanac.js`（CHAPTERS 行 + `LEDGER_ZH_LXV/LEDGER_EN_LXV` + `etchedwaterlineMarkup` + `CHAPTER_RENDERERS.etchedwaterline`；LXIV 仪表 102/64 → 103/65 同步）；
+  - `tests/atlas_smoke.mjs`（`/ 103 个坐标` / `/ 103 coordinates`）、`tests/almanac_smoke.mjs`（65 chapters + `etchedwaterline` marker：水纹的刻度 / The Etched Waterline）复绿；en_cjk parity 加固（[arcade-guide] 改为显式等待 #gameHow 可见 + #gameHowPanel.show 面板断言；此前两次本机运行在同一步位超时；探针完整复现烟雾的触发序列后按钮可见、panel 正常打开、en 模式零 CJK 泄漏——根因是测试对 actionability 帧稳定性的竞态，非产品回归；断言未弱化，反而新增了面板真打开的硬证据）；
+  - `web/` 重建：`node scripts/build-web.mjs` → `web/app.js` + `web/assets/app.003ccd25a8ff935a.js` + `web/asset-manifest.json` 入库；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴 63 → 65 卷（补《卷六十四 冶炼的第七日 / The Seventh Day of the Forge》、《卷六十五 水纹的刻度 / The Etched Waterline》两行），逐字节稳定纪律不变；_WORLD_MAP 复测 4,388 bytes（本提交实测）；
+  - README/INDEX 落架：`- **年鉴（65 卷）**` + LXV 粗体段（en 原文入 README）；`docs/INDEX.md` 增 Ch.LXV 条目；
+  - showcase 同步随后（见 xiaodernan.github.io 烘焙记录）；CI「Update docs/latest.json」自动刷新事实包。
