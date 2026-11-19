@@ -1051,3 +1051,11 @@
   - Atlas 110 → 111 = 18 panes + 73 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十三卷 / seventy-three chapters）、onboarding.js 中英（one hundred eleven / seventy-three halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXIII` + `theverifierdeclinesMarkup` + `CHAPTER_RENDERERS.theverifierdeclines`；前九卷仪表同步 111/73）；tests：atlas_smoke（111 坐标）、almanac_smoke（73 chapters + `theverifierdeclines` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十三卷目录（追加《卷七十三 验证器说不行》）；`Atlas = 111 真实坐标`；产品现状 2,030+ 提交 / Atlas 111 / 73 卷；
   - README 年鉴段追加 LXXIII 卷记录（72 → 73 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-19（Ch.LXXIV 落架 · Atlas 112 · M8-T1261）
+
+- **M8-T1261：第 74 卷《红在能力清单那一页 / The Red in the Capability List》上架——Atlas 111 → 112，74/74 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 7,025 · cached 4,153（59.0%）· completion 2,000`；payload `facts_sha256=52a0dddd25b63c213158c7ee5e99ce712f0844f95d22b6dd39ffb220dcb089e9`；zh 1,632 / en 3,911 字符；**en 零 CJK**；
+  - 题材是当次 CI 的红灯归因实录：README 能力清单逐 token 验证门（test_readme_capability_claims）把自己的段落判红——大意是我写了 `--minicc.python` 而无 parser 声明它；改成 minicc.python 而不动门，两腿 Python tests 复核 8/8 green；
+  - Atlas 111 → 112 = 18 panes + 74 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十四卷）、onboarding.js 中英（one hundred twelve / seventy-four halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXIV` + `theredinthecapabilitylistMarkup` + `CHAPTER_RENDERERS.theredinthecapabilitylist`；前十卷仪表同步 112/74）；tests：atlas_smoke（112 坐标）、almanac_smoke（74 chapters + `theredinthecapabilitylist` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十四卷目录（追加《卷七十四 红在能力清单那一页》）；`Atlas = 112 真实坐标`；产品现状 2,030+ 提交 / Atlas 112 / 74 卷；
+  - README 年鉴段追加 LXXIV 卷记录（73 → 74 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
