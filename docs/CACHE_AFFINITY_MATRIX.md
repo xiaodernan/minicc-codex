@@ -412,9 +412,9 @@ Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由
 ## 2026-11-19 · 第 68 卷《One Click, Many Hands》实测（M8-T1251）
 
 - Ch.LXVIII《一键派发 / One Click, Many Hands》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=1 首过**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`，en 零 CJK；
-- 主题源自当日实战：管理员推荐的「下一步」点一次 → `/api/tasks/batch` 并发进入工作台；审 todo + 跑一趟真实 model 一侧实测才落库；
-- 与 Ch.LXV/LXVI/LXVII 一档：「attempts=1 短对话」的固有形态；cached_tokens 4,152/4,153 同档。
-## 2026-11-19 · 第 68 卷《One Click, Many Hands》实测（M8-T1251）
-
-- Ch.LXVIII《一键派发 / One Click, Many Hands》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=1 首过**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`，en 零 CJK；
 - 与 Ch.LXV/LXVI/LXVII/LXVIII 一档：「attempts=1 短对话，cold shard 注册段约 4,152 token，warm 后稳定」——这个模式在 6.2-sol 上可能重建过，替代 97.6% 的口径仍要时常重测验证。
+## 2026-11-19 · 第 69 卷《The Live Page》实测（M8-T1252）
+
+- Ch.LXIX《活的页面 / The Live Page》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=1 首过**；`usage = prompt 7,725 · cached 4,146（53.7%）· completion 2,134`；payload `facts_sha256=e2efb3c45fda7e40d4649b2595ac34d2ec35857db95b5732452b3e6c223202d9`，en 零 CJK；zh 1572 / en 4266 字符；
+- 与 Ch.LXV/LXVI/LXVII/LXVIII 一档：「attempts=1 短对话 + cold-register 约 4,146 token 的缓存形态」；
+- 本卷特殊：facts 里手工补了一段 live-wire 实测（Pages deploy 六步全绿、线上 ml-commits=2024 vs 烘焙 2,022、ml-chapters=68 卷、MAIN@7904DD4、CI superseded 取消），该段带 2026-11-19T08:58Z–09:01Z 时间戳——这一档是人工取证而非自动提取，下次同款应当固化进 forge_facts.py 的 --include 参数。

@@ -88,6 +88,7 @@ export const CHAPTERS = [
   { id: "theclick", roman: { zh: "卷六十六", en: "Chapter LXVI" }, title: { zh: "回应的按键", en: "The Click That Answers" }, subtitle: { zh: "按下去，回应回来", en: "press it, wait for the answer" } },
   { id: "densemap", roman: { zh: "卷六十七", en: "Chapter LXVII" }, title: { zh: "密地图", en: "The Dense Map" }, subtitle: { zh: "密的不是内容，是并列", en: "density is not content, it is side by side" } },
   { id: "oneclickmanyhands", roman: { zh: "卷六十八", en: "Chapter LXVIII" }, title: { zh: "一键派发", en: "One Click, Many Hands" }, subtitle: { zh: "整份清单都入工作台", en: "the whole list walks into the workbench" } },
+  { id: "thelivepage", roman: { zh: "卷六十九", en: "Chapter LXIX" }, title: { zh: "活的页面", en: "The Live Page" }, subtitle: { zh: "差异可见，页面才活", en: "differences stay visible, or the page dies" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4124,8 +4125,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">107</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">69 / 69</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4165,8 +4166,8 @@ function etchedwaterlineMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">107</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">69 / 69</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4206,8 +4207,8 @@ function theclickMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">107</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">69 / 69</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4247,8 +4248,8 @@ function densemapMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">107</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">69 / 69</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4283,8 +4284,8 @@ function oneclickmanyhandsMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">107</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">69 / 69</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4302,6 +4303,45 @@ function oneclickmanyhandsMarkup() {
         ${zh()
           ? "门的宽窄由你定，走进去的人不由你多算。"
           : "You set the width of the door; how many walk in is yours to own."}
+      </p>
+    </div>`;
+}
+
+// ---- Ch.LXIX · The Live Page · 活的页面 (Atlas 107) ----
+const LEDGER_ZH_LXIX = "<p>这一卷写在页面仍然更新的时刻。2026年11月19日，仓库里的事实包记录了 LXVIII《一键，多双手》已经刊出，目录共有六十八卷；最新章节的文字也已扫除陈旧的 Atlas 时代叙述，手册面板和入门第九步如今都写着六十八卷。今天的提交记录里，8a7519b2 是这次文案清理，0f8ea9ad 则记下 LXVIII 的发布。页面上看到的数字，因而不只是静止的装饰：它们有烘焙时留下的版本，也有访问时重新读取的版本。要写 LXIX，先要承认这两种时间同时存在。</p><p>实地检查发生在 GitHub Pages 的部署之后。为提交 ab04651 执行的工作流仍显示进行中，但检查时六个步骤已经全部成功：设置任务、检出代码、身份守卫、配置 Pages、上传构件，以及部署到 GitHub Pages。更早的部署尝试被后续推送取消，而每次推送上的身份守卫都保持绿色。随后对线上首页的检查记录在 2026-11-19T09:01Z：里程碑横幅显示“2,022 minicc 提交总数 · CI 全绿”；实时 DOM 中，提交数芯片是 2024，章节芯片是“68 卷”，最新主线标记是 MAIN @ 7904DD4。近期提交列表把 LXVIII 放在事实包机器人的刷新提交之前。这些读数并不相同，记录它们，才是说明页面如何工作的起点。</p><p>页面采用两层呈现：在 ab04651 中烘焙的备用值写着 2,022、68 和 0f8ea9a；页面运行时的实时抓取则把芯片更新为 2024、68 和 7904DD4。上游的 docs/latest.json 在事实包生成时报告 head=a626552、提交总数 2025、章节数 68、追踪文件 1160、路线图 55786 行；它的生成时间是 2026-11-19T08:55:50.144Z。页面中的提交数由渲染时读取的上游 latest.json 提供，而横幅及备用值仍保留烘焙时的数值。因此两层都不是孤立的真相；只有实时层重新读取事实包，操作者才有机会看出烘焙页面已经落后。此处的 2,022 与 2,024 是有意保留的差异，不应被抹成一个数。</p><p>主线当天的节奏也解释了为什么页面需要重新读取。记录列出了十个提交：8a7519b2、2516ea13、a626552a、7904dd43、4f45ebb5、71b4aad9、820b99db、0f8ea9ad、d213f587 和 2d9d0766；其中六个是事实包机器人的刷新提交。最新记录还显示，CI 工作流的每次推送都被下一次推送取消，结论是被取代，而不是失败；要取得绿色的必需运行，最快的条件是有一分钟没有新推送。相较之下，更新 docs/latest.json 的工作流每次都成功，其中一次于 2026-11-19T08:43:29Z 完成，运行编号为 44481833362。部署和数据刷新已有可读的成功证据，CI 则仍受连续推送的节奏牵制。页面把这些细节置于可检查的位置，读者才不必把“绿色”误当成所有事情都已静止。</p><p>同一仓库的其他测量给这本日志提供了尺度，但不改变页面检查本身的事实。压力测试记录的累计数据包括三波合计 33,600 个请求、零个非 2xx、零个连接失败；另一组记录为三波 25,470 个请求且同样没有非 2xx 或连接失败，当日各次压力运行合计则为 59,070 个请求、零个非 2xx。缓存记录也没有把命中率说成恒定：稳定前缀探针达到 97.6%，真实代理任务因逐轮增长的上下文落在 48–72%。这些数据共同提醒我们，数字必须带着测量条件和来源。LXIX 的页面并非只展示一个“最新”标签，而是展示备用值、实时值与上游事实包之间的关系；在这层关系仍能被亲眼核对时，页面才是活的。</p><p>“活页面的诚实，始于让差异可见。”</p>";
+const LEDGER_EN_LXIX = "<p>This volume is written while the page is still changing. On November 19, 2026, the repository fact pack recorded that LXVIII, “One Click, Many Hands,” had been published and that the table of contents held sixty-eight volumes. The latest chapter's copy had also been swept of stale Atlas-era narration: the manual panel and onboarding step nine now both say sixty-eight volumes. In today's commit record, 8a7519b2 marks that copy sweep, while 0f8ea9ad records the release of LXVIII. The numbers seen on the page are therefore not merely static decoration: they have a version left by baking and another version read again at visit time. To write LXIX, we must first acknowledge that these two times coexist.</p><p>The live inspection took place after a GitHub Pages deployment. The workflow for commit ab04651 still appeared in progress, but by the time of inspection all six steps had completed successfully: Set up job, Checkout, Identity guard, Configure Pages, Upload artifact, and Deploy to GitHub Pages. Earlier deployment attempts had been cancelled by later pushes, while the identity guard stayed green on every push. The subsequent check of the live home page was recorded at 2026-11-19T09:01Z: the milestone ribbon read “2,022 minicc commits · CI all green”; in the live DOM, the commit chip was 2024, the chapter chip was “68 volumes,” and the latest main marker was MAIN @ 7904DD4. The recent-commits list placed LXVIII above the fact-pack bot's refresh commits. Recording these readings, even though they differ, is the starting point for explaining how the page works.</p><p>The page uses two presentation layers: the fallback baked into ab04651 says 2,022, 68, and 0f8ea9a; the live fetch at page runtime updates the chips to 2024, 68, and 7904DD4. At fact-pack generation, the upstream docs/latest.json reported head=a626552, 2025 total commits, 68 chapters, 1160 tracked files, and 55786 roadmap lines; its generation time was 2026-11-19T08:55:50.144Z. The page's commit chip comes from reading the upstream latest.json at render time, while the ribbon and fallback values retain their baked numbers. Neither layer is the truth in isolation; only when the live layer rereads the fact pack can an operator notice that the baked page has fallen behind. The difference between 2,022 and 2,024 here is intentional and should not be flattened into a single number.</p><p>The day's pace on main also explains why the page must read again. The record lists ten commits: 8a7519b2, 2516ea13, a626552a, 7904dd43, 4f45ebb5, 71b4aad9, 820b99db, 0f8ea9ad, d213f587, and 2d9d0766; six of them are fact-pack bot refresh commits. The latest record also shows that each push's CI workflow is cancelled by the next push, with a superseded conclusion rather than a failure; the fastest condition for a green required run is one minute without a new push. By contrast, the workflow updating docs/latest.json succeeds every time; one run completed at 2026-11-19T08:43:29Z, run number 44481833362. Deployment and data refresh already have readable evidence of success, while CI remains constrained by the pace of successive pushes. By putting these details where they can be inspected, the page lets readers avoid mistaking “green” for everything having come to rest.</p><p>Measurements elsewhere in the same repository give this log a sense of scale, without changing the facts of the page inspection. The pressure-test record includes 33,600 requests across three waves, with zero non-2xx responses and zero connection failures; another record has 25,470 requests across three waves, again with no non-2xx responses or connection failures; all pressure runs that day total 59,070 requests and zero non-2xx responses. The cache record likewise does not claim a constant hit rate: a stable-prefix probe reached 97.6%, while real agent tasks with context growing turn by turn ranged from 48–72%. Together, these figures remind us that numbers must travel with their measurement conditions and source. The LXIX page does not merely display a “latest” label; it shows the relationship among fallback values, live values, and the upstream fact pack. While that relationship can still be checked with one's own eyes, the page is alive.</p><p>“A live page is honest when it makes differences visible.”</p>";
+function thelivepageMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-thelivepage">
+      <div class="almanac-kicker">${zh() ? "卷六十九 · 活的页面" : "Chapter LXIX · The Live Page"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `烘焙会落后，` + `<br/><span class="almanac-title-accent">线上不会。</span>`
+        : `The bake falls behind,` + `<br/><span class="almanac-title-accent">the wire never does.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXIX : LEDGER_EN_LXIX}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">107</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">69 / 69</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["烘焙只是快照，线上才是活答案", "ab04651 烘焙写 2,022/68/0f8ea9a；渲染时抓取覆写芯片为 2024/68/7904DD4——差异被刻意保留"],
+        ["部署是绿的，节奏不是静止的", "lenovo-pages 六步全绿（自 2026-11-19T08:43Z）；更早的部署尝试被后推送取消，身份守卫每次绿色"],
+        ["打开线上页，是抓陈旧烘焙的第一眼", "2026-11-19T09:01Z 实测：milestone ribbon=2,022，ml-commits=2024，ml-chapters=68 卷，MAIN@7904DD4；近期提交列表上 LXVIII 在机器人刷新之上"],
+        ["CI 红的是被取代，不是被打败", "当日每次 CI 被下一推送取消（superseded）；update-latest 工作流每次成功（如 44481833362）"],
+      ] : [
+        ["the bake is a snapshot; the wire is the answer", "ab04651 baked 2,022 / 68 / 0f8ea9a; the runtime fetch overwrites the chips to 2024 / 68 / 7904DD4 — the difference is kept on purpose"],
+        ["the deploy was green; the pace was not still", "lenovo-pages went six-for-six green from 08:43Z; earlier deploy attempts cancelled by the next push; identity-guard green on every push"],
+        ["opening the live page catches a stale bake", "checked 2026-11-19T09:01Z: ribbon 2,022 vs ml-commits = 2024 vs ml-chapters = 68 volumes vs MAIN @ 7904DD4; LXVIII leads the bot refresh commits in the list"],
+        ["CI red means superseded, not defeated", "today every push CI was cancelled by the next push; update-latest succeeds every time (run 44481833362 and kin)"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "活页面的诚实，始于让差异可见。"
+          : "A live page is honest when it makes differences visible."}
       </p>
     </div>`;
 }
@@ -4375,6 +4415,7 @@ const CHAPTER_RENDERERS = {
   theclick: () => theclickMarkup(),
   densemap: () => densemapMarkup(),
   oneclickmanyhands: () => oneclickmanyhandsMarkup(),
+  thelivepage: () => thelivepageMarkup(),
 };
 
 async function loadChapter(id) {

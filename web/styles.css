@@ -4652,6 +4652,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
    M8-T955: ambient, local-only, one flame per calendar day.
    ============================================================ */
 
+.streak-chip[hidden] { display: none; }
 .streak-chip {
   display: inline-flex;
   align-items: center;

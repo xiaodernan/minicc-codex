@@ -970,16 +970,6 @@
 - 补充：`scripts/pre_push_gates.py` 16/16 pass 并 git push origin/main——与 cache_affinity 账本一致：家族键仍 97.6%，prefix 12,786 tokens profile headline block=4,096 tokens（称号先于 body 落 shard，exponential 双波形），warm-set shard 亲和 87.1%（不是 bug，是 feature）。
 ---
 
-## 2026-11-19（Ch.LXVIII 落架 · Atlas 106 · M8-T1251）
-
-- **M8-T1251：第 68 卷《一键派发 / One Click, Many Hands》上架——Atlas 105 → 106，68/68 卷全双语**：
-  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1 首过即过 verify**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`；zh 687 字符 / en 2,246 字符；**en 零 CJK**；事实包来自仓库自己的账（git log + docs/latest.json + pom modules + 缓存/压测 regex），缺的标 missing；
-  - 题材诚实对应今天的真实故事：管理员面板「一键派发」——模型写出的下一步经一次点击就走 `/api/tasks/batch` 并发入工作台（不是 narratively 包装，是实测：apply-one 派发 `task-7b6ed88df2f1, task-...-00361` 实打实跑过完成了 `audit.jsonl`）；
-  - Atlas 105 → 106 = 18 panes + 68 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 注释、`manual.js` 中英、`onboarding.js` 中英、`i18n.js`（CRLF 338/0 不动）、`tooltips.js`、`almanac.js`（CHAPTERS + `LEDGER_ZH/EN_LXVIII` + `oneclickmanyhandsMarkup` + `CHAPTER_RENDERERS.oneclickmanyhands`；LXIV–LXVII 仪表同步 106/68）；
-  - `tests/atlas_smoke.mjs`（/ 106 个坐标）、`tests/almanac_smoke.mjs`（68 chapters + `oneclickmanyhands` marker：一键派发 / One Click, Many Hands）；`doc_pointers` 绿；en_cjk parity 复绿；
-  - `minicc/prompt.py` `_WORLD_MAP`：年鉴 67 → 68 卷（追加《卷六十八 一键派发 / One Click, Many Hands》目录），逐字节稳定纪律不变；
-  - showcase 同步随后（Atlas 106 / 68 卷属实质里程碑）。
----
 
 ## 2026-11-19（Ch.LXVIII 落架 · Atlas 106 · M8-T1251）
 
@@ -990,3 +980,34 @@
   - `tests/atlas_smoke.mjs`（/ 106 个坐标）、`tests/almanac_smoke.mjs`（68 chapters + `oneclickmanyhands` marker）；`doc_pointers` 绿；en_cjk parity 复绿；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴 67 → 68 卷（追加《卷六十八 一键派发 / One Click, Many Hands》目录）；`Atlas = 106 真实坐标`；atlas+linux deploy 已将 "atlas 104" 一把抓住；
   - showcase 同步随后：新 Atlas 106 / 68 卷。
+---
+
+## 2026-11-19（Ch.LXIX 落架 · Atlas 107 · M8-T1252）
+
+- **M8-T1252：第 69 卷《活的页面 / The Live Page》上架——Atlas 106 → 107，69/69 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1 首过即过 verify**；`usage = prompt 7,725 · cached 4,146（53.7%）· completion 2,134`；payload `facts_sha256=e2efb3c45fda7e40d4649b2595ac34d2ec35857db95b5732452b3e6c223202d9`；zh 1572 / en 4266 字符；**en 零 CJK**；
+  - 题材是当日实测的「活的页面」：Pages deploy run 44489806762（ab04651）六步全绿（自 2026-11-19T08:43Z，lenovo-pages）；线上 `#ml-commits`=2024（渲染时抓上游 latest.json，head=a626552）vs 烘焙 ribbon=2,022 vs `#ml-chapters`=68 卷 vs MAIN@7904DD4；两层都在、差异被刻意保留；CI 每次推送被下一次取消（superseded，非失败）——部署与 fact-pack 工作流则每次成功；
+  - Atlas 106 → 107 = 18 panes + 69 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 注释、`manual.js` 中英、`onboarding.js` 中英（one hundred seven）、`i18n.js` emptyChip5（CRLF 338/0 不动）、`tooltips.js` ×4、`almanac.js`（CHAPTERS + `LEDGER_ZH/EN_LXIX` + `thelivepageMarkup` + `CHAPTER_RENDERERS.thelivepage`；前五卷仪表同步 107/69）；
+  - `tests/atlas_smoke.mjs`（107 个坐标）、`tests/almanac_smoke.mjs`（69 chapters + `thelivepage` marker：活的页面 / The Live Page）；doc_pointers 绿；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴 68 → 69 卷（追加《卷六十九 活的页面》）；`Atlas = 107 真实坐标`；产品现状数字同步为实测 2,027 提交 / 1,158 tracked；
+  - 说明：锻造事实包（含手工补充的 live-wire 实测段，每行带时间戳）由 forge_facts.py 现场生成后喂给锻造台，不入库；
+  - showcase 同步随后（Atlas 107 / 69 卷属实质里程碑）。
+---
+
+## 2026-11-19（parity → 真实 bug · streak chip zh aria + CSS hidden 击穿 · M8-T1253）
+
+- **M8-T1253：en 模式下 `#streakChip` 的 aria-label 是硬编码中文，且 CSS display 击穿了 hidden 属性——两个真问题，一起修**：
+  - 诊断链：en 模式跑 `test:parity`（en_cjk_smoke，wayfinder steps 7/8/9）抓到 `div#streakChip[aria-label] 连续活跃天数`——`web/index.html` 的 `#streakChip` 有 `data-i18n-title="streak.title"` 却没有 `data-i18n-aria`，aria-label 永远是中文；读屏用户（en/zh 之一）听到的文案不随界面语言走；
+  - 更深一层：`web/styles.css` 的 `.streak-chip { display: inline-flex }` 以 author 级优先级击穿 HTML 的 `hidden` 属性——0 天时 streak chip 也被强制可见，违背 M8-T955 的「有连续完成才亮」设计；
+  - 修复：`aria-label` 改为 `连续完成任务的活跃天数` 并挂 `data-i18n-aria="streak.title"`（locale.js 既有 `data-i18n-aria` → `setAttribute('aria-label', t(...))` 通道接管，en 听到 en、zh 听到 zh）；CSS 增加 `.streak-chip[hidden] { display: none; }` 一行；
+  - 验证：`test:parity` 期望全绿；CRLF pin 不动（index.html 791/0、i18n.js 338/0）；未新增 i18n 键（复用 streak.title，zh/en 两侧已对齐）。
+---
+
+## 2026-11-19（history 行里的 rewind 幽灵按钮 · dazzle 取证 · M8-T1254）
+
+- **M8-T1254：任务历史行不再渲染可交互 rewind 按钮——点一次永远 400、永远弹“回退失败”**：
+  - dazzle 现场取证（en 模式，seed 0x1eca5d0ab1e_2026）：连续两次 `[HTTP 400] POST /api/sessions/rewind`——`web/src/chat/markdown.js` 的 `taskHistoryMarkup(task)` 给每条历史任务都渲染 `.rewind-to-here`，`decorateUserRewindButtons()` 再把所有 `.user-message` 的按钮编号为 1..N；历史行里的按钮却走 `rewindToUserIndex(N)` → `scope = captureViewScope()` = **当前会话**——POST `session_id` 按当前会话打开，user_index 按“DOM 里所有 user-message 的顺序”编号；两列对不齐，必 400；
+  - 不只这一处：历史行的按钮属于一个只读视图，在此点“rewind”语义本身就是错的——它会把兜底进来的 POST 发到直播会话而不是该行任务；而且 `decorateUserRewindButtons()` 会给每个 `.user-message` 重编号 1..N 并顺便把缺按钮的历史行补上：DOM 里两种身份的消息混排，编号与直播会话的真实轮次对不齐（直播会话只有 3 轮 user，DOM 却数出 18）——点第 16 个就是 400。
+  - 修复两处：① `taskHistoryMarkup` 的用户消息头不再渲染 `.rewind-to-here`，并给历史行加 `data-history-task="1"`；② `decorateUserRewindButtons()` 跳过带 `data-history-task` 的行——历史行彻底不渲染 rewind 按钮（只读历史里 rewind 本就是错的）；直播会话的 `.user-message`（`addUserMessage`）rewind 语义保持不变；
+  - 验证：`test:dazzle` 的确定性 walk 期望飞升；`test:admin / parity / manual / almanac / atlas / web` 不受此路径影响；
+  - 说明：这不是“为了 smoke 改测试”，是给只读视图摘掉一个永远会 400 的按钮；行为变更：历史行 rewind 按钮消失，直播会话不受影响。

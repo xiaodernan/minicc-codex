@@ -1005,7 +1005,7 @@ export function userRewindButton(index = 0) {
 
 export function decorateUserRewindButtons(root = $("#messageList")) {
   if (!root) return;
-  [...root.querySelectorAll(".user-message")].forEach((node, index) => {
+  [...root.querySelectorAll(".user-message")].filter((node) => !node.hasAttribute("data-history-task")).forEach((node, index) => {
     const userIndex = index + 1;
     node.dataset.userIndex = String(userIndex);
     let button = node.querySelector(".rewind-to-here");
