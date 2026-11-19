@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T16:35:25.770Z",
+  "generated_at": "2026-11-19T18:05:35.399Z",
   "branch": "main",
-  "head": "a35b184",
-  "total_commits": 2048,
+  "head": "d649549",
+  "total_commits": 2050,
   "recent_commits": [
+    {
+      "short": "d6495497",
+      "at": "2026-11-20T01:28:17+08:00",
+      "subject": "almanac: Ch.LXXVII The Night the CI Answered - Atlas 114 -> 115 - attempts=1, en zero CJK (M8-T1264)"
+    },
+    {
+      "short": "cd64dcf4",
+      "at": "2026-11-19T16:35:26Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a35b1847",
       "at": "2026-11-20T00:33:45+08:00",
@@ -19,25 +29,15 @@
       "short": "e2cbb7a1",
       "at": "2026-11-19T23:44:50+08:00",
       "subject": "almanac: Ch.LXXV The Ladder Snaps, the World Does Not - Atlas 112 -> 113 - attempts=1, en zero CJK (M8-T1262)"
-    },
-    {
-      "short": "53a38836",
-      "at": "2026-11-19T15:28:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4ca12a90",
-      "at": "2026-11-19T23:25:41+08:00",
-      "subject": "almanac: Ch.LXXIV The Red in the Capability List - Atlas 111 -> 112 - attempts=1, en zero CJK (M8-T1261)"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 24,
+  "changelog_entries": 25,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 76,
+  "almanac_chapters": 77,
   "module_count": 14,
   "feature_surface": [
     "workbench",
