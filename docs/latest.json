@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T06:37:45.148Z",
+  "generated_at": "2026-11-19T06:48:05.154Z",
   "branch": "HEAD",
-  "head": "a8afc40",
-  "total_commits": 2008,
+  "head": "c2abc22",
+  "total_commits": 2010,
   "recent_commits": [
+    {
+      "short": "c2abc222",
+      "at": "2026-11-19T14:47:17+08:00",
+      "subject": "almanac: Ch.LXVI The Click That Answers - 6.2-sol attempts=1, en zero CJK, zh 1,354 chars; Atlas 103 -> 104 (104 = 18 panes + 66 almanac + 20 manual); 66/66 bil"
+    },
+    {
+      "short": "d65824e5",
+      "at": "2026-11-19T06:37:45Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a8afc404",
       "at": "2026-11-19T14:33:28+08:00",
@@ -19,25 +29,15 @@
       "short": "0608e2b9",
       "at": "2026-11-19T06:18:50Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3bb108fb",
-      "at": "2026-11-19T14:12:33+08:00",
-      "subject": "docs(ledger): rewrite M8-T1242 entry - the fix was two-part (idle preload + busy affordance), not the busy affordance alone; records the red->green measurement "
-    },
-    {
-      "short": "a5781d3c",
-      "at": "2026-11-19T14:08:34+08:00",
-      "subject": "arcade: warm /game.js on idle + busy affordance - the lazy injection starved the 6-socket HTTP/1.1 budget under full load and users clicked a dead button; idle-"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 5,
+  "changelog_entries": 6,
   "roadmap_lines": 55786,
   "tracked_files": 1160,
   "test_files": 747,
-  "almanac_chapters": 65,
+  "almanac_chapters": 66,
   "module_count": 14,
   "feature_surface": [
     "workbench",
