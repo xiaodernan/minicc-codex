@@ -409,3 +409,12 @@ Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由
   - 再跑调用-1 作为快速重验证：4,096 → 11,138（生命周期稳定）
 - 与既有测量一致：字节亲和会话命中；warm shard 以 cliff（头上 bit）落地；~12,786 tokens 级别 profile 头块命中约 60-95%，因 gateway 上游分片有多余系统提示偏移——这就是为什么 codex "5万到9万 tokens" 的命中率漂浮在 90%，不是 100。
 - 完整家族键仍派生为 `minicc-<sha256(sid)[:16]>`；keeper 60 s warms 真 gateway；禁止全局键。
+## 2026-11-19 · 第 68 卷《One Click, Many Hands》实测（M8-T1251）
+
+- Ch.LXVIII《一键派发 / One Click, Many Hands》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=1 首过**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`，en 零 CJK；
+- 主题源自当日实战：管理员推荐的「下一步」点一次 → `/api/tasks/batch` 并发进入工作台；审 todo + 跑一趟真实 model 一侧实测才落库；
+- 与 Ch.LXV/LXVI/LXVII 一档：「attempts=1 短对话」的固有形态；cached_tokens 4,152/4,153 同档。
+## 2026-11-19 · 第 68 卷《One Click, Many Hands》实测（M8-T1251）
+
+- Ch.LXVIII《一键派发 / One Click, Many Hands》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=1 首过**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`，en 零 CJK；
+- 与 Ch.LXV/LXVI/LXVII/LXVIII 一档：「attempts=1 短对话，cold shard 注册段约 4,152 token，warm 后稳定」——这个模式在 6.2-sol 上可能重建过，替代 97.6% 的口径仍要时常重测验证。

@@ -968,3 +968,25 @@
   - `tests/admin_smoke.mjs` 新行稳定；`tests/atlas_smoke / almanac_smoke / parity / manual 全绿`. Pushed to main as 6.2-sol.
 
 - 补充：`scripts/pre_push_gates.py` 16/16 pass 并 git push origin/main——与 cache_affinity 账本一致：家族键仍 97.6%，prefix 12,786 tokens profile headline block=4,096 tokens（称号先于 body 落 shard，exponential 双波形），warm-set shard 亲和 87.1%（不是 bug，是 feature）。
+---
+
+## 2026-11-19（Ch.LXVIII 落架 · Atlas 106 · M8-T1251）
+
+- **M8-T1251：第 68 卷《一键派发 / One Click, Many Hands》上架——Atlas 105 → 106，68/68 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1 首过即过 verify**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`；zh 687 字符 / en 2,246 字符；**en 零 CJK**；事实包来自仓库自己的账（git log + docs/latest.json + pom modules + 缓存/压测 regex），缺的标 missing；
+  - 题材诚实对应今天的真实故事：管理员面板「一键派发」——模型写出的下一步经一次点击就走 `/api/tasks/batch` 并发入工作台（不是 narratively 包装，是实测：apply-one 派发 `task-7b6ed88df2f1, task-...-00361` 实打实跑过完成了 `audit.jsonl`）；
+  - Atlas 105 → 106 = 18 panes + 68 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 注释、`manual.js` 中英、`onboarding.js` 中英、`i18n.js`（CRLF 338/0 不动）、`tooltips.js`、`almanac.js`（CHAPTERS + `LEDGER_ZH/EN_LXVIII` + `oneclickmanyhandsMarkup` + `CHAPTER_RENDERERS.oneclickmanyhands`；LXIV–LXVII 仪表同步 106/68）；
+  - `tests/atlas_smoke.mjs`（/ 106 个坐标）、`tests/almanac_smoke.mjs`（68 chapters + `oneclickmanyhands` marker：一键派发 / One Click, Many Hands）；`doc_pointers` 绿；en_cjk parity 复绿；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴 67 → 68 卷（追加《卷六十八 一键派发 / One Click, Many Hands》目录），逐字节稳定纪律不变；
+  - showcase 同步随后（Atlas 106 / 68 卷属实质里程碑）。
+---
+
+## 2026-11-19（Ch.LXVIII 落架 · Atlas 106 · M8-T1251）
+
+- **M8-T1251：第 68 卷《一键派发 / One Click, Many Hands》上架——Atlas 105 → 106，68/68 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1 首过即过 verify**；`usage = prompt 7,144 · cached 4,152（58.1%）· completion 1,173`；payload `facts_sha256=625a24cb145291e8def197310e768e60adec9a9a470f61a6b2c17133e88ae672`；zh 687 / en 2,246 字符；**en 零 CJK**；事实包来自仓库自己的账（git log + docs/latest.json + pom modules + 缓存/压测 regex），缺的标 missing；
+  - 题材诚实对应今天的真实故事：管理员面板「一键派发」——模型写出的"下一步"经一次点击就走 `/api/tasks/batch` 并发入工作台（不是 narratively 包装，是实测：apply-one 派发 `task-7b6ed88df2f1, task-...-00361` 实打实在 `.minicc` 里跑过完成）；`admin_smoke` 已绿、apply-one 派发验证 task 落盘；
+  - Atlas 105 → 106 = 18 panes + 68 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 注释、`manual.js` 中英、`onboarding.js` 中英、`i18n.js`（CRLF 338/0 不动）、`tooltips.js`、`almanac.js`（CHAPTERS + `LEDGER_ZH/EN_LXVIII` + `oneclickmanyhandsMarkup` + `CHAPTER_RENDERERS.oneclickmanyhands`；atlas.js 68 chapters；LXIV-LXVII 仪表盘同步 106/68）；
+  - `tests/atlas_smoke.mjs`（/ 106 个坐标）、`tests/almanac_smoke.mjs`（68 chapters + `oneclickmanyhands` marker）；`doc_pointers` 绿；en_cjk parity 复绿；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴 67 → 68 卷（追加《卷六十八 一键派发 / One Click, Many Hands》目录）；`Atlas = 106 真实坐标`；atlas+linux deploy 已将 "atlas 104" 一把抓住；
+  - showcase 同步随后：新 Atlas 106 / 68 卷。

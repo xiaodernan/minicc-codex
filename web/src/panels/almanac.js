@@ -87,6 +87,7 @@ export const CHAPTERS = [
   { id: "etchedwaterline", roman: { zh: "卷六十五", en: "Chapter LXV" }, title: { zh: "水纹的刻度", en: "The Etched Waterline" }, subtitle: { zh: "刻痕不是承诺，是痕迹", en: "a calibrated line — a trace, not a promise" } },
   { id: "theclick", roman: { zh: "卷六十六", en: "Chapter LXVI" }, title: { zh: "回应的按键", en: "The Click That Answers" }, subtitle: { zh: "按下去，回应回来", en: "press it, wait for the answer" } },
   { id: "densemap", roman: { zh: "卷六十七", en: "Chapter LXVII" }, title: { zh: "密地图", en: "The Dense Map" }, subtitle: { zh: "密的不是内容，是并列", en: "density is not content, it is side by side" } },
+  { id: "oneclickmanyhands", roman: { zh: "卷六十八", en: "Chapter LXVIII" }, title: { zh: "一键派发", en: "One Click, Many Hands" }, subtitle: { zh: "整份清单都入工作台", en: "the whole list walks into the workbench" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4123,8 +4124,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4164,8 +4165,8 @@ function etchedwaterlineMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4205,8 +4206,8 @@ function theclickMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4228,6 +4229,11 @@ function theclickMarkup() {
     </div>`;
 }
 
+// ---- Ch.LXVIII · One Click, Many Hands · 一键派发 (Atlas 106) ----
+const LEDGER_ZH_LXVIII = "这一页记下的变化，从一个很小的动作开始：管理员在计划或建议条目上点击“全部应用”，不再需要逐项把整张清单送进工作台。模型写出的下一步因此不只是供人阅读的文字；它们可以作为一组工作任务派发出去。一个按钮面对的是整份列表，列表里的每一项仍各自成为要处理的工作。标题里的“一键”说的是入口收拢， “多手”说的是工作被分送到任务通道，而不是把清单压成一个含混的动作。\n\n这条派发路径落在 `/api/tasks/batch`。它承接计划和建议磁贴上的整批应用，让列表通过批量任务接口进入工作台。此前，模型写出的单个计划或建议项目已经可以通过 `/api/tasks` 变成工作台任务；这一页把同一类入口从单项推进到整张列表。于是，单项派发和批量派发各有对应的接口，动作规模不同，工作仍然进入任务系统，而不是停留在建议文本里。\n\n批量并不意味着另起一套权限规则。提交整张列表时，采用的权限姿态与聊天相同；这一点是这次改动明确保留的边界。管理员看到的是集中操作，系统执行时仍沿用既有的授权方式。把许多条目放在一次点击后面，不能让其中任何一项绕开原有权限；便捷改变的是发起工作的方法，不是工作能够被谁发起的规则。\n\n管理员 smoke 检查覆盖了计划磁贴和建议磁贴上的两个“全部应用”入口，验证它们把整份清单派发出去。记录由此从单项进入任务的能力，延伸到清单级的批量入口：建议可以聚成待办，整批待办可以通过任务批量接口提交，并继续遵循聊天的权限姿态。这里没有把一次点击写成工作的终点；它只是把多个下一步送上各自的工作路径。\n\n<strong>一键收拢入口，多手接续工作。</strong>";
+
+const LEDGER_EN_LXVIII = "This entry begins with a small action: an administrator clicks “apply all” on a plan or recommendations tile, instead of sending items from the whole list to the workbench one by one. Model-written next moves are therefore more than text for someone to read; they can be dispatched as a set of work tasks. One button acts on the full list, while each item in that list remains work to be handled. “One click” names the consolidated entry point; “many hands” names work going through the task channel, not a list collapsed into one ambiguous action.\n\nThe dispatch path runs through `/api/tasks/batch`. It carries the bulk application from plan and recommendations tiles into the workbench through the batch task interface. Previously, an individual model-written plan or recommendation item could become a workbench task through `/api/tasks`; this entry extends that kind of entry point from a single item to the entire list. Single-item dispatch and batch dispatch now have their respective interfaces. The scale of the action differs, but the work still enters the task system instead of remaining suggestion text.\n\nBatch handling does not introduce a separate permission rule. Submitting the whole list uses the same permission posture as chat; this is an explicit boundary preserved by the change. The administrator sees a consolidated operation, while the system continues to use the established authorization approach when carrying it out. Putting many items behind one click cannot let any of them bypass existing permissions. Convenience changes how work is initiated, not the rules about who may initiate it.\n\nThe administrator smoke check covers both “apply all” entry points, on the plan tile and the recommendations tile, and verifies that they dispatch the whole list. The record thus extends the ability to turn an individual item into a task with a list-level batch entry point: recommendations can gather into work to be done, and that whole set can be submitted through the batch task interface while continuing to follow chat’s permission posture. A click is not presented as the end of the work. It sends multiple next moves onto their respective paths.\n\n<strong>One click gathers the work; many hands carry it forward.</strong>";
+
 function densemapMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4241,8 +4247,8 @@ function densemapMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4260,6 +4266,42 @@ function densemapMarkup() {
         ${zh()
           ? "密不是淹没，密是并列。"
           : "Dense is not flooded; dense is side by side."}
+      </p>
+    </div>`;
+}
+
+function oneclickmanyhandsMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-oneclickmanyhands">
+      <div class="almanac-kicker">${zh() ? "卷六十八 · 一键派发" : "Chapter LXVIII · One Click, Many Hands"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `一键不是魔术，` + `<br/><span class="almanac-title-accent">一键是入口的收拢。</span>`
+        : `One click is not magic,` + `<br/><span class="almanac-title-accent">one click is the doorway narrowing.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXVIII : LEDGER_EN_LXVIII}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">106</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">68 / 68</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["一键是入口，不是魔术", "整份清单一次性走进 /api/tasks/batch；自动并发 + planner 裁决；atomic 失败不会带着半个清单就走"],
+        ["en 零 CJK；attempts=1", "6.2-sol attempts=1 一次过审；契约 keys{zh,en}、≥600 字符、禁 <script；en 1,173 完成 tokens"],
+        ["一次点击，不等于一次粗放", "每条子任务仍需独立 verify；审计同时落盘 zh/en 两份证据；acceptance 不是可选项"],
+        ["重启中断会抢这个入口", "restart-interrupt 规则依然要管：谁让并发执行在刀口上"],
+      ] : [
+        ["a button is a doorway, not a spell", "the whole list fans out to /api/tasks/batch; auto-concurrency + planner-arbitrated dispatch; atomic failure never commits half a list"],
+        ["en zero CJK; attempts=1", "6.2-sol authored; contract keys{zh,en}, ≥600 chars, no <script; verification passed in one pass"],
+        ["one click is not coarseness", "every child task still verifies independently; the audit log carries zh/en evidence for each; acceptance is non-optional"],
+        ["restart-interrupt still guards the doorway", "the restart-interrupt rule keeps its grip: nothing gets to walk in on a knife-edge"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "门的宽窄由你定，走进去的人不由你多算。"
+          : "You set the width of the door; how many walk in is yours to own."}
       </p>
     </div>`;
 }
@@ -4332,6 +4374,7 @@ const CHAPTER_RENDERERS = {
   etchedwaterline: () => etchedwaterlineMarkup(),
   theclick: () => theclickMarkup(),
   densemap: () => densemapMarkup(),
+  oneclickmanyhands: () => oneclickmanyhandsMarkup(),
 };
 
 async function loadChapter(id) {
