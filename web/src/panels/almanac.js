@@ -83,6 +83,7 @@ export const CHAPTERS = [
   { id: "parallelwind", roman: { zh: "卷六十一", en: "Chapter LXI" }, title: { zh: "并发的风", en: "The Parallel Wind" }, subtitle: { zh: "六条线程、两个家庭，谁也不动谁", en: "six threads, two families, neither moves the other" } },
   { id: "ownscale", roman: { zh: "卷六十二", en: "Chapter LXII" }, title: { zh: "按自己的尺度", en: "On Its Own Scale" }, subtitle: { zh: "同一把尺，量每一段路", en: "one rule, every road measured the same way" } },
   { id: "forgedworld", roman: { zh: "卷六十三", en: "Chapter LXIII" }, title: { zh: "锻造的世界", en: "The Forged World" }, subtitle: { zh: "波动不被抹去，被记清", en: "the variance is not erased; it is recorded" } },
+  { id: "seventhday", roman: { zh: "卷六十四", en: "Chapter LXIV" }, title: { zh: "冶炼的第七日", en: "The Seventh Day of the Forge" }, subtitle: { zh: "火有边界，留白不粉饰", en: "the fire has edges; the ledger keeps them" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4061,6 +4062,10 @@ function ownscaleMarkup() {
     </div>`;
 }
 
+const LEDGER_ZH_LXIV = "<p><strong>卷六十四：冶炼的第七日 / The Seventh Day of the Forge。</strong>冶炼的第七日，卷LXIV从一份有边界的账册起笔：事实包记录的前一卷是LXIII，almanac计数为63；另一处最新快照则标着63卷、1,994次提交、493批路线图、747个测试文件、1,158个跟踪文件，以及55,786行路线图。快照生成于2026-11-18 22:37:29.069Z，记录的head为1a0c6b3。紧接着的提交把两条旧提示改正：almanac的卷数由58改为63，atlas的真实坐标数由96改为101；应用脚本随之重建。另一条提交让提示带上仓库自己的罗盘：实时产品事实、双语的20章手册目录，以及63卷almanac目录。修补缺失章节键的工作也在这段记录中：草稿与修复改用安全读取，遇到非字典节点便返回失败结果，让验证器作出判定，不再因缺键抛出KeyError。账册还记下自动组装forge输入的提交：git日志、事实包机器人JSON、模块清单，以及从缓存和压力测试文档抽取的锚点，共同构成输入；缺失之处仍须明说。</p><p>炉火所照见的，是缓存命中并非一句承诺，而是一组带条件的测量。上游以prefix-cache分片和客户端prompt_cache_key作为路由提示；仓库始终自动派生这个键。没有键时，同一前缀会逐次落到冷分片；有键后，在热度周期内记录到约94%至100%的命中。usage只转呈网关实际回传的cached_tokens：有数据才附上prompt_cache_hit_tokens，没有就不伪造；RAG用量条相应显示命中数量与比例，或显示“缓存命中未上报”。一次两轮小任务记下15,568个总token、7,040个命中token、8,456个未命中token，命中率45.4%。这符合头轮全付、次轮前缀命中的两趟形态；记录同时指出，系统提示与工具schema的前缀复用增加时，开放会话命中率会迅速接近先前单轮探针所见的82%至96%。</p><p>补测把稳定与失效都留在纸面上。M8-T1221使用新键、gpt-6.1-terra与reasoning max重跑v2-fix-add：passed=true，修复次数为0，耗时109秒，总token为120,599，prompt_cache_hit_tokens为84,096，命中率71.7%，reviewer_false_negative_count为0，pass@1为……；原始事实在此处截断，账册不补全它。M8-T1225把README摘录纳入13,295字节前缀后，A会话族键首次冷、随后第2至第6次稳定命中8,362/8,566，即97.6%；B lane键同档，C随机键首次也命中同一数值。另一组新lane测量显示，150秒空闲后即使cache_key不变，第三次调用仍归零，因此旧的220秒keeper间隔没有护住分片；记录据此保留60秒默认间隔。随后十次序列中，第一次为冷，第2至第10次几乎全命，但长尾之后的第9次出现一次完整冷；整体加权命中约为八成。稳定探针的97.6%不等于真实agent的逐轮表现：增长中的上下文让真实任务落在48%至72%，账册选择记录这一物理差异，不将它粉饰成恒定命中。</p><p>同一份压力账册也分开保留了不同范围的累计数。Wave 3以c=128运行12秒，每条路径n=2,380，总计14,280次请求，零错误且全部返回200；健康、摘要、统计、路线图与工作区路径的p50约为5.4至6.07毫秒。三波合计的另一项记录为33,600次请求、零非2xx、零连接失败；同一台Windows机器上，minicc-web运行于127.0.0.1:8899，使用MINICC_FAKE_PROVIDER=1，进程在压力波次前数分钟刚重启。另一个同样标为三波累计的记录是25,470次请求，同样零非2xx、零连接失败；日累计账面将33,600与25,470相加，得到59,070次请求、零非2xx。两组累计数字都照原样留下，不替它们抹平口径差异。Spring Cloud模块清单则列出bridge、registry、config、inspector、tasks、insights、evidence与gateway八项。第七日的炉火不裁去边界：分片会冷，测量有窗口，截断仍是截断；可核验的事实，才配成为锻造的刻痕。<em>把边界也记入账册。</em></p>";
+
+const LEDGER_EN_LXIV = "<p><strong>Volume Sixty-Four: The Seventh Day of the Forge.</strong>The Seventh Day of the Forge, Volume LXIV, begins with a ledger whose boundaries are explicit: the fact pack names LXIII as the preceding volume and gives the almanac count as 63. A separate latest snapshot records 63 volumes, 1,994 commits, 493 roadmap batches, 747 test files, 1,158 tracked files, and 55,786 roadmap lines. The snapshot was generated at 2026-11-18 22:37:29.069Z and records head 1a0c6b3. The next commit corrected two stale hints: the almanac count changed from 58 to 63, and the atlas count of real coordinates changed from 96 to 101; the app script was rebuilt accordingly. Another commit gave the prompt the repository's own compass: live product facts, the bilingual 20-chapter manual table of contents, and the 63-volume almanac table of contents. The record also includes a repair for missing chapter keys: draft and repair now use safe reads, and a non-dictionary node returns a failure result for the verifier to judge instead of raising KeyError on a missing key. The ledger further notes the commit that automatically assembles forge input: git history, fact-pack bot JSON, the module list, and anchors extracted from cache and pressure-test documents form the input; gaps must still be stated.</p><p>What the forge light reveals is that a cache hit is not a promise but a set of measurements with conditions. Upstream routing uses a prefix-cache shard and the client's prompt_cache_key as a routing hint; the repository always derives this key automatically. Without a key, the same prefix lands on cold shards in succession; with one, the recorded hit rate stays around 94% to 100% during the warm period. Usage only forwards cached_tokens actually returned by the gateway: prompt_cache_hit_tokens is included when data exists and is not fabricated when it does not. The RAG usage bar correspondingly shows the hit count and percentage, or says that cache hits were not reported. One small two-round task recorded 15,568 total tokens, 7,040 hit tokens, 8,456 miss tokens, and a 45.4% hit rate. This matches the two-pass pattern of paying for the first round and hitting the prefix on the second; the record also notes that as the system-prompt and tool-schema prefix is reused more, hit rates in open sessions quickly approach the 82% to 96% seen in earlier single-round probes.</p><p>Follow-up measurements preserve both stability and failure. M8-T1221 reran v2-fix-add with a new key, gpt-6.1-terra, and reasoning max: passed=true, zero repair attempts, 109 seconds, 120,599 total tokens, 84,096 prompt_cache_hit_tokens, a 71.7% hit rate, reviewer_false_negative_count=0, and pass@1=...; the source fact is truncated here, and the ledger does not complete it. In M8-T1225, after a README excerpt entered the 13,295-byte prefix, the A session-family key was cold on its first call and then consistently hit 8,362/8,566, or 97.6%, on calls 2 through 6; the B lane key matched, and the C random key also hit the same value on its first call. Another new-lane measurement showed that after 150 seconds idle, the third call fell to zero even though cache_key had not changed, so the old 220-second keeper interval had not protected the shard; the record therefore retained a 60-second default interval. In the next ten-call sequence, the first call was cold and calls 2 through 10 were almost all hits, but call 9 showed a complete cold miss after a long tail; the globally weighted hit rate was about eight in ten. The 97.6% stable probe does not describe real agents round by round: growing context brought real tasks to 48% through 72%. The ledger records this physical difference instead of polishing it into a constant hit rate.</p><p>The same pressure ledger also preserves cumulative figures with different scopes. Wave 3 ran at c=128 for 12 seconds, with n=2,380 per path and 14,280 requests total, zero errors, and all responses returning 200; p50 for health, digest, stats, roadmap, and workspace paths was about 5.4 to 6.07 milliseconds. One record gives the three-wave cumulative total as 33,600 requests, zero non-2xx responses, and zero connection failures. On the same Windows machine, minicc-web ran at 127.0.0.1:8899 with MINICC_FAKE_PROVIDER=1, and the process had been freshly restarted minutes before the waves. Another record, also labeled a three-wave cumulative total, gives 25,470 requests with zero non-2xx responses and zero connection failures; the daily total adds 33,600 and 25,470 to reach 59,070 requests and zero non-2xx responses. Both cumulative figures remain as recorded; the ledger does not erase their difference in scope. The Spring Cloud module list names eight entries: bridge, registry, config, inspector, tasks, insights, evidence, and gateway. The forge on its seventh day does not cut away its limits: shards cool, measurements have windows, and a truncation remains a truncation. Only verifiable facts deserve to become marks of the forge. <em>Keep the boundaries in the ledger.</em></p>";
+
 function forgedworldMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4093,6 +4098,42 @@ function forgedworldMarkup() {
         ${zh()
           ? "锻造，不是抹去波动，而是把它记清。"
           : "Forging does not erase variation; it records it clearly."}
+      </p>
+    </div>`;
+}
+
+function seventhdayMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-seventhday">
+      <div class="almanac-kicker">${zh() ? "卷六十四 · 冶炼的第七日" : "Chapter LXIV · The Seventh Day of the Forge"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `火有边界，` + `<br/><span class="almanac-title-accent">账册记住它们。</span>`
+        : `The fire has edges,` + `<br/><span class="almanac-title-accent">the ledger keeps them.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXIV : LEDGER_EN_LXIV}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">102</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">64 / 64</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["第七天，旧锚被逐条核对", "事实来自 forge-facts（git log + docs/latest.json + pom modules + 缓存/压测 regex 行）——缺就标 missing"],
+        ["修复回路被 live 自己用过一趟", "Ch.LXIII 修了一个 KeyError：draft/repair .get() + verify 判分 + 回归测试锁定（M8-T1236）"],
+        ["截断不是抹掉", "en 正文明确写了「the source fact is truncated here, and the ledger does not complete it」——截断就是截断"],
+        ["cache 命中计数只报已测项", "Measured: 8,362/8,566 = 97.6% 暖 shard；真实 agent 48–72%；两种数字并列，不粉饰"],
+      ] : [
+        ["the seventh day re-read every anchor", "facts came via forge-facts (git log + docs/latest.json + pom modules + regex-extracted cache/pressure lines); gaps are marked missing"],
+        ["the repair loop earned its keep", "Ch.LXIII fixed a real KeyError: draft/repair now read with .get(), verify judges, regression test locks it (M8-T1236)"],
+        ["a truncation is not an erasure", "the en body itself says the source fact is truncated here and the ledger does not complete it"],
+        ["cache hits measured, nothing more", "8,362/8,566 = 97.6% warm shard; real agent traffic 48–72%; both numbers printed side by side"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "记录炉火所及，不把热度写成永恒。"
+          : "Record how far the fire reaches; do not call its heat eternal."}
       </p>
     </div>`;
 }
@@ -4161,6 +4202,7 @@ const CHAPTER_RENDERERS = {
   parallelwind: () => parallelwindMarkup(),
   ownscale: () => ownscaleMarkup(),
   forgedworld: () => forgedworldMarkup(),
+  seventhday: () => seventhdayMarkup(),
 };
 
 async function loadChapter(id) {
