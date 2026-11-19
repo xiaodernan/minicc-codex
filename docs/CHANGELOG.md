@@ -941,3 +941,11 @@
   - Atlas 104 → 105（第六十七卷《密地图》落架）；全模块 pin 同步（atlas.js / manual.js 双语 / onboarding 双语 / i18n.js CRLF 338/0 / tooltips.js / tests ×2：atlas_smoke、almanac_smoke）；
   - Ch.LXVII《密地图 / The Dense Map》：6.2-sol 亲笔；attempts=1；zh 2,904 / en 6,061；en 零 CJK；usage `prompt 7,034 · cached 4,153（59.0%）`；`facts_sha256=cd7aedbfa3bed9b90db5cef3fef79dcbbb00576a66d677db5159ad1369575626`；
   - `_WORLD_MAP` 字节及其 facet 全部实测；i18n CRLF 338/0 未动；doc_pointers 绿。
+---
+
+## 2026-11-19（_WORLD_MAP: now a true dense map — 20 manual chapters inline · M8-T1248）
+
+- **M8-T1248：_WORLD_MAP 从 8,873 → 9,720 bytes；地图从 almanac 扩展到 manual 二十章**：
+  - `_WORLD_MAP` 增加「说明书二十章目录」——模型可以直接在 prompt 里看到这二十章的名字，而不是先问用户才能列。almanac 67 卷 + manual 20 章两份目录在线 9,720 bytes 之内； Atlas 105、67 卷双向对齐的同屏事实都在；
+  - 验证：doc_pointers 绿 · CRLF 338/0 不动 · `_WORLD_MAP` 无新增 key · cache_affinity 契约不破；tests 全绿（28 cache-related + prompt）；
+  - 预算：本次增量 +847 bytes，不影响 warm-cache 分片可读性；命中率探测仍为 97.6% warm（家族键模型优势 23%）。

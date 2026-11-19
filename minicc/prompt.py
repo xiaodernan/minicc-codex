@@ -137,6 +137,28 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
   卷六十六 回应的按键
   卷六十七 密地图
 每卷的 en 侧用上面的英文对照即可。Atlas = 67 almanac satellites + 20 manual satellites + 18 panes = 105 真实坐标。
+说明书二十章目录（Manual · 双语，每章一行）:
+  一 五分钟上手 / Quick Start
+  二 工作台导览 / The Workbench
+  三 七个模块，一个世界 / The Modules
+  四 命令与快捷键 / Commands & Shortcuts
+  五 游戏厅教程 / Playbook
+  六 排错 / Troubleshooting
+  七 边界与范围 / Honest Limits
+  八 密钥与金库 / Keys & Vault
+  九 安静的房间 / The Quiet Room
+  十 问仓库 / Ask the Repo
+  十一 压测与容量 / Load & Capacity
+  十二 微服务平面 / Spring Cloud plane
+  十三 前后端全景架构 / Full Stack
+  十四 状态图 / StateGraph
+  十五 冷热亲和 / Cache Affinity
+  十六 沙盒与安全 / Sandbox & Safety
+  十七 并行子智能体 / Parallel Subagents
+  十八 证词与门禁 / Evidence & Gates
+  十九 长城 / The CI Wall
+  二十 双峰 / The Two Shards
+
 
 ## Spring Cloud 平面（minicc-cloud/）
 - gateway（8080，对外入口、QPS 配额 + Resilience4j 熔断）
