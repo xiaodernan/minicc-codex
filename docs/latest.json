@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T08:43:24.746Z",
+  "generated_at": "2026-11-19T08:45:05.389Z",
   "branch": "HEAD",
-  "head": "0f8ea9a",
-  "total_commits": 2022,
+  "head": "4f45ebb",
+  "total_commits": 2023,
   "recent_commits": [
+    {
+      "short": "4f45ebb5",
+      "at": "2026-11-19T08:43:24Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0f8ea9ad",
       "at": "2026-11-19T16:40:11+08:00",
@@ -24,11 +29,6 @@
       "short": "d213f587",
       "at": "2026-11-19T16:06:22+08:00",
       "subject": "admin: apply-all button on plan and recommendations tiles fans out the whole list through /api/tasks/batch with the same permission posture as chat; admin smoke"
-    },
-    {
-      "short": "2d9d0766",
-      "at": "2026-11-19T16:02:08+08:00",
-      "subject": "ledger(cache): report 87.1% warm on gpt-6.2-sol this window (first two calls 32.0% the empty shard registering 4,096, third onwards 11,138/12,786=87.1%); family"
     }
   ],
   "first_commit_at": "2026-08-24",
