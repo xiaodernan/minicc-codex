@@ -393,3 +393,8 @@ Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由
 - 这就是「输入上下文那么少」的诚实答卷：不是在每个调用里塞 50–90k token，而是**按问题按需组包**——headline block（README 摘录 + 顶层目录 + 手册/年鉴目录）字节稳定占 ~4K，BM25 尾注按问题变长；
 - 三次 probe 全部 `test_rag_bm25_index.py` 8/8 修后仍绿；
 - 召回上限记录在案（top-5 没捞到那句原句）：要解要走 multi-query + RRF，不在这个成本档里做。
+## 2026-11-19 · gpt-6.2-sol 敲定后第 66 卷（Ch.LXVI）实测记录（M8-T1244）
+
+- Ch.LXVI《回应的按键 / The Click That Answers》，`MINICC_MODEL=gpt-6.2-sol`（.env，gitignored；探针最热位置）：**attempts=1 首过**；`usage = prompt 7,087 · cached 4,153（58.6%）· completion 1,817`；payload `facts_sha256=39f0aaf7f56a610631d5e4e621964d4915ffb393a40a7f2b53b3e5f337da105b`，en 零 CJK；
+- 主题源自当日真 bug（M8-T1242）：final-hook 懒注入 + 6-socket 连接预算 + idle 预注入 + busy 复位——模型自己从 git log 提炼入卷；
+- 与 Ch.LXV（58.1%）LXVI（58.6%）同档——attempts=1 短对话的固有形态；cache affinity 不因此误判。

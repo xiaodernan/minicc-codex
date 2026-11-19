@@ -897,3 +897,14 @@
   - 检索召回诚实记账：BM25 对该问题的 top-5 = `CACHE_AFFINITY_MATRIX.md ×3` + `ROADMAP_TO_PRODUCT.md ×2`（分数 24–31）——**正题文件被找到**；但「48–72%」那句原句所在 chunk 没进 top-5（本 repo 的中文问句 + 文档分节），模型因此报「缺」，没有伪造；想提召回应做 multi-query + RRF/更大 limit——记录，不为这个烧 token；
   - `tests/test_rag_bm25_index.py` 8/8 修后仍为绿；
   - 纪律：本整节测试与 probe 只花 3 次调用（~17K prompt tokens），够项目就行。
+---
+
+## 2026-11-19（Ch.LXVI 落架 · Atlas 104 · M8-T1244）
+
+- **M8-T1244：第 66 卷《回应的按键 / The Click That Answers》上架——Atlas 103 → 104，66/66 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1 首过即过 verify**；`usage = prompt 7,087 · cached 4,153（58.6%）· completion 1,817`；`facts_sha256=39f0aaf7f56a610631d5e4e621964d4915ffb393a40a7f2b53b3e5f337da105b`；zh 1,354 字符 / en 3,604 字符；**en 零 CJK**；事实包来自仓库自己的账（git log + docs/latest.json + pom modules + 缓存/压测 regex），缺的标 missing；
+  - 题材诚实对应当天修掉的真 bug：dead button → HTTP/1.1 6 条连接预算饿死 /game.js 懒注入（M8-T1242 根因）→ idle 预注入 + busy 复位——模型从 git log 里读到了这半天的事实并自己选题入卷；
+  - Atlas 103 → 104 = 18 panes + 66 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 注释、`manual.js` 中英、`onboarding.js` 中英、`i18n.js`（CRLF 338/0 不动）、`tooltips.js`、`almanac.js`（CHAPTERS + `LEDGER_ZH_LXVI/LEDGER_EN_LXVI` + `theclickMarkup` + `CHAPTER_RENDERERS.theclick`；LXIV/LXV 仪表盘同步 104/66/66）；
+  - `tests/atlas_smoke.mjs`（/ 104 个坐标）、`tests/almanac_smoke.mjs`（66 chapters + `theclick` marker：回应的按键 / The Click That Answers）；`doc_pointers` 绿；en_cjk parity 复绿（重跑验证）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴 65 → 66 卷（补《卷六十六 回应的按键 / The Click That Answers》），逐字节稳定纪律不变，_WORLD_MAP 实测 4,444 bytes；
+  - showcase 同步随后（Atlas 104 / 66 卷属实质里程碑，烘焙记录见 xiaodernan.github.io）。

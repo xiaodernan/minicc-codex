@@ -85,6 +85,7 @@ export const CHAPTERS = [
   { id: "forgedworld", roman: { zh: "卷六十三", en: "Chapter LXIII" }, title: { zh: "锻造的世界", en: "The Forged World" }, subtitle: { zh: "波动不被抹去，被记清", en: "the variance is not erased; it is recorded" } },
   { id: "seventhday", roman: { zh: "卷六十四", en: "Chapter LXIV" }, title: { zh: "冶炼的第七日", en: "The Seventh Day of the Forge" }, subtitle: { zh: "火有边界，留白不粉饰", en: "the fire has edges; the ledger keeps them" } },
   { id: "etchedwaterline", roman: { zh: "卷六十五", en: "Chapter LXV" }, title: { zh: "水纹的刻度", en: "The Etched Waterline" }, subtitle: { zh: "刻痕不是承诺，是痕迹", en: "a calibrated line — a trace, not a promise" } },
+  { id: "theclick", roman: { zh: "卷六十六", en: "Chapter LXVI" }, title: { zh: "回应的按键", en: "The Click That Answers" }, subtitle: { zh: "按下去，回应回来", en: "press it, wait for the answer" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4121,8 +4122,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">103</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">65 / 65</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">104</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">66 / 66</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4144,6 +4145,11 @@ function seventhdayMarkup() {
     </div>`;
 }
 
+// ---- Ch.LXVI · The Click That Answers · 回应的按键 (Atlas 104) ----
+const LEDGER_ZH_LXVI = "卷LXVI，题为《回应的按键》，落在一个按钮曾经无声的地方。2026年11月19日的记录写明，惰性注入让 `/game.js` 等待，满载时又挤占 HTTP/1.1 的 6 个连接预算，用户点击了一个没有回应的按钮。修复不是只添一个忙碌提示：它同时让脚本在空闲时预加载，并提供忙碌状态。账本重写了 M8-T1242，明确记下这两部分；提交说明也记录了红转绿的测量链。此处能确认的是修复的组成和问题缘由，事实包没有给出该测量链的具体数值，因此不替它补数。按钮的回应由两项改变共同构成，而不是由一项装饰性的提示构成。\n\n同一天，仓库问答也在调整自己的回应方式。提交记录说，完整分块现在交给模型，不再把引用证据悄悄截断在 400 个字符；提示词则告知模型，在证据覆盖不完整时应当回答部分覆盖。另一个文档改动停止在 CHANGELOG 引用内容寻址的 bundle，改为指向 `web/app.js` 和 `web/styles.css`；提交说明同时记下相关门禁测试 `test_no_document_quotes_a_content_addressed_bundle`，以及 `16/16` 的前置检查。话语所指向的对象更明确，能回答的范围也被标出边界：没有被证据覆盖的部分，不假装已经覆盖。\n\n缓存记录把这种边界落在可见的数字上。仓库为请求始终自动派生 `prompt_cache_key`；网关若提供 `prompt_tokens_details.cached_tokens`，用量解析就带上 `prompt_cache_hit_tokens`，若没有，就不伪造。命令行的一次记录显示，总量为 15,568 tokens，其中命中 7,040、未命中 8,456，命中率 45.4%。固定前缀探针的热调用记录为 8,362 / 8,566，即 97.6%；但真实 agent 的上下文逐轮增长，记录到的命中率回落为 48–72%。十次序列里，首调用冷，第二至第十次几乎全命，然而第九次在 26 秒长尾之后出现一次完整冷却。事实并不承诺每次都命中：记录说，150 秒空闲后一次调用归零，旧的 220 秒 keeper 间隔未能护住该分片；设计保留 60 秒默认间隔。\n\n压力测试与仓库规模也留下了边界清晰的刻度。负载账本的 Wave 3 使用 `c=128 × 12 s`，每条路径 `n=2380`，合计 14,280 个请求，零错误且全部为 200；三波累计记录为 33,600 个请求，零非 2xx，零连接失败。另一个同机记录累计 25,470 个请求，也为零非 2xx、零连接失败；当天两组累计写作 59,070 个请求、零非 2xx。`docs/latest.json` 记录了 2,004 次提交、493 个路线图批次、65 篇年鉴、747 个测试文件、1,158 个跟踪文件，以及 55,786 行路线图。云模块清单列出 bridge、registry、config、inspector、tasks、insights、evidence、gateway。页面并不替这些数值许下更多保证；这一卷只记录按钮如何开始回应，证据如何保持完整，以及命中与未命中都如何被如实呈现。\n\n点击之后，回应必须有据。";
+
+const LEDGER_EN_LXVI = "Volume LXVI, titled \"The Click That Answers,\" returns to a place where a button had once been silent. The record dated November 19, 2026 says that lazy injection made `/game.js` wait, while under full load it also strained the HTTP/1.1 budget of 6 connections, and users clicked a button that did not answer. The fix was not merely a busy indicator: it also preloaded the script while idle and provided a busy state. The ledger rewrote M8-T1242 to state both parts, and the commit description recorded a red-to-green measurement chain. What is confirmed here is the composition of the fix and the cause of the problem; the fact pack gives no specific values for that measurement chain, so none are supplied. The button's answer comes from both changes together, not from a decorative indicator alone.\n\nOn the same day, repository question answering was also adjusted in how it responds. The commit record says that full chunks are now handed to the model, with no silent truncation of cited evidence at 400 characters; the prompt tells the model to answer with partial coverage when the evidence does not cover everything. Another documentation change stopped citing a content-addressed bundle in the CHANGELOG and pointed instead to `web/app.js` and `web/styles.css`. The commit description also recorded the related gate test, `test_no_document_quotes_a_content_addressed_bundle`, and the `16/16` pre-commit checks. The references are more precise, and the limits of what can be answered are made visible: material not covered by the evidence is not presented as though it were covered.\n\nThe cache records put that boundary into visible numbers. The repository always derives a `prompt_cache_key` for requests; when the gateway supplies `prompt_tokens_details.cached_tokens`, usage parsing includes `prompt_cache_hit_tokens`, and when it does not, the value is not fabricated. One command-line record shows a total of 15,568 tokens, with 7,040 cache-hit tokens and 8,456 cache-miss tokens, for a 45.4% hit rate. The warm-call record for a fixed-prefix probe is 8,362 / 8,566, or 97.6%; but as a real agent's context grows turn by turn, the recorded hit rate falls to 48–72%. In a sequence of ten calls, the first is cold and calls two through ten are almost entirely hits, yet call nine has one complete cold result after a 26-second long tail. The facts do not promise a hit every time: the record says that after 150 seconds idle, one call fell to zero, and the old 220-second keeper interval did not protect that shard; the design retains a 60-second default interval.\n\nThe pressure tests and repository scale leave their own clearly bounded measures. Wave 3 in the load ledger used `c=128 × 12 s`, with `n=2380` per path, totaling 14,280 requests, zero errors, and all responses 200. The three-wave cumulative record is 33,600 requests, zero non-2xx responses, and zero connection failures. A separate record on the same machine totals 25,470 requests, also with zero non-2xx responses and zero connection failures; the day's combined total is recorded as 59,070 requests and zero non-2xx responses. `docs/latest.json` records 2,004 commits, 493 roadmap batches, 65 almanac chapters, 747 test files, 1,158 tracked files, and 55,786 roadmap lines. The cloud module list names bridge, registry, config, inspector, tasks, insights, evidence, and gateway. The page makes no broader promise on behalf of these numbers; this volume records only how the button began to answer, how evidence remains whole, and how both hits and misses are reported honestly.\n\nAfter the click, an answer must have evidence.";
+
 function etchedwaterlineMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4157,8 +4163,8 @@ function etchedwaterlineMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">103</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">65 / 65</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">104</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">66 / 66</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4176,6 +4182,42 @@ function etchedwaterlineMarkup() {
         ${zh()
           ? "刻度不是保证，刻度只证明：这里，量过了。"
           : "The line does not guarantee; the line records — here, measured."}
+      </p>
+    </div>`;
+}
+
+function theclickMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-theclick">
+      <div class="almanac-kicker">${zh() ? "卷六十六 · 回应的按键" : "Chapter LXVI · The Click That Answers"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `按过之后，` + `<br/><span class="almanac-title-accent">回应必须有回音。</span>`
+        : `After the click,` + `<br/><span class="almanac-title-accent">the answer must answer.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXVI : LEDGER_EN_LXVI}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">104</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">66 / 66</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["死按钮是真 bug，不是体感", "根因：HTTP/1.1 每主机 6 条连接，满载窗口下 /game.js 懒注入挂起；对策「idle 预注入 + 按钮 busy/aria-busy/disabled + finally 复位」即本卷题材"],
+        ["en 零 CJK；attempts=1", "6.2-sol 亲笔；契约 keys{zh,en}、≥600 字符双端、en 零 CJK、禁 <script；verify 一次性过"],
+        ["数字都出自仓库自己的账", "git log + docs/latest.json + pom 模块清单 + 缓存/压力 regex 缓出给模型；缺的标 missing；没有一句是编的"],
+        ["空闲预注入不需要新 API 键", "preloadArcade() 与 openArcade() 共享同一个 pending promise——增量 0 token、行为更即时"],
+      ] : [
+        ["a dead button is a real bug, not a vibe", "root cause: HTTP/1.1 serves at most 6 connections per host; under load the lazy /game.js inject starved; fix (idle preload + disabled/aria-busy on the button + finally restore) is this chapter's subject"],
+        ["en zero CJK; attempts=1", "authored by 6.2-sol; contract keys{zh,en}, ≥600 chars both ends, zero CJK in en, no <script; verify passed on the first pass"],
+        ["every number walked in from the repo", "git log + docs/latest.json + pom <modules> list + cache/pressure regex anchors; gaps stay “missing”; none were invented"],
+        ["idle preload spends zero new API tokens", "preloadArcade() shares one pending promise with openArcade(); the win is a faster click, not a new key"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "按钮回应，是因为有人按住事故不放手。"
+          : "The button answers because someone would not let the bug go."}
       </p>
     </div>`;
 }
@@ -4246,6 +4288,7 @@ const CHAPTER_RENDERERS = {
   forgedworld: () => forgedworldMarkup(),
   seventhday: () => seventhdayMarkup(),
   etchedwaterline: () => etchedwaterlineMarkup(),
+  theclick: () => theclickMarkup(),
 };
 
 async function loadChapter(id) {
