@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T09:21:32.847Z",
-  "branch": "HEAD",
-  "head": "8a7519b",
-  "total_commits": 2027,
+  "generated_at": "2026-11-19T10:25:50.893Z",
+  "branch": "main",
+  "head": "e468373",
+  "total_commits": 2029,
   "recent_commits": [
+    {
+      "short": "e468373e",
+      "at": "2026-11-19T18:24:37+08:00",
+      "subject": "almanac: Ch.LXIX The Live Page - Atlas 106 -> 107 - plus two parity/dazzle smoke catches (M8-T1252..1254)"
+    },
+    {
+      "short": "838816b1",
+      "at": "2026-11-19T09:21:32Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8a7519b2",
       "at": "2026-11-19T16:58:02+08:00",
@@ -19,25 +29,15 @@
       "short": "a626552a",
       "at": "2026-11-19T08:45:07Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7904dd43",
-      "at": "2026-11-19T08:45:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "4f45ebb5",
-      "at": "2026-11-19T08:43:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 14,
+  "changelog_entries": 16,
   "roadmap_lines": 55786,
-  "tracked_files": 1160,
+  "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 68,
+  "almanac_chapters": 69,
   "module_count": 14,
   "feature_surface": [
     "workbench",
