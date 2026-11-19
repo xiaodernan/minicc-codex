@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T14:31:56.267Z",
+  "generated_at": "2026-11-19T14:51:54.175Z",
   "branch": "main",
-  "head": "c7e3f20",
-  "total_commits": 2038,
+  "head": "335b27e",
+  "total_commits": 2040,
   "recent_commits": [
+    {
+      "short": "335b27ef",
+      "at": "2026-11-19T22:51:30+08:00",
+      "subject": "docs(readme): drop the --minicc.python flag token - it tripped the README capability-claims gate (no parser declares --minicc); test_readme_capability_claims 8/"
+    },
+    {
+      "short": "5006a3e7",
+      "at": "2026-11-19T14:31:56Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c7e3f202",
       "at": "2026-11-19T22:31:24+08:00",
@@ -19,16 +29,6 @@
       "short": "827761e3",
       "at": "2026-11-19T21:57:30+08:00",
       "subject": "test(js): align focused optimization smoke with the M8-T1242 idle-warm design - home warms arcade at most once (CI run 44535672293 red on exactly this assertion"
-    },
-    {
-      "short": "c392c557",
-      "at": "2026-11-19T13:39:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "899a20f7",
-      "at": "2026-11-19T21:39:09+08:00",
-      "subject": "almanac: Ch.LXXI The Plane That Answered - Atlas 108 -> 109 - attempts=1, en zero CJK (M8-T1256)"
     }
   ],
   "first_commit_at": "2026-08-24",
