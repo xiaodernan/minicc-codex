@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T05:48:55.492Z",
+  "generated_at": "2026-11-19T06:18:50.307Z",
   "branch": "main",
-  "head": "5696c15",
-  "total_commits": 2002,
+  "head": "a5781d3",
+  "total_commits": 2004,
   "recent_commits": [
+    {
+      "short": "a5781d3c",
+      "at": "2026-11-19T14:08:34+08:00",
+      "subject": "arcade: warm /game.js on idle + busy affordance - the lazy injection starved the 6-socket HTTP/1.1 budget under full load and users clicked a dead button; idle-"
+    },
+    {
+      "short": "eb71a7d1",
+      "at": "2026-11-19T05:48:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5696c15c",
       "at": "2026-11-19T13:46:39+08:00",
@@ -19,21 +29,11 @@
       "short": "8e292ffd",
       "at": "2026-11-19T01:32:24Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "831b7fdd",
-      "at": "2026-11-19T09:31:45+08:00",
-      "subject": "ledger: worldmap probe - 9,892 prompt tokens, 9,629 cached, 97.3%; prompt now 17,559 bytes with README excerpt + manual TOC + 64-chapter almanac TOC bilingual; "
-    },
-    {
-      "short": "524b5a36",
-      "at": "2026-11-19T09:23:35+08:00",
-      "subject": "almanac: Ch.LXIV The Seventh Day of the Forge - terra attempt=1, en zero CJK, zh 1,783 chars; forge now mandates length minima up front (fixes the missing-lengt"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 2,
+  "changelog_entries": 4,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
