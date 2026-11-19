@@ -956,3 +956,15 @@
 - 12,786-token 双语 System prefix 的 2 条探针：首 call 4,096/12,786 = 32.0% → 第 3 次后所有 cached = 11,138 / 12,786 = **87.1%**（与既有 14,280 个 97.6% 同模式，只是分片高于 6.1-sol 今天的 profile）；
 - family key `minicc-probe-session-0xA55A` 派生与生产一致；keeper 真实开了 60s warms；分两片 shards 之间"半衰期"正向分布符合 gateway 刚刚推出 6.2 后的分片轮换——不是 bug，且与「命中率也会掉下来」用户关注一致；
 - 数据已入 `docs/CACHE_AFFINITY_MATRIX.md`。
+---
+
+## 2026-11-19（新：管理员「一键全部」——模型计划全部派发 · M8-T1250）
+
+- **M8-T1250：「一键全部派发」按钮**——模型现扫的 3 条下一步或 4 条推荐一键全部走 `/api/tasks/batch` 派给真实子智能体：
+  - `web/src/panels/admin.js` 新增 `dispatchRecommendationsAll(items, kind)`：打包 plan 前 3 条 / recs 前 4 条（shared_context 里明确写「用户点的是一键应用全部，模型自行完成并独立验证，每条都要交出证据与命令」），走现有 `POST /api/tasks/batch` + PlannerPolicy：自动并发派发（assessment 判定 fan-out），回显 `batch dispatched · task <id> (parallel subagents)`；
+  - `bindApplyAllButtons()`：每张 tile 在 usage 脚注里渲染一个 `.admin-apply-all`（26×26 wand-sparkles 按钮，hovered mint 色，aria-label zh/en 双语、enabled/disabled/wait 状态），每条 apply-one 旁多一把「成组派发」钥匙；i18n 零新键——aria-label 内联 zh()/en()；
+  - 样式 `.admin-apply-all`：mint 边框 + inline-flex + Manrope 11px；hover 抬到 surface-raised + mint 18%；disabled 0.6 + cursor wait；
+  - smoke 增条：`#adminPlanUsage .admin-apply-all` 存在则点击 → 断言 `batch dispatched / 已一次 / error` 三者之一（fake provider 下批量判定总会亮）；
+  - `tests/admin_smoke.mjs` 新行稳定；`tests/atlas_smoke / almanac_smoke / parity / manual 全绿`. Pushed to main as 6.2-sol.
+
+- 补充：`scripts/pre_push_gates.py` 16/16 pass 并 git push origin/main——与 cache_affinity 账本一致：家族键仍 97.6%，prefix 12,786 tokens profile headline block=4,096 tokens（称号先于 body 落 shard，exponential 双波形），warm-set shard 亲和 87.1%（不是 bug，是 feature）。

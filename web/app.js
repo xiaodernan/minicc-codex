@@ -3425,7 +3425,7 @@
     </div>`;
   }
   function meshMarkup() {
-    const list = (zh() ? [
+    const list2 = (zh() ? [
       ["Eureka", "\u6CE8\u518C\u53D1\u73B0 \u2014 \u7F51\u5173\u53EA\u5411\u6CE8\u518C\u4E2D\u5FC3\u7D22\u53D6\u5065\u5EB7\u5B9E\u4F8B\uFF0C\u4ECE\u4E0D\u786C\u7F16\u7801\u5730\u5740"],
       ["Spring Cloud Gateway", "lb:// \u8D1F\u8F7D\u5747\u8861 + RequestSize \u9884\u62D2\u7EDD + \u7194\u65AD\u8DEF\u7531"],
       ["Redis \u4EE4\u724C\u6876", "\u6BCF\u79D2 20 \u679A\u56DE\u586B / 40 \u679A\u7A81\u53D1 \xB7 \u6BCF IP \u8BA1\u6570 \xB7 Micrometer \u8BA1\u6570 gateway.rate_limited{route}"],
@@ -3491,7 +3491,7 @@
           <div class="almanac-instrument-value">\u2264 15s</div>
         </div>
       </div>
-      <ul class="almanac-gate-list">${list}</ul>
+      <ul class="almanac-gate-list">${list2}</ul>
       <p class="almanac-quote almanac-quote-end">
         ${zh() ? "\u4E00\u4E2A\u56FD\u5BB6\u7684\u8FB9\u5883\uFF0C\u4E0D\u53D6\u51B3\u4E8E\u57CE\u5899\u6709\u591A\u9AD8\uFF0C\u800C\u53D6\u51B3\u4E8E\u6BCF\u4E00\u4E2A\u5173\u5361\u90FD\u77E5\u9053\u81EA\u5DF1\u5728\u5B88\u4EC0\u4E48\u3002" : "A country's border is not defined by how high its walls are \u2014 but by whether every checkpoint knows what it is guarding."}
       </p>
@@ -8485,9 +8485,9 @@
     if (totalTokens) totalTokens.textContent = metrics?.usage?.total_tokens != null ? compactCount(metrics.usage.total_tokens) : "\u2014";
     if (cacheRate) cacheRate.textContent = pct(metrics?.llm_cache?.cache_hit_rate);
     const stakes = buildStakes(digest, metrics, pulse);
-    const list = $("#dockyardStakes");
-    if (list) {
-      list.innerHTML = stakes.map((stake) => stakeMarkup(stake, zh7())).join("");
+    const list2 = $("#dockyardStakes");
+    if (list2) {
+      list2.innerHTML = stakes.map((stake) => stakeMarkup(stake, zh7())).join("");
     }
     refreshIcons();
   }
@@ -8541,6 +8541,69 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       const message = error && error.message ? String(error.message) : String(error);
       return { ok: false, error: message.slice(0, 160) };
     }
+  }
+  async function dispatchRecommendationsAll(items, kind) {
+    const permissions = {
+      permission_mode: localStorage.getItem("minicc-permission-mode") || "default",
+      allow_changes: localStorage.getItem("minicc-allow") === "true",
+      allow_network: localStorage.getItem("minicc-network") === "true"
+    };
+    const messages = (items || []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 6).map((item, index) => zh8() ? `\u6267\u884C\u8FD9\u6761\u300C\u4E0B\u4E00\u6B65 ${index + 1}\u300D\uFF1A${item}
+\u5BA1\u8BA1\u53E3\u5F84\uFF1A\u5B8C\u6210\u6216\u7ED9\u51FA\u771F\u5B9E\u963B\u585E\uFF0C\u6709\u9A8C\u6536\u6807\u51C6\u6309\u5B83\u9A8C\u6536\uFF1B\u6536\u5C3E\u65F6\u7ED9\u51FA\u8BC1\u636E\u4E0E\u547D\u4EE4\u3002
+\u4E0D\u8981\u8D8A\u51FA\u672C\u4ED3\u5E93\uFF1B\u4E0D\u8981\u4F2A\u9020\u4EFB\u4F55\u6570\u5B57\uFF1B\u5982\u679C\u9A8C\u6536\u4E0D\u53EF\u8FBE\uFF0C\u8BDA\u5B9E\u8BF4\u660E\u4E3A\u4EC0\u4E48\u3002` : `Apply this next move (step ${index + 1}):
+${item}
+Audit scope: complete it or report the honest blocker; verify with its acceptance check when one is given; show evidence and the exact commands used.
+Stay inside this repo; falsify no number; if a check is unreachable, say why honestly.`);
+    if (!messages.length) return { ok: false, error: "empty list" };
+    const body = {
+      messages,
+      model: "",
+      session_id: localStorage.getItem("minicc-session") || "interview-1",
+      permission_mode: permissions.permission_mode,
+      allow_changes: permissions.allow_changes,
+      allow_network: permissions.allow_network,
+      reasoning_effort: state.reasoningEffort || localStorage.getItem("minicc-reasoning") || "high",
+      workspace_path: state.workspacePath || "",
+      shared_context: "\u7528\u6237\u70B9\u51FB\u4E86\u7BA1\u7406\u9875\u7684\u300C\u4E00\u952E\u5E94\u7528\u5168\u90E8\u300D\u2014\u2014\u8FD9\u7EC4\u5B50\u4EFB\u52A1\u7531\u6A21\u578B\u81EA\u884C\u5B8C\u6210\u5E76\u72EC\u7ACB\u9A8C\u8BC1\uFF0C\u6BCF\u6761\u90FD\u8981\u4EA4\u51FA\u8BC1\u636E\u4E0E\u547D\u4EE4\u3002",
+      _task_kind: "task",
+      _orchestration_mode: "auto"
+    };
+    try {
+      const task = await requestJson("/api/tasks/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }, 3e4);
+      return { ok: true, task };
+    } catch (error) {
+      const message = error && error.message ? String(error.message) : String(error);
+      return { ok: false, error: message.slice(0, 200) };
+    }
+  }
+  function bindApplyAllButtons(listEl, kind, items) {
+    if (!listEl) return;
+    const usageEl = kind === "plan" ? $("#adminPlanUsage") : $("#adminRecommendationsUsage");
+    if (!usageEl) return;
+    if (usageEl.querySelector(".admin-apply-all")) return;
+    const label2 = kind === "plan" ? zh8() ? "\u4E00\u952E\u5168\u90E8\u6D3E\u53D1 \xB7 3 \u6761\u90FD\u8BA9\u6A21\u578B\u505A" : "Apply all 3 \xB7 dispatch every move at once" : zh8() ? "\u4E00\u952E\u5168\u90E8\u6D3E\u53D1 \xB7 4 \u6761\u90FD\u8BA9\u6A21\u578B\u505A" : "Apply all 4 \xB7 dispatch every recommendation at once";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "admin-apply-all";
+    btn.innerHTML = `<i data-lucide="wand-sparkles" aria-hidden="true"></i><span>${esc2(label2)}</span>`;
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      const result = await dispatchRecommendationsAll(list.slice(0, kind === "plan" ? 3 : 4), kind);
+      btn.removeAttribute("aria-busy");
+      btn.disabled = false;
+      if (result.ok) {
+        const tid = String(result.task?.task_id ?? result.task?.id ?? result.task?.parent_task_id ?? "");
+        usageEl.textContent = zh8() ? `\u5DF2\u4E00\u6B21\u6027\u6D3E\u53D1 \xB7 task ${tid}\uFF08N \u4E2A\u5E76\u53D1\u5B50\u667A\u80FD\u4F53\uFF09` : `batch dispatched \xB7 task ${tid} (parallel subagents)`;
+      } else {
+        usageEl.textContent = `error: ${result.error}`;
+      }
+    });
+    usageEl.appendChild(btn);
   }
   function bindApplyButtons(listEl, kind, items) {
     if (!listEl) return;
@@ -8836,9 +8899,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           return;
         }
         const items = zh8() ? plan.zh || [] : plan.en || [];
-        const list = items.length ? items : (zh8() ? plan.en : plan.zh) || [];
-        if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
-        bindApplyButtons(listEl, "plan", list.slice(0, 3));
+        const list2 = items.length ? items : (zh8() ? plan.en : plan.zh) || [];
+        if (listEl) listEl.innerHTML = list2.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+        bindApplyButtons(listEl, "plan", list2.slice(0, 3));
+        bindApplyAllButtons(listEl, "plan", list2.slice(0, 3));
         if (usageEl) {
           const u = plan.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -8870,9 +8934,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           return;
         }
         const items = zh8() ? recs2.zh || [] : recs2.en || [];
-        const list = items.length ? items : (zh8() ? recs2.en : recs2.zh) || [];
-        if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
-        bindApplyButtons(listEl, "rec", list.slice(0, 4));
+        const list2 = items.length ? items : (zh8() ? recs2.en : recs2.zh) || [];
+        if (listEl) listEl.innerHTML = list2.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+        bindApplyButtons(listEl, "rec", list2.slice(0, 4));
+        bindApplyAllButtons(listEl, "rec", list2.slice(0, 4));
         if (usageEl) {
           const u = recs2.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -9643,9 +9708,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
   }
   function renderIslands() {
     const panel = $("#atlasIslands");
-    const list = $("#atlasIslandsList");
+    const list2 = $("#atlasIslandsList");
     const summary = $("#atlasIslandsCharted");
-    if (!panel || !list || !summary) return;
+    if (!panel || !list2 || !summary) return;
     if (panel.getAttribute("hidden") === "true" || panel.hasAttribute("hidden")) return;
     const visited = readVisited();
     let total = 0;
@@ -9673,7 +9738,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     </li>`);
     }
     summary.textContent = `${charted} / ${total}`;
-    list.innerHTML = rows.join("");
+    list2.innerHTML = rows.join("");
   }
   function toggleIslands(forceOpen) {
     const panel = $("#atlasIslands");
@@ -11002,12 +11067,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
   }
   function openHelpPanel() {
     const zh12 = state.locale === "zh";
-    const list = SHORTCUT_GROUPS.map((group) => `
+    const list2 = SHORTCUT_GROUPS.map((group) => `
     <div class="help-group">
       <div class="help-group-title">${escapeHtml(zh12 ? group.zh : group.en)}</div>
       ${group.rows.map(([labelZh, labelEn, key]) => `<div class="help-shortcut"><span>${escapeHtml(zh12 ? labelZh : labelEn)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("")}
     </div>`).join("");
-    openPanel(t("help.title"), `<div class="help-panel"><div class="help-groups">${list}</div><div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
+    openPanel(t("help.title"), `<div class="help-panel"><div class="help-groups">${list2}</div><div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
     $("#helpArcadeButton")?.addEventListener("click", () => {
       closePanel();
       openArcade().catch((error) => showToast(error.message));
@@ -11051,9 +11116,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       if (okEl) okEl.textContent = String(ok);
       if (warnEl) warnEl.textContent = String(warn);
       if (fatalEl) fatalEl.textContent = String(fatal);
-      const list = $("#doctorVitalsList");
-      if (list) {
-        list.innerHTML = checks.map((check) => {
+      const list2 = $("#doctorVitalsList");
+      if (list2) {
+        list2.innerHTML = checks.map((check) => {
           const severity = ["ok", "warn", "fatal"].includes(check?.severity) ? check.severity : "ok";
           const name = escape(String(check?.name ?? "check"));
           const detail = escape(String(check?.detail ?? ""));
@@ -11064,8 +11129,8 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       setDoctorPill("#doctorVitalsState", "doctor.vitalsDone", fatal > 0 ? "bad" : warn > 0 ? "busy" : "ok");
     } catch (error) {
       setDoctorPill("#doctorVitalsState", "doctor.vitalsDone", "bad");
-      const list = $("#doctorVitalsList");
-      if (list) list.innerHTML = `<li class="doctor-vitals-row" data-severity="fatal"><span class="doctor-vitals-dot" aria-hidden="true"></span><span class="doctor-vitals-copy"><strong>doctor_runner</strong><span>${escapeHtml(String(error?.message || error || "request failed"))}</span></span></li>`;
+      const list2 = $("#doctorVitalsList");
+      if (list2) list2.innerHTML = `<li class="doctor-vitals-row" data-severity="fatal"><span class="doctor-vitals-dot" aria-hidden="true"></span><span class="doctor-vitals-copy"><strong>doctor_runner</strong><span>${escapeHtml(String(error?.message || error || "request failed"))}</span></span></li>`;
     } finally {
       doctorVitalsBusy = false;
       if (button) button.disabled = false;
@@ -11744,10 +11809,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       progress.textContent = `${completed}/${runtime.latestTodos.length}`;
       progress.setAttribute("aria-label", `${t("todo.progressAria")}: ${completed}/${runtime.latestTodos.length}`);
     }
-    const list = $("#todoListBody");
-    if (!list) return;
+    const list2 = $("#todoListBody");
+    if (!list2) return;
     const statusLabels = { pending: t("todo.pending"), in_progress: t("todo.inProgress"), completed: t("todo.completed") };
-    list.innerHTML = runtime.latestTodos.map((todo) => `
+    list2.innerHTML = runtime.latestTodos.map((todo) => `
     <li class="todo-item todo-${escapeHtml(todo.status)}" aria-label="${escapeHtml(`${todo.content} \xB7 ${statusLabels[todo.status] || todo.status}`)}">
       <span class="todo-status-mark" aria-hidden="true">${todo.status === "completed" ? icon("check") : ""}</span>
       <span class="todo-priority-dot todo-priority-${escapeHtml(todo.priority)}" aria-hidden="true"></span>
@@ -11933,9 +11998,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       tree.innerHTML = `<div class="file-tree-status">${escapeHtml(t("files.empty"))}</div>`;
       return;
     }
-    const list = `<div class="file-tree-list" role="tree" aria-label="${escapeHtml(t("files.tree"))}">${rows.join("")}</div>`;
+    const list2 = `<div class="file-tree-list" role="tree" aria-label="${escapeHtml(t("files.tree"))}">${rows.join("")}</div>`;
     const noteMarkup = notes.size ? `<div class="file-tree-note">${icon("alert-triangle")}<span>${escapeHtml([...notes].join(" "))}</span></div>` : "";
-    tree.innerHTML = `${list}${noteMarkup}`;
+    tree.innerHTML = `${list2}${noteMarkup}`;
     const items = [...tree.querySelectorAll('[role="treeitem"]')];
     const active = items.find((item) => (item.dataset.treeDir || item.dataset.openDiff) === stopPath) || items[0];
     items.forEach((item) => {
@@ -13535,9 +13600,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     return "coral";
   }
   function renderTaskHistory(tasks) {
-    const list = $("#threadList");
-    if (!list) return;
-    const previousScrollTop = list.scrollTop;
+    const list2 = $("#threadList");
+    if (!list2) return;
+    const previousScrollTop = list2.scrollTop;
     const wasAtTop = previousScrollTop <= 4;
     const normalizedTasks = Array.isArray(tasks) ? tasks.map((task) => {
       const cached = taskDetailsById.get(task?.task_id);
@@ -13552,17 +13617,17 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       if (!taskHistoryListBySession.has(sessionId)) taskHistoryListBySession.set(sessionId, []);
       taskHistoryListBySession.get(sessionId).push(task);
     }
-    const listChanged = runtime.renderedTaskListKey !== nextTaskListKey || list.dataset.historyLoaded !== "true";
+    const listChanged = runtime.renderedTaskListKey !== nextTaskListKey || list2.dataset.historyLoaded !== "true";
     if (!normalizedTasks.length) {
       $("#taskNavCount").textContent = "0";
-      if (listChanged) list.innerHTML = `<div class="thread-empty">${escapeHtml(t("tasks.noHistory"))}</div>`;
+      if (listChanged) list2.innerHTML = `<div class="thread-empty">${escapeHtml(t("tasks.noHistory"))}</div>`;
       runtime.renderedTaskListKey = nextTaskListKey;
-      list.dataset.historyLoaded = "true";
+      list2.dataset.historyLoaded = "true";
       return;
     }
     const visible = normalizedTasks.slice(0, 30);
     if (listChanged) {
-      list.innerHTML = visible.map((task) => {
+      list2.innerHTML = visible.map((task) => {
         const sessionId = String(task.session_id || task.task_id || "web-latest");
         const title = String(task.preview || task.prompt || task.task_id || "Task").replace(/\s+/g, " ").trim();
         const status = phaseLabel(task);
@@ -13577,7 +13642,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === state.sessionId));
     }
     runtime.renderedTaskListKey = nextTaskListKey;
-    list.dataset.historyLoaded = "true";
+    list2.dataset.historyLoaded = "true";
     $("#taskNavCount").textContent = String(normalizedTasks.length);
     const currentHistory = taskHistoryBySession.get(state.sessionId);
     if (currentHistory?.summary_only && currentHistory.task_id) {
@@ -13589,7 +13654,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     if (listChanged) {
       refreshIcons();
       window.requestAnimationFrame(() => {
-        list.scrollTop = wasAtTop ? 0 : Math.min(previousScrollTop, Math.max(0, list.scrollHeight - list.clientHeight));
+        list2.scrollTop = wasAtTop ? 0 : Math.min(previousScrollTop, Math.max(0, list2.scrollHeight - list2.clientHeight));
       });
     }
   }
@@ -14593,24 +14658,24 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
   var DEBOUNCE_MS = 160;
   function initThreadFilter() {
     const input = document.getElementById("threadFilter");
-    const list = document.getElementById("threadList");
-    if (!input || !list) return;
+    const list2 = document.getElementById("threadList");
+    if (!input || !list2) return;
     let timer = 0;
     const apply = () => {
       const query = input.value.trim().toLowerCase();
       let visible = 0;
-      list.querySelectorAll(".thread-item").forEach((button) => {
+      list2.querySelectorAll(".thread-item").forEach((button) => {
         const match = !query || (button.textContent ?? "").toLowerCase().includes(query);
         button.hidden = !match;
         if (match) visible += 1;
       });
-      let empty = list.querySelector(".thread-filter-empty");
-      if (query && visible === 0 && list.querySelector(".thread-item")) {
+      let empty = list2.querySelector(".thread-filter-empty");
+      if (query && visible === 0 && list2.querySelector(".thread-item")) {
         if (!empty) {
           empty = document.createElement("div");
           empty.className = "thread-empty thread-filter-empty";
           empty.textContent = t("tasks.filterEmpty");
-          list.append(empty);
+          list2.append(empty);
         } else {
           empty.hidden = false;
         }
@@ -14631,7 +14696,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         return;
       }
       if (event.key === "Enter") {
-        const first = list.querySelector(".thread-item:not([hidden])");
+        const first = list2.querySelector(".thread-item:not([hidden])");
         if (first) first.click();
       }
     });
@@ -14646,7 +14711,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       input.focus();
     });
     const observer = new MutationObserver(() => apply());
-    observer.observe(list, { childList: true });
+    observer.observe(list2, { childList: true });
     apply();
   }
 

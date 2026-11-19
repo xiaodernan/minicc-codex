@@ -62,6 +62,76 @@ async function dispatchRecommendation(item, kind) {
   }
 }
 
+// Same dispatch — but fans the whole list out through the batch endpoint so the
+// model gets the user's entire top-three in parallel, with the same audit rigor.
+async function dispatchRecommendationsAll(items, kind) {
+  const permissions = {
+    permission_mode: localStorage.getItem("minicc-permission-mode") || "default",
+    allow_changes: localStorage.getItem("minicc-allow") === "true",
+    allow_network: localStorage.getItem("minicc-network") === "true",
+  };
+  const messages = (items || [])
+    .map((x) => String(x || "").trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((item, index) => zh()
+      ? `执行这条「下一步 ${index + 1}」：${item}\n审计口径：完成或给出真实阻塞，有验收标准按它验收；收尾时给出证据与命令。\n不要越出本仓库；不要伪造任何数字；如果验收不可达，诚实说明为什么。`
+      : `Apply this next move (step ${index + 1}):\n${item}\nAudit scope: complete it or report the honest blocker; verify with its acceptance check when one is given; show evidence and the exact commands used.\nStay inside this repo; falsify no number; if a check is unreachable, say why honestly.`);
+  if (!messages.length) return { ok: false, error: "empty list" };
+  const body = {
+    messages,
+    model: "",
+    session_id: localStorage.getItem("minicc-session") || "interview-1",
+    permission_mode: permissions.permission_mode,
+    allow_changes: permissions.allow_changes,
+    allow_network: permissions.allow_network,
+    reasoning_effort: state.reasoningEffort || localStorage.getItem("minicc-reasoning") || "high",
+    workspace_path: state.workspacePath || "",
+    shared_context: "用户点击了管理页的「一键应用全部」——这组子任务由模型自行完成并独立验证，每条都要交出证据与命令。",
+    _task_kind: "task",
+    _orchestration_mode: "auto",
+  };
+  try {
+    const task = await requestJson("/api/tasks/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }, 30000);
+    return { ok: true, task };
+  } catch (error) {
+    const message = error && error.message ? String(error.message) : String(error);
+    return { ok: false, error: message.slice(0, 200) };
+  }
+}
+
+function bindApplyAllButtons(listEl, kind, items) {
+  if (!listEl) return;
+  const usageEl = kind === "plan" ? $("#adminPlanUsage") : $("#adminRecommendationsUsage");
+  if (!usageEl) return;
+  if (usageEl.querySelector(".admin-apply-all")) return;
+  const label = kind === "plan"
+    ? (zh() ? "一键全部派发 · 3 条都让模型做" : "Apply all 3 · dispatch every move at once")
+    : (zh() ? "一键全部派发 · 4 条都让模型做" : "Apply all 4 · dispatch every recommendation at once");
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "admin-apply-all";
+  btn.innerHTML = `<i data-lucide="wand-sparkles" aria-hidden="true"></i><span>${esc(label)}</span>`;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    const result = await dispatchRecommendationsAll(list.slice(0, kind === "plan" ? 3 : 4), kind);
+    btn.removeAttribute("aria-busy");
+    btn.disabled = false;
+    if (result.ok) {
+      const tid = String(result.task?.task_id ?? result.task?.id ?? result.task?.parent_task_id ?? "");
+      usageEl.textContent = zh() ? `已一次性派发 · task ${tid}（N 个并发子智能体）` : `batch dispatched · task ${tid} (parallel subagents)`;
+    } else {
+      usageEl.textContent = `error: ${result.error}`;
+    }
+  });
+  usageEl.appendChild(btn);
+}
+
 function bindApplyButtons(listEl, kind, items) {
   if (!listEl) return;
   listEl.querySelectorAll(".admin-apply-one").forEach((btn) => {
@@ -387,6 +457,7 @@ export async function openAdmin() {
       const list = items.length ? items : (zh() ? plan.en : plan.zh) || [];
       if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc(zh() ? "派给模型执行这一条" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
       bindApplyButtons(listEl, "plan", list.slice(0, 3));
+      bindApplyAllButtons(listEl, "plan", list.slice(0, 3));
       if (usageEl) {
         const u = plan.usage || {};
         const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
@@ -424,6 +495,7 @@ export async function openAdmin() {
       const list = items.length ? items : (zh() ? recs.en : recs.zh) || [];
       if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc(zh() ? "派给模型执行这一条" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
       bindApplyButtons(listEl, "rec", list.slice(0, 4));
+      bindApplyAllButtons(listEl, "rec", list.slice(0, 4));
       if (usageEl) {
         const u = recs.usage || {};
         const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";

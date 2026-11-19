@@ -5744,6 +5744,11 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-apply-one:hover { color: var(--mint); border-color: var(--mint); }
 .admin-apply-one[disabled] { opacity: .5; cursor: wait; }
 .admin-apply-one svg { height: 13px; width: 13px; }
+.admin-apply-all { align-self: flex-start; background: var(--surface-raised); border: 1px solid var(--mint); border-radius: 8px; color: var(--mint); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: 600 11px "Manrope", sans-serif; padding: 6px 10px; margin-top: 6px; transition: background .18s ease, color .18s ease; }
+.admin-apply-all:hover { background: color-mix(in srgb, var(--mint) 18%, var(--surface-raised)); }
+.admin-apply-all[disabled] { opacity: .6; cursor: wait; }
+.admin-apply-all svg { height: 12px; width: 12px; }
+.admin-apply-all span { white-space: nowrap; }
 .admin-plan-empty { border: 1px dashed var(--line); border-radius: 8px; color: var(--quiet); list-style: none; padding: 10px; }
 .admin-review { border-color: color-mix(in srgb, var(--rose) 35%, var(--line)); margin-top: 12px; }
 .admin-retrospective { border-color: color-mix(in srgb, var(--blue) 35%, var(--line)); margin-top: 12px; }

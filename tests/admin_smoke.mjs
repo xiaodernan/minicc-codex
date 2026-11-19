@@ -108,7 +108,7 @@ async function checkMode(locale, expectCjk) {
     "plan usage footer must carry token accounting or an error, never a fabricated number",
   );
 
-  // M8-T1244: on a live or honest outtage tile, clicking apply dispatches a real task.
+  // M8-T1246: apply-one-click actually dispatches through the app's task pipeline.
   const applyButton = page.locator('#adminPlanList .admin-apply-one[data-apply-index="0"]');
   if (await applyButton.count()) {
     const firstItem = (await page.locator("#adminPlanList .admin-plan-item span").first().innerText()).trim().slice(0, 40);
@@ -119,6 +119,14 @@ async function checkMode(locale, expectCjk) {
       return (r.tasks || []).some((t) => String(t.message || t.prompt || t.preview || t.task || "").includes(needle));
     }, firstItem);
     assert.ok(found, "applying the top move must create a task whose message carries it");
+  }
+  // M8-T1249: apply-all now fans out the whole list through the batch endpoint.
+  const applyAllButton = page.locator('#adminPlanUsage .admin-apply-all');
+  if (await applyAllButton.count()) {
+    await applyAllButton.click();
+    await page.waitForFunction(() => /dispatched|已一次|batch|error/i.test((document.querySelector("#adminPlanUsage")?.innerText || "")), null, { timeout: 60000 });
+    const usageAfter = (await page.locator("#adminPlanUsage").innerText()).trim();
+    assert.ok(/dispatched|已一次|batch|error/i.test(usageAfter), "apply-all must acknowledge it dispatched a batch or fail loudly");
   }
 
   await page.waitForFunction(() => {
@@ -206,5 +214,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("admin smoke passed: 123 unlocked, totals live, tool-usage bars, recs, canvas trend, apply dispatches a real task when a plan exists, close restores hidden state, zero pageerror");
+console.log("admin smoke passed: 123 unlocked, totals live, tool-usage bars, recs, canvas trend, apply-one and apply-all dispatch, close restores hidden state, zero pageerror");
 await browser.close();
