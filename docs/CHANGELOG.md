@@ -1083,3 +1083,11 @@
   - Atlas 114 → 115 = 18 panes + 77 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十七卷）、onboarding.js 中英（one hundred fifteen / seventy-seven halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXVII` + `thenighttheciansweredMarkup` + `CHAPTER_RENDERERS.thenightthecianswered`；前十三卷仪表同步 115/77）；tests：atlas_smoke（115 坐标）、almanac_smoke（77 chapters + `thenightthecianswered` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十七卷目录（追加《卷七十七 等 CI 的那一夜》）；`Atlas = 115 真实坐标`；产品现状 2,030+ 提交 / Atlas 115 / 77 卷；
   - README 年鉴段追加 LXXVII 卷记录（76 → 77 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-20（Ch.LXXVIII 落架 · Atlas 116 · M8-T1265）
+
+- **M8-T1265：第 78 卷《排不队的队伍 / The Queue That Never Stops》上架——Atlas 115 → 116，78/78 卷全双语**：
+  - forge live（2026-11-20，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 7,008 · cached 4,153（59.0%）· completion 3,172`；payload `facts_sha256=adf01ca3da66b47dd71e3b958b526486a991c54859d1d40bed952da7c01449be`；zh 2,786 / en 5,702 字符；**en 零 CJK**；
+  - 题材=本夜 CI/部署队列实况：LXXVI CI（44567683171）`conclusion=success`（Python 双腿 success）；LXXVII CI（44577670078）queued；LXXIII/LXXII/LXXIV/README-flag CI 被 supersede（44551483765 / 44544717166 / 44554765098 / 44548338532 / 44535672293——逐五条入账，不粉饰）；并行会话本夜推送 football Item 292→300、specproof、Echo #201/206、hero portrait 修复；
+  - Atlas 115 → 116 = 18 panes + 78 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十八卷）、onboarding.js 中英（one hundred sixteen / seventy-eight halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXVIII` + `thequeuethatneverstopsMarkup` + `CHAPTER_RENDERERS.thequeuethatneverstops`；前十四卷仪表同步 116/78）；tests：atlas_smoke（116 坐标）、almanac_smoke（78 chapters + `thequeuethatneverstops` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十八卷目录（追加《卷七十八 排不队的队伍》）；`Atlas = 116 真实坐标`；产品现状 2,030+ 提交 / Atlas 116 / 78 卷；
+  - README 年鉴段追加 LXXVIII 卷记录（77 → 78 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
