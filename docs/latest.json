@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T10:25:50.893Z",
+  "generated_at": "2026-11-19T11:17:56.183Z",
   "branch": "main",
-  "head": "e468373",
-  "total_commits": 2029,
+  "head": "08f3109",
+  "total_commits": 2031,
   "recent_commits": [
+    {
+      "short": "08f31090",
+      "at": "2026-11-19T19:17:16+08:00",
+      "subject": "almanac: Ch.LXX The Runner Without Bash - Atlas 107 -> 108 - attempts=2, en zero CJK (M8-T1255)"
+    },
+    {
+      "short": "5b2b1776",
+      "at": "2026-11-19T10:25:51Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e468373e",
       "at": "2026-11-19T18:24:37+08:00",
@@ -19,25 +29,15 @@
       "short": "8a7519b2",
       "at": "2026-11-19T16:58:02+08:00",
       "subject": "copy: sweep stale Atlas-era narration - Manual panel and onboarding step 9 now say sixty-eight volumes (newest: Ch.LXVIII One Click, Many Hands); en zero-CJK pa"
-    },
-    {
-      "short": "2516ea13",
-      "at": "2026-11-19T08:55:50Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a626552a",
-      "at": "2026-11-19T08:45:07Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 16,
+  "changelog_entries": 17,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 69,
+  "almanac_chapters": 70,
   "module_count": 14,
   "feature_surface": [
     "workbench",
