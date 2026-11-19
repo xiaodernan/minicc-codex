@@ -932,3 +932,12 @@
   - 数字全部标注来源文件（latest.json / CHANGELOG / LOAD_TESTING / stats.py）——提示词内部没有外部幻觉；没有用"听上去对"填充空洞；
   - `tests/test_prompt_cache_key.py` 7/7 绿。
 - 下一步：可继续深挖 almanac 年鉴 grounding，让「问仓库」BM25 与 `docs/latest.json` 的结构化事实直接挂接，不再逐 chunk 猜。
+---
+
+## 2026-11-19（_WORLD_MAP 升密 · Atlas 105 · 六十七卷 · M8-T1247）
+
+- **M8-T1247：_WORLD_MAP 从 7,165 → 8,873 bytes；Atlas 104 → 105；年鉴入 67 卷**：
+  - `_WORLD_MAP` 增加「年鉴六十七卷目录 · 双语 · 每卷一行」——模型直接知道这个世界的边界：67 卷全列（Atlas 18+67+20=105），提示字节成为稳定上下文而不是逐 chunk 重读第二份目录；
+  - Atlas 104 → 105（第六十七卷《密地图》落架）；全模块 pin 同步（atlas.js / manual.js 双语 / onboarding 双语 / i18n.js CRLF 338/0 / tooltips.js / tests ×2：atlas_smoke、almanac_smoke）；
+  - Ch.LXVII《密地图 / The Dense Map》：6.2-sol 亲笔；attempts=1；zh 2,904 / en 6,061；en 零 CJK；usage `prompt 7,034 · cached 4,153（59.0%）`；`facts_sha256=cd7aedbfa3bed9b90db5cef3fef79dcbbb00576a66d677db5159ad1369575626`；
+  - `_WORLD_MAP` 字节及其 facet 全部实测；i18n CRLF 338/0 未动；doc_pointers 绿。

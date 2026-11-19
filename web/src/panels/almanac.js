@@ -86,6 +86,7 @@ export const CHAPTERS = [
   { id: "seventhday", roman: { zh: "卷六十四", en: "Chapter LXIV" }, title: { zh: "冶炼的第七日", en: "The Seventh Day of the Forge" }, subtitle: { zh: "火有边界，留白不粉饰", en: "the fire has edges; the ledger keeps them" } },
   { id: "etchedwaterline", roman: { zh: "卷六十五", en: "Chapter LXV" }, title: { zh: "水纹的刻度", en: "The Etched Waterline" }, subtitle: { zh: "刻痕不是承诺，是痕迹", en: "a calibrated line — a trace, not a promise" } },
   { id: "theclick", roman: { zh: "卷六十六", en: "Chapter LXVI" }, title: { zh: "回应的按键", en: "The Click That Answers" }, subtitle: { zh: "按下去，回应回来", en: "press it, wait for the answer" } },
+  { id: "densemap", roman: { zh: "卷六十七", en: "Chapter LXVII" }, title: { zh: "密地图", en: "The Dense Map" }, subtitle: { zh: "密的不是内容，是并列", en: "density is not content, it is side by side" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4122,8 +4123,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">104</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">66 / 66</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4163,8 +4164,8 @@ function etchedwaterlineMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">104</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">66 / 66</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4186,6 +4187,11 @@ function etchedwaterlineMarkup() {
     </div>`;
 }
 
+// ---- Ch.LXVII · The Dense Map · 密地图 (Atlas 105) ----
+const LEDGER_ZH_LXVII = "第六十七卷题为《密地图》。地图的密，不在于把一条路说成全部，而在于把已知的路、测得的边界和仍需留意的偏差并排放好。2026年11月19日的事实包记录，仓库共有 2,013 次提交、493 批路线图、66 篇年鉴、747 个测试文件、1,160 个跟踪文件，路线图有 55,786 行；事实包的 head 是 c2f0636，生成于 07:25:14.419Z。当天的提交记录中，0b02c3a9 称 compass v3 携带 7,165 字节的测量事实，并称重建 bundle 上 atlas、manual、admin 提示均为 16/16 验证通过；另有关于 admin 将模型写出的下一步变为 workbench 任务、年鉴第 LXVI 章《回答点击的那一刻》以及 RAG 完整证据分块的记录。第 LXVI 章的记录写明：尝试 1 次、英文零 CJK、中文 1,354 字；Atlas 从 103 到 104，构成为 18 个 panes、66 篇年鉴、20 篇手册，双语 66/66。地图既登记规模，也留下这些可核对的路径。\n\n云模块清单把地图进一步分成八个名字：minicc-cloud-bridge、minicc-cloud-registry、minicc-cloud-config、minicc-cloud-inspector、minicc-cloud-tasks、minicc-cloud-insights、minicc-cloud-evidence 与 minicc-cloud-gateway。缓存亲和测量解释了为何这些边界需要精确记录：上游分片以 prefix-cache shard 和客户端 prompt_cache_key 作为路由提示；没有 key，同一前缀会逐次落到冷分片，有 key 后，热度周期内的命中率稳定在约 94–100%。minicc 会自动派生 prompt_cache_key；usage 只在网关确实回传 prompt_tokens_details.cached_tokens 时报告 prompt_cache_hit_tokens，没有就不伪造，RAG 用量条相应显示缓存命中数量与百分比，或“缓存命中未上报”。一次命令行记录为 total_tokens=15568、cache_hit_tokens=7040、cache_miss_tokens=8456，命中率 45.4%；两趟任务呈现头轮全付、次轮前缀命中的形状。随着约 4.2k-token 的系统提示和工具 schema 在开放会话中复用，命中率会快速趋近此前单轮探针记录的 82–96%，但这并不抹去真实会话的变化。\n\n补测也把边界写得更细。M8-T1221 使用 sys.executable 重跑 v2-fix-add，记录为 passed=true、repair_attempts=0、109 秒、120,599 tokens、prompt_cache_hit_tokens=84,096（71.7%）、reviewer_false_negative_count=0、pass@1；记录同时标出新 key、gpt-6.1-terra 与 reasoning max。M8-T1225 将 README excerpt 放入 13,295 bytes 的前缀后，以新 key 和 terra 的 chat/completions 实测：A 会话族键第一次为冷，第二至第六次恒为 8,362/8,566（97.6%）；B lane 键达到同一档，C 随机键第一次也命中 8,362（97.6%）。这些数字说明仓库前缀成为所有 lane 共享的 headline block。11 月 18 日换用新 lane key 后，/v1/models 仍有 7 项，terra 返回 200；首 call 后的两次 warm 均为 8,362/8,566，即 97.6%，而首 call 约为 72%。150 秒空闲后，cache_key 未变而 call-3 命中归零，测量据此指出水冷 shard 的 TTL 不超过 150 秒；旧的 220 秒 keeper 间隔没有保护该 shard，因此保留 60 秒默认值。\n\n后续 10 次序列中，call-1 为冷命中 0%，call-2 至 call-10 几乎全命中 8,362/8,566（97.6%），只有经历 26 秒长尾之后的 call-9 出现一次完整冷命中；整条序列的全局命中权重约为 8/10，即约 80%。记录称旧的 cache keeper 220s 从未在该 lane 上护住 shard，真正的 minicc-<sha256(family)[:16]> 连续命中率为 97.6%。60s keeper 的设计间隔足以跨过网关 shard TTL 并在短窗口内再加热；命中率并非 100%，call-9 说明网关仍会按 shard hash 轮换。外显的 cache_keeper status 记录 warms=2、last_cached_tokens=4,940、interval=60。相同字节前缀的探针稳定在 97.6%，真实 agent 逐轮增长的上下文则回落到 48–72%；另一组 workspace 记录中，新 workspace 使用 --yolo --max-turns 60，64,310 tokens 中命中 44,957、未命中 17,811，命中率 71.6%，执行 11 次工具调用，生成 sums.py 与 test_sums.py 且测试全绿，audit.jsonl 有 5 行证据；同一 workspace 的只读 --resume 使用 18,077 tokens，命中 8,612、未命中 9,322，命中率 48.0%，零写入，并确认测试数为 2、方法名为两项，家族前缀跨会话越过 TTL。\n\n压力账本为地图加上了服务负载的尺度。Wave 3 在 c=128、12 秒条件下，每条路径 n=2380，共 14,280 个请求，0 错误且全部为 200；health、digest、stats、roadmap、workspace 的 p50 约为 5.4–6.07 ms。三波累计的记录有两组明确口径：一组为 33,600 个请求、0 个非 2xx、0 次连接失败；另一组是在同一台 Windows 机器、127.0.0.1:8899 上运行 minicc-web、设置 MINICC_FAKE_PROVIDER=1 并在波次前数分钟重启进程后，三波累计 25,470 个请求，同样 0 个非 2xx、0 次连接失败。当天所有压力运行的日累计明确写为 33,600 + 25,470 = 59,070 个请求、0 个非 2xx。密地图不把缓存命中说成恒定，也不把压力记录混成一个数字；它让每个比例、边界和口径都能被重新读出。<strong>地图越密，越要忠实标出空白。</strong>";
+
+const LEDGER_EN_LXVII = "Volume LXVII is titled “The Dense Map.” Its density does not come from presenting one route as the whole territory, but from setting known paths, measured boundaries, and deviations still worth watching beside one another. The fact pack dated November 19, 2026 records 2,013 total commits, 493 roadmap batches, 66 almanac chapters, 747 test files, 1,160 tracked files, and 55,786 roadmap lines; its head is c2f0636, generated at 07:25:14.419Z. Among that day's commit records, 0b02c3a9 says compass v3 carries 7,165 bytes of measured facts and that atlas, manual, and admin prompts all verified 16/16 on the rebuilt bundle. Other entries record admin turning model-written next moves into workbench tasks, Almanac Chapter LXVI, “The Click That Answers,” and RAG handing over full evidence chunks. The Chapter LXVI entry specifies one attempt, zero CJK in English, and 1,354 Chinese characters; Atlas moved from 103 to 104, composed of 18 panes, 66 almanac chapters, and 20 manual entries, with 66/66 bilingual. The map records scale as well as paths that can be checked.\n\nThe cloud module list divides the map further into eight names: minicc-cloud-bridge, minicc-cloud-registry, minicc-cloud-config, minicc-cloud-inspector, minicc-cloud-tasks, minicc-cloud-insights, minicc-cloud-evidence, and minicc-cloud-gateway. Cache-affinity measurements explain why these boundaries need exact records: upstream shards use the prefix-cache shard and the client's prompt_cache_key as routing hints. Without the key, the same prefix repeatedly lands on cold shards; with it, the hit rate stays around 94–100% during the warm period. minicc derives prompt_cache_key automatically. Usage reports prompt_cache_hit_tokens only when the gateway actually returns prompt_tokens_details.cached_tokens; when it does not, the value is not fabricated. The RAG usage bar accordingly shows the cache-hit count and percentage, or “cache hit not reported.” One command-line record gives total_tokens=15568, cache_hit_tokens=7040, and cache_miss_tokens=8456, for a 45.4% hit rate; the two-pass task has the shape of a fully paid first pass followed by a prefix hit on the second. As the approximately 4.2k-token system prompt and tool schema are reused in an open session, the hit rate quickly approaches the 82–96% recorded by earlier single-turn probes, without erasing variation in real sessions.\n\nFurther measurements make the boundaries more precise. M8-T1221 reran v2-fix-add using sys.executable and recorded passed=true, repair_attempts=0, 109 seconds, 120,599 tokens, prompt_cache_hit_tokens=84,096 (71.7%), reviewer_false_negative_count=0, and pass@1; the record also specifies a new key, gpt-6.1-terra, and reasoning max. In M8-T1225, after the README excerpt entered a 13,295-byte prefix, a chat/completions measurement with a new key and terra showed that the A session-family key was cold on its first call and then held at 8,362/8,566 (97.6%) on calls two through six. The B lane key reached the same level, and the C random key also hit 8,362 (97.6%) on its first call. These figures show the repository prefix becoming a headline block shared by all lanes. After switching to a new lane key on November 18, /v1/models still had 7 entries and terra returned 200; the two warm calls after the first call both measured 8,362/8,566, or 97.6%, while the first call was about 72%. After 150 seconds idle, call-3 fell to zero hits even though cache_key was unchanged. The measurement therefore placed the water-cooled shard TTL at no more than 150 seconds; the old 220-second keeper interval had not protected that shard, so the 60-second default was retained.\n\nIn the following sequence of 10 calls, call-1 was cold at 0%, calls two through ten were almost entirely hits at 8,362/8,566 (97.6%), and only call-9, after a 26-second long tail, produced a complete cold result. The sequence's global hit weight was approximately 8/10, or about 80%. The record says the old cache keeper 220s had never protected the shard on this lane, while the actual minicc-<sha256(family)[:16]> achieved 97.6% continuous hits. A 60s keeper interval is designed to cross the gateway shard TTL and warm it again within a short window; the hit rate is not 100%, and call-9 shows that the gateway still rotates by shard hash. The exposed cache_keeper status records warms=2, last_cached_tokens=4,940, and interval=60. Probes with an identical byte prefix held at 97.6%, while the growing context of a real agent fell back to 48–72%. In another workspace record, a new workspace using --yolo --max-turns 60 used 64,310 tokens, with 44,957 hits and 17,811 misses, for a 71.6% hit rate. It made 11 tool calls, generated sums.py and test_sums.py with all tests green, and produced 5 lines of audit.jsonl evidence. A read-only --resume in the same workspace used 18,077 tokens, with 8,612 hits and 9,322 misses, for a 48.0% hit rate; it made zero writes and confirmed a test count of 2 and two method names, with the family prefix surviving across sessions beyond the TTL.\n\nThe pressure ledger adds the scale of service load to the map. Wave 3 ran at c=128 for 12 seconds, with n=2380 per path: 14,280 requests in total, 0 errors, and all responses 200. The p50 for health, digest, stats, roadmap, and workspace was about 5.4–6.07 ms. The three-wave cumulative records give two explicit scopes: one reports 33,600 requests, 0 non-2xx responses, and 0 connection failures; another reports 25,470 requests across three waves, also with 0 non-2xx responses and 0 connection failures, on the same Windows machine running minicc-web at 127.0.0.1:8899 with MINICC_FAKE_PROVIDER=1 and a process restarted minutes before the waves. The daily cumulative across all pressure runs is explicitly 33,600 + 25,470 = 59,070 requests and 0 non-2xx responses. The dense map does not call cache hits constant or collapse distinct pressure records into one number; it leaves every ratio, boundary, and scope available to be read again. <strong>The denser the map, the more faithfully it must mark the blank spaces.</strong>";
+
 function theclickMarkup() {
   const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
   return `
@@ -4199,8 +4205,8 @@ function theclickMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">104</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">66 / 66</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4218,6 +4224,42 @@ function theclickMarkup() {
         ${zh()
           ? "按钮回应，是因为有人按住事故不放手。"
           : "The button answers because someone would not let the bug go."}
+      </p>
+    </div>`;
+}
+
+function densemapMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-densemap">
+      <div class="almanac-kicker">${zh() ? "卷六十七 · 密地图" : "Chapter LXVII · The Dense Map"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `密得并列，` + `<br/><span class="almanac-title-accent">不是密得盖住。</span>`
+        : `Dense is not` + `<br/><span class="almanac-title-accent">buried under; it is side by side.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXVII : LEDGER_EN_LXVII}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">105</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">67 / 67</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["地图越来越厚，边界越来越亮", "_WORLD_MAP 4,444 → 7,165 bytes 的实测；并列结构，不淹没信息"],
+        ["en 零 CJK；attempts=1", "6.2-sol 亲笔；契核 keys{zh,en}、en 零 CJK、禁 <script；verify 一次性过"],
+        ["每一条事实都能回去仓库自身", "提交记录/事实包/git log 都是逐字引用；Atlas 105 = 18 panes + 67 almanac + 20 manual"],
+        ["Atlas 再一次从单一书页长到全界", "Atlas 104 → 105（18+67+20），跟随本卷更新，重算与地图同值"],
+      ] : [
+        ["the map gets denser; the edges get brighter", "the _WORLD_MAP measured 4,444 → 7,165 bytes; parallel layout, not a drowning layout"],
+        ["en zero CJK; attempts=1", "authored by 6.2-sol; contract keys{zh,en}, zero CJK in en, no <script; verify passed in one pass"],
+        ["every fact walks back into the repo", "commits / fact pack / git log, verbatim; Atlas 105 = 18 panes + 67 almanac + 20 manual"],
+        ["Atlas grew once more, from page to world", "Atlas 104 → 105 (18+67+20), re-derived in step with this chapter"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "密不是淹没，密是并列。"
+          : "Dense is not flooded; dense is side by side."}
       </p>
     </div>`;
 }
@@ -4289,6 +4331,7 @@ const CHAPTER_RENDERERS = {
   seventhday: () => seventhdayMarkup(),
   etchedwaterline: () => etchedwaterlineMarkup(),
   theclick: () => theclickMarkup(),
+  densemap: () => densemapMarkup(),
 };
 
 async function loadChapter(id) {
