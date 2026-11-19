@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T01:32:50.193Z",
-  "branch": "HEAD",
-  "head": "8e292ff",
-  "total_commits": 2000,
+  "generated_at": "2026-11-19T05:48:55.492Z",
+  "branch": "main",
+  "head": "5696c15",
+  "total_commits": 2002,
   "recent_commits": [
+    {
+      "short": "5696c15c",
+      "at": "2026-11-19T13:46:39+08:00",
+      "subject": "almanac: Ch.LXV The Etched Waterline - sol attempts=1 (terra down this window), en zero CJK, zh 1,690 chars; Atlas 102 -> 103 (103 = 18 panes + 65 almanac + 20 "
+    },
+    {
+      "short": "a7481907",
+      "at": "2026-11-19T01:32:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8e292ffd",
       "at": "2026-11-19T01:32:24Z",
@@ -19,25 +29,15 @@
       "short": "524b5a36",
       "at": "2026-11-19T09:23:35+08:00",
       "subject": "almanac: Ch.LXIV The Seventh Day of the Forge - terra attempt=1, en zero CJK, zh 1,783 chars; forge now mandates length minima up front (fixes the missing-lengt"
-    },
-    {
-      "short": "b31cef39",
-      "at": "2026-11-19T08:42:41+08:00",
-      "subject": "tooltips: fix the two stale hover hints shipped pre-LXIII - almanac now says 63 bilingual volumes (was 58), atlas now says 101 real coordinates (was 96); rebuil"
-    },
-    {
-      "short": "8db329ce",
-      "at": "2026-11-19T07:29:58+08:00",
-      "subject": "prompt: ship the byte-stable _WORLD_MAP - the prompt now carries the repo's own compass: live product facts, the 20-chapter manual TOC (bilingual), and the 63-v"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 1,
+  "changelog_entries": 2,
   "roadmap_lines": 55786,
-  "tracked_files": 1160,
+  "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 64,
+  "almanac_chapters": 65,
   "module_count": 14,
   "feature_surface": [
     "workbench",
