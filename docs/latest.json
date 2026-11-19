@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T13:58:23.836Z",
+  "generated_at": "2026-11-19T14:31:56.267Z",
   "branch": "main",
-  "head": "827761e",
-  "total_commits": 2036,
+  "head": "c7e3f20",
+  "total_commits": 2038,
   "recent_commits": [
+    {
+      "short": "c7e3f202",
+      "at": "2026-11-19T22:31:24+08:00",
+      "subject": "almanac: Ch.LXXII The Stale Assertion - Atlas 109 -> 110 - attempts=1, en zero CJK (M8-T1258)"
+    },
+    {
+      "short": "6ac3ddcb",
+      "at": "2026-11-19T13:58:24Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "827761e3",
       "at": "2026-11-19T21:57:30+08:00",
@@ -19,25 +29,15 @@
       "short": "899a20f7",
       "at": "2026-11-19T21:39:09+08:00",
       "subject": "almanac: Ch.LXXI The Plane That Answered - Atlas 108 -> 109 - attempts=1, en zero CJK (M8-T1256)"
-    },
-    {
-      "short": "979105b7",
-      "at": "2026-11-19T20:27:36+08:00",
-      "subject": "docs(cloud): verified end-to-end runbook for the minicc-cloud plane (JDK 25) - gateway -> Eureka -> inspector -> Python bridge returns 200; three environment tr"
-    },
-    {
-      "short": "7df8e3ec",
-      "at": "2026-11-19T11:17:56Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 19,
+  "changelog_entries": 20,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 71,
+  "almanac_chapters": 72,
   "module_count": 14,
   "feature_surface": [
     "workbench",
