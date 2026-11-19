@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T08:30:43.965Z",
+  "generated_at": "2026-11-19T08:39:50.725Z",
   "branch": "HEAD",
-  "head": "d213f58",
-  "total_commits": 2019,
+  "head": "820b99d",
+  "total_commits": 2020,
   "recent_commits": [
+    {
+      "short": "820b99db",
+      "at": "2026-11-19T08:30:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d213f587",
       "at": "2026-11-19T16:06:22+08:00",
@@ -24,11 +29,6 @@
       "short": "bbab8ef8",
       "at": "2026-11-19T15:43:16+08:00",
       "subject": "almanac: Ch.LXVII The Dense Map - 6.2-sol attempts=1, en zero CJK, zh 2,904/en 6,061 chars; Atlas 104 -> 105 (105 = 18 panes + 67 almanac + 20 manual); 67/67 bi"
-    },
-    {
-      "short": "0b02c3a9",
-      "at": "2026-11-19T15:31:20+08:00",
-      "subject": "prompt(worldmap): ship the byte-stable compass v3 - 7,165 bytes of measured facts; all prompts verified green (atlas/manual/admin 16/16 on the rebuilt bundle, d"
     }
   ],
   "first_commit_at": "2026-08-24",
