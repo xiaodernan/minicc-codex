@@ -1021,3 +1021,11 @@
   - Atlas 107 → 108 = 18 panes + 70 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英、onboarding.js 中英（one hundred eight）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js ×4、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXX` + `therunnerwithoutbashMarkup` + `CHAPTER_RENDERERS.therunnerwithoutbash`；前六卷仪表同步 108/70）；tests：atlas_smoke（108 坐标）、almanac_smoke（70 chapters + `therunnerwithoutbash` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十卷目录（追加《卷七十 没有 bash 的跑道 / The Runner Without Bash》）；`Atlas = 108 真实坐标`；产品现状 2,030 提交 / Atlas 108 / 70 卷；
   - 锻造 ledger：本卷 facts 取自仓库自账（git log + docs/latest.json + minicc-cloud pom + 缓存/压测 regex）+ 本人补入的 live-wire 实测段（带 11:05Z 时间戳的 ribbon/DOM 读数），如实写入锻造事实包，不入库。
+## 2026-11-19（Ch.LXXI 落架 · Atlas 109 · M8-T1256）
+
+- **M8-T1256：第 71 卷《应声的服务面 / The Plane That Answered》上架——Atlas 108 → 109，71/71 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 6,974 · cached 4,154（59.6%）· completion 2,626`；payload `facts_sha256=8084092569af58057eaf3e19e0831b9073d7063aa0bc512ae58a909c6667284c`；zh 2,357 / en 5,019 字符；**en 零 CJK**；
+  - 题材是当天实打实的服务平面补完：`979105b7`（docs(cloud) 运行手册）——JDK 25 上实测 registry/Eureka（:19500）+ inspector（:19592，Python bridge 真实返回仓库数据）+ gateway（:19080）全链 **200**；三个环境陷阱写入 minicc-cloud/README.md（JDK 下 `localhost/<unresolved>`、RabbitMQ 缺席 → actuator health 503、bare `python` 不存在 → `--minicc.python` 指实路径）；
+  - Atlas 108 → 109 = 18 panes + 71 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英、onboarding.js 中英（one hundred nine / seventy-one halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXI` + `theplanethatansweredMarkup` + `CHAPTER_RENDERERS.theplanethatanswered`；前七卷仪表同步 109/71）；tests：atlas_smoke（109 坐标）、almanac_smoke（71 chapters + `theplanethatanswered` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十一卷目录（追加《卷七十一 应声的服务面》）；`Atlas = 109 真实坐标`；产品现状 2,030+ 提交 / Atlas 109 / 71 卷；
+  - README 年鉴段追加 LXXI 卷记录（70 → 71 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
