@@ -314,6 +314,8 @@ button { color: inherit; }
 .arcade-nav b { background: var(--coral-soft); border-radius: 4px; color: var(--coral); font-size: 12px; letter-spacing: .4px; padding: 3px 5px; }
 .nav-item.arcade-nav { display: none; }
 :root[data-arcade="1"] .nav-item.arcade-nav { display: flex; }
+.nav-item-busy { opacity: .66; }
+.nav-item-busy svg, .nav-item-busy span { animation: pulse-soft 1.15s ease-in-out infinite; }
 .section-label { align-items: center; color: var(--quiet); display: flex; font-size: 12px; font-weight: 700; justify-content: space-between; letter-spacing: .7px; margin: 20px 8px 7px; text-transform: uppercase; }
 .thread-list { display: grid; flex: 1 1 0%; gap: 3px; min-height: 64px; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; align-content: start; }
 .thread-list::-webkit-scrollbar { width: 6px; }

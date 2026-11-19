@@ -375,3 +375,10 @@ Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由
 - 与 Ch.LXIV 同档（LXIV：4,152 / 7,107 = 58%）；「attempts=1 单轮短对话」的固有形态，不是 cache 亲和回归；
 - 两份快照读数（docs/latest.json `1,994 commits` / almanac 63 vs git log 实况）在 en 正文里原样并存，模型没有替它们抹平口径；
 - 锻造台的 `verify → repair` 在本轮未被触发（attempts=1）——这只是测量，不是承诺。
+## 2026-11-19 · 网关账号组换代：gpt-6.2-sol 上线（迁移实录，M8-T1241）
+
+- 新增 SKU：`gpt-6.2-sol` / `gpt-6.2-astra`（catalog 实测 8 项）；`gpt-6.1-terra` 仍不在任何可用路由上；
+- 真 HTTP 探针（Clash 7897，同一稳定 ping 前缀，chat/completions，非流）：两次均 200 · 两次均 `cached_tokens=4,180`（total 4,393，**95.2%**）；
+- 锻造台端到端（forge → verify → en 零 CJK 契约）attempts=1 过 · `prompt 7,129 · cached 4,152（58.3%）`；
+- family 键规则未变（`minicc-<sha256(session_id)[:16]>` 三级优先）；换代不换亲和模型——6.2 的头针能量与 6.1 一档（4,152–4,180 的头文件块）；
+- `.env` 本地已改 `MINICC_MODEL=gpt-6.2-sol`（gitignored）；历史 ledger 中的 "gpt-6.1-sol" 记为替换前事实，不回改。

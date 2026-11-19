@@ -336,20 +336,47 @@
 
   // web/src/core/arcade.js
   var pending;
+  function ensureArcadeLoaded() {
+    if (window.openGame) return Promise.resolve();
+    pending || (pending = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = document.querySelector('meta[name="minicc-game-asset"]')?.content || "/game.js";
+      script.onload = resolve;
+      script.onerror = () => {
+        script.remove();
+        pending = null;
+        reject(new Error("Unable to load arcade"));
+      };
+      document.head.append(script);
+    }));
+    return pending;
+  }
+  function preloadArcade() {
+    return ensureArcadeLoaded().catch(() => void 0);
+  }
+  function setArcadeBusy(busy) {
+    const btn = document.getElementById("arcadeButton");
+    if (!btn) return () => {
+    };
+    const prev = { disabled: btn.disabled, ariaBusy: btn.getAttribute("aria-busy"), className: btn.className };
+    if (busy) {
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      btn.classList.add("nav-item-busy");
+    }
+    return () => {
+      btn.disabled = prev.disabled;
+      if (prev.ariaBusy === null) btn.removeAttribute("aria-busy");
+      else btn.setAttribute("aria-busy", prev.ariaBusy);
+      btn.classList.remove("nav-item-busy");
+    };
+  }
   async function openArcade() {
-    if (!window.openGame) {
-      pending || (pending = new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = document.querySelector('meta[name="minicc-game-asset"]')?.content || "/game.js";
-        script.onload = resolve;
-        script.onerror = () => {
-          script.remove();
-          pending = null;
-          reject(new Error("Unable to load arcade"));
-        };
-        document.head.append(script);
-      }));
-      await pending;
+    const done = setArcadeBusy(true);
+    try {
+      await ensureArcadeLoaded();
+    } finally {
+      done();
     }
     window.openGame?.();
   }
@@ -15345,6 +15372,11 @@
       window.setTimeout(finishStartupSplash, 420);
     });
     if (document.documentElement.dataset.arcade === "1") openArcade().catch((error) => showToast(error.message));
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(() => preloadArcade().catch(() => void 0), { timeout: 2500 });
+    } else {
+      window.setTimeout(() => preloadArcade().catch(() => void 0), 1500);
+    }
     window.startTour = startTour;
     maybeOfferTour();
     updateRunningLight();

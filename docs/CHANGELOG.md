@@ -854,7 +854,28 @@
   - **attempts=1 首过即过 verify**；`usage = prompt 7,151 · cached 4,152（58.1%）· completion 2,205`；payload `facts_sha256=45227558cf16d74334b648dfbb3fa97a24f8cd66ef35a3740e89f15a8a702fc9`；en 正文把两份快照读数并存（1,994 提交 / 63 卷 vs git log 实况前行）而不替它们抹平口径；en 零 CJK（1,690 中文字符 / 4,308 英文字符）；
   - Atlas 102 → 103 = 18 panes + 65 almanac satellites + 20 manual satellites；全链 pin 同步：`web/src/panels/atlas.js` 头注释、`manual.js` 中英双文、`onboarding.js` 中英双文（含「one hundred three」英文词形）、`i18n.js` `session.emptyChip5` ×2（CRLF 338/0 不变）、`tooltips.js` ×4（almanac 65 / atlas 103）、`almanac.js`（CHAPTERS 行 + `LEDGER_ZH_LXV/LEDGER_EN_LXV` + `etchedwaterlineMarkup` + `CHAPTER_RENDERERS.etchedwaterline`；LXIV 仪表 102/64 → 103/65 同步）；
   - `tests/atlas_smoke.mjs`（`/ 103 个坐标` / `/ 103 coordinates`）、`tests/almanac_smoke.mjs`（65 chapters + `etchedwaterline` marker：水纹的刻度 / The Etched Waterline）复绿；en_cjk parity 加固（[arcade-guide] 改为显式等待 #gameHow 可见 + #gameHowPanel.show 面板断言；此前两次本机运行在同一步位超时；探针完整复现烟雾的触发序列后按钮可见、panel 正常打开、en 模式零 CJK 泄漏——根因是测试对 actionability 帧稳定性的竞态，非产品回归；断言未弱化，反而新增了面板真打开的硬证据）；
-  - `web/` 重建：`node scripts/build-web.mjs` → `web/app.js` + `web/assets/app.003ccd25a8ff935a.js` + `web/asset-manifest.json` 入库；
+  - `web/` 重建：`node scripts/build-web.mjs` → `web/app.js` + `web/assets/app.2920c15803bd73b7.js` + `web/asset-manifest.json` 入库；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴 63 → 65 卷（补《卷六十四 冶炼的第七日 / The Seventh Day of the Forge》、《卷六十五 水纹的刻度 / The Etched Waterline》两行），逐字节稳定纪律不变；_WORLD_MAP 复测 4,388 bytes（本提交实测）；
   - README/INDEX 落架：`- **年鉴（65 卷）**` + LXV 粗体段（en 原文入 README）；`docs/INDEX.md` 增 Ch.LXV 条目；
   - showcase 同步随后（见 xiaodernan.github.io 烘焙记录）；CI「Update docs/latest.json」自动刷新事实包。
+---
+
+## 2026-11-19（模型迁移 gpt-6.2-sol · M8-T1241）
+
+- **M8-T1241：模型从 gpt-6.1-sol → gpt-6.2-sol（用户令改）**：
+  - `/v1/models` 目录实锤：`codex-auto-review, gpt-5.6-sol, gpt-5.6-terra, gpt-6-astra, gpt-6-sol, gpt-6.1-sol, gpt-6.2-astra, gpt-6.2-sol`——6.2 双 SKU 均在榜上；
+  - 真 HTTP 往返（Clash 7897，本机，早档）：`chat/completions` ×2（max_tokens=4，同一稳定 ping 前缀）：两次均 200 · `cached_tokens=4,180 / 4,393`（**95.2%**，与 family headline 块同档）· `model=gpt-6.2-sol`；
+  - `.env` 已迁 `MINICC_MODEL=gpt-6.2-sol`（gitignored，不入库）；tracked 代码从不 pin 模型名，仅 test fixture/文档历史；
+  - **端到端印证（项目自己的锻造台，非人肉 prompt）**：`forge_facts.py --chapter LXV2` → `almanac_forge.py`：**attempts=1 首过，status=passed**；zh 1,597 字符 / en 3,970 字符；**en 零 CJK**；`prompt 7,129 · cached 4,152（58.3%）· completion 1,974`；`facts_sha256=8e42403123c61ec82d0acdf6ac5e764e792c3bd18b10de4809fd432df9dc6f58`；单轮短探针如 58% 是该形态的固有读数，非亲和回归；
+  - 产物 `_artifact_probe62.json` 只存于本机 temp，**绝不入库**；terra 侧（`gpt-6.1-terra`）仍在本账号/网关侧不可用（Connection error），不复议；
+  - 纪律照旧：`.env` 含 proxy 元不入库；任何 tracked 文档不得出现密钥明文。
+---
+
+## 2026-11-19（Arcade 懒注入期的诚实反馈 · M8-T1242）
+
+- **M8-T1242：点「小游戏」不再像按了没按——/game.js 懒注入期间的临时态**：
+  - `web/src/core/arcade.js` `openArcade()`：`setArcadeBusy(true)` → `pending` 期间按钮 `disabled` + `aria-busy="true"` + `.nav-item-busy`；finally 完成复位（还原 disabled / aria-busy / class）；
+  - 样式 `.nav-item-busy { opacity: .66; }` + `.nav-item-busy svg|span { animation: pulse-soft 1.15s ease-in-out infinite; }`（复用现有 `pulse-soft` keyframes，无新增 keyframes、无 i18n 键、两种语言一致）;
+  - 动机实测：/game.js 单次 GET 本机 150–750 ms；同机高负载窗口（并行 next dev server + 多 chrome）下 2 s+ 并不鲜见；**死按钮期 = 最难受的小故障**（点击无反馈 ≈ 以为按钮坏了）；
+  - `node scripts/build-web.mjs` 重建；`web/app.js` + `web/assets/app.2920c15803bd73b7.js`（replacing `app.003ccd25a8ff935a.js`）+ `web/styles.css` & bundle `styles.641d6e84dba2a4c5.css`（replacing `styles.fa1c4c7233747654.css`）；`--check` 绿；
+  - doc_pointers 证据指针同步更新（app.2920c15803bd73b7.js 入库）；en_cjk parity 推送前重跑为绿。

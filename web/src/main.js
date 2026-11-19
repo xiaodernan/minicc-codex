@@ -1,7 +1,7 @@
 import { requestJson } from "./core/transport.js";
 import "./core/wheel.js"; // registers the wheel-direction capture listener (opt-in)
 import { applyTooltips } from "./core/tooltips.js"; // curated bilingual teaching tooltips
-import { openArcade } from "./core/arcade.js";
+import { preloadArcade, openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
 import { openStategraphPanel } from "./panels/stategraph.js";
@@ -612,6 +612,15 @@ document.addEventListener("DOMContentLoaded", () => {
       window.setTimeout(finishStartupSplash, 420);
     });
   if (document.documentElement.dataset.arcade === "1") openArcade().catch((error) => showToast(error.message));
+  // M8-T1242: warm the arcade bundle during idle. The old lazy injection
+  // loved to race the 6-socket HTTP/1.1 budget once every panel lit up;
+  // users saw a dead button on the click that needed it most. Idle warms
+  // the load before any of that; openArcade() short-circuits on warm.
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(() => preloadArcade().catch(() => undefined), { timeout: 2500 });
+  } else {
+    window.setTimeout(() => preloadArcade().catch(() => undefined), 1500);
+  }
   window.startTour = startTour;
   maybeOfferTour();
   // M8-T916: the running light — ambient cache/task/branch strip in the sidebar.
