@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T08:45:05.389Z",
+  "generated_at": "2026-11-19T08:45:07.920Z",
   "branch": "HEAD",
-  "head": "4f45ebb",
-  "total_commits": 2023,
+  "head": "7904dd4",
+  "total_commits": 2024,
   "recent_commits": [
+    {
+      "short": "7904dd43",
+      "at": "2026-11-19T08:45:05Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4f45ebb5",
       "at": "2026-11-19T08:43:24Z",
@@ -24,11 +29,6 @@
       "short": "820b99db",
       "at": "2026-11-19T08:30:44Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d213f587",
-      "at": "2026-11-19T16:06:22+08:00",
-      "subject": "admin: apply-all button on plan and recommendations tiles fans out the whole list through /api/tasks/batch with the same permission posture as chat; admin smoke"
     }
   ],
   "first_commit_at": "2026-08-24",
