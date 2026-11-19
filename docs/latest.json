@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T08:45:07.920Z",
+  "generated_at": "2026-11-19T08:55:50.144Z",
   "branch": "HEAD",
-  "head": "7904dd4",
-  "total_commits": 2024,
+  "head": "a626552",
+  "total_commits": 2025,
   "recent_commits": [
+    {
+      "short": "a626552a",
+      "at": "2026-11-19T08:45:07Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7904dd43",
       "at": "2026-11-19T08:45:05Z",
@@ -23,11 +28,6 @@
     {
       "short": "71b4aad9",
       "at": "2026-11-19T08:39:50Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "820b99db",
-      "at": "2026-11-19T08:30:44Z",
       "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
