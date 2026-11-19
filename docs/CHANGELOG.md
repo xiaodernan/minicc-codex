@@ -1011,3 +1011,13 @@
   - 修复两处：① `taskHistoryMarkup` 的用户消息头不再渲染 `.rewind-to-here`，并给历史行加 `data-history-task="1"`；② `decorateUserRewindButtons()` 跳过带 `data-history-task` 的行——历史行彻底不渲染 rewind 按钮（只读历史里 rewind 本就是错的）；直播会话的 `.user-message`（`addUserMessage`）rewind 语义保持不变；
   - 验证：`test:dazzle` 的确定性 walk 期望飞升；`test:admin / parity / manual / almanac / atlas / web` 不受此路径影响；
   - 说明：这不是“为了 smoke 改测试”，是给只读视图摘掉一个永远会 400 的按钮；行为变更：历史行 rewind 按钮消失，直播会话不受影响。
+---
+
+## 2026-11-19（Ch.LXX 落架 · Atlas 108 · M8-T1255）
+
+- **M8-T1255：第 70 卷《没有 bash 的跑道 / The Runner Without Bash》上架——Atlas 107 → 108，70/70 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=2**（首版未过 verify，repair 带回失败原因后第二次过审——这次的 attempts 账本如实记 2，不是粉饰成 1）；`usage = prompt 15,915 · cached 8,288 · completion 5,694`；payload `facts_sha256=b248e23e59f854f934a3471753260fe8010bd2bdf315b517738a1531ab2af745`；zh 2262 / en 4507 字符；**en 零 CJK**；
+  - 题材是当天实打实的部署战役：self-hosted lenovo-pages 上 `actions/upload-pages-artifact@v3` 的 tar 步骤经 `shell: bash` 落到 WSL —— 唯一 distro 是 docker-desktop（busybox，只有 /bin/sh，没有 /bin/bash）→ 连续 5 次在 step 5 死于 `execvpe(/bin/bash) failed: No such file or directory`；并行会话把 workflow 切到 `ubuntu-latest`（419c465），我先做交叉平台归档（41555d0，GNU tar/pwsh 双路径）→ deploy-pages@v4 又要 `environment: github-pages`（400 Missing environment）→ 691053c 声明后两条流水线双绿，live 复审 ribbon=249 卷 / 2,030 提交 / Football OS 1,654 · 158 章；EN mirror 两条里程碑 ribbon 与 minicc-latest 卡全部对齐到同一组数字；
+  - Atlas 107 → 108 = 18 panes + 70 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英、onboarding.js 中英（one hundred eight）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js ×4、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXX` + `therunnerwithoutbashMarkup` + `CHAPTER_RENDERERS.therunnerwithoutbash`；前六卷仪表同步 108/70）；tests：atlas_smoke（108 坐标）、almanac_smoke（70 chapters + `therunnerwithoutbash` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十卷目录（追加《卷七十 没有 bash 的跑道 / The Runner Without Bash》）；`Atlas = 108 真实坐标`；产品现状 2,030 提交 / Atlas 108 / 70 卷；
+  - 锻造 ledger：本卷 facts 取自仓库自账（git log + docs/latest.json + minicc-cloud pom + 缓存/压测 regex）+ 本人补入的 live-wire 实测段（带 11:05Z 时间戳的 ribbon/DOM 读数），如实写入锻造事实包，不入库。

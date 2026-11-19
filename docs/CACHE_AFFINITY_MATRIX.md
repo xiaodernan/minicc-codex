@@ -418,3 +418,8 @@ Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由
 - Ch.LXIX《活的页面 / The Live Page》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=1 首过**；`usage = prompt 7,725 · cached 4,146（53.7%）· completion 2,134`；payload `facts_sha256=e2efb3c45fda7e40d4649b2595ac34d2ec35857db95b5732452b3e6c223202d9`，en 零 CJK；zh 1572 / en 4266 字符；
 - 与 Ch.LXV/LXVI/LXVII/LXVIII 一档：「attempts=1 短对话 + cold-register 约 4,146 token 的缓存形态」；
 - 本卷特殊：facts 里手工补了一段 live-wire 实测（Pages deploy 六步全绿、线上 ml-commits=2024 vs 烘焙 2,022、ml-chapters=68 卷、MAIN@7904DD4、CI superseded 取消），该段带 2026-11-19T08:58Z–09:01Z 时间戳——这一档是人工取证而非自动提取，下次同款应当固化进 forge_facts.py 的 --include 参数。
+## 2026-11-19 · 第 70 卷《The Runner Without Bash》实测（M8-T1255）
+
+- Ch.LXX《没有 bash 的跑道 / The Runner Without Bash》，`MINICC_MODEL=gpt-6.2-sol`：**attempts=2**（首版未过 verify，repair 带回失败原因后次过审）；`usage = prompt 15,915 · cached 8,288 · completion 5,694`；payload `facts_sha256=b248e23e59f854f934a3471753260fe8010bd2bdf315b517738a1531ab2af745`，en 零 CJK；zh 2262 / en 4507 字符；
+- facts 里手工补充了一段 live-wire 实测（lenovo-pages WSL busybox 无 /bin/bash 五连死；ubuntu-latest；交叉平台归档 41555d0；deploy-pages 缺 environment 声明；691053c 后两条流水线双绿；11:05Z ribbon 实测）——带时间戳的人工取证，与 LXIX 同款做法；
+- 与前几卷同档：「attempts>1 也按实记」——attempts=2 是如实账本，不是失败，是 repair 机制在工作。
