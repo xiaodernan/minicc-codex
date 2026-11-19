@@ -1,43 +1,43 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T07:25:14.419Z",
+  "generated_at": "2026-11-19T08:30:43.965Z",
   "branch": "HEAD",
-  "head": "c2f0636",
-  "total_commits": 2013,
+  "head": "d213f58",
+  "total_commits": 2019,
   "recent_commits": [
     {
-      "short": "c2f06367",
-      "at": "2026-11-19T15:17:32+08:00",
-      "subject": "admin: model-written next moves become workbench tasks - one click on a plan or recommendation item dispatches it through /api/tasks with the chat's permission "
+      "short": "d213f587",
+      "at": "2026-11-19T16:06:22+08:00",
+      "subject": "admin: apply-all button on plan and recommendations tiles fans out the whole list through /api/tasks/batch with the same permission posture as chat; admin smoke"
     },
     {
-      "short": "8c8c88df",
-      "at": "2026-11-19T06:55:15Z",
-      "subject": "chore(latest): refresh showcase fact pack"
+      "short": "2d9d0766",
+      "at": "2026-11-19T16:02:08+08:00",
+      "subject": "ledger(cache): report 87.1% warm on gpt-6.2-sol this window (first two calls 32.0% the empty shard registering 4,096, third onwards 11,138/12,786=87.1%); family"
     },
     {
-      "short": "9898a301",
-      "at": "2026-11-19T06:48:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
+      "short": "4c4e6002",
+      "at": "2026-11-19T15:55:57+08:00",
+      "subject": "prompt: world map is now genuinely dense - almanac TOC 67 + manual TOC 20 listed inline (9,720 bytes); model reads full chapter titles without looking outward"
     },
     {
-      "short": "c2abc222",
-      "at": "2026-11-19T14:47:17+08:00",
-      "subject": "almanac: Ch.LXVI The Click That Answers - 6.2-sol attempts=1, en zero CJK, zh 1,354 chars; Atlas 103 -> 104 (104 = 18 panes + 66 almanac + 20 manual); 66/66 bil"
+      "short": "bbab8ef8",
+      "at": "2026-11-19T15:43:16+08:00",
+      "subject": "almanac: Ch.LXVII The Dense Map - 6.2-sol attempts=1, en zero CJK, zh 2,904/en 6,061 chars; Atlas 104 -> 105 (105 = 18 panes + 67 almanac + 20 manual); 67/67 bi"
     },
     {
-      "short": "d65824e5",
-      "at": "2026-11-19T06:37:45Z",
-      "subject": "chore(latest): refresh showcase fact pack"
+      "short": "0b02c3a9",
+      "at": "2026-11-19T15:31:20+08:00",
+      "subject": "prompt(worldmap): ship the byte-stable compass v3 - 7,165 bytes of measured facts; all prompts verified green (atlas/manual/admin 16/16 on the rebuilt bundle, d"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 7,
+  "changelog_entries": 12,
   "roadmap_lines": 55786,
   "tracked_files": 1160,
   "test_files": 747,
-  "almanac_chapters": 66,
+  "almanac_chapters": 67,
   "module_count": 14,
   "feature_surface": [
     "workbench",
