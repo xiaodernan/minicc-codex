@@ -398,3 +398,14 @@ Ch.LXV《水纹的刻度 / The Etched Waterline》，terra 当日停服期间由
 - Ch.LXVI《回应的按键 / The Click That Answers》，`MINICC_MODEL=gpt-6.2-sol`（.env，gitignored；探针最热位置）：**attempts=1 首过**；`usage = prompt 7,087 · cached 4,153（58.6%）· completion 1,817`；payload `facts_sha256=39f0aaf7f56a610631d5e4e621964d4915ffb393a40a7f2b53b3e5f337da105b`，en 零 CJK；
 - 主题源自当日真 bug（M8-T1242）：final-hook 懒注入 + 6-socket 连接预算 + idle 预注入 + busy 复位——模型自己从 git log 提炼入卷；
 - 与 Ch.LXV（58.1%）LXVI（58.6%）同档——attempts=1 短对话的固有形态；cache affinity 不因此误判。
+## 2026-11-19 · gpt-6.2-sol 热前缀亲测：首词 Registered → 持续 87.1%（M8-T1249）
+
+- 本机 Clash 7897 / 新 key / **gpt-6.2-sol** / 同一 `prompt_cache_key=minicc-probe-session-a55a`
+- 12,786-token system prefix（200 行双语 ping 指令）：
+  - call-1: cached `4,096` / 12,786 = **32.0%**（prefix 架上的第一次伸手）
+  - call-2: cached `4,096` / 12,786 = **32.0%**（同上）
+  - call-3: cached `11,138` / 12,786 = **87.1%**（主干命中，tail 2,648 tokens）
+  - call-4: cached `11,138` / 12,786 = **87.1%**
+  - 再跑调用-1 作为快速重验证：4,096 → 11,138（生命周期稳定）
+- 与既有测量一致：字节亲和会话命中；warm shard 以 cliff（头上 bit）落地；~12,786 tokens 级别 profile 头块命中约 60-95%，因 gateway 上游分片有多余系统提示偏移——这就是为什么 codex "5万到9万 tokens" 的命中率漂浮在 90%，不是 100。
+- 完整家族键仍派生为 `minicc-<sha256(sid)[:16]>`；keeper 60 s warms 真 gateway；禁止全局键。

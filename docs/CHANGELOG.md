@@ -949,3 +949,10 @@
   - `_WORLD_MAP` 增加「说明书二十章目录」——模型可以直接在 prompt 里看到这二十章的名字，而不是先问用户才能列。almanac 67 卷 + manual 20 章两份目录在线 9,720 bytes 之内； Atlas 105、67 卷双向对齐的同屏事实都在；
   - 验证：doc_pointers 绿 · CRLF 338/0 不动 · `_WORLD_MAP` 无新增 key · cache_affinity 契约不破；tests 全绿（28 cache-related + prompt）；
   - 预算：本次增量 +847 bytes，不影响 warm-cache 分片可读性；命中率探测仍为 97.6% warm（家族键模型优势 23%）。
+---
+
+## 2026-11-19（gpt-6.2-sol warm prefix 实测 87.1% 稳定 · M8-T1249）
+
+- 12,786-token 双语 System prefix 的 2 条探针：首 call 4,096/12,786 = 32.0% → 第 3 次后所有 cached = 11,138 / 12,786 = **87.1%**（与既有 14,280 个 97.6% 同模式，只是分片高于 6.1-sol 今天的 profile）；
+- family key `minicc-probe-session-0xA55A` 派生与生产一致；keeper 真实开了 60s warms；分两片 shards 之间"半衰期"正向分布符合 gateway 刚刚推出 6.2 后的分片轮换——不是 bug，且与「命中率也会掉下来」用户关注一致；
+- 数据已入 `docs/CACHE_AFFINITY_MATRIX.md`。
