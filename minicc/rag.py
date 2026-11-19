@@ -206,7 +206,8 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
     prompt = (
         "You answer only from the documents below. Copy the language of the question.\n"
         "Answer briefly and cite the source numbers like [1], [2] for the facts you use.\n"
-        "If and only if the documents do not cover the question, reply with one short sentence in the same language as the question saying the documents do not directly answer it — do not mix languages in that sentence.\n\n"
+        "If ANY document addresses part of the question, answer that part, and say explicitly which part is missing.\n"
+        "If and only if NONE of the documents addresses the question, not even partially, reply with one short sentence in the same language as the question saying the documents do not directly answer it — do not mix languages in that sentence.\n\n"
         + "\n\n".join(
             f"[{index + 1}] file: {item['source']}\n{item['chunk']}" for index, item in enumerate(sources)
         )
@@ -306,7 +307,9 @@ class BM25Index:
         results: list[dict[str, Any]] = []
         for score, idx in scores[:limit]:
             src, chunk, _tokens_list, start, end = self.docs[idx]
-            snippet = chunk if len(chunk) <= 400 else chunk[:400] + "…"
+            # Hand the full chunk (<= chunk_chars, typically <=800 chars) to the
+            # model. Truncating at 400 used to silently drop the numbers the
+            # question is about; the model can only cite what it sees.
             results.append({"source": src, "score": round(score, 4),
-                            "chunk": snippet, "start_line": start, "end_line": end})
+                            "chunk": chunk, "start_line": start, "end_line": end})
         return results

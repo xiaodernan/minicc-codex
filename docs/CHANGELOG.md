@@ -881,3 +881,19 @@
   - 测量链记录（不是断言）：`npm run test:parity` 连红两次（`[arcade] waitForSelector timeout` / `[arcade-guide] waitForSelector timeout`）→ 应用两段式修复后 `exit=0`：en 模式全站零 CJK（12 视图 + 6 舞台 + admin-unlock + arcade tutorial 明细全过），中文模式切换正常；
   - 样式：`.nav-item-busy { opacity: .66; }` + `.nav-item-busy svg|span { animation: pulse-soft 1.15s ease-in-out infinite; }`（无新增 keyframes / 无 i18n 键、两种语言一致）;
   - `node scripts/build-web.mjs` 重建；`web/app.js` + `web/assets/app.2920c15803bd73b7.js`（replacing `app.003ccd25a8ff935a.js`）+ `web/styles.css` + bundle `styles.641d6e84dba2a4c5.css`（replacing `styles.fa1c4c7233747654.css`）；`--check` 绿；doc_pointers 证据指针指向新 bundle；en_cjk parity 已验证绿。
+---
+
+## 2026-11-19（问仓库 RAG 真跑通 + 两处检索侧修正 · M8-T1243）
+
+- **M8-T1243：问仓库（BM25 RAG）真调用一遍——证据链不编、检索两处治好真缺陷**：
+  - 同问三次（`缓存命中率为什么在 agent 真实任务里明显低于探针的 97.6%？` / `gpt-6.2-sol` / Clash 7897）：
+    - v1：答案「材料未直接回答这一差异」——引用 [2][4]，覆盖率 1.0，模型太谨慎；
+    - v2（**prompt 部分作答规则**）：答案点出「97.6% 是会话族键连续 6 次实测；真实 agentic 任务记录为 81–98%」（[2][4][5]，覆盖率 1.0）——从「拒答」变「部分作答」；
+    - v3（**full-chunk 交给模型**）：chunk hand-off 上限 400 → 完整 chunk（≤800），模型不再缺少它能引的原文；本轮回答诚实指向「材料没给出 agent 真低于 97.6% 的具体原因」——检索 top-5 没捞到那段原句，模型报"缺失"，不瞎编；
+  - 两次修正细账：
+    1. `answer()` 系统指令增加：「若有任一文档覆盖问题的一部分，就作答该部分，并明确说明缺口；只有 NONE 覆盖时才句话拒答」——行为从一口拒答到按覆盖率回答；
+    2. `search()` 证据 snippet：400 → 全 chunk，消除 400 字静默截断造成的「模型没读到出题那个数字」的假象；
+  - usage 逐次入账：prompt `5,656 / 5,681 / 6,290` · cached `4,161 – 4,167`（**66–74%**）——RAG 给模型一个「按需对齐的小型事实包」，不是硬塞 50–90k 噪声进每个调用；prefix headline 块（README excerpt + 目录快照）保持字节稳定，BM25 产出的变长尾部只占总量的份额；
+  - 检索召回诚实记账：BM25 对该问题的 top-5 = `CACHE_AFFINITY_MATRIX.md ×3` + `ROADMAP_TO_PRODUCT.md ×2`（分数 24–31）——**正题文件被找到**；但「48–72%」那句原句所在 chunk 没进 top-5（本 repo 的中文问句 + 文档分节），模型因此报「缺」，没有伪造；想提召回应做 multi-query + RRF/更大 limit——记录，不为这个烧 token；
+  - `tests/test_rag_bm25_index.py` 8/8 修后仍为绿；
+  - 纪律：本整节测试与 probe 只花 3 次调用（~17K prompt tokens），够项目就行。
