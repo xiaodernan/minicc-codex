@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T01:32:23.654Z",
-  "branch": "main",
-  "head": "524b5a3",
-  "total_commits": 1998,
+  "generated_at": "2026-11-19T01:32:50.193Z",
+  "branch": "HEAD",
+  "head": "8e292ff",
+  "total_commits": 2000,
   "recent_commits": [
+    {
+      "short": "8e292ffd",
+      "at": "2026-11-19T01:32:24Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "831b7fdd",
+      "at": "2026-11-19T09:31:45+08:00",
+      "subject": "ledger: worldmap probe - 9,892 prompt tokens, 9,629 cached, 97.3%; prompt now 17,559 bytes with README excerpt + manual TOC + 64-chapter almanac TOC bilingual; "
+    },
     {
       "short": "524b5a36",
       "at": "2026-11-19T09:23:35+08:00",
@@ -19,23 +29,13 @@
       "short": "8db329ce",
       "at": "2026-11-19T07:29:58+08:00",
       "subject": "prompt: ship the byte-stable _WORLD_MAP - the prompt now carries the repo's own compass: live product facts, the 20-chapter manual TOC (bilingual), and the 63-v"
-    },
-    {
-      "short": "ba7a001e",
-      "at": "2026-11-18T22:37:29Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1a0c6b38",
-      "at": "2026-11-19T06:37:02+08:00",
-      "subject": "almanac: Ch.LXIII The Forged World - terra-era live forge run attempt=1, cached 4,154/6,997 (59%), zh 616/en 1,678 chars, en zero CJK, full facts bridge (M8-T12"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
   "changelog_entries": 1,
   "roadmap_lines": 55786,
-  "tracked_files": 1158,
+  "tracked_files": 1160,
   "test_files": 747,
   "almanac_chapters": 64,
   "module_count": 14,
