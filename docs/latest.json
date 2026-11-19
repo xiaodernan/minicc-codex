@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T11:17:56.183Z",
+  "generated_at": "2026-11-19T13:39:55.204Z",
   "branch": "main",
-  "head": "08f3109",
-  "total_commits": 2031,
+  "head": "899a20f",
+  "total_commits": 2034,
   "recent_commits": [
+    {
+      "short": "899a20f7",
+      "at": "2026-11-19T21:39:09+08:00",
+      "subject": "almanac: Ch.LXXI The Plane That Answered - Atlas 108 -> 109 - attempts=1, en zero CJK (M8-T1256)"
+    },
+    {
+      "short": "979105b7",
+      "at": "2026-11-19T20:27:36+08:00",
+      "subject": "docs(cloud): verified end-to-end runbook for the minicc-cloud plane (JDK 25) - gateway -> Eureka -> inspector -> Python bridge returns 200; three environment tr"
+    },
+    {
+      "short": "7df8e3ec",
+      "at": "2026-11-19T11:17:56Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "08f31090",
       "at": "2026-11-19T19:17:16+08:00",
@@ -14,30 +29,15 @@
       "short": "5b2b1776",
       "at": "2026-11-19T10:25:51Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e468373e",
-      "at": "2026-11-19T18:24:37+08:00",
-      "subject": "almanac: Ch.LXIX The Live Page - Atlas 106 -> 107 - plus two parity/dazzle smoke catches (M8-T1252..1254)"
-    },
-    {
-      "short": "838816b1",
-      "at": "2026-11-19T09:21:32Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8a7519b2",
-      "at": "2026-11-19T16:58:02+08:00",
-      "subject": "copy: sweep stale Atlas-era narration - Manual panel and onboarding step 9 now say sixty-eight volumes (newest: Ch.LXVIII One Click, Many Hands); en zero-CJK pa"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 17,
+  "changelog_entries": 18,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 70,
+  "almanac_chapters": 71,
   "module_count": 14,
   "feature_surface": [
     "workbench",
