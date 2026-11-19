@@ -6,6 +6,8 @@ const CJK = /[一-鿿]/;
 const EXEMPT = [
   "#threadList", "#messageList", ".thread-item", ".message",
   ".admin-task-message", ".todo-item-text", "#localeZh", ".admin-task",
+  // live agent todos are the model's own output, not chrome of the UI
+  ".todo-content", ".todo-item",
   ".workspace-current-path", ".workspace-row strong", ".workspace-row small",
   ".worktree-row strong", ".worktree-row small", ".worktree-form input", ".workspace-form input",
   ".archive-title", ".recent-title", ".archive-tag", ".journal-subject", ".dockyard-commit",

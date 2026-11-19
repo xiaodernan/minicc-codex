@@ -39,8 +39,8 @@ const STEPS = [
   },
   {
     id: "atlas", anchor: "#atlasButton", interact: "atlas",
-    zh: { kicker: "上手演练 · 第 5 步 / 共 10 步", title: "把这片世界摊开看一眼", body: "点「地图」，13 座岛屿、109 个坐标——18 个面板 + 71 卷年鉴卫星 + 20 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
-    en: { kicker: "Start here · Step 5 of 10", title: "Unfold the world", body: "Press the “Atlas” button: thirteen islands, one hundred nine real coordinates — 18 panes, seventy-one almanac satellites, twenty manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
+    zh: { kicker: "上手演练 · 第 5 步 / 共 10 步", title: "把这片世界摊开看一眼", body: "点「地图」，13 座岛屿、110 个坐标——18 个面板 + 72 卷年鉴卫星 + 20 章说明书。拖拽是驾驶，滚轮是缩放，点击是传送。点开过一个，那里就亮起琥珀色——这是你在这个世界里走过的路。" },
+    en: { kicker: "Start here · Step 5 of 10", title: "Unfold the world", body: "Press the “Atlas” button: thirteen islands, one hundred ten real coordinates — 18 panes, seventy-two almanac satellites, twenty manual chapters. Drag to navigate, wheel to zoom, click to teleport. Each place you visit glows amber." },
   },
   {
     id: "dockyard", anchor: "#dockyardButton", interact: "dockyard",
@@ -59,8 +59,8 @@ const STEPS = [
   },
   {
     id: "almanac", anchor: '.nav-item[data-view="almanac"]',
-    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷七十一的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
-    en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in seventy-one halls", body: "Seventy-one chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
+    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷七十二的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
+    en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in seventy-two halls", body: "Seventy-two chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
   },
   {
     id: "done", anchor: null,
