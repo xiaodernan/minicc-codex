@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T08:55:50.144Z",
+  "generated_at": "2026-11-19T09:21:32.847Z",
   "branch": "HEAD",
-  "head": "a626552",
-  "total_commits": 2025,
+  "head": "8a7519b",
+  "total_commits": 2027,
   "recent_commits": [
+    {
+      "short": "8a7519b2",
+      "at": "2026-11-19T16:58:02+08:00",
+      "subject": "copy: sweep stale Atlas-era narration - Manual panel and onboarding step 9 now say sixty-eight volumes (newest: Ch.LXVIII One Click, Many Hands); en zero-CJK pa"
+    },
+    {
+      "short": "2516ea13",
+      "at": "2026-11-19T08:55:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a626552a",
       "at": "2026-11-19T08:45:07Z",
@@ -18,16 +28,6 @@
     {
       "short": "4f45ebb5",
       "at": "2026-11-19T08:43:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0f8ea9ad",
-      "at": "2026-11-19T16:40:11+08:00",
-      "subject": "almanac: Ch.LXVIII One Click, Many Hands - 6.2-sol attempts=1, en zero CJK, zh 687/en 2,246 chars; Atlas 105 -> 106; _WORLD_MAP almanac TOC now 68; gate fix: en"
-    },
-    {
-      "short": "71b4aad9",
-      "at": "2026-11-19T08:39:50Z",
       "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
