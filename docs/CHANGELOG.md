@@ -1067,3 +1067,11 @@
   - Atlas 112 → 113 = 18 panes + 75 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十五卷）、onboarding.js 中英（one hundred thirteen / seventy-five halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXV` + `theladdersnapsMarkup` + `CHAPTER_RENDERERS.theladdersnaps`；前十一卷仪表同步 113/75）；tests：atlas_smoke（113 坐标）、almanac_smoke（75 chapters + `theladdersnaps` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十五卷目录（追加《卷七十五 梯子断了，世界没断》）；`Atlas = 113 真实坐标`；产品现状 2,030+ 提交 / Atlas 113 / 75 卷；
   - README 年鉴段追加 LXXV 卷记录（74 → 75 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-20（Ch.LXXVI 落架 · Atlas 114 · M8-T1263）
+
+- **M8-T1263：第 76 卷《全绿的那一夜 / The Night the Ledger Turned Green》上架——Atlas 113 → 114，76/76 卷全双语**：
+  - forge live（2026-11-20，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 7,022 · cached 4,153（59.0%）· completion 3,444`；payload `facts_sha256=7fd67fec787e6b9d151507733aedb41bb1650428658f664fe3c4a12be1b5f80d`；zh 3,096 / en 5,475 字符；**en 零 CJK**；
+  - 题材是本夜 CI 双腿全绿实录：`44558327232` 全绿结论——Python tests（ubuntu-latest / windows-latest）success；M8-T1259（README 旗语 `--minicc.python` → 能力清单门 8/8）是双腿转绿的原因；LXXIV/LXXV CI 被 supersede 取消的史记如实在案；禁不粉饰；
+  - Atlas 113 → 114 = 18 panes + 76 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十六卷）、onboarding.js 中英（one hundred fourteen / seventy-six halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXVI` + `thenighttheledgerturnedgreenMarkup` + `CHAPTER_RENDERERS.thenighttheledgerturnedgreen`；前十二卷仪表同步 114/76）；tests：atlas_smoke（114 坐标）、almanac_smoke（76 chapters + `thenighttheledgerturnedgreen` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十六卷目录（追加《卷七十六 全绿的那一夜》）；`Atlas = 114 真实坐标`；产品现状 2,030+ 提交 / Atlas 114 / 76 卷；
+  - README 年鉴段追加 LXXVI 卷记录（75 → 76 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
