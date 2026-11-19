@@ -1029,3 +1029,10 @@
   - Atlas 108 → 109 = 18 panes + 71 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英、onboarding.js 中英（one hundred nine / seventy-one halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXI` + `theplanethatansweredMarkup` + `CHAPTER_RENDERERS.theplanethatanswered`；前七卷仪表同步 109/71）；tests：atlas_smoke（109 坐标）、almanac_smoke（71 chapters + `theplanethatanswered` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十一卷目录（追加《卷七十一 应声的服务面》）；`Atlas = 109 真实坐标`；产品现状 2,030+ 提交 / Atlas 109 / 71 卷；
   - README 年鉴段追加 LXXI 卷记录（70 → 71 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-19（M8-T1257 · js-check 红灯归零）
+
+- **M8-T1257：CI「Verify responsive UI and task protocol」红灯修复——`frontend_optimization_smoke` 与 M8-T1242 空闲预热设计对齐**：
+  - 红因取证：CI run 44535672293 的 `JavaScript syntax` 作业在第 7 步红；本机复现只有 `npm run test:optimization` 失败——`AssertionError: home must not download arcade / 1 !== 0`（tests/frontend_optimization_smoke.mjs:66）；
+  - 根因：M8-T1242（Ch.LXVI《回应的按键》）之后首页按设计会在 idle 时预热 arcade bundle（`web/src/main.js` 的 `requestIdleCallback(..., { timeout: 2500 })`，1.5s setTimeout 兜底；`preloadArcade()` 与 `openArcade()` 共享同一个 pending promise——预热是有界的一次下载）。测试里「home must not download arcade / gameRequests === 0」的断言停留在预热前的世界，与现役设计矛盾；`openArcade()` 之后仍严格期望恰好一次；
+  - 修法：断言改为「预热至多一次」（`gameRequests <= 1`）并注明口径；测试内其余 22 个 focused UI contract 本机全部绿；该条 CI 红与 Atlas 108→109 无因果（首页路径未动），但是真红真修；
+  - 环境侧顺手修的两处（非仓库内容，记录口径）：本机用户 PATH 的死条目 `C:\Program Files\Python311\`（目录仍在但 python.exe 已删——git-hook 与 agent bash 曾因此报 `No Python at '...'`）已在 **用户级** Path 最前放 `C:\Users\18414\AppData\Local\Python\bin`（真实的 3.14.8 + pytest），并摘除死掉的 `hermes-agent\venv\Scripts`（其 base 即 Python311，任何调用都报同一条错）；机器级 PATH 未动（无管理员权）。仓库内 `.venv`（3.11.1 venv，`home` 指死的 Python311）已搬离为 `tempfile` 留档——pre-commit hook 从此回落到可用的 python；回退路径：`%TEMP%\\user_path_backup.txt`。

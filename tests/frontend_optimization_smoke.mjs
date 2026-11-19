@@ -63,7 +63,12 @@ try {
       await page.waitForFunction(() => document.querySelector("#startupSplash").dataset.state === "ready");
       const readyMs = Date.now() - start;
       assert.equal(changesComplete, false, "slow Git request must not block startup");
-      assert.equal(gameRequests, 0, "home must not download arcade");
+      // M8-T1242 (Ch.LXVI) warms the arcade bundle during idle so the click
+      // is instant; the pending promise is shared with openArcade(), so the
+      // warm is a single bounded download — the assertion keeps that bound,
+      // not the stale zero. Assert at most one request, and that the warm
+      // never blocks the startup verdict above it.
+      assert(gameRequests <= 1, `home must warm the arcade at most once (idle preload, shared promise), got ${gameRequests}`);
       await page.locator(".empty-chip").first().click();
       assert((await page.locator("#promptInput").inputValue()).trim().length > 8, "empty-state chip must fill the composer with a real prompt");
       const geometry = await page.evaluate(() => {
