@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T14:51:54.175Z",
+  "generated_at": "2026-11-19T15:09:00.592Z",
   "branch": "main",
-  "head": "335b27e",
-  "total_commits": 2040,
+  "head": "2c7e0c0",
+  "total_commits": 2042,
   "recent_commits": [
+    {
+      "short": "2c7e0c04",
+      "at": "2026-11-19T23:07:56+08:00",
+      "subject": "almanac: Ch.LXXIII The Verifier Declines - Atlas 110 -> 111 - attempts=1, en zero CJK (M8-T1260)"
+    },
+    {
+      "short": "a6742ff0",
+      "at": "2026-11-19T14:51:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "335b27ef",
       "at": "2026-11-19T22:51:30+08:00",
@@ -19,25 +29,15 @@
       "short": "c7e3f202",
       "at": "2026-11-19T22:31:24+08:00",
       "subject": "almanac: Ch.LXXII The Stale Assertion - Atlas 109 -> 110 - attempts=1, en zero CJK (M8-T1258)"
-    },
-    {
-      "short": "6ac3ddcb",
-      "at": "2026-11-19T13:58:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "827761e3",
-      "at": "2026-11-19T21:57:30+08:00",
-      "subject": "test(js): align focused optimization smoke with the M8-T1242 idle-warm design - home warms arcade at most once (CI run 44535672293 red on exactly this assertion"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 20,
+  "changelog_entries": 21,
   "roadmap_lines": 55786,
   "tracked_files": 1158,
   "test_files": 747,
-  "almanac_chapters": 72,
+  "almanac_chapters": 73,
   "module_count": 14,
   "feature_surface": [
     "workbench",
