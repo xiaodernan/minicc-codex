@@ -108,6 +108,19 @@ async function checkMode(locale, expectCjk) {
     "plan usage footer must carry token accounting or an error, never a fabricated number",
   );
 
+  // M8-T1244: on a live or honest outtage tile, clicking apply dispatches a real task.
+  const applyButton = page.locator('#adminPlanList .admin-apply-one[data-apply-index="0"]');
+  if (await applyButton.count()) {
+    const firstItem = (await page.locator("#adminPlanList .admin-plan-item span").first().innerText()).trim().slice(0, 40);
+    await applyButton.click();
+    await page.waitForFunction(() => /dispatched|已派给模型|error/i.test((document.querySelector("#adminPlanUsage")?.innerText || "")), null, { timeout: 45000 });
+    const found = await page.evaluate(async (needle) => {
+      const r = await fetch("/api/tasks?limit=20").then((x) => x.json());
+      return (r.tasks || []).some((t) => String(t.message || t.prompt || t.preview || t.task || "").includes(needle));
+    }, firstItem);
+    assert.ok(found, "applying the top move must create a task whose message carries it");
+  }
+
   await page.waitForFunction(() => {
     const el = document.querySelector("#adminReviewBody");
     if (!el) return false;
@@ -193,5 +206,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("admin smoke passed: 123 unlocked, totals live, tool-usage bars, recs, canvas trend, close restores hidden state, zero pageerror");
+console.log("admin smoke passed: 123 unlocked, totals live, tool-usage bars, recs, canvas trend, apply dispatches a real task when a plan exists, close restores hidden state, zero pageerror");
 await browser.close();

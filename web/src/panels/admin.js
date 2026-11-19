@@ -26,6 +26,65 @@ const pct = (value) => {
 };
 const cssVar = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
+// M8-T1244: the model writes the plan; a click turns the plan into a real task.
+// This is the workbench doing what an agentic system should — an analysis the model
+// produced becomes an action it executes, with the same permission posture the chat
+// uses, visible on the task ledger and in audit.jsonl like every other agent step.
+async function dispatchRecommendation(item, kind) {
+  const permissions = {
+    permission_mode: localStorage.getItem("minicc-permission-mode") || "default",
+    allow_changes: localStorage.getItem("minicc-allow") === "true",
+    allow_network: localStorage.getItem("minicc-network") === "true",
+  };
+  const body = {
+    message: zh()
+      ? `执行这条「下一步」：${item}\n审计口径：完成或给出真实阻塞，有验收标准按它验收；收尾时给出证据与命令。\n不要越出本仓库；不要伪造任何数字；如果验收不可达，诚实说明为什么。`
+      : `Apply this next move:\n${item}\nAudit scope: complete it or report the honest blocker; verify with its acceptance check when one is given; show evidence and the exact commands used.\nStay inside this repo; falsify no number; if a check is unreachable, say why honestly.`,
+    model: "",
+    session_id: localStorage.getItem("minicc-session") || "interview-1",
+    permission_mode: permissions.permission_mode,
+    allow_changes: permissions.allow_changes,
+    allow_network: permissions.allow_network,
+    reasoning_effort: state.reasoningEffort || localStorage.getItem("minicc-reasoning") || "high",
+    workspace_path: state.workspacePath || "",
+    _task_kind: "task",
+  };
+  try {
+    const task = await requestJson("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }, 15000);
+    return { ok: true, task };
+  } catch (error) {
+    const message = error && error.message ? String(error.message) : String(error);
+    return { ok: false, error: message.slice(0, 160) };
+  }
+}
+
+function bindApplyButtons(listEl, kind, items) {
+  if (!listEl) return;
+  listEl.querySelectorAll(".admin-apply-one").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const index = Number(btn.getAttribute("data-apply-index") || "0");
+      const item = String((items || [])[index] || "").trim();
+      if (!item) return;
+      const usageEl = kind === "plan" ? $("#adminPlanUsage") : $("#adminRecommendationsUsage");
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      const result = await dispatchRecommendation(item, kind);
+      btn.removeAttribute("aria-busy");
+      btn.disabled = false;
+      if (result.ok) {
+        const taskId = String(result.task?.task_id ?? result.task?.id ?? "");
+        if (usageEl) usageEl.textContent = zh() ? `已派给模型执行 · task ${taskId}（权限与聊天一致）` : `dispatched · task ${taskId} (chat-matching permissions)`;
+      } else {
+        if (usageEl) usageEl.textContent = `error: ${result.error}`;
+      }
+    });
+  });
+}
+
 export async function openAdmin() {
   const modal = $("#adminStage");
   if (!modal) return;
@@ -326,7 +385,8 @@ export async function openAdmin() {
       }
       const items = zh() ? (plan.zh || []) : (plan.en || []);
       const list = items.length ? items : (zh() ? plan.en : plan.zh) || [];
-      if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span></li>`).join("");
+      if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc(zh() ? "派给模型执行这一条" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+      bindApplyButtons(listEl, "plan", list.slice(0, 3));
       if (usageEl) {
         const u = plan.usage || {};
         const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
@@ -362,7 +422,8 @@ export async function openAdmin() {
       }
       const items = zh() ? (recs.zh || []) : (recs.en || []);
       const list = items.length ? items : (zh() ? recs.en : recs.zh) || [];
-      if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span></li>`).join("");
+      if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc(zh() ? "派给模型执行这一条" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+      bindApplyButtons(listEl, "rec", list.slice(0, 4));
       if (usageEl) {
         const u = recs.usage || {};
         const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";

@@ -908,3 +908,17 @@
   - `tests/atlas_smoke.mjs`（/ 104 个坐标）、`tests/almanac_smoke.mjs`（66 chapters + `theclick` marker：回应的按键 / The Click That Answers）；`doc_pointers` 绿；en_cjk parity 复绿（重跑验证）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴 65 → 66 卷（补《卷六十六 回应的按键 / The Click That Answers》），逐字节稳定纪律不变，_WORLD_MAP 实测 4,444 bytes；
   - showcase 同步随后（Atlas 104 / 66 卷属实质里程碑，烘焙记录见 xiaodernan.github.io）。
+---
+
+## 2026-11-19（管理员面板每条推荐上都多了一个“派给模型执行”的按钮 · M8-T1245）
+
+- **M8-T1245：模型写的建议不再只停留在嘴上——点一下，它自己进账本、被真执行**：
+  - 新增 `web/src/panels/admin.js` `dispatchRecommendation(item, kind)`：
+    - 表单字段：message（"执行这条「下一步」 + item + 审计口径（完成或给出真实阻塞；验收按它验收；证据与命令必须出示；不改访客依赖页面；不伪造数字；验收不可达即诚实说明）"）、session_id=`interview-1`、reasoning_effort=high、workspace_path、`_task_kind: task`、permission 全部读 `localStorage`（`minicc-permission-mode / minicc-allow / minicc-network`）——与聊天框完全相同的权限口径；
+    - 走既有 `POST /api/tasks`（`202 Accepted`），`task_manager.submit()` 复用自动并发判定（`assess_complexity.should_fan_out` 高复杂度时自动转 subagent 编排）。
+  - 在两条模型产出的列表里都渲染 26×26 的 `.admin-apply-one` 图标按钮（`wand-sparkles`，aria-label 双语）：`/api/oracle-plan` 的前 3 条 + `/api/oracle-recommendations` 的前 4 条；`bindApplyButtons()` 逐条绑定（委托给 .admin-plan-item 里的 `data-apply-index` 定位原文，绝不重排。slice 切片保序）。
+  - 派发后回写 usage 行：成功 `dispatched · task <id> (zh: 已派给模型执行 · task <id>，权限与聊天一致)`，失败 `error: <140 字符>`，按钮短暂 disabled + `aria-busy` 的状态进入 disabled 态、完成后复位。
+  - 新增 CSS `.admin-apply-one`：26px 方格、hover 色 mint、disabled 透明态 wait、wand-sparkles 13px。
+  - `tests/admin_smoke.mjs` 增条：`#adminPlanList .admin-apply-one[data-apply-index="0"]` 存在 → 点击 → 断言 `/api/tasks?limit=20` 里出现 `message` 含前 40 字符原句的任务；结束行打印 `apply dispatches a real task when a plan exists`（假提供方 + 真 .env 双腿皆绿）。
+  - 不动 i18n 字典（零新键）；所有 aria-label 内联 `${zh() ? … : …}` 与现存模式一致。
+- 纪律照旧：不动任何对外门禁（12 条门禁全部保持）、不默认开启任何“应用”行为（按钮是显式点击、逐条派发、可观测）。

@@ -8473,6 +8473,62 @@
     return `${Math.round(n * 100)}%`;
   };
   var cssVar = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  async function dispatchRecommendation(item, kind) {
+    const permissions = {
+      permission_mode: localStorage.getItem("minicc-permission-mode") || "default",
+      allow_changes: localStorage.getItem("minicc-allow") === "true",
+      allow_network: localStorage.getItem("minicc-network") === "true"
+    };
+    const body = {
+      message: zh8() ? `\u6267\u884C\u8FD9\u6761\u300C\u4E0B\u4E00\u6B65\u300D\uFF1A${item}
+\u5BA1\u8BA1\u53E3\u5F84\uFF1A\u5B8C\u6210\u6216\u7ED9\u51FA\u771F\u5B9E\u963B\u585E\uFF0C\u6709\u9A8C\u6536\u6807\u51C6\u6309\u5B83\u9A8C\u6536\uFF1B\u6536\u5C3E\u65F6\u7ED9\u51FA\u8BC1\u636E\u4E0E\u547D\u4EE4\u3002
+\u4E0D\u8981\u8D8A\u51FA\u672C\u4ED3\u5E93\uFF1B\u4E0D\u8981\u4F2A\u9020\u4EFB\u4F55\u6570\u5B57\uFF1B\u5982\u679C\u9A8C\u6536\u4E0D\u53EF\u8FBE\uFF0C\u8BDA\u5B9E\u8BF4\u660E\u4E3A\u4EC0\u4E48\u3002` : `Apply this next move:
+${item}
+Audit scope: complete it or report the honest blocker; verify with its acceptance check when one is given; show evidence and the exact commands used.
+Stay inside this repo; falsify no number; if a check is unreachable, say why honestly.`,
+      model: "",
+      session_id: localStorage.getItem("minicc-session") || "interview-1",
+      permission_mode: permissions.permission_mode,
+      allow_changes: permissions.allow_changes,
+      allow_network: permissions.allow_network,
+      reasoning_effort: state.reasoningEffort || localStorage.getItem("minicc-reasoning") || "high",
+      workspace_path: state.workspacePath || "",
+      _task_kind: "task"
+    };
+    try {
+      const task = await requestJson("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }, 15e3);
+      return { ok: true, task };
+    } catch (error) {
+      const message = error && error.message ? String(error.message) : String(error);
+      return { ok: false, error: message.slice(0, 160) };
+    }
+  }
+  function bindApplyButtons(listEl, kind, items) {
+    if (!listEl) return;
+    listEl.querySelectorAll(".admin-apply-one").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const index = Number(btn.getAttribute("data-apply-index") || "0");
+        const item = String((items || [])[index] || "").trim();
+        if (!item) return;
+        const usageEl = kind === "plan" ? $("#adminPlanUsage") : $("#adminRecommendationsUsage");
+        btn.disabled = true;
+        btn.setAttribute("aria-busy", "true");
+        const result = await dispatchRecommendation(item, kind);
+        btn.removeAttribute("aria-busy");
+        btn.disabled = false;
+        if (result.ok) {
+          const taskId = String(result.task?.task_id ?? result.task?.id ?? "");
+          if (usageEl) usageEl.textContent = zh8() ? `\u5DF2\u6D3E\u7ED9\u6A21\u578B\u6267\u884C \xB7 task ${taskId}\uFF08\u6743\u9650\u4E0E\u804A\u5929\u4E00\u81F4\uFF09` : `dispatched \xB7 task ${taskId} (chat-matching permissions)`;
+        } else {
+          if (usageEl) usageEl.textContent = `error: ${result.error}`;
+        }
+      });
+    });
+  }
   async function openAdmin() {
     const modal = $("#adminStage");
     if (!modal) return;
@@ -8746,7 +8802,8 @@
         }
         const items = zh8() ? plan.zh || [] : plan.en || [];
         const list = items.length ? items : (zh8() ? plan.en : plan.zh) || [];
-        if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span></li>`).join("");
+        if (listEl) listEl.innerHTML = list.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+        bindApplyButtons(listEl, "plan", list.slice(0, 3));
         if (usageEl) {
           const u = plan.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -8779,7 +8836,8 @@
         }
         const items = zh8() ? recs2.zh || [] : recs2.en || [];
         const list = items.length ? items : (zh8() ? recs2.en : recs2.zh) || [];
-        if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span></li>`).join("");
+        if (listEl) listEl.innerHTML = list.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+        bindApplyButtons(listEl, "rec", list.slice(0, 4));
         if (usageEl) {
           const u = recs2.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
