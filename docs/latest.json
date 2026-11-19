@@ -1,41 +1,41 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T06:18:50.307Z",
-  "branch": "main",
-  "head": "a5781d3",
-  "total_commits": 2004,
+  "generated_at": "2026-11-19T06:37:45.148Z",
+  "branch": "HEAD",
+  "head": "a8afc40",
+  "total_commits": 2008,
   "recent_commits": [
+    {
+      "short": "a8afc404",
+      "at": "2026-11-19T14:33:28+08:00",
+      "subject": "docs: stop citing content-addressed bundles in CHANGELOG (gate test_no_document_quotes_a_content_addressed_bundle) - point at web/app.js and web/styles.css inst"
+    },
+    {
+      "short": "8101adb0",
+      "at": "2026-11-19T14:20:05+08:00",
+      "subject": "rag: ask-the-repo gets sharper - full chunks handed to the model (no silent 400-char truncation of the cited evidence), prompt tells the model to answer partial"
+    },
+    {
+      "short": "0608e2b9",
+      "at": "2026-11-19T06:18:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "3bb108fb",
+      "at": "2026-11-19T14:12:33+08:00",
+      "subject": "docs(ledger): rewrite M8-T1242 entry - the fix was two-part (idle preload + busy affordance), not the busy affordance alone; records the red->green measurement "
+    },
     {
       "short": "a5781d3c",
       "at": "2026-11-19T14:08:34+08:00",
       "subject": "arcade: warm /game.js on idle + busy affordance - the lazy injection starved the 6-socket HTTP/1.1 budget under full load and users clicked a dead button; idle-"
-    },
-    {
-      "short": "eb71a7d1",
-      "at": "2026-11-19T05:48:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5696c15c",
-      "at": "2026-11-19T13:46:39+08:00",
-      "subject": "almanac: Ch.LXV The Etched Waterline - sol attempts=1 (terra down this window), en zero CJK, zh 1,690 chars; Atlas 102 -> 103 (103 = 18 panes + 65 almanac + 20 "
-    },
-    {
-      "short": "a7481907",
-      "at": "2026-11-19T01:32:50Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8e292ffd",
-      "at": "2026-11-19T01:32:24Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 493,
-  "changelog_entries": 4,
+  "changelog_entries": 5,
   "roadmap_lines": 55786,
-  "tracked_files": 1158,
+  "tracked_files": 1160,
   "test_files": 747,
   "almanac_chapters": 65,
   "module_count": 14,
