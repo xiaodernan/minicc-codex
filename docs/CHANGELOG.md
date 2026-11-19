@@ -840,3 +840,8 @@
   - Landing：62 → 63 卷 pin 全链同步（README/INDEX/CHAPTER_DRAFT/almanac.js（LXIII 注入）/atlas.js（101）/i18n.js CRLF 338/0/manual.js/onboarding/测试 ×3：atlas_smoke（101 个坐标）/almanac_smoke（63 chapters + marker）/parity（en 零 CJK 全绿））；
   - 沙盒诚实：attempts 计数、fake-provider 环境声明、缺口纪律均原文照实，无一处粉饰；
   - 配套：M8-T1236 锻造台防御修复先行（repair 直取缺键 → KeyError；现已 .get() + verify 判分 + 回归测试锁定）。
+- **M8-T1239：系统提示自带「世界地图」_WORLD_MAP——prompt 13,295 → 17,559 bytes，9,892 prompt token / 9,629 cached / 97.3% 命中**：
+  - `minicc/prompt.py` `_WORLD_MAP`：产品现状（18 panes + 微服务平面 8 模块 + 压测 59,070 统计态 + 97.6% 生命线）+ 说明书 20 章双语标题 + 年鉴 64 卷双语标题全量目录（双语格式、en 零 CJK、逐字节稳定）；
+  - 实测 `session-family key worldmap-probe-hash` 8 次调用，call-1 cold，call-2+ 稳定 97.3% ≥ 90%（Clash 7897 · 2026-11-19 · 本机 log）；
+  - answer 直接回应 "为什么你的输入上下文总是那么少"：prefix 内置 README excerpt（≤6 KB）+ 顶层目录快照 + 手册目录 + 年鉴目录，模型不再 '嗅一遍文件系统' 而直接从手册/年鉴阶段命名；
+  - battery 12/12 prompt 门绿；i18n chips 未新增键，CRLF 338/0 不动。

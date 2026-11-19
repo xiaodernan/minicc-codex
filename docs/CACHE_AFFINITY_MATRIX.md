@@ -339,3 +339,17 @@ thread B1/B2/B3 (family=sha256('conc-beta-session')[:16])
 - 冷只发生在各 family 自己的首 call（key 首次注册）：2 家族 × 3 线程 = 6 次 cold，其余 18 次全暖；
 - **并发不会让缓存区分不明显**：shard 完全按 family key 隔离，terra 网关前缀亲和在并发下依然成立；这是 codex thread-affinity 的同路径实现（`minicc-<sha256(session_id)[:16]>`）；
 - 仍要付每 family 一次 cold —— 这是注册制成本，不是竞争；cache keeper 60s 可以在低流量时让 shard 保持暖（前提是流量不中断 >~150s）。
+
+## 2026-11-19 凌晨 · _WORLD_MAP 落库后第一次稳定探针（M8-T1239）
+
+新系统提示 17,559 bytes。session-family key（worldmap-probe-hash）连发 8 次（本机 Clash 7897，gpt-6.1-terra）：
+
+| 调用 | prompt tokens | cached | pct |
+| --- | --- | --- | --- |
+| call-1 | 9,892 | None | 0.0%（首次注册） |
+| call-2…8 | 9,892 | 9,629 | 97.3% |
+
+- 17,559 bytes 的系统提示在 session-family 键下稳定命中 9,629/9,892 = 97.3%，≥90% 目标
+- 扩大 20% 的前缀（13,295 → 17,559 bytes）只让命中率下调 0.3pp，没有侵蚀 cache affinity
+- 这直接回应 "为什么你的输入上下文总是那么少"：prompt 内置 README excerpt + 顶层目录 + 手册 20 章标题目录 + 年鉴 64 卷标题目录；模型从「每次嗅一遍文件系统」变为「带地图出发」
+- 并行会话重签名 cache key（session_id 派生 family）就是 codex 的 thread-affinity 同路径
