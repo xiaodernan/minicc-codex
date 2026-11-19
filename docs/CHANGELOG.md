@@ -1044,3 +1044,10 @@
   - Atlas 109 → 110 = 18 panes + 72 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英、onboarding.js 中英（one hundred ten / seventy-two halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXII` + `thestaleassertionMarkup` + `CHAPTER_RENDERERS.thestaleassertion`；前八卷仪表同步 110/72）；tests：atlas_smoke（110 坐标）、almanac_smoke（72 chapters + `thestaleassertion` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十二卷目录（追加《卷七十二 过时的断言》）；`Atlas = 110 真实坐标`；产品现状 2,030+ 提交 / Atlas 110 / 72 卷；
   - README 年鉴段追加 LXXII 卷记录（71 → 72 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+## 2026-11-19（Ch.LXXIII 落架 · Atlas 111 · M8-T1260）
+
+- **M8-T1260：第 73 卷《验证器说不行 / The Verifier Declines》上架——Atlas 110 → 111，73/73 卷全双语**：
+  - forge live（2026-11-19，gpt-6.2-sol，Clash 7897）：**attempts=1**（一次过审）；`usage = prompt 7,022 · cached 4,153（59.0%）· completion 1,983`；payload `facts_sha256=323b6a40c74e49da5bcb750bfda7fa0e4558ae6ac7facb9649fb4ac75eb57fe3`；zh 1,725 / en 4,074 字符；**en 零 CJK**；
+  - Atlas 110 → 111 = 18 panes + 73 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十三卷 / seventy-three chapters）、onboarding.js 中英（one hundred eleven / seventy-three halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXIII` + `theverifierdeclinesMarkup` + `CHAPTER_RENDERERS.theverifierdeclines`；前九卷仪表同步 111/73）；tests：atlas_smoke（111 坐标）、almanac_smoke（73 chapters + `theverifierdeclines` marker）；
+  - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十三卷目录（追加《卷七十三 验证器说不行》）；`Atlas = 111 真实坐标`；产品现状 2,030+ 提交 / Atlas 111 / 73 卷；
+  - README 年鉴段追加 LXXIII 卷记录（72 → 73 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。

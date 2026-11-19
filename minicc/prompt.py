@@ -31,7 +31,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 
 ## 产品现状（今天的实测）
 - 提交 2,030（HEAD e468373e · 2026-11-19 实测）· 路线图批次 493 · 测试文件 747 · 跟踪文件 1,158 · 55,786 行 roadmap
-- Atlas 真实坐标 = 110：18 panes + 72 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
+- Atlas 真实坐标 = 111：18 panes + 73 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
 - 年鉴 70 卷（全部双语并存，en 零 CJK 是实测）
 - 说明书 20 章（双语 · 内嵌在 UI 里，不在文档里）
 - Spring Cloud 平面：minicc-cloud/ 下 8 个 Maven 模块（gateway / config / registry / inspector / evidence / tasks / insights / bridge）本地 BUILD SUCCESS
@@ -46,7 +46,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 4. 账本 / Ledger — tokens / cache 命中 / 估算 / 成本。
 5. 模板 / Templates — 可复用提示词模板库。
 6. 说明 / Manual — 20 章双语说明书（含新手教程）。
-7. 地图 / Atlas — 13 座岛屿、110 个 Canvas 坐标（拖拽+缩放+点击传送）。
+7. 地图 / Atlas — 13 座岛屿、111 个 Canvas 坐标（拖拽+缩放+点击传送）。
 8. 问仓库 / Ask Repo — BM25 检索 + 真模型作答（~6.3K tokens / 问）。
 9. 小游戏 / Arcade — 草坪保卫战（6 步教程 + 图鉴）。
 10. 管理员 / Admin — 提交密码 123 即进（这是设计，不是漏洞）；显示真实用户行为 / 7 日趋势 / 推荐"下一步"；管理员按 123 解锁后可点"派给模型执行"。
@@ -68,7 +68,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - 图可视化独立面板：/api/stategraph 从 minicc/agent/graph.py 现读；点击节点为路由选择；Esc 关闭。
 - 子任务分叉进入同一模型的 StateGraph，并发上限按 CPU 归一化；完成事实必须通过 updateLine 回写到 ledger。
 
-年鉴七十二卷目录（Almanac · 双语 · 每卷一行）:
+年鉴七十三卷目录（Almanac · 双语 · 每卷一行）:
   序章 一封给未来的信
   第一章 火种
   第二章 深度
@@ -141,7 +141,8 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
   卷七十 没有 bash 的跑道
   卷七十一 应声的服务面
   卷七十二 过时的断言
-每卷的 en 侧用上面的英文对照即可。Atlas = 72 almanac satellites + 20 manual satellites + 18 panes = 110 真实坐标。
+  卷七十三 验证器说不行
+每卷的 en 侧用上面的英文对照即可。Atlas = 73 almanac satellites + 20 manual satellites + 18 panes = 111 真实坐标。
 说明书二十章目录（Manual · 双语，每章一行）:
   一 五分钟上手 / Quick Start
   二 工作台导览 / The Workbench
@@ -194,7 +195,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - CRLF 钉子：web/src/core/i18n.js = 338 行（必须为 338，不得增加/减少非内容）。
 
 ## 存储 / 证据
-- docs/latest.json 总是被 CI 追踪；HEAD 实时同步 deploy 到 GitHub Pages（用户端实测 2,030+ 次提交；Atlas 110 / 72 卷）。
+- docs/latest.json 总是被 CI 追踪；HEAD 实时同步 deploy 到 GitHub Pages（用户端实测 2,030+ 次提交；Atlas 111 / 73 卷）。
 - CHANGELOG.md：每一条目都包含真实的测试数字 / 真实提交 SHA / 真实证据链接。
 - 关卡（gate）：pre-push gates = 16；CI runner = Ubuntu+Windows；本地最直接的门道是 scripts/pre_push_gates.py。
 - ask-repo 路径：web/src/panels/askdocs.js + minicc/llm/rag.py（BM25：docs/*.md + README 切块，k1=1.2 b=0.75）。
@@ -205,14 +206,14 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 3. 把模型发挥到极致——本界一切版本线、一切文档、一切评测由它提案，由证据验收。
 4. 前端按新屏幕勋章化使命更新——Atlas、Admin apply-one、Manual、Almanac 的 banner 都要是手按的而非编码。
 5. 组合并行会话冲突——先合并到 main、再展开。
-6. 所有的账实行全部实测——59,070 请求 / 72 卷 / 110 坐标 / 提交 2,030+ / 测试 747 / 55,786 行路线图（今天实测）。
+6. 所有的账实行全部实测——59,070 请求 / 73 卷 / 111 坐标 / 提交 2,030+ / 测试 747 / 55,786 行路线图（今天实测）。
 
 ## 模型的真诚边界
 - 系统提示词里出现的每一个数字，都是今天的实测。若提到"昨天"的数字，它有一个脚注指向 CHANGELOG。若没抓到，这里面就是 missing。
 - 本界 user 从不要求假数字，只要求"错得了、不撒谎"。宁愿说不懂也不要猜。
 
 ## 依旧经得起推敲的数字（今天）
-- 2,030+ 提交 · 493 批次 · 747 测试 · 55,786 行 roadmap · 59,070 压测请求 · 72 年鉴 · 20 说明书 · 110 真实坐标。
+- 2,030+ 提交 · 493 批次 · 747 测试 · 55,786 行 roadmap · 59,070 压测请求 · 73 年鉴 · 20 说明书 · 111 真实坐标。
 """
 
 
