@@ -185,7 +185,20 @@ class StateGraph:
         handlers: dict[str, NodeHandler],
         *,
         max_steps: int = 64,
+        route_decider: Callable[..., Any] | None = None,
     ) -> AgentState:
+        """Run the graph.
+
+        ``route_decider`` is an **optional** LLM-driven transition hook. It is
+        only consulted when the caller supplies it, the node handler did not
+        force ``next_node``, and the current node has more than one legal
+        successor. It may be called with
+        ``(state, source, candidates, condition, static_target)`` and must
+        return a chosen target (or an object with a ``.target`` attribute).
+        The chosen target is re-validated against the legal edge set before it
+        is honored — a decider can never route outside the declared graph.
+        With no decider supplied, behaviour is byte-for-byte the old path.
+        """
         self.validate()
         current = self.entry
         visits: dict[str, int] = {}
@@ -208,7 +221,36 @@ class StateGraph:
             if outcome.error:
                 state.errors.append(outcome.error)
             condition = outcome.status
-            target = outcome.next_node or self.next_node(current, condition)
+            explicit_next = outcome.next_node
+            target = explicit_next or self.next_node(current, condition)
+            # M8-T1267: optional LLM-driven transition. Only when a decider is
+            # supplied, the handler did not force a next node, and there are
+            # two+ legal successors to choose between. Fail-closed: the answer
+            # is honored only if it is a legal edge under this condition.
+            if route_decider is not None and explicit_next is None and target is not None:
+                candidates: list[str] = []
+                for edge in self.edges:
+                    if (
+                        edge.source == current
+                        and edge.target not in candidates
+                        and self.can_transition(current, edge.target, condition)
+                    ):
+                        candidates.append(edge.target)
+                if len(candidates) > 1:
+                    decision = route_decider(state, current, candidates, condition, target)
+                    if inspect.isawaitable(decision):
+                        decision = await decision
+                    chosen = getattr(decision, "target", decision)
+                    if chosen in candidates:
+                        target = chosen
+                    state.add_trace({
+                        "kind": "llm_route_decision",
+                        "node": current,
+                        "condition": condition,
+                        "candidates": list(candidates),
+                        "chosen": target,
+                        "decision": getattr(decision, "to_dict", lambda: {"value": str(decision)})(),
+                    })
             if target is None:
                 if condition in FAILED_NODE_STATUSES:
                     state.finish(NODE_STATUS_FAILED, outcome.error)

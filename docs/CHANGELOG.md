@@ -1091,3 +1091,5 @@
   - Atlas 115 → 116 = 18 panes + 78 almanac satellites + 20 manual satellites；全链 pin：atlas.js 注释、manual.js 中英（七十八卷）、onboarding.js 中英（one hundred sixteen / seventy-eight halls）、i18n.js emptyChip5（CRLF 338/0 不动）、tooltips.js、almanac.js（CHAPTERS + `LEDGER_ZH/EN_LXXVIII` + `thequeuethatneverstopsMarkup` + `CHAPTER_RENDERERS.thequeuethatneverstops`；前十四卷仪表同步 116/78）；tests：atlas_smoke（116 坐标）、almanac_smoke（78 chapters + `thequeuethatneverstops` marker）；
   - `minicc/prompt.py` `_WORLD_MAP`：年鉴七十八卷目录（追加《卷七十八 排不队的队伍》）；`Atlas = 116 真实坐标`；产品现状 2,030+ 提交 / Atlas 116 / 78 卷；
   - README 年鉴段追加 LXXVIII 卷记录（77 → 78 卷）；CHAPTER_DRAFT.md 归档本卷锻造账本；i18n.js CRLF 338/0 钉住不动。
+
+- **LLM 流转决策器（M8-T1267）**：大模型分析能力第一次真正进入状态机的边选择——新增 `llm_router.py`（有界状态摘要 + 严格 JSON + fail-closed，越界/异常一律回退静态边）+ `StateGraph.run` 可选 `route_decider`（不启用零行为变化，决策入 trace 可观测）。真实 gpt-6.2-sol 实测：面对 verify 失败状态从 `[repair, summarize]` 选出 repair 并准确引用阶段证据。20 门测试 + 家族 105 绿；测试抓到并修复 async 决策器未 await 的静默失效缺陷。
