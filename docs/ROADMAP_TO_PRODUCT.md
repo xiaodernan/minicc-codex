@@ -55858,5 +55858,26 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - test_digest_almanac_chapters / test_forge_facts / test_almanac_forge 10 绿；修复后的 test_a_listed_name 13 绿；i18n_dict_one_home + doc_pointers 61 测试 60 绿。
 
 ### 边界
-- doc_pointers 的 `test_tracked_text_files_hold_no_bare_control_bytes` 在提交前的工作树上失败：build 的 prune 删除了仍被 git 追踪的旧哈希 bundle（`web/assets/app.ec0999cb154605a0.js`），磁盘上不再存在——本提交随 bundle 交换自愈，提交后复验必须回绿。
+- doc_pointers 的 `test_tracked_text_files_hold_no_bare_control_bytes` 在提交前的工作树上失败：build 的 prune 删除了仍被 git 追踪的上一版哈希 bundle（旧文件名随 bundle 交换消失），磁盘上不再存在——本提交随 bundle 交换自愈，提交后复验必须回绿。
 - 本机系统 Python 3.14 的 subprocess 句柄间歇性 WinError 6 会污染任何 spawn 子进程的测试；已重建 .venv（Python 3.11.9）作为回归基线，全量验证一律走 .venv。
+
+## 批次 1171 · M8-T1271: verify 失败分叉交给模型决策 —— 大模型分析能力第一次驱动生产运行的状态流转
+
+### 缺什么
+- T1267 的边界点名了下一步：`make_decider` 要接到真实失败分叉上。此前生产路径（web.py 执行引擎）是命令式驱动：verify 失败且有修复预算时**无条件**进 repair——模型从未被问过「这个失败到底能不能靠改代码修」。环境故障、基础设施宕机、既有损坏也会吃掉一轮盲目修复，甚至损伤原本完好的工作区。
+
+### 做了什么
+- `minicc/agent/llm_router.py` 新增 `REPAIR_FORK_CANDIDATES` / `build_repair_fork_context` / `repair_fork_decision`：verify→{repair, summarize} 分叉的有界快照（失败命令+输出≤1600 字符为目标错误头、目标≤240、修复预算进度入上下文），复用 T1267 的 `choose_transition` 全套 fail-closed 校验；无 provider、修复预算耗尽、模型异常、输出不可解析、越界目标——一律回退静态 repair（今天的反射），所以接线只能「**带理由跳过一次修复**」，永远不能扩大图、也不能把失败验证洗成成功。
+- `web.py` 分叉接线：verify 失败分支在修复预算扣减**之前**决策（summarize 判定不消耗 retry）；每次决策（含被拒）写 `llm_route_decision` trace（fork=verify_failed、target/source/reason/candidates + 决策调用自身 usage）；模型判 summarize 时以「验证失败，模型判定无需修复：<理由>」诚实收尾。
+- 决策调用的 usage 记入 Decision.usage 并随 trace 落账（账本不漏这笔 ~1k token 的开销；to_dict 形状保持纯路由记录）。
+- `config.py` 新增 `llm_route_decider: bool = True`（`MINICC_LLM_ROUTE_DECIDER` / config.json `llm_route_decider`，默认开——决策是一次短调用、只在 verify 失败时触发；设 0 恢复旧反射），`minicc.config.example` 双语注释文档化（config surface 门禁先红后绿把它拦住了——新键必须自带文档）。
+- `cli_io.py` 新增 `engine_web_llm_fork` 双语事件文案。
+
+### 证据与门
+- `tests/test_llm_repair_fork.py`（11 测试）：模型选 repair/summarize 均被接受且理由入账；provider 异常/不可解析/越界目标三路 fail-closed 回退；预算耗尽零模型调用；无 provider 静态 repair；200k 字符失败转储不撑爆决策 prompt（<8k chars）；usage 搭车且不入 to_dict。
+- T1267 家族 20 绿（router 零回归）；stage_route_enforcement + recovery 原子回合 31 绿（假 provider 的 tools=None 通道消化了新增决策调用，编排不变）；config surface 64 绿；合计 61 绿。
+- **真实网关 E2E**（`tests/llm_repair_fork_e2e.py`，手动不进 CI）：gpt-6.2-sol 两分叉全判对——actionable 断言失败选 repair 且理由逐字引用失败证据；Docker daemon 宕机选 summarize 并说明「无法通过修改代码修复」。fail-closed 边界在真实模型上成立。
+
+### 边界
+- 决策调用在 web.py 执行引擎的 verify 失败点启用；StateGraph.run 的 route_decider 主路径（execute_dag/固定模板）仍未接线——那是下一个接点。
+- 决策 prompt 里有界失败快照来自 verification.output 尾部；修复轮次里的模型修复行为本身不变。

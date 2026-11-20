@@ -148,6 +148,13 @@ MINICC_REASONING_EFFORT=high
 # （.minicc/mcp_sampling_audit.jsonl）。模型 hint 不在允许名单内一律拒绝。
 #MINICC_SAMPLING_ENABLED=0
 
+# LLM 分叉决策器（M8-T1271）：verify 失败且仍有修复预算时，让模型读一段有界的
+# 失败快照，从合法后继 {repair, summarize} 里挑一个——失败明显与改动无关（环境
+# 缺失、基础设施故障）时诚实提前收尾，而不是盲目修一轮可能损伤完好工作区的代码。
+# 默认开启（决策是一次短调用、只在 verify 失败时触发）；fail-closed：模型异常、
+# 输出不可解析或越界一律回退今天的无条件 repair 行为。设 0 恢复旧反射。
+#MINICC_LLM_ROUTE_DECIDER=1
+
 # 执行位置：host（直接用宿主 Python）| docker | auto（默认，能容器化就容器化）。
 # 取其它值会在启动时报 ConfigError。写进 config.json 时两种拼法都认：`sandbox`
 # （对齐本文件的环境变量名）与 `sandbox_mode`（对齐 Config 字段名与 --sandbox）。

@@ -23,6 +23,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
 from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag
+from .agent.llm_router import repair_fork_decision
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent, stamp_cancelled
 from .agent.orchestration import assess_complexity
@@ -66,6 +67,7 @@ from .agent.protocol import (
     PHASE_PERMISSION,
     PHASE_PLANNING,
     PHASE_REPAIR,
+    PHASE_VERIFY,
     PHASE_REVIEW,
     STAGE_ROUTE_CODE,
     TASK_CANCELLED_ANSWER,
@@ -2912,6 +2914,64 @@ class AgentService:
                                     f"验证命令：{verification.command}\n{verification.output[-6000:]}"
                                 )
                                 break
+                            # M8-T1271: the fork between repairing and stopping
+                            # is a decision, not a reflex.  With the decider on
+                            # (config.llm_route_decider, default true) the model
+                            # reads a bounded failure snapshot and picks one
+                            # legal successor: repair (today's unconditional
+                            # move) or an honest early summarize when the
+                            # failure is clearly not actionable by a code
+                            # change - a dead environment or a pre-existing
+                            # breakage is not something blind edits should
+                            # touch.  Fail-closed: a provider error, an
+                            # unparsable answer or an out-of-set target all
+                            # fall back to repair, so this can only *skip* a
+                            # repair with a recorded reason, never widen the
+                            # graph nor turn a failed verify into a claimed
+                            # success (the run below still ends with the
+                            # failure spelled out).
+                            if getattr(self.config, "llm_route_decider", True):
+                                fork_decision = await repair_fork_decision(
+                                    provider,
+                                    objective=str(runtime_state.prompt or ""),
+                                    verification_command=str(verification.command or ""),
+                                    verification_output=str(verification.output or ""),
+                                    repair_attempts=repair_attempts,
+                                    max_repairs=max_repairs,
+                                    recent_errors=tuple(runtime_state.errors),
+                                    evidence_count=len(runtime_state.evidence),
+                                )
+                                fork_event = trace_event(
+                                    name=STAGE_VERIFY,
+                                    status="ok",
+                                    phase=PHASE_VERIFY,
+                                    code="llm_route_decision",
+                                    summary=tr(
+                                        "engine_web_llm_fork",
+                                        decision=f"{fork_decision.target}/{fork_decision.source}",
+                                    ),
+                                    detail={
+                                        "fork": "verify_failed",
+                                        **fork_decision.to_dict(),
+                                        **(
+                                            {"usage": fork_decision.usage}
+                                            if fork_decision.usage is not None
+                                            else {}
+                                        ),
+                                    },
+                                )
+                                events.append(fork_event)
+                                if on_event is not None:
+                                    on_event(fork_event)
+                                if fork_decision.accepted and fork_decision.target == "summarize":
+                                    aggregate.error = (
+                                        f"验证失败，模型判定无需修复：{fork_decision.reason}"
+                                    )
+                                    aggregate.answer = (
+                                        f"{incomplete_answer(aggregate.error)}。\n\n"
+                                        f"验证命令：{verification.command}\n{verification.output[-6000:]}"
+                                    )
+                                    break
                             try:
                                 runtime_state.budget.record_retry()
                             except BudgetExceeded as exc:

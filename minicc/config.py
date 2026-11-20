@@ -654,6 +654,8 @@ class Config:
     # (acceptEdits -> write, yolo -> exec) so writes never happen without an
     # explicitly authorized session. subagent_max_depth caps nesting (>=1).
     subagent_writable: bool = False
+    # M8-T1271: LLM decides the verify→{repair,summarize} fork (fail-closed).
+    llm_route_decider: bool = True
     subagent_max_tokens: int | None = None
     subagent_max_depth: int = DEFAULT_SUBAGENT_MAX_DEPTH
     # M12: MCP sampling (server → agent completions). Off by default; a server
@@ -990,6 +992,11 @@ def load_config(
 
     # M6-T1: writable subagent delegation is opt-in and defaults to off.
     subagent_writable = pick(None, "MINICC_SUBAGENT_WRITABLE", "subagent_writable", "0").strip().lower() in TRUTHY
+    # M8-T1271: the verify→{repair,summarize} fork asks the model whether a
+    # failed verification is actionable at all. On by default (the decision is
+    # one short call, fires only on failed verifies, and is fail-closed to
+    # today's repair behavior); "0" restores the unconditional repair reflex.
+    llm_route_decider = pick(None, "MINICC_LLM_ROUTE_DECIDER", "llm_route_decider", "1").strip().lower() in TRUTHY
     subagent_max_tokens = _optional_positive_int("MINICC_SUBAGENT_MAX_TOKENS", "subagent_max_tokens")
     raw_subagent_depth = pick(None, "MINICC_SUBAGENT_MAX_DEPTH", "subagent_max_depth", str(DEFAULT_SUBAGENT_MAX_DEPTH))
     try:
@@ -1152,4 +1159,5 @@ def load_config(
         subagent_writable=subagent_writable,
         subagent_max_tokens=subagent_max_tokens,
         subagent_max_depth=subagent_max_depth,
+        llm_route_decider=llm_route_decider,
     )

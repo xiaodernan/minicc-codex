@@ -151,6 +151,10 @@ class Decision:
     reason: str = ""
     candidates: tuple[str, ...] = ()
     raw: str = ""
+    # M8-T1271: the decision call's own token usage, when the caller's adapter
+    # captured it.  Deliberately outside ``to_dict`` — the decision's *shape*
+    # is the routing record; the spend rides the trace detail instead.
+    usage: dict[str, Any] | None = None
 
     @property
     def accepted(self) -> bool:
@@ -215,6 +219,119 @@ async def choose_transition(
     return decision
 
 
+#: The two legal successors of a failed verification that still has repair
+#: budget.  ``repair`` is today's unconditional behavior; ``summarize`` is the
+#: honest early exit when the failure is not actionable by a code change.
+REPAIR_FORK_CANDIDATES = ("repair", "summarize")
+
+_REPAIR_FORK_REASON = (
+    "verify 失败且仍有修复预算。repair：失败可由修改代码修复（默认路径）；"
+    "summarize：失败明显与本次改动无关（环境缺失、基础设施故障、既有损坏），"
+    "盲目修复可能损伤原本完好的工作区。除非失败明确不可由代码修改修复，否则选 repair。"
+)
+
+
+def build_repair_fork_context(
+    *,
+    objective: str,
+    verification_command: str,
+    verification_output: str,
+    repair_attempts: int,
+    max_repairs: int,
+    recent_errors: Sequence[str] = (),
+    evidence_count: int = 0,
+) -> TransitionContext:
+    """Bounded snapshot for the verify→{repair,summarize} fork (M8-T1271).
+
+    The decision-relevant datum is the failure itself, so it rides as the head
+    error with its own (larger) budget; the objective and the remaining repair
+    budget frame it.  Everything is capped, so a 200k-char failure dump cannot
+    balloon the decision call.
+    """
+    head = _short(
+        f"verify[{_short(verification_command, 200)}] 失败（第 {repair_attempts + 1} 次，"
+        f"上限 {max_repairs}）：{verification_output}",
+        1_600,
+    )
+    errors = (head,) + tuple(
+        _short(e, 200) for e in list(recent_errors or ())[: _MAX_ERRORS - 1]
+    )
+    return TransitionContext(
+        phase="verify",
+        status="failed",
+        errors=errors,
+        outputs=(),
+        evidence_count=evidence_count,
+        objective=_short(objective, 240),
+    )
+
+
+async def repair_fork_decision(
+    provider: Any,
+    *,
+    objective: str,
+    verification_command: str,
+    verification_output: str,
+    repair_attempts: int,
+    max_repairs: int,
+    recent_errors: Sequence[str] = (),
+    evidence_count: int = 0,
+    system_msg: Callable[[str], Any] | None = None,
+    user_msg: Callable[[str], Any] | None = None,
+) -> Decision:
+    """Ask the model whether a failed verification deserves repair at all.
+
+    Fail-closed and frugal: with no provider, or no remaining repair budget,
+    the answer is the static ``repair`` route without any model call.  A
+    provider error or an illegal answer falls back to the static route too, so
+    wiring this in can only *skip a repair with a recorded reason* — never
+    widen the graph or turn a failed verify into a claimed success (the
+    caller still ends the run with the failure spelled out).
+    """
+    if provider is None:
+        return Decision("repair", ROUTE_SOURCE_STATIC, "静态路径：验证失败进入修复", REPAIR_FORK_CANDIDATES)
+    if repair_attempts >= max_repairs:
+        return Decision("repair", ROUTE_SOURCE_STATIC, "修复预算已用尽，无可决策", REPAIR_FORK_CANDIDATES)
+    if system_msg is None or user_msg is None:
+        from ..llm.base import system_msg as _sys, user_msg as _user
+
+        system_msg = system_msg or _sys
+        user_msg = user_msg or _user
+
+    context = build_repair_fork_context(
+        objective=objective,
+        verification_command=verification_command,
+        verification_output=verification_output,
+        repair_attempts=repair_attempts,
+        max_repairs=max_repairs,
+        recent_errors=recent_errors,
+        evidence_count=evidence_count,
+    )
+
+    async def call(system: str, user: str) -> str:
+        response = await provider.chat(
+            messages=[system_msg(system), user_msg(user)],  # type: ignore[misc]
+            tools=None,
+            on_delta=None,
+        )
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            usage_seen.append(usage)
+        return response.text
+
+    usage_seen: list[Any] = []
+    decision = await choose_transition(
+        state=context,
+        candidates=REPAIR_FORK_CANDIDATES,
+        static_target="repair",
+        call_model=call,
+        reason=_REPAIR_FORK_REASON,
+    )
+    if usage_seen:
+        decision.usage = usage_seen[0]
+    return decision
+
+
 def make_decider(provider: Any, *, system_msg: Callable[[str], Any] | None = None,
                  user_msg: Callable[[str], Any] | None = None) -> Callable[..., Any]:
     """Adapt an LLM provider into a ``StateGraph.run(route_decider=...)`` callback.
@@ -251,6 +368,7 @@ def make_decider(provider: Any, *, system_msg: Callable[[str], Any] | None = Non
 
 
 __all__ = [
+    "REPAIR_FORK_CANDIDATES",
     "ROUTE_SOURCE_FALLBACK",
     "ROUTE_SOURCE_LLM",
     "ROUTE_SOURCE_STATIC",
@@ -258,7 +376,9 @@ __all__ = [
     "TransitionContext",
     "build_context",
     "build_decision_prompt",
+    "build_repair_fork_context",
     "choose_transition",
     "make_decider",
     "parse_decision",
+    "repair_fork_decision",
 ]
