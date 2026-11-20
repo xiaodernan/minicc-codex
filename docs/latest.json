@@ -1,42 +1,42 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-19T18:29:45.345Z",
-  "branch": "HEAD",
-  "head": "2b27275",
-  "total_commits": 2052,
+  "generated_at": "2026-11-20T07:18:04.155Z",
+  "branch": "main",
+  "head": "b047018",
+  "total_commits": 2057,
   "recent_commits": [
     {
-      "short": "2b272755",
-      "at": "2026-11-19T18:05:35Z",
+      "short": "b0470184",
+      "at": "2026-11-20T15:17:20+08:00",
+      "subject": "docs: drop the deleted placeholder path from the T1269 ledger so doc_pointers stays green."
+    },
+    {
+      "short": "a4a4b040",
+      "at": "2026-11-20T15:17:20+08:00",
+      "subject": "M8-T1269: take over the stalled parallel forge - volume LXXIX lands for real, and fix a cross-file mixup."
+    },
+    {
+      "short": "6dddd48b",
+      "at": "2026-11-20T15:17:19+08:00",
+      "subject": "M8-T1268: take over the parallel session's bundle wrap-up - check:web back to green."
+    },
+    {
+      "short": "eb8beeb7",
+      "at": "2026-11-20T15:17:19+08:00",
+      "subject": "M8-T1267: an LLM transition router puts model analysis inside the state graph's edge choice."
+    },
+    {
+      "short": "697917fc",
+      "at": "2026-11-19T18:29:45Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "ff3dc3cf",
-      "at": "2026-11-20T01:57:44+08:00",
-      "subject": "almanac: Ch.LXXVIII The Queue That Never Stops - Atlas 115 -> 116 - attempts=1, en zero CJK (M8-T1265)"
-    },
-    {
-      "short": "d6495497",
-      "at": "2026-11-20T01:28:17+08:00",
-      "subject": "almanac: Ch.LXXVII The Night the CI Answered - Atlas 114 -> 115 - attempts=1, en zero CJK (M8-T1264)"
-    },
-    {
-      "short": "cd64dcf4",
-      "at": "2026-11-19T16:35:26Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a35b1847",
-      "at": "2026-11-20T00:33:45+08:00",
-      "subject": "almanac: Ch.LXXVI The Night the Ledger Turned Green - Atlas 113 -> 114 - attempts=1, en zero CJK (M8-T1263)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 493,
+  "roadmap_batches": 496,
   "changelog_entries": 26,
-  "roadmap_lines": 55786,
-  "tracked_files": 1160,
-  "test_files": 747,
+  "roadmap_lines": 55843,
+  "tracked_files": 1161,
+  "test_files": 749,
   "almanac_chapters": 78,
   "module_count": 14,
   "feature_surface": [
