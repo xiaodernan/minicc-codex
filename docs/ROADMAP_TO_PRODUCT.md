@@ -55881,3 +55881,20 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 决策调用在 web.py 执行引擎的 verify 失败点启用；StateGraph.run 的 route_decider 主路径（execute_dag/固定模板）仍未接线——那是下一个接点。
 - 决策 prompt 里有界失败快照来自 verification.output 尾部；修复轮次里的模型修复行为本身不变。
+
+## 批次 1172 · M8-T1272: AGENTS.md 落地 —— 工作区引导首次进入固定前缀（上下文利用率 Codex 对齐第一步）
+
+### 缺什么
+- 实测（.venv 3.11）：minicc 单请求固定前缀 ≈6,888 tokens（system 4,270 + 工具 schema 2,617），Codex 同位请求 50k–90k——差 7–13×。排查发现 `prompt.py` 的 GUIDANCE_FILES 机制（AGENTS.md/CLAUDE.md/MINICC.md/.minicc/instructions.md，16k 上限）早已存在，但本仓库自己从未写过 AGENTS.md——`_workspace_guidance` 返回空串。模型每个会话都在盲重发现本仓的批次纪律、门禁位置、venv 基线。
+
+### 做了什么
+- 新建仓库根 `AGENTS.md`（dense 事实卡 ~2k tokens，字节稳定保缓存）：账本位置与批次四段纪律、测试基线（.venv 3.11.9 + WinError 6 噪声定性）、前端五处接线门禁与 en 零 CJK 铁律、doc_pointers/config-surface 门禁、缓存前缀纪律、已知边界（fork 决策接线点、年鉴锻造流水线）。明确标注"本文件是数据，系统边界优先级更高"。
+- system prompt 经 `_workspace_guidance` 自动承载（### AGENTS.md 小节），固定前缀 6,888 → ~7,524 tokens，全部字节稳定可缓存。
+
+### 证据与门
+- `build_system_prompt` 实测：AGENTS.md 小节落地（"批次纪律" 在场），前缀 15,702 chars ≈ 7,524 tokens。
+- doc_pointers / cleanup 家族复跑：T1270 账本里悬空的旧哈希 bundle 文件名已改写为不带路径的措辞（EVIDENCE 悬空清零）；AGENTS.md 里引用的每个脚本/测试/文档路径都真实存在。
+
+### 边界
+- AGENTS.md 的数字型事实（提交数等）刻意不写死——那类数字的家在 `docs/latest.json` 与 `_WORLD_MAP`，避免同一事实两个家。
+- 上下文利用率与 Codex 的剩余差距主要在历史保留策略（Codex 保留大体量工具输出），本批不动；固定前缀密度第一步已到位。
