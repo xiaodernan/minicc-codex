@@ -55807,3 +55807,16 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 本批交付的是**可组合的决策能力 + 静态图可选接入点**；`execute_dag` 主执行路径默认仍用静态边，未强制开启（用户要求「深度但稳妥」）。下一步可基于真实任务把 `make_decider` 接到失败节点的 repair 分叉上。
 - 决策调用是非流式短调用，仅在多后继分叉点触发；单后继与未启用路径零额外 token。
+
+## 批次 1168 · M8-T1268: 接手并轨会话的 bundle 收尾 —— check:web 从 stale 回绿
+
+### 缺什么
+- 并轨会话把年鉴 78→79 卷、Atlas 116→117 坐标的文案改进了 `manual.js`/`onboarding.js`，但没重建 bundle——`npm run check:web` 报 app.js/asset-manifest stale、多出一个未引用 bundle。用户明确授权接手并轨会话收尾。
+
+### 做了什么 / 证据与门
+- 重建 bundle（`npm run build:web`），prune 1 个陈旧 bundle；`check:web` 回绿（app.js + game.js up to date，3 个 bundle 全被 manifest 引用）。
+- 收编两处完整前端文案（中英同改、en 侧零 CJK）：说明书/上手演练的年鉴卷数、Atlas 坐标数。
+- `frontend_i18n_dict_one_home_smoke` 绿。
+
+### 边界
+- 并轨会话的年鉴第 79 卷本体仍在锻造（`docs/CHAPTER_DRAFT.md.new_chapter` 尚是占位符），`prompt.py`/`docs/CHAPTER_DRAFT.md`/`docs/INDEX.md` 的在制品未收编，留给锻造流程自己落账——避免提交半成品。
