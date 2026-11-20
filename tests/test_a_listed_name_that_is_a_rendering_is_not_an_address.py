@@ -9,11 +9,11 @@ answers **0 lines** for a file that has three.  Measured on HEAD through
 
 | 形状 | HEAD 的结果 |
 | --- | --- |
-| A `bad\udcff.md`（3 行），仓库里只有它 | 1 格 `bad\ufffd.md`，add=0；`diff(替换名)` added/0；`diff(真名)` clean/0 |
-| B `a\udcff.md`（2 行）与 `a\ufffd.md`（1 行）同一目录 | git 只出门 1 条 `?? a\ufffd.md`，那一格 add=1 —— 那是字面上叫这个名字的文件的行数 |
+| A `bad\\udcff.md`（3 行），仓库里只有它 | 1 格 `bad\ufffd.md`，add=0；`diff(替换名)` added/0；`diff(真名)` clean/0 |
+| B `a\\udcff.md`（2 行）与 `a\ufffd.md`（1 行）同一目录 | git 只出门 1 条 `?? a\ufffd.md`，那一格 add=1 —— 那是字面上叫这个名字的文件的行数 |
 | C 只有 `bad\ufffd.md`（3 行，名字本来就是 U+FFFD） | add=3 —— 读对了，本批不许改坏 |
-| D `sub/bad\udcff.md`（2 行，父目录名字正常） | add=0 |
-| E `hi\ud800.md`（3 行，段外孤立代理项） | add=0，且没有任何算法能把这个名字渲染回去 |
+| D `sub/bad\\udcff.md`（2 行，父目录名字正常） | add=0 |
+| E `hi\\ud800.md`（3 行，段外孤立代理项） | add=0，且没有任何算法能把这个名字渲染回去 |
 | F 正常名字 `notes.md`（3 行） | add=3，且没有判定 |
 
 A/B/D/E are the defect: the panel prints a name that opens nothing and answers
@@ -159,7 +159,7 @@ def test_two_bad_names_that_render_apart_each_keep_their_own_number(
 ) -> None:
     """The ruler is not a one-hit shortcut: two suspect rows resolve separately.
 
-    ``a\udcff.md`` (1 line) and ``b\udcff.md`` (2 lines) are two records, two
+    ``a\\udcff.md`` (1 line) and ``b\\udcff.md`` (2 lines) are two records, two
     renderings and two files.  HEAD answers 0 for both - and a fix that found
     "some bad-named file" and used it for every row would answer 1 twice.
     """
@@ -195,7 +195,7 @@ def test_the_ruler_that_reads_git_s_step_backwards_names_every_source(
 ) -> None:
     """The matching is a ruler of its own, and it is what the verdicts are made of.
 
-    ``bad\udcff`` and ``bad\ufffd`` are two directories whose contents git renders
+    ``bad\\udcff`` and ``bad\ufffd`` are two directories whose contents git renders
     into the same record.  Windows cannot show that pair through ``git status``
     (a directory whose name git cannot encode is not reported at all), so the
     ruler is asked directly - and a two-segment name has to walk segment by

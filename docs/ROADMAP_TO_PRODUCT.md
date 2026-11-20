@@ -55840,3 +55840,23 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 ### 边界
 - 第 79 卷的 UI 正文节点（`web/src/panels/almanac.js` 的 `thentheroutewaschosenMarkup()` + registry + smoke 章节数组）**未在本批加入**——那是并轨锻造流程的下一步，需要精心组织史诗叙事正文。本批交付的是诚实落地的章节 JSON 与修正后的索引，不给 UI 塞半成品正文。
+
+## 批次 1170 · M8-T1270: 第 79 卷 UI 正文节点接入 —— thentheroutewaschosen 落进年鉴与星图
+
+### 缺什么
+- T1269 边界明示：卷 LXXIX《路由决定的那一夜》的章节 JSON 已诚实落地，但 `web/src/panels/almanac.js` 的正文节点、渲染器注册、smoke 章节数组都还没有——年鉴与星图对用户仍显示 78 卷 / 116 坐标，与 prompt.py 已落地的 79 卷 / 117 坐标文案自相矛盾。
+
+### 做了什么
+- `almanac.js` 接入第 79 卷：CHAPTERS 轨道条目（卷七十九 · 路由决定的那一夜 / The Night the Route Was Chosen，副题「分叉处，模型开了口」）、`LEDGER_ZH_LXXIX` / `LEDGER_EN_LXXIX` 常量（由 `docs/CHAPTER_DRAFT.md` status=passed 的真实锻造 JSON 逐段转 <p>，非手写传文）、`thentheroutewaschosenMarkup()`（仪表盘如实显示 Atlas 117 / 年鉴 79/79 / attempts=1，闸门清单如实引用 T1267 fail-closed 边决策、T1268 bundle 回绿、T1269 串账修复）、CHAPTER_RENDERERS 注册。
+- 陈旧计数修齐（一一对应 18+79+20=117）：`onboarding.js` 上手第 5 步 zh/en（116→117）、`manual.js` Atlas 章（116→117、78→79）、`i18n.js` emptyChip5 zh/en（116→117）、`tooltips.js` 地图提示（116→117）、`atlas.js` 头注释（78→79、116→117）。星图卫星由 CHAPTERS 动态生成，79 卷自动多一颗。
+- `tests/almanac_smoke.mjs`：章节数组 + CHAPTER_MARKERS + 汇总文案 78→79。
+- **顺手修了一个真收集缺陷**：`tests/test_a_listed_name_that_is_a_rendering_is_not_an_address.py` 的 docstring 里单反斜杠 `\udcff`/`\ud800` 转义会产生孤立代理常量，Python 3.14 的 compile 拒绝编码 → 该文件无法被 pytest 收集（3.11 容忍所以此前没炸）。只把 docstring 行的转义翻倍成字面展示文本；运行时 `tmp_path / "bad\udcff.md"` 的孤立代理文件名字面量是测试主题本身，保持原样（3.14 下 compile 实测 OK）。
+
+### 证据与门
+- `npm run build:web` 重建 bundle（prune 1 陈旧哈希资产）；`check:web` 绿（app.js + game.js up to date，3 bundle 全被 manifest 引用）。
+- **almanac smoke 真 Playwright 全绿**：79 章双 locale 逐章点击渲染、zh 全中文 / en 零 CJK、无混排。
+- test_digest_almanac_chapters / test_forge_facts / test_almanac_forge 10 绿；修复后的 test_a_listed_name 13 绿；i18n_dict_one_home + doc_pointers 61 测试 60 绿。
+
+### 边界
+- doc_pointers 的 `test_tracked_text_files_hold_no_bare_control_bytes` 在提交前的工作树上失败：build 的 prune 删除了仍被 git 追踪的旧哈希 bundle（`web/assets/app.ec0999cb154605a0.js`），磁盘上不再存在——本提交随 bundle 交换自愈，提交后复验必须回绿。
+- 本机系统 Python 3.14 的 subprocess 句柄间歇性 WinError 6 会污染任何 spawn 子进程的测试；已重建 .venv（Python 3.11.9）作为回归基线，全量验证一律走 .venv。

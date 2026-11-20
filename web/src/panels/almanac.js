@@ -98,6 +98,7 @@ export const CHAPTERS = [
   { id: "thenighttheledgerturnedgreen", roman: { zh: "卷七十六", en: "Chapter LXXVI" }, title: { zh: "全绿的那一夜", en: "The Night the Ledger Turned Green" }, subtitle: { zh: "所有灯，同时亮了", en: "every lamp, lit at once" } },
   { id: "thenightthecianswered", roman: { zh: "卷七十七", en: "Chapter LXXVII" }, title: { zh: "等 CI 的那一夜", en: "The Night the CI Answered" }, subtitle: { zh: "跑道尽头亮了", en: "the far end of the runway, lit" } },
   { id: "thequeuethatneverstops", roman: { zh: "卷七十八", en: "Chapter LXXVIII" }, title: { zh: "排不队的队伍", en: "The Queue That Never Stops" }, subtitle: { zh: "每一脚都踩在别人头上", en: "every step lands on someone else's" } },
+  { id: "thentheroutewaschosen", roman: { zh: "卷七十九", en: "Chapter LXXIX" }, title: { zh: "路由决定的那一夜", en: "The Night the Route Was Chosen" }, subtitle: { zh: "分叉处，模型开了口", en: "at the fork, the model spoke" } },
 ];
 
 function chapterMarkup(chapter) {
@@ -4706,6 +4707,47 @@ function thequeuethatneverstopsMarkup() {
     </div>`;
 }
 
+// ---- Ch.LXXIX · The Night the Route Was Chosen · 路由决定的那一夜 (Atlas 117) ----
+// Ledger text is the real forged chapter JSON (docs/CHAPTER_DRAFT.md, status=passed,
+// attempts=1, gpt-6.2-sol via the StateGraph forge pipeline) - not hand-written lore.
+const LEDGER_ZH_LXXIX = "<p>卷LXXIX：路由决定的那一夜</p><p>2026年11月20日，仓库的记录把两件相邻的事放在同一页上。提交 `574c429e` 记录了 M8-T1267：一个 LLM 转换路由器把模型分析放进状态图的边选择之中。紧接着，提交 `34a19b17` 记录 M8-T1268：接手并行会话的 bundle 收尾工作，并让 `check:web` 回到绿色。前一件事改变了选择发生的位置，后一件事收拢了并行工作留下的尾声；记录只说明了这些，没有替它们添上未记载的动机或结果。</p><p>同一天的近期提交还保存着另一条时间线：卷LXXVIII《永不停歇的队列》记下 Atlas 115 到 116，尝试次数为 1；卷LXXVII《CI 作答之夜》记下 Atlas 114 到 115，也为 1。它们都标在 M8-T1265、M8-T1264。卷LXXVI《账本转绿之夜》记下 Atlas 113 到 114，尝试次数同样为 1，标在 M8-T1263。再往前，记录列出卷LXXV、卷LXXIV，以及 11 月 19 日的 showcase fact pack 刷新。最新事实包本身则写着 11 月 19 日生成，显示 head 为 `a35b184`；它报告 2,048 次提交、493 个 roadmap 批次、76 篇 almanac、747 个测试文件、1,158 个跟踪文件和 55,786 行 roadmap。这些数值属于该事实包所记录的快照，不应被误说成 11 月 20 日的新统计。</p><p>路由之外，缓存记录描述了请求如何得到亲和性。对 wkapi.pro，上游分片以 prefix-cache shard 和客户端 `prompt_cache_key` 作为路由提示；没有 key 时，同一前缀会逐次落到冷分片，有 key 后，热度周期内命中率记录为约 94% 至 100%。minicc 始终自动派生 `prompt_cache_key`。用量解析会如实传递网关报告的 `prompt_tokens_details.cached_tokens`：有就带上 `prompt_cache_hit_tokens`，没有就不伪造；RAG UI 相应显示缓存命中数量与比例，或说明未上报。命令行的一个例子记录了 15,568 个总 token、7,040 个缓存命中 token、8,456 个未命中 token，命中率为 45.4%。</p><p>更细的探测记录给出了边界，而不是保证。相同的 warm prefix 在连续调用中稳定命中 8,362 / 8,566，即 97.6%；一条十次调用序列中，第一次为冷，第二至第十次几乎全命，只有 call-9 在 26 秒长尾之后出现一次完整冷命中。记录据此报告整条序列的全局命中权重约为 8/10、约 80%，并指出命中率并非 100%。同一事实包还记录真实 agent 的上下文逐轮增长会使命中率回落：一个新 workspace 任务为 71.6%，同 workspace 的只读 resume 为 48.0%。缓存探针的稳定结果和真实任务的较低结果并列留下，没有把前者包装成后者的承诺。</p><p>仓库的其他记录也保留了规模与边界。Spring Cloud 模块清单列出 bridge、registry、config、inspector、tasks、insights、evidence 和 gateway。压力测试账本记录 Wave 3 在 `c=128 × 12 s` 下每条路径 `n=2380`，合计 14,280 个请求，0 错误且全部为 200；另有三波累计 33,600 个请求、0 个非 2xx、0 个连接失败，以及另一组累计 25,470 个请求、同样没有非 2xx 或连接失败。当天所有压力运行合计 59,070 个请求、0 个非 2xx。于是，这一夜的路由决定与周围的证据并置：状态图把分析纳入边的选择，缓存记录公开命中与冷却，测试账本则逐项记下通过与未通过的边界。<em>路线被选中，证据仍须同行。</em></p>";
+const LEDGER_EN_LXXIX = "<p>Almanac LXXIX: The Night the Route Was Chosen</p><p>On November 20, 2026, the repository placed two neighboring events on the same page. Commit `574c429e` records M8-T1267: an LLM transition router puts model analysis inside the state graph's edge choice. Immediately after it, commit `34a19b17` records M8-T1268: taking over the parallel session's bundle wrap-up and bringing `check:web` back to green. The first changes where a choice is made; the second closes the work left at the end of a parallel session. The record states those facts and supplies no unrecorded motive or outcome.</p><p>Recent commits from the same day preserve another sequence. Chapter LXXVIII, “The Queue That Never Stops,” records Atlas 115 to 116 with 1 attempt; Chapter LXXVII, “The Night the CI Answered,” records Atlas 114 to 115, also with 1 attempt. They are marked M8-T1265 and M8-T1264. Chapter LXXVI, “The Night the Ledger Turned Green,” records Atlas 113 to 114, again with 1 attempt, under M8-T1263. Earlier entries list Chapters LXXV and LXXIV, and a showcase fact-pack refresh on November 19. The latest fact pack itself says it was generated on November 19 and reports head `a35b184`. It lists 2,048 commits, 493 roadmap batches, 76 almanac chapters, 747 test files, 1,158 tracked files, and 55,786 roadmap lines. These figures belong to the snapshot recorded by that fact pack; they should not be presented as new statistics for November 20.</p><p>Beyond routing, the cache record describes how requests acquire affinity. For wkapi.pro, upstream shards use the prefix-cache shard and the client's `prompt_cache_key` as routing hints. Without the key, the same prefix lands on cold shards from call to call; with it, the recorded hit rate during the warm period is about 94% to 100%. minicc always derives `prompt_cache_key` automatically. Usage parsing passes through the gateway's reported `prompt_tokens_details.cached_tokens` truthfully: when present it includes `prompt_cache_hit_tokens`, and when absent it does not invent a value. The RAG UI correspondingly shows the cached-hit count and percentage, or says that the value was not reported. One command-line example records 15,568 total tokens, 7,040 cached-hit tokens, 8,456 cache-miss tokens, and a 45.4% hit rate.</p><p>More detailed probes record limits, not guarantees. The same warm prefix consistently hit 8,362 of 8,566 tokens, or 97.6%, across repeated calls. In a sequence of ten calls, the first was cold and calls two through ten were almost entirely hits; only call-9 became fully cold after a 26-second long tail. The record therefore reports a global hit weight of about 8/10, or about 80%, for the sequence, and notes that the hit rate is not 100%. The same fact pack records that growing context from turn to turn in real agent runs lowers the rate: a new-workspace task reached 71.6%, while a read-only resume in the same workspace reached 48.0%. The stable probe result and the lower result from real tasks sit side by side; the former is not dressed up as a promise about the latter.</p><p>Other repository records preserve scale and boundaries. The Spring Cloud module list contains bridge, registry, config, inspector, tasks, insights, evidence, and gateway. The pressure-test ledger records Wave 3 at `c=128 × 12 s`, with `n=2380` per path and 14,280 requests total, 0 errors, and all responses at 200. It also records a three-wave cumulative total of 33,600 requests, 0 non-2xx responses, and 0 connection failures, alongside another cumulative run of 25,470 requests with no non-2xx responses or connection failures. All pressure runs for the day total 59,070 requests and 0 non-2xx responses. Thus the routing decision of this night stands beside its surrounding evidence: the state graph brings analysis into edge choice, the cache record exposes hits and cold periods, and the test ledger records the boundaries of success and failure. <em>The route is chosen; the evidence travels with it.</em></p>";
+function thentheroutewaschosenMarkup() {
+  const commits = digestCache?.total_commits != null ? String(digestCache.total_commits) : "—";
+  return `
+    <div class="almanac-canvas almanac-thentheroutewaschosen">
+      <div class="almanac-kicker">${zh() ? "卷七十九 · 路由决定的那一夜" : "Chapter LXXIX · The Night the Route Was Chosen"}</div>
+      <h1 class="almanac-title almanac-title-sm">${zh()
+        ? `分叉的地方，` + `<br/><span class="almanac-title-accent">模型开了口。</span>`
+        : `At the fork,` + `<br/><span class="almanac-title-accent">the model spoke.</span>`}</h1>
+      <div class="almanac-body">
+        ${zh() ? LEDGER_ZH_LXXIX : LEDGER_EN_LXXIX}
+      </div>
+      <div class="almanac-instrument almanac-instrument-grid">
+        <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
+      </div>
+      <ul class="almanac-gate-list">${(zh() ? [
+        ["分析进了状态机的边", "M8-T1267：模型只在合法后继集合里挑一个；越界目标、不可解析输出、模型异常一律退回静态边——fail-closed，不是 fail-open"],
+        ["不启用就零变化", "route_decider 是可选参数：单后继直接跳过、未提供时图的行为逐字节不变；每次决策（含被拒）都写进 llm_route_decision trace 供账本观测"],
+        ["真实网关跑通了第一次", "gpt-6.2-sol 面对 verify failed 状态，从 [repair, summarize] 两个合法后继里选出 repair，理由逐条引用阶段证据——不是随机挑边"],
+        ["接手并轨的尾巴，也修串了的账", "M8-T1268 让 check:web 回绿；M8-T1269 修掉 CHAPTER_DRAFT 串文件与 INDEX 假条目——账本里不许有假页"],
+      ] : [
+        ["analysis moved into the graph's edges", "M8-T1267: the model picks one successor from the legal set only; an out-of-set target, unparseable output or model error falls back to the static edge - fail-closed, never fail-open"],
+        ["off by default, byte-for-byte the same", "route_decider is optional: single-successor nodes skip it, and without it the graph behaves byte-for-byte as before; every decision (rejected ones too) lands in the llm_route_decision trace"],
+        ["the first real gateway run went through", "gpt-6.2-sol, facing a verify-failed state, chose repair over summarize from the two legal successors and cited stage evidence for it - not a coin flip"],
+        ["the tail was taken over, the mixed-up ledger repaired", "M8-T1268 brought check:web back to green; M8-T1269 fixed the chapter-draft cross-file mixup and the fake INDEX entry - no fake pages in this ledger"],
+      ]).map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("")}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        ${zh()
+          ? "路线被选中，证据仍须同行。"
+          : "The route is chosen; the evidence travels with it."}
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -4785,6 +4827,7 @@ const CHAPTER_RENDERERS = {
   thenighttheledgerturnedgreen: () => thenighttheledgerturnedgreenMarkup(),
   thenightthecianswered: () => thenighttheciansweredMarkup(),
   thequeuethatneverstops: () => thequeuethatneverstopsMarkup(),
+  thentheroutewaschosen: () => thentheroutewaschosenMarkup(),
 };
 
 async function loadChapter(id) {
