@@ -31,7 +31,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 
 ## 产品现状（今天的实测）
 - 提交 2,030（HEAD e468373e · 2026-11-19 实测）· 路线图批次 493 · 测试文件 747 · 跟踪文件 1,158 · 55,786 行 roadmap
-- Atlas 真实坐标 = 116：18 panes + 78 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
+- Atlas 真实坐标 = 117：18 panes + 79 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
 - 年鉴 70 卷（全部双语并存，en 零 CJK 是实测）
 - 说明书 20 章（双语 · 内嵌在 UI 里，不在文档里）
 - Spring Cloud 平面：minicc-cloud/ 下 8 个 Maven 模块（gateway / config / registry / inspector / evidence / tasks / insights / bridge）本地 BUILD SUCCESS
@@ -147,7 +147,8 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
   卷七十六 全绿的那一夜
   卷七十七 等 CI 的那一夜
   卷七十八 排不队的队伍
-每卷的 en 侧用上面的英文对照即可。Atlas = 78 almanac satellites + 20 manual satellites + 18 panes = 116 真实坐标。
+  卷七十九 等 CI 的那一夜
+每卷的 en 侧用上面的英文对照即可。Atlas = 79 almanac satellites + 20 manual satellites + 18 panes = 117 真实坐标。
 说明书二十章目录（Manual · 双语，每章一行）:
   一 五分钟上手 / Quick Start
   二 工作台导览 / The Workbench
@@ -218,7 +219,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - 本界 user 从不要求假数字，只要求"错得了、不撒谎"。宁愿说不懂也不要猜。
 
 ## 依旧经得起推敲的数字（今天）
-- 2,030+ 提交 · 493 批次 · 747 测试 · 55,786 行 roadmap · 59,070 压测请求 · 78 年鉴 · 20 说明书 · 116 真实坐标。
+- 2,030+ 提交 · 493 批次 · 747 测试 · 55,786 行 roadmap · 59,070 压测请求 · 79 年鉴 · 20 说明书 · 117 真实坐标。
 """
 
 

@@ -55819,4 +55819,24 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - `frontend_i18n_dict_one_home_smoke` 绿。
 
 ### 边界
-- 并轨会话的年鉴第 79 卷本体仍在锻造（`docs/CHAPTER_DRAFT.md.new_chapter` 尚是占位符），`prompt.py`/`docs/CHAPTER_DRAFT.md`/`docs/INDEX.md` 的在制品未收编，留给锻造流程自己落账——避免提交半成品。
+- 并轨会话的年鉴第 79 卷本体当时仍在锻造（占位符未落），本批未收编在制品——见下一批 T1269：已接手完成真实锻造与串文件修复。
+
+## 批次 1169 · M8-T1269: 接手停滞的并轨锻造 —— 第 79 卷真身落地 + 修复 CHAPTER_DRAFT 串文件错误
+
+### 缺什么
+- 并轨会话停滞在年鉴第 79 卷：`docs/CHAPTER_DRAFT.md.new_chapter` 还是占位符，但 `docs/INDEX.md` 已经写了一条**假条目**（照抄第 77 卷的标题/事实包/usage，只改了卷号），且 `docs/CHAPTER_DRAFT.md` 被**误写成了 CHANGELOG 的副本**（145 行变更日志盖掉了原来的章节 JSON）——两处都会污染账本诚实性。用户明确授权接手停滞的并轨会话。
+
+### 做了什么
+- `scripts/forge_facts.py --chapter LXXIX` 生成真实事实包（7,151 字节，含本轮 T1267/T1268 提交）；`scripts/almanac_forge.py` 走真实 gpt-6.2-sol（Clash 127.0.0.1:7897）StateGraph 锻造流水线一次过审（attempts=1，prompt 7,035 · cached 4,153 = 59.0%，en 零 CJK，zh 1,676 / en 3,948）。
+- 章节定名《路由决定的那一夜 / The Night the Route Was Chosen》——内容如实引用本轮把 LLM 分析放进状态机边选择的 T1267，和收尾并轨 bundle 的 T1268；不替事实包补写没记录的事。
+- **修复 CHAPTER_DRAFT.md 串文件错误**：用真实锻造的章节 JSON 覆盖被误写的变更日志副本（11 键契约完整、status=passed）。
+- **修正 INDEX.md 假条目**：LXXIX 的标题/事实包 SHA/usage/字数从照抄第 77 卷改为真实锻造数据。
+- 收编 `prompt.py` 的 79 卷 / 117 坐标一致性改动（并轨会话早前改好，随本卷落地生效）。
+- 清理占位符与临时事实包；更新 T1268 账本边界（原引用的占位符已消失，否则 doc_pointers 报悬空）。
+
+### 证据与门
+- 锻造契约 7 绿（test_forge_facts / test_almanac_forge）；doc_pointers rc=0（修正悬空指针后）；CHAPTER_DRAFT.md 是有效 JSON、chapter=LXXIX、en 零 CJK。
+- check:web 绿（T1268 已重建的 bundle 含 79 卷文案）。
+
+### 边界
+- 第 79 卷的 UI 正文节点（`web/src/panels/almanac.js` 的 `thentheroutewaschosenMarkup()` + registry + smoke 章节数组）**未在本批加入**——那是并轨锻造流程的下一步，需要精心组织史诗叙事正文。本批交付的是诚实落地的章节 JSON 与修正后的索引，不给 UI 塞半成品正文。

@@ -1095,3 +1095,5 @@
 - **LLM 流转决策器（M8-T1267）**：大模型分析能力第一次真正进入状态机的边选择——新增 `llm_router.py`（有界状态摘要 + 严格 JSON + fail-closed，越界/异常一律回退静态边）+ `StateGraph.run` 可选 `route_decider`（不启用零行为变化，决策入 trace 可观测）。真实 gpt-6.2-sol 实测：面对 verify 失败状态从 `[repair, summarize]` 选出 repair 并准确引用阶段证据。20 门测试 + 家族 105 绿；测试抓到并修复 async 决策器未 await 的静默失效缺陷。
 
 - **接手并轨 bundle 收尾（M8-T1268）**：并轨会话改了 79 卷/117 坐标文案却没重建 bundle，check:web 报 stale；重建 + prune 陈旧 bundle 回绿，收编两处完整中英文案。年鉴第 79 卷本体仍在锻造，未收编半成品。
+
+- **接手停滞并轨锻造（M8-T1269）**：第 79 卷由真实 gpt-6.2-sol 一次过审锻出（《路由决定的那一夜 / The Night the Route Was Chosen》，prompt 7,035 · cached 4,153）；修复并轨会话把 CHAPTER_DRAFT.md 误写成 CHANGELOG 副本的串文件错误、以及 INDEX 里照抄第 77 卷的 LXXIX 假条目。UI 正文节点留给锻造流程下一步。
