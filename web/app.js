@@ -14182,8 +14182,8 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       id: "verify",
       phase: "verify",
       maxRetries: 2,
-      zh: "\u6D4B\u8BD5 / \u9A8C\u8BC1\u2014\u2014\u6700\u591A\u8D70\u4E24\u6B21\uFF0C\u8D25\u4E86\u5C31\u8FDB repair \u7684\u73AF\u3002",
-      en: "Test / verify \u2014 up to two passes, then it falls into the repair arc."
+      zh: "\u6D4B\u8BD5 / \u9A8C\u8BC1\u2014\u2014\u6700\u591A\u8D70\u4E24\u6B21\uFF1B\u5931\u8D25\u4E14\u6709\u9884\u7B97\u65F6\uFF0C\u6A21\u578B\u8BFB\u6709\u754C\u5931\u8D25\u5FEB\u7167\uFF0C\u5728 repair \u4E0E\u8BDA\u5B9E\u65E9\u505C summarize \u4E4B\u95F4\u88C1\u51B3\uFF08fail-closed\uFF09\u3002",
+      en: "Test / verify \u2014 up to two passes; on failure with budget left, the model reads a bounded snapshot and decides repair vs an honest early-stop summarize (fail-closed)."
     },
     {
       id: "repair",

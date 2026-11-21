@@ -56133,3 +56133,18 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 ### 边界
 - 只加覆盖断言，不自动展开 `chapters` / `CHAPTER_MARKERS`：新卷仍需显式补 marker， forcing 锻造批次为每卷写下中英标记——这是期望的保守行为。
+
+
+## 批次 1186 · M8-T1286: 状态图面板还把失败分叉画成自动反射 —— 补上模型裁决
+
+### 缺什么
+- `web/src/panels/stategraph.js` 的 verify 节点描述仍是「败了就进 repair 的环 / falls into the repair arc」——T1271 之后这个分叉已由模型读有界失败快照、在 repair 与诚实早停 summarize 之间裁决（fail-closed）。这是 req #4 关键能力在可视化面板里的最后一处陈旧描述（说明书已在 T1283 更新）。
+
+### 做了什么
+- verify 节点的中英文案改为如实描述：最多两次；失败且有修复预算时模型读有界快照、在 repair 与 summarize 间裁决、fail-closed。
+
+### 证据与门
+- `node --check` 绿；`npm run build:web` + `check:web` 绿；`stategraph_smoke` 绿（seven nodes render bilingual, zero pageerror）；`en_cjk_smoke` 绿（en 零 CJK）。
+
+### 边界
+- 只改面板节点文案，不动图结构或任何执行代码；节点/边数量与 live payload 一致。
