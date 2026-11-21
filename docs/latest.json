@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T11:34:38.126Z",
+  "generated_at": "2026-11-21T12:25:59.358Z",
   "branch": "main",
-  "head": "77a8680",
-  "total_commits": 2081,
+  "head": "dc8f3cc",
+  "total_commits": 2083,
   "recent_commits": [
+    {
+      "short": "dc8f3cc3",
+      "at": "2026-11-21T20:25:28+08:00",
+      "subject": "M8-T1282: land almanac volume LXXX/Atlas 118 - real gpt-6.2-sol StateGraph forge (attempts=1, en zero CJK, 21120/16346 cached=77.4%) wired into all 5 almanac.js"
+    },
+    {
+      "short": "92f30d6e",
+      "at": "2026-11-21T11:34:38Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "77a86802",
       "at": "2026-11-21T19:33:45+08:00",
@@ -19,25 +29,15 @@
       "short": "c57eb07b",
       "at": "2026-11-21T19:17:53+08:00",
       "subject": "M8-T1280: derive the almanac-catalog gate's expectations from the Rail instead of hardcoding 79 - _zh_num/_en_num helpers, regex header, all counts from n; stro"
-    },
-    {
-      "short": "2122fd9f",
-      "at": "2026-11-21T10:51:05Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "31bc65c4",
-      "at": "2026-11-21T18:50:16+08:00",
-      "subject": "M8-T1279: atlas_smoke derives the charted-coordinate count from atlas.js instead of hardcoding 116 - LXXIX moved Atlas to 117 and this gate was the last stale p"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 508,
+  "roadmap_batches": 509,
   "changelog_entries": 26,
-  "roadmap_lines": 56062,
+  "roadmap_lines": 56085,
   "tracked_files": 1165,
   "test_files": 752,
-  "almanac_chapters": 79,
+  "almanac_chapters": 80,
   "module_count": 14,
   "feature_surface": [
     "workbench",
