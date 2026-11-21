@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T05:28:38.145Z",
+  "generated_at": "2026-11-21T05:43:43.831Z",
   "branch": "main",
-  "head": "d1644f1",
-  "total_commits": 2065,
+  "head": "5be2bb7",
+  "total_commits": 2067,
   "recent_commits": [
+    {
+      "short": "5be2bb70",
+      "at": "2026-11-21T13:43:03+08:00",
+      "subject": "M8-T1274: synced-window almanac instruments bumped 116/78 -> 117/79 (15 chapters) - LXXIX landing had skipped the per-volume instrument sync; gate forbids just-"
+    },
+    {
+      "short": "a3028dea",
+      "at": "2026-11-21T05:28:38Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d1644f15",
       "at": "2026-11-21T13:27:41+08:00",
@@ -19,22 +29,12 @@
       "short": "e7c56ec0",
       "at": "2026-11-21T13:13:18+08:00",
       "subject": "M8-T1273: system prompt's hand-written almanac catalogue aligned with the Rail - 70->79卷, 七十八->七十九卷 header, and LXXIX title copied from LXXVII fixed; regression"
-    },
-    {
-      "short": "08705c84",
-      "at": "2026-11-21T04:56:26Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5b610c7c",
-      "at": "2026-11-21T12:55:46+08:00",
-      "subject": "M8-T1272: AGENTS.md lands - workspace guidance enters the fixed prefix for the first time."
     }
   ],
   "first_commit_at": "2026-08-24",
   "roadmap_batches": 501,
   "changelog_entries": 26,
-  "roadmap_lines": 55940,
+  "roadmap_lines": 55942,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
