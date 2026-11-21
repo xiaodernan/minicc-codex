@@ -56172,3 +56172,25 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 只加一个只读 oracle：不碰任何状态流转代码、不改规则 forecast 本身（它仍是面板上的诚实基线），趋势裁决只在新卡展示，用户仍可对照基线判断模型是否 disagree。
 - 模型输出只进面板，不自动派发为任务（与“值守军师”的一键派发刻意区分——研判是判断，不是待办）。
 - 全量 pytest 未在推理负载下重跑；新增/相关家族定点全绿。
+
+
+## 批次 1188 · M8-T1288: 第二款游戏「轨道信标」落地 —— req #6「新玩法」字面首次兑现
+
+### 缺什么
+- req #6 明确要「不断提出新功能、新玩法、新模块」，但整个账本对「新玩法/新游戏」词频为 0，街机从第一天起只有 PvZ 一款塔防。这是用户总纲里唯一字面从未兑现的子项。
+
+### 做了什么
+- 新增 web/src/orbit-game.js：第二款独立小游戏「轨道信标 / Orbit Beacon」——中央能源核、绕核公转发射台（← → / A D 或点击画布瞄准）、空格/点击发射径向弹丸、四面来袭碎片（青普通/橙快/紫两发）、连击倍率、绿光点补 20 护盾、三档难度、波次无上限递增、护盾归零结束、localStorage 最佳分与难度、六步真规则教学。作为副作用模块由 game.js 顶部 import，esbuild 内联进同一 game.js bundle——零额外请求、零后端、零 token。
+- 不改 gameModal / game 对象 /  /  直达塔防的行为（现有三套游戏测试零回归）；塔防工具栏加「更多游戏」按钮 → 游戏选择器（两卡）→ 选轨道信标打开独立注入的 #orbitModal（自带 close/back/how/pause/overlay）。动态 DOM 用 window.t() 自带 data-i18n 重扫（不依赖 main.js 私有 applyLocale），保证切换语言后仍零混排。
+- i18n 中英各 49 键（orbit.* + picker.* + game.moreGames）；styles.css 追加 picker/orbit 深色游戏卡样式（主题变量保 light/dark 可读，canvas 自带深空画面）；package.json 加 test:orbit 并并入 test:arcade。
+- 内嵌说明书 arcade 章的中英 lede 从「一款游戏」改为「两款游戏」并新增「第二战场 · 轨道信标」卡。
+
+### 证据与门
+- 新增 tests/orbit_smoke.mjs（真浏览器）：选择器→orbit→六步教学→发射/得分→波次升级（probe 确定性触发）→护盾耗尽结算+本地最佳分→重开→双语零 CJK→零 pageerror，zh/en 各一轮全绿。
+- 回归三套原有游戏烟测 game_upgrade / codex / zombie 全绿；manual / atlas / stategraph / parity(en_cjk) / dazzle / admin 全绿（第二游戏零回归）。
+- i18n 字典门 886 双语键一致、268 t() 引用全解析；node --check（orbit/game/main/i18n/manual）；npm run build:web（game.js 144,807 chars，orbit 已内联）+ check:web（app.js+game.js 最新、assets 3 bundle 干净）；doc_pointers 无 DANGLING。
+
+### 边界
+- 新增纯前端游戏，不碰任何状态流转 / LLM / 缓存 / 后端代码；游戏数据只在浏览器 localStorage，不出网、不消耗 API token。
+- 现有直达入口（?arcade=1 与 #arcadeButton）行为逐字不变，第二游戏只能通过「更多游戏」选择器进入——这是刻意保守，保护既有测试与用户肌肉记忆。
+- 全量 pytest 未在推理负载下重跑；前端烟测族与静态门禁定点全绿。

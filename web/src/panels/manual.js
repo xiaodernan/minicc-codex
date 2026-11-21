@@ -169,9 +169,10 @@ function enKeys() {
 
 function zhArcade() {
   return `
-    <p class="manual-lede">「游戏厅」是工作台自带的真·游戏——不是 demo，不是占位符。植物对僵尸，塔防类型，纯前端，离线可玩。</p>
+    <p class="manual-lede">「游戏厅」是工作台自带的两款真·游戏——不是 demo，不是占位符。草坪塔防与无尽轨道，纯前端，离线可玩。</p>
     <div class="manual-arcade">
       <div><span class="arcade-label">怎么进</span><p>侧边栏「小游戏」或者命令面板搜「Arcade/游戏厅」，按 <code>Enter</code> 即玩。随时按 <code>Esc</code> 返回工作台。</p></div>
+      <div><span class="arcade-label">第二战场 · 轨道信标</span><p>在塔防界面点工具栏「更多游戏」，两款游戏随便挑。<strong>轨道信标</strong>是另一个玩法：中央能源核、绕核公转的发射台，四面八方漂来碎片——<code>← → / A D</code> 转向，<code>空格</code> 或点击画布发射，<code>P</code> 暂停。青色普通、橙色更快、紫色要两发；连续命中攒连击倍率，击碎偶尔掉绿光点，点它补 20 护盾。清空一波立刻进下一波，速度与数量都上涨，没有通关，只有你撑到第几波；护盾归零结束，最佳分数只存本机。游戏内「教程」有六步真规则教学。</p></div>
       <div><span class="arcade-label">核心机制</span><p>种植物抵御僵尸进攻。阳光是资源，种植需要阳光值；每种植物有攻击/防御/特殊能力；僵尸从右向左推进，触碰到你的基地则失败。</p></div>
       <div><span class="arcade-label">四种技能</span><p>Pulse（25 阳光，7 秒冷却）、Sun（35 阳光，立即回能）、Rally（45 阳光，14 秒冷却）、Time Stop（55 阳光，18 秒冷却）——每种技能只对特定局面有效，合理攒阳光比盲目种植更重要。</p></div>
       <div><span class="arcade-label">图鉴</span><p>游戏内置植物/僵尸图鉴——peashooter、sunflower、wall-nut、cherry bomb、gatling pea、jalapeno、magnetshroom……每种植物都有属性与 special 描述；终极关卡是「巨人僵尸」。</p></div>
@@ -187,9 +188,10 @@ function zhArcade() {
 
 function enArcade() {
   return `
-    <p class="manual-lede">The Arcade is a real game baked into the workbench — not a demo, not a placeholder. Plants versus Zombies, tower-defense genre, pure frontend, offline-playable.</p>
+    <p class="manual-lede">The Arcade carries two real games baked into the workbench — not demos, not placeholders. Lawn tower-defence and an endless orbital run, pure frontend, offline-playable.</p>
     <div class="manual-arcade">
       <div><span class="arcade-label">How to open</span><p>Sidebar entry « Arcade » or type “Arcade” in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
+      <div><span class="arcade-label">Second field · Orbit Beacon</span><p>From the lawn game, hit « More games » in the toolbar — pick either field. <strong>Orbit Beacon</strong> plays differently: an energy core at the centre, a launcher orbiting it, debris drifting in from every side. <code>← → / A D</code> to turn, <code>space</code> or click the canvas to fire, <code>P</code> to pause. Teal shards are ordinary, orange faster, purple take two hits; consecutive hits build a combo multiplier, broken shards sometimes drop a green mote — click it for +20 shield. Clear a wave and the next starts at once, faster and denser — there is no finish line, only how many waves you survive. Shield depletion ends the run; the best score stays local. The in-game Guide carries a six-step real-rules tutorial.</p></div>
       <div><span class="arcade-label">Core loop</span><p>Plant units on the lawn and hold the line against zombies. Sun is the resource; planting costs sun; every plant has attack/defense/special traits; zombies push from right to left — reaching your base means failure.</p></div>
       <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun, instant refill), Rally (45 sun, 14s cooldown), Time Stop (55 sun, 18s cooldown) — each skill is situational, none is generic; hoarding sun beats mindless planting.</p></div>
       <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex — peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom … each with stats and a special. The final wave is the gargantuar.</p></div>

@@ -38,6 +38,7 @@ export function bindUI() {
   $("#gameNewWindow")?.addEventListener("click", () => window.openGameWindow?.());
   $("#gameWideMode")?.addEventListener("click", () => window.toggleGameWideMode?.());
   $("#gameCodex")?.addEventListener("click", () => window.openGameCodex?.("plants"));
+  $("#gameMoreGames")?.addEventListener("click", () => window.openArcadePicker?.());
   $("#gameCodexClose")?.addEventListener("click", () => window.closeGameCodex?.());
   $("#gameHow")?.addEventListener("click", () => window.openGameHow?.());
   $("#gameHowClose")?.addEventListener("click", () => window.closeGameHow?.());

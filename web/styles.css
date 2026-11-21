@@ -5841,3 +5841,53 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .admin-evidence-facts span { font-family: var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
 .admin-evidence-log { font-family: var(--font-mono); font-size: 10px; line-height: 1.45; color: var(--quiet); background: color-mix(in srgb, var(--surface-raised) 80%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
 .admin-evidence-reason { font-size: 11px; color: var(--quiet); margin: 4px 0 0; }
+
+
+/* M8-T1288 — Orbit Beacon: second arcade game + field picker.
+   Theme variables keep cards legible in light and dark; the canvas is its own
+   deep-space scene, as a playfield should be. */
+.picker-modal, .orbit-modal { align-items: center; background: rgba(8, 9, 11, .78); display: flex; inset: 0; justify-content: center; opacity: 0; pointer-events: none; position: fixed; transition: opacity .2s ease, visibility .2s ease; visibility: hidden; z-index: 42; }
+.picker-modal.show, .orbit-modal.show { opacity: 1; pointer-events: auto; visibility: visible; }
+.picker-card, .orbit-card { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 14px; box-shadow: var(--shadow); max-height: 94vh; max-width: min(760px, 94vw); overflow: auto; padding: 24px 26px; position: relative; width: 560px; }
+.orbit-card { width: 560px; }
+.orbit-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-bottom: 6px; }
+.orbit-tool { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; color: var(--muted); cursor: pointer; display: inline-flex; font: 600 11px 'Manrope', sans-serif; gap: 6px; padding: 6px 10px; transition: color .18s, border-color .18s; }
+.orbit-tool:hover { border-color: var(--mint); color: var(--text); }
+.orbit-tool i, .orbit-tool svg { width: 13px; height: 13px; }
+.orbit-close { background: transparent; border: 0; color: var(--quiet); cursor: pointer; padding: 5px; }
+.orbit-close:hover { color: var(--coral); }
+.orbit-kicker { color: var(--coral); font: 12px var(--font-mono, monospace); letter-spacing: 1px; }
+.picker-card h2, .orbit-card h2 { font-size: 24px; letter-spacing: -.4px; margin: 8px 0 4px; }
+.picker-sub, .orbit-subtitle { color: var(--muted); font-size: 12.5px; line-height: 1.6; margin: 0 0 16px; }
+.picker-grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.picker-option { align-items: flex-start; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 18px 16px; text-align: left; transition: transform .16s, border-color .16s, box-shadow .16s; }
+.picker-option:hover { border-color: var(--mint); box-shadow: var(--shadow); transform: translateY(-2px); }
+.picker-glyph { font-size: 30px; line-height: 1; }
+.picker-option strong { color: var(--text); font-size: 15px; }
+.picker-option small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.orbit-hud { display: flex; flex-wrap: wrap; gap: 8px 14px; font: 11px var(--font-mono, monospace); color: var(--quiet); margin-bottom: 12px; }
+.orbit-hud strong { color: var(--text); }
+.orbit-status { color: var(--mint); margin-left: auto; }
+.orbit-stage { background: #080e1a; border: 1px solid var(--line-bright); border-radius: 12px; overflow: hidden; position: relative; width: 100%; }
+.orbit-stage canvas { display: block; height: auto; max-height: 54vh; width: 100%; }
+.orbit-overlay { align-items: center; background: rgba(8, 14, 26, .82); display: flex; inset: 0; justify-content: center; position: absolute; }
+.orbit-overlay[hidden] { display: none; }
+.orbit-overlay-card { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 12px; max-width: 86%; padding: 20px 22px; text-align: center; }
+.orbit-overlay-card strong { color: var(--text); display: block; font-size: 18px; }
+.orbit-overlay-card p { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 8px 0 14px; }
+.orbit-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.orbit-hint { color: var(--quiet); font: 10.5px var(--font-mono, monospace); }
+.orbit-difficulty { align-items: center; color: var(--muted); display: inline-flex; font-size: 11px; gap: 6px; margin-left: auto; }
+.orbit-difficulty select { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; padding: 4px 6px; }
+.orbit-how { align-items: center; background: rgba(8, 9, 11, .7); display: flex; inset: 0; justify-content: center; opacity: 0; pointer-events: none; position: fixed; transition: opacity .18s, visibility .18s; visibility: hidden; z-index: 46; }
+.orbit-how.show { opacity: 1; pointer-events: auto; visibility: visible; }
+.orbit-how-card { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 12px; box-shadow: var(--shadow); max-height: 90vh; max-width: 94vw; overflow: auto; padding: 22px 24px; width: 540px; }
+.orbit-how-head { align-items: center; display: flex; justify-content: space-between; }
+.orbit-how-head strong { font-size: 17px; }
+.orbit-how-sub { color: var(--muted); font-size: 11.5px; margin: 4px 0 12px; }
+.orbit-how-list { color: var(--text); display: grid; gap: 10px; margin: 0 0 16px; padding-left: 20px; }
+.orbit-how-list li { font-size: 12px; line-height: 1.6; }
+.orbit-how-list strong { color: var(--mint); display: block; font-size: 12.5px; }
+.orbit-how-list span { color: var(--muted); }
+.orbit-how-ready { width: 100%; }
+@media (max-width: 640px) { .picker-grid { grid-template-columns: 1fr; } .orbit-hud { font-size: 10px; } }
