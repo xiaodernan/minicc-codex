@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
+
+// Derive the charted-coordinate count from the source of truth in atlas.js.
+// Hardcoding 116 let the LXXIX landing (117) slip past this gate — the number
+// must come from the panel the HUD actually renders.
+const atlasSource = await readFile(
+  path.join(process.cwd(), "web", "src", "panels", "atlas.js"), "utf8");
+const coordMatch = atlasSource.match(/(\d+) charted\s*\n?\s*coordinates/);
+assert(coordMatch, "atlas.js must state its charted-coordinate count");
+const TOTAL = coordMatch[1];
+
 const browser = await chromium.launch({ headless: true });
 const errors = [];
 
@@ -23,8 +35,8 @@ async function checkMode(locale, expectCjk) {
   assert.ok(await page.locator(".atlas-hud .atlas-title").innerText());
 
   const charted = await page.locator("#atlasCharted").innerText();
-  const expectTotal = expectCjk ? "/ 116 个坐标" : "/ 116 coordinates";
-  assert.ok(charted.includes(expectTotal), `charted line must carry the 116-coordinate contract, saw: ${charted}`);
+  const expectTotal = expectCjk ? `/ ${TOTAL} 个坐标` : `/ ${TOTAL} coordinates`;
+  assert.ok(charted.includes(expectTotal), `charted line must carry the ${TOTAL}-coordinate contract, saw: ${charted}`);
 
   // islands ledger: opens via the toggle, lists thirteen regions, every row real
   await page.click("#atlasIslandsToggle");
@@ -53,5 +65,5 @@ if (errors.length) {
   for (const e of errors) console.error(" ", e);
   process.exit(1);
 }
-console.log("atlas smoke passed: nav button bilingual, panel opens, 116-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror");
+console.log(`atlas smoke passed: nav button bilingual, panel opens, ${TOTAL}-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror`);
 await browser.close();

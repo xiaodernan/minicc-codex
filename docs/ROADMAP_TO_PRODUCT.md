@@ -56012,3 +56012,17 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 只修并轨遗留的门回归，不动任何产品行为；T1271 的路由决策语义、fail-closed、trace 结构一概保留。
 - 完整 5940 用例全量未在修复后重跑（分钟级、机器负载重）；五处失败及其连带家族已逐条定点复跑全绿，其余 5923 例本轮全量已通过。
 - 第 6% 与 24% 的 flake（event-loop / completion-review 计时族）在隔离复跑中全绿，属负载下的计时抖动，非产品回归。
+
+## 批次 1179 · M8-T1279: 星图 smoke 还钉着 116 —— LXXIX 把 Atlas 推到 117 时漏改了最后一个门
+
+### 缺什么
+- 11 个浏览器 smoke 全扫时 `tests/atlas_smoke.mjs` 红：`charted line must carry the 116-coordinate contract, saw: 已标注 0 / 117 个坐标`。 atlas.js 早已是 117（18 panes + 79 年鉴 + 20 说明书），LXXIX 落卷时同步了 UI 文案、年鉴仪表、manual/onboarding，却漏了这个 smoke 里硬编码的 `116`。这类硬编码计数正是会随卷次漂移的那一格。
+
+### 做了什么
+- `atlas_smoke.mjs` 不再硬编码：从 `web/src/panels/atlas.js` 正则抽出 `N charted coordinates` 作为 `TOTAL`（真值源），zh/en 两语的期望行与末尾日志都用 `${TOTAL}`。从此 Atlas 坐标数变化时门自动跟随，不会再漏。
+
+### 证据与门
+- `node tests/atlas_smoke.mjs`（本地 minicc-web 127.0.0.1:8775）绿：`nav button bilingual, panel opens, 117-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror`。
+
+### 边界
+- 只改 smoke 的期望来源，不动 Atlas 产品代码；岛屿数 13 本卷未变，仍由该 smoke 钉住。
