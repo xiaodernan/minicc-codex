@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T05:56:43.249Z",
+  "generated_at": "2026-11-21T06:28:04.393Z",
   "branch": "main",
-  "head": "7523425",
-  "total_commits": 2069,
+  "head": "3ea554b",
+  "total_commits": 2071,
   "recent_commits": [
+    {
+      "short": "3ea554ba",
+      "at": "2026-11-21T14:27:21+08:00",
+      "subject": "M8-T1276: name the llm_route_decision trace event in the frontend timeline (zh 模型路由决策 / en LLM route decision) - M8-T556 gate was red from merged T1271; build:w"
+    },
+    {
+      "short": "3b78a118",
+      "at": "2026-11-21T05:56:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7523425d",
       "at": "2026-11-21T13:56:06+08:00",
@@ -19,22 +29,12 @@
       "short": "5be2bb70",
       "at": "2026-11-21T13:43:03+08:00",
       "subject": "M8-T1274: synced-window almanac instruments bumped 116/78 -> 117/79 (15 chapters) - LXXIX landing had skipped the per-volume instrument sync; gate forbids just-"
-    },
-    {
-      "short": "a3028dea",
-      "at": "2026-11-21T05:28:38Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d1644f15",
-      "at": "2026-11-21T13:27:41+08:00",
-      "subject": "M8-T1274: manual + onboarding blurb titles and Atlas counts aligned with Rail/source - LXXIX title copied from LXXVII fixed in zh/en, en Atlas 116/78/twelve -> "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 502,
+  "roadmap_batches": 503,
   "changelog_entries": 26,
-  "roadmap_lines": 55958,
+  "roadmap_lines": 55975,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
