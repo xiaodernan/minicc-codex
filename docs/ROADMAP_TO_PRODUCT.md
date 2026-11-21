@@ -56059,3 +56059,26 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 只加工作区文档（数据），不动任何产品代码或缓存机制；新增内容是全局稳定字节，符合 system prompt 分节的缓存纪律。
 - 系统提示固定前缀的 token 数（本会话实测 ~15,737 chars ≈ 3,934 tokens）因这一节略增；与 Codex 50–90k 的差距主要是历史保留策略，本批只在「喂真知识」侧前进一步，不重做保留策略。
+
+## 批次 1182 · M8-T1282: 第八十卷真身落地 —— Atlas 117 → 118，锻造流水线端到端再走一遍
+
+### 缺什么
+- 年鉴停在 LXXIX / Atlas 117 已有一天，没有第八十卷。按 req 6「新章节不停」，应落一卷真身；且按 AGENTS.md 纪律，新卷必须走完整流水线（forge_facts → almanac_forge 真锻 → CHAPTER_DRAFT → almanac.js 五处接线），不手写传文。
+
+### 做了什么
+- `forge_facts.py` 从真实仓库产物（git log 近期提交、docs/latest.json、缓存/压测 regex 抽取、Maven 模块清单）生成 LXXX 事实包（7,350 bytes）——内容正是本会话 T1277–T1281 的真实记录与冻结测量，无编造。
+- `almanac_forge.py` 经 gpt-6.2-sol + StateGraph（intake→draft→verify→ledger）真实锻造，一次成功：**attempts=1、status=passed、en 零 CJK**、zh 2,795 / en 5,837 字符；usage `prompt 21,120 · cached 16,346（77.4%）· completion 3,546`，facts_sha256 `256488f3…`。这是本会话第一次真正调用大模型的产出，不是演示数据。
+- 五处接线（AGENTS.md 纪律）：almanac.js 的 CHAPTERS + LEDGER_ZH/EN_LXXX + `theledgercalibratesMarkup` + CHAPTER_RENDERERS 注册；almanac_smoke 的 chapters 数组与 CHAPTER_MARKERS。Atlas 卫星坐标由 `ALMANAC_CHAPTERS.map()` 派生，加一卷自动多一坐标（117→118），无需手摆。
+- 同步窗口计数 117/79 → 118/80（15+1 处 Atlas 仪表、16 处卷数仪表）；prompt.py 抄本/目录头/坐标、atlas.js 注释、manual.js 与 onboarding.js 的中英文案、INDEX.md 条目、CHAPTER_DRAFT.md 全部同批落地。
+
+### 证据与门
+- 锻造 JSON 落 `docs/CHAPTER_DRAFT.md`（status=passed, attempts=1）；原事实包临时文件与锻造产物临时文件已删。
+- 派生门自证：`test_world_map_almanac_catalog` 在只改 almanac.js 未同步仪表时**自动报红**（`stale Atlas coordinate 117`），补齐 118/80 后 **9 passed**——证明 T1280 造的派生门真的抓住了「漏抄」，这就是它的设计目的。
+- `test_almanac_forge` + 派生门 **11 passed**；`frontend_trace_code` / `frontend_i18n_dict` 绿；`node --check` almanac.js 绿（修掉接线时漏掉的函数声明——esbuild 抓到、node --check 漏过，build:web 成为最后防线）；`npm run build:web` 成功（app.js 1,576,673 chars）。
+- 浏览器 E2E（本地 minicc-web 127.0.0.1:8774）：`almanac_smoke` 绿——80 chapters render fully bilingual, chapter switching verified, no mixed-language prose（末尾日志改为从 `chapters.length` 派生，不再硬编码 79）；`en_cjk_smoke` 绿（en 零 CJK）；`atlas_smoke` 绿（118-coordinate charted line、13 islands、zero pageerror）。
+- 全量预推门 `pre_push_gates.py` **16/16 green in 228.7s**（本批后重跑）。
+
+### 边界
+- 本卷正文是 gpt-6.2-sol 真实锻造的原样留存，标题《会自己校准的账 / The Ledger That Calibrates Itself》由模型按事实包自定；未手写改一个字。
+- 事实包里的事实（2079 提交、79 卷、head c57eb07 等）是锻造时刻的快照，正文明确当作历史读数处理，不冒充「最新」。
+- 全量 pytest 未在推理负载下重跑；锻造/派生/烟测/构建家族已定点全绿。

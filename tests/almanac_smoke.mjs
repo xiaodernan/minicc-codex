@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
-const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold", "remeasure", "eviction", "thewall", "livewire", "thesurge", "livecurrent", "twelfthlight", "thereckoning", "thealarm", "theledger", "thegreenline", "twoshards", "onenine", "quotation", "parallelwind", "ownscale", "forgedworld", "seventhday", "etchedwaterline", "theclick", "densemap", "oneclickmanyhands", "thelivepage", "therunnerwithoutbash", "theplanethatanswered", "thestaleassertion", "theverifierdeclines", "theredinthecapabilitylist", "theladdersnaps", "thenighttheledgerturnedgreen", "thenightthecianswered", "thequeuethatneverstops", "thentheroutewaschosen"];
+const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold", "remeasure", "eviction", "thewall", "livewire", "thesurge", "livecurrent", "twelfthlight", "thereckoning", "thealarm", "theledger", "thegreenline", "twoshards", "onenine", "quotation", "parallelwind", "ownscale", "forgedworld", "seventhday", "etchedwaterline", "theclick", "densemap", "oneclickmanyhands", "thelivepage", "therunnerwithoutbash", "theplanethatanswered", "thestaleassertion", "theverifierdeclines", "theredinthecapabilitylist", "theladdersnaps", "thenighttheledgerturnedgreen", "thenightthecianswered", "thequeuethatneverstops", "thentheroutewaschosen", "theledgercalibrates"];
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
@@ -82,6 +82,7 @@ const CHAPTER_MARKERS = {
   thenightthecianswered: ["等 ci 的那一夜", "The Night the CI Answered"],
   thequeuethatneverstops: ["排不队的队伍", "The Queue That Never Stops"],
   thentheroutewaschosen: ["路由决定的那一夜", "The Night the Route Was Chosen"],
+  theledgercalibrates: ["会自己校准的账", "The Ledger That Calibrates Itself"],
   thelivepage: ["活的页面", "The Live Page"],
 };
 const CJK = /[\u4e00-\u9fff]/;
@@ -117,5 +118,5 @@ await checkMode("en", false);
 await checkMode("zh", true);
 assert.deepEqual(errors, [], `browser page errors: ${errors.join(" | ")}`);
 
-console.log("almanac smoke passed: 79 chapters render fully bilingual, chapter switching verified, no mixed-language prose");
+console.log(`almanac smoke passed: ${chapters.length} chapters render fully bilingual, chapter switching verified, no mixed-language prose`);
 process.exit(0);
