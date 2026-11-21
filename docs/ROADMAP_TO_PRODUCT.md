@@ -56097,3 +56097,22 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 ### 边界
 - 只加说明书教学卡片，不改任何状态图代码或路由决策行为；T1271 的 fail-closed 语义原样。
+
+
+## 批次 1184 · M8-T1284: 第八十一卷真身落地 —— Atlas 118 → 119，锻造流水线再走一遍
+
+### 缺什么
+- 事实包已从 LXXX 落地时的 2079 提交推进到 2086，新增了 T1283「说明书教会模型裁决」等真实材料。按 req 6「新章节不停」，再落一卷真身，同样走完整锻造流水线，不手写传文。
+
+### 做了什么
+- `forge_facts.py` 从真实产物生成 LXXXI 事实包（7,340 bytes）；`almanac_forge.py` 经 gpt-6.2-sol + StateGraph 真锻：**attempts=1、passed、en 零 CJK**、zh 1,590 / en 3,926 字符，usage `21,138 prompt / 16,344 cached（77.3%） / 2,707 completion`，facts_sha256 `a4fb44dd…`。标题《教得会的账 / The Ledger That Teaches Itself》由模型自定，正文取材于 T1282/T1283 的真实记录。
+- 五处接线 + 当前窗口计数 118/80 → 119/81（almanac.js 全部仪表）、prompt.py 抄本/目录头/坐标、atlas.js、manual.js、onboarding.js、almanac_smoke 期望、INDEX.md、CHAPTER_DRAFT.md 同批落地。临时事实包与锻造产物已删，草稿正文只存 `docs/CHAPTER_DRAFT.md`。
+
+### 证据与门
+- 派生门自证：只改 almanac.js 未同步其它文件时 5/6 门自动报红（含目录头、manual 最新卷、atlas 坐标），补齐后 **6 passed**——T1280 造的派生门再次抓住漏抄。
+- `node --check` almanac.js 绿；`npm run build:web` 成功（app.js 1,589,852 chars）/ `check:web` 绿。
+- 浏览器 E2E（本地 minicc-web 127.0.0.1:8771）：almanac_smoke / en_cjk / atlas_smoke 结果随脚本完成确认。
+
+### 边界
+- 正文是 gpt-6.2-sol 真实锻造原样留存，未手写改字；快照数字按历史读数处理。
+- 全量 pytest 未在推理负载下重跑；锻造/派生/烟测/构建家族定点验证。

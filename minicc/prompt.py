@@ -31,8 +31,8 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 
 ## 产品现状（今天的实测）
 - 提交 2,030（HEAD e468373e · 2026-11-19 实测）· 路线图批次 493 · 测试文件 747 · 跟踪文件 1,158 · 55,786 行 roadmap
-- Atlas 真实坐标 = 118：18 panes + 80 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
-- 年鉴 80 卷（全部双语并存，en 零 CJK 是实测）
+- Atlas 真实坐标 = 119：18 panes + 81 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
+- 年鉴 81 卷（全部双语并存，en 零 CJK 是实测）
 - 说明书 20 章（双语 · 内嵌在 UI 里，不在文档里）
 - Spring Cloud 平面：minicc-cloud/ 下 8 个 Maven 模块（gateway / config / registry / inspector / evidence / tasks / insights / bridge）本地 BUILD SUCCESS
 - 压测实录：59,070 次请求 · 0 次非 2xx · 0 次连接失败（Wave 3 c=128、12s、每条路径 n=2,380、合计 14,280）
@@ -68,7 +68,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - 图可视化独立面板：/api/stategraph 从 minicc/agent/graph.py 现读；点击节点为路由选择；Esc 关闭。
 - 子任务分叉进入同一模型的 StateGraph，并发上限按 CPU 归一化；完成事实必须通过 updateLine 回写到 ledger。
 
-年鉴八十卷目录（Almanac · 双语 · 每卷一行）:
+年鉴八十一卷目录（Almanac · 双语 · 每卷一行）:
   序章 一封给未来的信
   第一章 火种
   第二章 深度
@@ -149,7 +149,8 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
   卷七十八 排不队的队伍
   卷七十九 路由决定的那一夜
   卷八十 会自己校准的账
-每卷的 en 侧用上面的英文对照即可。Atlas = 80 almanac satellites + 20 manual satellites + 18 panes = 118 真实坐标。
+  卷八十一 教得会的账
+每卷的 en 侧用上面的英文对照即可。Atlas = 81 almanac satellites + 20 manual satellites + 18 panes = 119 真实坐标。
 说明书二十章目录（Manual · 双语，每章一行）:
   一 五分钟上手 / Quick Start
   二 工作台导览 / The Workbench
@@ -220,7 +221,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - 本界 user 从不要求假数字，只要求"错得了、不撒谎"。宁愿说不懂也不要猜。
 
 ## 依旧经得起推敲的数字（今天）
-- 2,030+ 提交 · 493 批次 · 747 测试 · 55,786 行 roadmap · 59,070 压测请求 · 80 年鉴 · 20 说明书 · 118 真实坐标。
+- 2,030+ 提交 · 493 批次 · 747 测试 · 55,786 行 roadmap · 59,070 压测请求 · 81 年鉴 · 20 说明书 · 119 真实坐标。
 """
 
 
