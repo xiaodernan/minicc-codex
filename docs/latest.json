@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T15:25:22.505Z",
+  "generated_at": "2026-11-21T15:59:22.449Z",
   "branch": "main",
-  "head": "eeee61a",
-  "total_commits": 2094,
+  "head": "cf00e33",
+  "total_commits": 2096,
   "recent_commits": [
+    {
+      "short": "cf00e33d",
+      "at": "2026-11-21T23:58:45+08:00",
+      "subject": "M8-T1288: Orbit Beacon — a real second arcade game, req #6 first literal hit"
+    },
+    {
+      "short": "cebe4e12",
+      "at": "2026-11-21T15:25:22Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "eeee61af",
       "at": "2026-11-21T23:24:21+08:00",
@@ -19,24 +29,14 @@
       "short": "78898e9a",
       "at": "2026-11-21T22:06:16+08:00",
       "subject": "M8-T1286: stategraph panel verify node now describes the model-driven failure fork (bounded snapshot, repair-vs-summarize decision, fail-closed) instead of an a"
-    },
-    {
-      "short": "371fcb69",
-      "at": "2026-11-21T13:54:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1afe82f4",
-      "at": "2026-11-21T21:54:16+08:00",
-      "subject": "M8-T1285: almanac_smoke derives chapter coverage from almanac.js source - a forge that registers a new chapter but forgets to add it to the smoke array now goes"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 514,
+  "roadmap_batches": 515,
   "changelog_entries": 26,
-  "roadmap_lines": 56175,
-  "tracked_files": 1167,
-  "test_files": 753,
+  "roadmap_lines": 56197,
+  "tracked_files": 1169,
+  "test_files": 754,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
