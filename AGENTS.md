@@ -28,6 +28,11 @@
 - `scripts/doc_pointers.py`（pytest `tests/test_doc_pointers.py`）扫描全部文档：引用的文件路径必须存在、测试名必须真实、URL 原样放过。账本里提到的文件被删/改名时同步修账本。
 - `minicc/config.py` 新增的每个 `MINICC_*` 环境键必须在 `minicc.config.example` 里文档化（`tests/test_config_surface.py` 强制）。
 
+## 数字事实的单一归属（跨卷漂移的高发区）
+- 会随年鉴卷次变化的计数（Atlas 坐标、卷数、卫星数）只有一个真值源：`web/src/panels/almanac.js` 的 CHAPTERS 与 `atlas.js` 的 charted 行；`prompt.py` 的抄本、`manual.js` / `onboarding.js` 的文案、各 smoke 的期望都必须从它派生，不许各自硬编码。
+- 历史快照（旧卷正文里的当年计数）是事实、不是漂移，别改；只同步「当前窗口」的抄本。加门时优先让门从真值源派生期望，而不是钉死数字——否则新卷落地下一个漏抄的门就成了维护负担。
+- 相关门：`tests/test_world_map_almanac_catalog.py`、`tests/atlas_smoke.mjs`、`tests/frontend_trace_code_one_home_smoke.mjs`、`tests/test_the_*_one_home*.py`。
+
 ## 缓存与 prompt 纪律
 - system prompt 的分节保持字节稳定（跨轮缓存命中依赖它）；新增分节必须是全局稳定字节或显式有界。
 - `prompt.py` 的 `_WORLD_MAP` 数字（提交数、批次、坐标）只在不诚实风险为零的更新时机刷新；与 `docs/latest.json` 不一致时以 latest.json 为准并在下一批修齐。

@@ -56043,3 +56043,19 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 只改测试自身的期望来源，不碰任何产品代码，`prompt.py` / `manual.js` / `onboarding.js` 现有抄本一字未动。
 - `_en_num` 只覆盖 Atlas 坐标带 100–119；若将来坐标越出该区间会退回数字字面量，需扩展——本卷 117 在带内。
+
+## 批次 1181 · M8-T1281: 把「数字单一归属」写进工作区引导 —— 上下文利用率的直接兑现
+
+### 缺什么
+- 本会话连续七批（T1273–T1280）都在修同一类漂移：会随卷次变的计数（Atlas 坐标 / 卷数 / 卫星数）在 `prompt.py` 抄本、`manual.js` / `onboarding.js` 文案、`almanac.js` 仪表、各 smoke 期望里各写一份，LXXIX 落卷漏同步就到处红。每批都要重新发现「真值源在 almanac.js / atlas.js，历史快照别改，门要从真值源派生」这条纪律——模型每个新会话都在盲重踩。
+
+### 做了什么
+- `AGENTS.md` 新增一节「数字事实的单一归属（跨卷漂移的高发区）」：三条稳定字节的事实——真值源位置、历史快照 vs 当前窗口的区别、加门要派生期望而非钉数字——并列出相关门。AGENTS.md 经 `_workspace_guidance` 自动进入固定前缀，等价于把本会话的血泪教训喂给下一个会话的模型，直接兑现「提高上下文利用率」而**不**动缓存前缀之外的任何字节结构。
+
+### 证据与门
+- 新增的三条里引用的路径全部存在（`test_world_map_almanac_catalog.py`、`atlas_smoke.mjs`、`frontend_trace_code_one_home_smoke.mjs`、`test_the_*_one_home*.py` 一族）。
+- 改后 `test_core_agent` + `doc_pointers` + `test_world_map_almanac_catalog` 合跑 **52 passed**；前缀变化是一次性的字节稳定变更（同 AGENTS.md 落地纪律）。
+
+### 边界
+- 只加工作区文档（数据），不动任何产品代码或缓存机制；新增内容是全局稳定字节，符合 system prompt 分节的缓存纪律。
+- 系统提示固定前缀的 token 数（本会话实测 ~15,737 chars ≈ 3,934 tokens）因这一节略增；与 Codex 50–90k 的差距主要是历史保留策略，本批只在「喂真知识」侧前进一步，不重做保留策略。
