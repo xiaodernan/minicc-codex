@@ -55955,3 +55955,20 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 本批只清这一处死 import；T1271 的路由决策逻辑、fail-closed 语义、trace 落账一概不动。
 - 全量 pytest（tests/ 全家族，分钟级）未在本批重跑；预推门覆盖的是其筛出的代表性家族，完整套件仍由 CI 承担。
+
+## 批次 1176 · M8-T1276: 模型路由决策事件在前端时间线上无名 —— 大模型可观测性的最后一里
+
+### 缺什么
+- T1271 让 verify 失败分叉由模型决策，并把每次决策写进 trace（`web.py` 的 `code="llm_route_decision"`）；但 `web/src/panels/index.js` 的 `traceLabel` 双语映射里没有这个名字。守这个映射的门 `tests/frontend_trace_code_one_home_smoke.mjs`（M8-T556：后端能签发的每个 code 都必须在两语中有名）实跑红：`these backend codes have no name: llm_route_decision`。用户看到的时间线 chip 是笼统的「阶段事件」，而不是「模型路由决策 / LLM route decision」——模型做出的选择在看板上反而看不见，正是「深度用大模型 + 可观测」要钉住的那一格。
+
+### 做了什么
+- `web/src/panels/index.js` 的 `traceLabel` zh/en 两张映射各加一行：`llm_route_decision: "模型路由决策"` / `llm_route_decision: "LLM route decision"`，紧挨 `model_decision` 语义邻居。不改事件是否隐藏的判定（它是决策证据，保持可见，不塞进 routine 隐藏集）。
+
+### 证据与门
+- `node tests/frontend_trace_code_one_home_smoke.mjs` 由红转绿：`M8-T556 ok: traceLabel names all 97 minted codes in both languages (zh/en parity 98 keys)`（修复前 `actual: ['llm_route_decision']`）。
+- 前端门禁：`npm run build:web` 重建 `web/app.js` + `web/game.js`（pruned 1 stale bundle）；`npm run check:web` 绿（bundle + asset-manifest 同步，3 referenced bundles 清洁）。
+- 新 en 标签 `LLM route decision` 为纯 ASCII，不引入 CJK；`en_cjk_smoke` 在本地 minicc-web（127.0.0.1:8777）实跑 **绿**——en mode renders zero CJK across workbench, all 12 nav views, 6 stage overlays, the 10-step Wayfinder tour。
+
+### 边界
+- 只补一个 trace 事件的名字；决策本身、fail-closed 语义、trace 落账结构一概不动。
+- 不把该事件加进 `hiddenRoutineTraceCodes`（隐藏集合）——它是模型决策的可观测证据，应当可见；若将来产品决定折叠 routine 决策，那是另一个语义变更。
