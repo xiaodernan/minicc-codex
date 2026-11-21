@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T05:13:54.909Z",
+  "generated_at": "2026-11-21T05:28:38.145Z",
   "branch": "main",
-  "head": "e7c56ec",
-  "total_commits": 2063,
+  "head": "d1644f1",
+  "total_commits": 2065,
   "recent_commits": [
+    {
+      "short": "d1644f15",
+      "at": "2026-11-21T13:27:41+08:00",
+      "subject": "M8-T1274: manual + onboarding blurb titles and Atlas counts aligned with Rail/source - LXXIX title copied from LXXVII fixed in zh/en, en Atlas 116/78/twelve -> "
+    },
+    {
+      "short": "b072ef89",
+      "at": "2026-11-21T05:13:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e7c56ec0",
       "at": "2026-11-21T13:13:18+08:00",
@@ -19,22 +29,12 @@
       "short": "5b610c7c",
       "at": "2026-11-21T12:55:46+08:00",
       "subject": "M8-T1272: AGENTS.md lands - workspace guidance enters the fixed prefix for the first time."
-    },
-    {
-      "short": "3e4e25c6",
-      "at": "2026-11-21T12:55:46+08:00",
-      "subject": "M8-T1271: the verify-failed fork is a decision, not a reflex - the model reads a bounded failure snapshot and picks repair or an honest early summarize, fail-cl"
-    },
-    {
-      "short": "0cfd6fa5",
-      "at": "2026-11-21T12:55:46+08:00",
-      "subject": "M8-T1270: volume LXXIX's UI node lands - thentheroutewaschosen wired into almanac and atlas, stale 116/78 counts fixed everywhere, and a lone-surrogate docstrin"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 500,
+  "roadmap_batches": 501,
   "changelog_entries": 26,
-  "roadmap_lines": 55920,
+  "roadmap_lines": 55940,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
