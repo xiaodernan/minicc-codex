@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T08:25:53.461Z",
+  "generated_at": "2026-11-21T10:51:04.982Z",
   "branch": "main",
-  "head": "9c53fc8",
-  "total_commits": 2075,
+  "head": "31bc65c",
+  "total_commits": 2077,
   "recent_commits": [
+    {
+      "short": "31bc65c4",
+      "at": "2026-11-21T18:50:16+08:00",
+      "subject": "M8-T1279: atlas_smoke derives the charted-coordinate count from atlas.js instead of hardcoding 116 - LXXIX moved Atlas to 117 and this gate was the last stale p"
+    },
+    {
+      "short": "84de111a",
+      "at": "2026-11-21T08:25:53Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9c53fc89",
       "at": "2026-11-21T16:23:56+08:00",
@@ -19,22 +29,12 @@
       "short": "c802cfaf",
       "at": "2026-11-21T14:43:57+08:00",
       "subject": "M8-T1277: narrow the event-retention one-home gate to skip forged almanac LEDGER prose - LXXVII's honest '2048 commits' historical fact was flagged as a cap mis"
-    },
-    {
-      "short": "66c2b2da",
-      "at": "2026-11-21T06:28:04Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "3ea554ba",
-      "at": "2026-11-21T14:27:21+08:00",
-      "subject": "M8-T1276: name the llm_route_decision trace event in the frontend timeline (zh 模型路由决策 / en LLM route decision) - M8-T556 gate was red from merged T1271; build:w"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 505,
+  "roadmap_batches": 506,
   "changelog_entries": 26,
-  "roadmap_lines": 56015,
+  "roadmap_lines": 56029,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
