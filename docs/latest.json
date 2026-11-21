@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T06:28:04.393Z",
+  "generated_at": "2026-11-21T06:44:27.507Z",
   "branch": "main",
-  "head": "3ea554b",
-  "total_commits": 2071,
+  "head": "c802cfa",
+  "total_commits": 2073,
   "recent_commits": [
+    {
+      "short": "c802cfaf",
+      "at": "2026-11-21T14:43:57+08:00",
+      "subject": "M8-T1277: narrow the event-retention one-home gate to skip forged almanac LEDGER prose - LXXVII's honest '2048 commits' historical fact was flagged as a cap mis"
+    },
+    {
+      "short": "66c2b2da",
+      "at": "2026-11-21T06:28:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "3ea554ba",
       "at": "2026-11-21T14:27:21+08:00",
@@ -19,22 +29,12 @@
       "short": "7523425d",
       "at": "2026-11-21T13:56:06+08:00",
       "subject": "M8-T1275: drop unused 'field' import from llm_router.py (merged T1271 regression) - pre_push_gates back to 16/16 from 15/16; 31 targeted tests green"
-    },
-    {
-      "short": "731d6594",
-      "at": "2026-11-21T05:43:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5be2bb70",
-      "at": "2026-11-21T13:43:03+08:00",
-      "subject": "M8-T1274: synced-window almanac instruments bumped 116/78 -> 117/79 (15 chapters) - LXXIX landing had skipped the per-volume instrument sync; gate forbids just-"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 503,
+  "roadmap_batches": 504,
   "changelog_entries": 26,
-  "roadmap_lines": 55975,
+  "roadmap_lines": 55991,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
