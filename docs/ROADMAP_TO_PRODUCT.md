@@ -55939,3 +55939,19 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 只钉住「最新卷标题」与 Atlas 的 117/79/13 读数；`manual.js` 里其余历史测量基线（如 2026-11-15/16 的缓存读数、5,701 tests 的历史全量）是冻结的历史账，不是当前读数，本批不碰。
 - 英文侧 almanac 目录（`每卷的 en 侧用上面的英文对照`）仍是人工约定，T1273 未纳入门，本批同样不碰。
 - Atlas 的岛屿名（thirteen islands）与抽屉标题（Islands, thirteen）本次统一；抽屉内部的逐岛勘度文字未逐条重核。
+
+## 批次 1175 · M8-T1275: 并轨 T1271 留下的未用 import 把全量预推门从 15/16 拉回 16/16
+
+### 缺什么
+- 本轮跑 `scripts/pre_push_gates.py`（提交前全量门）得到 **15/16**：唯一红的是 `tests/test_the_package_does_not_import_what_it_does_not_use.py::test_no_module_scope_import_is_unreferenced`，点名 `minicc/agent/llm_router.py:28: field`。这是并轨进来的 T1271（verify 失败分叉交给模型决策）留下的死 import——`from dataclasses import dataclass, field` 里 `field` 从未被用到（模块里只用了 `@dataclass`，两处），是真实的代码卫生回归，不是门自己的误报。
+
+### 做了什么
+- 删掉 `llm_router.py` 未用的 `field` import，只留 `dataclass`。一行改动，不动任何决策语义。
+
+### 证据与门
+- 定点复跑：`test_the_package_does_not_import_what_it_does_not_use` + `test_llm_transition_router` + `test_llm_repair_fork` 家族 `.venv` 3.11 **31 passed**。
+- 全量 `scripts/pre_push_gates.py` 重跑待签前确认为 **16/16**（本记录随该结论落地）。
+
+### 边界
+- 本批只清这一处死 import；T1271 的路由决策逻辑、fail-closed 语义、trace 落账一概不动。
+- 全量 pytest（tests/ 全家族，分钟级）未在本批重跑；预推门覆盖的是其筛出的代表性家族，完整套件仍由 CI 承担。

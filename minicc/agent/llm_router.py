@@ -25,7 +25,7 @@ Design constraints (from the operator's standing goals):
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 # Bounded snapshot budgets — keep the decision call small even on long runs.
