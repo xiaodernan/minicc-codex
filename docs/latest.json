@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T13:43:00.275Z",
+  "generated_at": "2026-11-21T13:54:57.576Z",
   "branch": "main",
-  "head": "59e642f",
-  "total_commits": 2088,
+  "head": "1afe82f",
+  "total_commits": 2090,
   "recent_commits": [
+    {
+      "short": "1afe82f4",
+      "at": "2026-11-21T21:54:16+08:00",
+      "subject": "M8-T1285: almanac_smoke derives chapter coverage from almanac.js source - a forge that registers a new chapter but forgets to add it to the smoke array now goes"
+    },
+    {
+      "short": "80be8d62",
+      "at": "2026-11-21T13:43:00Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "59e642f6",
       "at": "2026-11-21T21:42:10+08:00",
@@ -19,22 +29,12 @@
       "short": "25b5462c",
       "at": "2026-11-21T21:22:23+08:00",
       "subject": "M8-T1283: document the model-driven verify-failed decision fork in the embedded manual (zh+en StateGraph chapters) - the key deep-LLM feature (T1271) was taught"
-    },
-    {
-      "short": "9b381559",
-      "at": "2026-11-21T20:41:48+08:00",
-      "subject": "fix(almanac): LXXX ledger comment now points to docs/CHAPTER_DRAFT.md (the real home) instead of the deleted CHAPTER_DRAFT_LXXX.json temp artifact; doc_pointers"
-    },
-    {
-      "short": "744ed048",
-      "at": "2026-11-21T12:25:59Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 511,
+  "roadmap_batches": 512,
   "changelog_entries": 26,
-  "roadmap_lines": 56119,
+  "roadmap_lines": 56136,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 81,
