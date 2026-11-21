@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T12:25:59.358Z",
+  "generated_at": "2026-11-21T13:23:16.538Z",
   "branch": "main",
-  "head": "dc8f3cc",
-  "total_commits": 2083,
+  "head": "25b5462",
+  "total_commits": 2086,
   "recent_commits": [
+    {
+      "short": "25b5462c",
+      "at": "2026-11-21T21:22:23+08:00",
+      "subject": "M8-T1283: document the model-driven verify-failed decision fork in the embedded manual (zh+en StateGraph chapters) - the key deep-LLM feature (T1271) was taught"
+    },
+    {
+      "short": "9b381559",
+      "at": "2026-11-21T20:41:48+08:00",
+      "subject": "fix(almanac): LXXX ledger comment now points to docs/CHAPTER_DRAFT.md (the real home) instead of the deleted CHAPTER_DRAFT_LXXX.json temp artifact; doc_pointers"
+    },
+    {
+      "short": "744ed048",
+      "at": "2026-11-21T12:25:59Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "dc8f3cc3",
       "at": "2026-11-21T20:25:28+08:00",
@@ -14,27 +29,12 @@
       "short": "92f30d6e",
       "at": "2026-11-21T11:34:38Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "77a86802",
-      "at": "2026-11-21T19:33:45+08:00",
-      "subject": "M8-T1281: add the number-single-home discipline to AGENTS.md - feeds this session's drift lessons into the stable system-prompt prefix for every future session "
-    },
-    {
-      "short": "4d2e2a23",
-      "at": "2026-11-21T11:18:39Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c57eb07b",
-      "at": "2026-11-21T19:17:53+08:00",
-      "subject": "M8-T1280: derive the almanac-catalog gate's expectations from the Rail instead of hardcoding 79 - _zh_num/_en_num helpers, regex header, all counts from n; stro"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 509,
+  "roadmap_batches": 510,
   "changelog_entries": 26,
-  "roadmap_lines": 56085,
+  "roadmap_lines": 56100,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 80,
