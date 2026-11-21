@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T04:56:26.232Z",
+  "generated_at": "2026-11-21T05:13:54.909Z",
   "branch": "main",
-  "head": "5b610c7",
-  "total_commits": 2061,
+  "head": "e7c56ec",
+  "total_commits": 2063,
   "recent_commits": [
+    {
+      "short": "e7c56ec0",
+      "at": "2026-11-21T13:13:18+08:00",
+      "subject": "M8-T1273: system prompt's hand-written almanac catalogue aligned with the Rail - 70->79卷, 七十八->七十九卷 header, and LXXIX title copied from LXXVII fixed; regression"
+    },
+    {
+      "short": "08705c84",
+      "at": "2026-11-21T04:56:26Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5b610c7c",
       "at": "2026-11-21T12:55:46+08:00",
@@ -19,24 +29,14 @@
       "short": "0cfd6fa5",
       "at": "2026-11-21T12:55:46+08:00",
       "subject": "M8-T1270: volume LXXIX's UI node lands - thentheroutewaschosen wired into almanac and atlas, stale 116/78 counts fixed everywhere, and a lone-surrogate docstrin"
-    },
-    {
-      "short": "a7049538",
-      "at": "2026-11-20T07:18:04Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b0470184",
-      "at": "2026-11-20T15:17:20+08:00",
-      "subject": "docs: drop the deleted placeholder path from the T1269 ledger so doc_pointers stays green."
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 499,
+  "roadmap_batches": 500,
   "changelog_entries": 26,
-  "roadmap_lines": 55901,
-  "tracked_files": 1164,
-  "test_files": 751,
+  "roadmap_lines": 55920,
+  "tracked_files": 1165,
+  "test_files": 752,
   "almanac_chapters": 79,
   "module_count": 14,
   "feature_surface": [
