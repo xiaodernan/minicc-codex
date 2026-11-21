@@ -98,7 +98,9 @@ def test_no_unread_key_lands_outside_the_ratchet() -> None:
     """The ratchet only shrinks: today's unread set must not grow past the baseline."""
     keys = set(cli_io._MESSAGES["zh_cn"])
     src = _source_text()
-    used = set(re.findall(r'tr\("([a-z0-9_]+)"', src)) | set(re.findall(r"tr\('([a-z0-9_]+)'", src))
+    # Whitespace-tolerant: a key on the next line (the T1271
+    # ``tr(\n  "engine_web_llm_fork"`` call in web.py) is still wired.
+    used = set(re.findall(r"tr\(\s*[\"']([a-z0-9_]+)[\"']", src))
     unread = keys - used
     grew = unread - UNREAD_KEYS_BASELINE
     assert not grew, f"new unread keys (wire them or shrink the baseline): {sorted(grew)}"
@@ -109,7 +111,9 @@ def test_no_unread_key_lands_outside_the_ratchet() -> None:
 
 def test_the_baseline_does_not_secretly_hold_wired_keys() -> None:
     src = _source_text()
-    used = set(re.findall(r'tr\("([a-z0-9_]+)"', src)) | set(re.findall(r"tr\('([a-z0-9_]+)'", src))
+    # Whitespace-tolerant: a key on the next line (the T1271
+    # ``tr(\n  "engine_web_llm_fork"`` call in web.py) is still wired.
+    used = set(re.findall(r"tr\(\s*[\"']([a-z0-9_]+)[\"']", src))
     wired = used & UNREAD_KEYS_BASELINE
     assert not wired, f"these keys are wired in the source — shrink the baseline: {sorted(wired)}"
 

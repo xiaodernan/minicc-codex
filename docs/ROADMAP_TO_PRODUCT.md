@@ -55988,3 +55988,27 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 只改门的豁免规则，不动任何产品代码，也不改 LXXVII 的历史读数（那 2048 是真实快照，必须保留）。
 - 豁免按 `LEDGER_(ZH|EN)_*` 常量声明形态匹配；若将来叙事改用别的变量名承载数字，门会重新报红——这是期望的保守行为。
+
+## 批次 1178 · M8-T1278: 并轨 T1271 的五处全量测试回归 —— 预推门之外的账也要接手收干净
+
+### 缺什么
+- 在稳定树上跑完整 `pytest tests/`（5940 收集、5923 passed、12 skipped）得到 **5 failed**，全部来自并轨进来的 T1271（verify 失败分叉交给模型决策，`3e4e25c6`）。预推门 16/16 是筛过的代表性家族，没扫到这五处；按「并轨过来的内容直接接手做完」纪律逐条查清：
+  1. `test_the_stage_names_have_one_home_in_the_product_too` — `llm_router.py` 把 `repair` 写成裸字面量（`REPAIR_FORK_CANDIDATES`、`Decision("repair",…)`、`static_target="repair"`）。
+  2. `test_the_task_phases_have_one_home` — 同文件 `phase="verify"` 裸 phase 字面量。
+  3. `test_the_package_does_not_define_what_the_repo_never_uses` — `_MAX_EVIDENCE = 4` 定义后从未被引用（`evidence_count` 只是 `len()`，没有被它裁过）。
+  4. `test_a_line_a_test_docstring_cites_can_be_read` — T1271 在 `web.py` 加了两行，`record_text(8000)` 从 1852/2358 移到 1854/2360，钉行号过时。
+  5. `test_cli_i18n` — `engine_web_llm_fork` 在 web.py 里是多行 `tr(\n "…")`，而 gate 的正则要求 `tr(` 后紧跟引号，看不见真实接线，误判成「新增未读 key」。
+
+### 做了什么
+- `llm_router.py`：`from ..config import STAGE_REPAIR` + `from .protocol import PHASE_VERIFY`，裸 `repair` → `STAGE_REPAIR`、`phase="verify"` → `PHASE_VERIFY`；删掉从未使用的 `_MAX_EVIDENCE`。行为一字未改（仍是 fail-closed 的同两条候选、同一静态回退）。
+- 三处钉行号 docstring 同步 1852/2358 → 1854/2360（只改文档里引用，AST 门不依赖行号）。
+- `test_cli_i18n.py` 两处正则改为容忍 `tr(` 与引号之间的空白（`tr\(\s*["']…`），strengthen 而非放松——多行调用不再漏检。
+
+### 证据与门
+- 五处原失败家族 + 三处钉行号家族 + 导入卫生家族合跑 **39 passed**；LLM router 自身行为家族 `test_llm_transition_router` + `test_llm_repair_fork` **30 passed**；`doc_pointers` 绿。
+- 全量此前结论：5923 passed / 12 skipped / 5 failed（本批五处），本批逐一修复并定点复跑全绿。
+
+### 边界
+- 只修并轨遗留的门回归，不动任何产品行为；T1271 的路由决策语义、fail-closed、trace 结构一概保留。
+- 完整 5940 用例全量未在修复后重跑（分钟级、机器负载重）；五处失败及其连带家族已逐条定点复跑全绿，其余 5923 例本轮全量已通过。
+- 第 6% 与 24% 的 flake（event-loop / completion-review 计时族）在隔离复跑中全绿，属负载下的计时抖动，非产品回归。

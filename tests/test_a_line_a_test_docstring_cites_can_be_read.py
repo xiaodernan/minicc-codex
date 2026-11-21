@@ -25,8 +25,9 @@ REPO = Path(__file__).resolve().parents[1]
 TESTS = REPO / "tests"
 
 #: The citation form: a path with a code suffix, a colon, and the first line
-#: of the cited run.  ``minicc/web.py:1852``/``:2358`` (a bare ``:NNN`` tail)
-#: is not a second citation -- it inherits the path.
+#: of the cited run.  ``minicc/web.py:1854``/``:2360`` (a bare ``:NNN`` tail)
+#: is not a second citation -- it inherits the path.  (T1271 inserted two lines
+#: above these sites; M8-T1230 had pinned them at 1852/2358 before that.)
 CITATION = re.compile(r"([A-Za-z0-9_./-]+\.(?:py|md|mjs|js|ts|tsx|json|ya?ml))[:：](\d+)")
 
 #: (path, line, token) for the citations this batch re-aimed.  Each token is
@@ -40,7 +41,7 @@ REPAIRED = (
     ("minicc/agent/completion.py", 372, "text = re.sub"),
     ("minicc/agent/completion.py", 424, "完成评估与最新客观验证结果冲突"),
     ("minicc/task_manager.py", 996, "dict(self.result)"),
-    ("minicc/web.py", 1852, "record_text(8000)"),
+    ("minicc/web.py", 1854, "record_text(8000)"),
     ("tests/test_mcp_http.py", 134, "load_mcp_config(tmp_path)"),
 )
 

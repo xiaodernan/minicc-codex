@@ -28,10 +28,12 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from ..config import STAGE_REPAIR
+from .protocol import PHASE_VERIFY
+
 # Bounded snapshot budgets — keep the decision call small even on long runs.
 _MAX_ERRORS = 6
 _MAX_OUTPUTS = 6
-_MAX_EVIDENCE = 4
 _MAX_TEXT_CHARS = 600
 
 #: The status the router uses when it has nothing to say.  Distinct from the
@@ -222,7 +224,7 @@ async def choose_transition(
 #: The two legal successors of a failed verification that still has repair
 #: budget.  ``repair`` is today's unconditional behavior; ``summarize`` is the
 #: honest early exit when the failure is not actionable by a code change.
-REPAIR_FORK_CANDIDATES = ("repair", "summarize")
+REPAIR_FORK_CANDIDATES = (STAGE_REPAIR, "summarize")
 
 _REPAIR_FORK_REASON = (
     "verify 失败且仍有修复预算。repair：失败可由修改代码修复（默认路径）；"
@@ -257,7 +259,7 @@ def build_repair_fork_context(
         _short(e, 200) for e in list(recent_errors or ())[: _MAX_ERRORS - 1]
     )
     return TransitionContext(
-        phase="verify",
+        phase=PHASE_VERIFY,
         status="failed",
         errors=errors,
         outputs=(),
@@ -289,9 +291,9 @@ async def repair_fork_decision(
     caller still ends the run with the failure spelled out).
     """
     if provider is None:
-        return Decision("repair", ROUTE_SOURCE_STATIC, "静态路径：验证失败进入修复", REPAIR_FORK_CANDIDATES)
+        return Decision(STAGE_REPAIR, ROUTE_SOURCE_STATIC, "静态路径：验证失败进入修复", REPAIR_FORK_CANDIDATES)
     if repair_attempts >= max_repairs:
-        return Decision("repair", ROUTE_SOURCE_STATIC, "修复预算已用尽，无可决策", REPAIR_FORK_CANDIDATES)
+        return Decision(STAGE_REPAIR, ROUTE_SOURCE_STATIC, "修复预算已用尽，无可决策", REPAIR_FORK_CANDIDATES)
     if system_msg is None or user_msg is None:
         from ..llm.base import system_msg as _sys, user_msg as _user
 
@@ -323,7 +325,7 @@ async def repair_fork_decision(
     decision = await choose_transition(
         state=context,
         candidates=REPAIR_FORK_CANDIDATES,
-        static_target="repair",
+        static_target=STAGE_REPAIR,
         call_model=call,
         reason=_REPAIR_FORK_REASON,
     )
