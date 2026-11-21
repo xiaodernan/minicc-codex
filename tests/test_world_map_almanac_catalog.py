@@ -24,6 +24,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ALMANAC = ROOT / "web" / "src" / "panels" / "almanac.js"
 PROMPT = ROOT / "minicc" / "prompt.py"
+MANUAL = ROOT / "web" / "src" / "panels" / "manual.js"
+ONBOARDING = ROOT / "web" / "src" / "panels" / "onboarding.js"
 
 CATALOG_HEADER = "年鉴七十九卷目录（Almanac · 双语 · 每卷一行）:"
 CATALOG_END = "每卷的 en 侧"
@@ -78,4 +80,46 @@ def test_prompt_count_lines_match_the_rail_count() -> None:
     assert CATALOG_HEADER in text, (
         f"the catalogue header must still say {CATALOG_HEADER!r} "
         f"(Rail has {n} chapters)"
+    )
+
+
+def test_manual_newest_volume_title_matches_rail() -> None:
+    """The manual's 'newest volume' blurb must name LXXIX's real title.
+
+    Both the zh and en blurbs had LXXIX's title copied from LXXVII
+    (``等 CI 的那一夜`` / ``The Night the CI Answered``), so a reader who
+    followed the manual into the almanac saw a title that did not exist.
+    """
+    manual = MANUAL.read_text(encoding="utf-8")
+    rail = _rail_entries()
+    newest_roman, newest_title = rail[-1]
+    assert newest_roman == "卷七十九", f"unexpected newest roman: {newest_roman}"
+    assert f"最新卷：{newest_roman}《{newest_title}》" in manual, (
+        "the zh manual blurb must name the newest volume's real title"
+    )
+    assert "The Night the CI Answered" not in manual.split("seventy-nine chapters", 1)[-1][:400], (
+        "the en manual blurb must not copy LXXVII's title onto LXXIX"
+    )
+    assert 'Chapter LXXIX “The Night the Route Was Chosen”' in manual, (
+        "the en manual blurb must name LXXIX's real title"
+    )
+
+
+def test_manual_atlas_counts_match_source() -> None:
+    """The en Atlas blurb had 116/78/twelve while zh + atlas.js say 117/79/13."""
+    manual = MANUAL.read_text(encoding="utf-8")
+    assert "one hundred sixteen real coordinates" not in manual
+    assert "78 almanac satellites" not in manual
+    assert "Islands, twelve" not in manual
+    assert "one hundred seventeen real coordinates — 18 panes + 79 almanac satellites + 20 manual satellites" in manual
+    assert "the “Islands, thirteen” drawer" in manual
+
+
+def test_onboarding_zh_almanac_step_matches_rail_count() -> None:
+    """The zh onboarding step said 卷七十八 while its own en twin said 79."""
+    onboarding = ONBOARDING.read_text(encoding="utf-8")
+    n = len(_rail_entries())
+    assert "卷一到卷七十八" not in onboarding
+    assert "卷一到卷七十九" in onboarding, (
+        f"the zh onboarding almanac step must reach 卷{n} (Rail has {n})"
     )

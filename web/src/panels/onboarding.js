@@ -59,7 +59,7 @@ const STEPS = [
   },
   {
     id: "almanac", anchor: '.nav-item[data-view="almanac"]',
-    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷七十八的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
+    zh: { kicker: "上手演练 · 第 9 步 / 共 10 步", title: "年鉴：这个项目的博物馆", body: "卷一到卷七十九的博物馆级叙事，每笔数字全部来自真实仓库读数；「说明书」负责怎么玩、怎么排错、边界在哪——两个地方都值得读一遍。" },
     en: { kicker: "Start here · Step 9 of 10", title: "The Almanac — a museum in seventy-nine halls", body: "Seventy-nine chapters of museum-grade narrative; every figure is read live from this repository. The manual covers how to play, how to debug, and where the honest limits are." },
   },
   {
