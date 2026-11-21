@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T05:43:43.831Z",
+  "generated_at": "2026-11-21T05:56:43.249Z",
   "branch": "main",
-  "head": "5be2bb7",
-  "total_commits": 2067,
+  "head": "7523425",
+  "total_commits": 2069,
   "recent_commits": [
+    {
+      "short": "7523425d",
+      "at": "2026-11-21T13:56:06+08:00",
+      "subject": "M8-T1275: drop unused 'field' import from llm_router.py (merged T1271 regression) - pre_push_gates back to 16/16 from 15/16; 31 targeted tests green"
+    },
+    {
+      "short": "731d6594",
+      "at": "2026-11-21T05:43:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5be2bb70",
       "at": "2026-11-21T13:43:03+08:00",
@@ -19,22 +29,12 @@
       "short": "d1644f15",
       "at": "2026-11-21T13:27:41+08:00",
       "subject": "M8-T1274: manual + onboarding blurb titles and Atlas counts aligned with Rail/source - LXXIX title copied from LXXVII fixed in zh/en, en Atlas 116/78/twelve -> "
-    },
-    {
-      "short": "b072ef89",
-      "at": "2026-11-21T05:13:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e7c56ec0",
-      "at": "2026-11-21T13:13:18+08:00",
-      "subject": "M8-T1273: system prompt's hand-written almanac catalogue aligned with the Rail - 70->79卷, 七十八->七十九卷 header, and LXXIX title copied from LXXVII fixed; regression"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 501,
+  "roadmap_batches": 502,
   "changelog_entries": 26,
-  "roadmap_lines": 55942,
+  "roadmap_lines": 55958,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
