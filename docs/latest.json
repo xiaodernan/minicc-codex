@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T14:07:08.376Z",
+  "generated_at": "2026-11-21T15:25:22.505Z",
   "branch": "main",
-  "head": "78898e9",
-  "total_commits": 2092,
+  "head": "eeee61a",
+  "total_commits": 2094,
   "recent_commits": [
+    {
+      "short": "eeee61af",
+      "at": "2026-11-21T23:24:21+08:00",
+      "subject": "M8-T1287: trend forecast now model-adjudicated — the last pure-rule slot in req #9 goes live"
+    },
+    {
+      "short": "013cd5d7",
+      "at": "2026-11-21T14:07:08Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "78898e9a",
       "at": "2026-11-21T22:06:16+08:00",
@@ -19,24 +29,14 @@
       "short": "1afe82f4",
       "at": "2026-11-21T21:54:16+08:00",
       "subject": "M8-T1285: almanac_smoke derives chapter coverage from almanac.js source - a forge that registers a new chapter but forgets to add it to the smoke array now goes"
-    },
-    {
-      "short": "80be8d62",
-      "at": "2026-11-21T13:43:00Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "59e642f6",
-      "at": "2026-11-21T21:42:10+08:00",
-      "subject": "M8-T1284: land almanac volume LXXXI/Atlas 119 - real gpt-6.2-sol StateGraph forge (attempts=1, en zero CJK, 21138/16344 cached=77.3%) wired into all 5 almanac.j"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 513,
+  "roadmap_batches": 514,
   "changelog_entries": 26,
-  "roadmap_lines": 56151,
-  "tracked_files": 1165,
-  "test_files": 752,
+  "roadmap_lines": 56175,
+  "tracked_files": 1167,
+  "test_files": 753,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
