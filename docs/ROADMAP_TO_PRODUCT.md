@@ -56026,3 +56026,20 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 ### 边界
 - 只改 smoke 的期望来源，不动 Atlas 产品代码；岛屿数 13 本卷未变，仍由该 smoke 钉住。
+
+## 批次 1180 · M8-T1280: 反漂移门自己会漂移 —— 让年鉴目录门从真值源派生期望
+
+### 缺什么
+- T1273/T1274 造的 `tests/test_world_map_almanac_catalog.py` 用硬编码 `79` / `七十九卷` / `卷七十九` 作为期望。它本是为「抄本漂移即红」而生，但若 LXXX 落卷、有人只改了 `almanac.js` 而没同步 `prompt.py`，这个门要么误红需要手改数字、要么（若被顺手改成新数字）反而放过真正的漏抄——门自己成了维护负担，甚至可能掩盖漂移。
+
+### 做了什么
+- 把期望全部改为从 Rail（`almanac.js`）派生：`_zh_num` / `_en_num` 两个小助手生成中文/英文卷数与坐标读法；目录表头改用正则定位（`年鉴…卷目录（Almanac…:`），卷数行、manual 最新卷标题、Atlas 读数、onboarding 中文第 N 卷都由 `n = len(_rail_entries())` 推出。
+- 保留针对历史幻觉的具体回归断言（LXXVII 标题 `等 CI 的那一夜` / `The Night the CI Answered` 全局禁止重现），只是不再把它们绑死在“79”这个数字上。
+
+### 证据与门
+- `test_world_map_almanac_catalog.py` 6 passed；连带 `test_digest_almanac_chapters` + `doc_pointers` 合跑 **10 passed**。
+- 红臂实测（最强形式）：往 `almanac.js` 注入一卷伪 LXXX 而不改其它文件，**6 个门全红**——证明未来锻造漏抄任何一处都会被抓住；从备份逐字节还原后 6 绿，备份与注入脚本已删。
+
+### 边界
+- 只改测试自身的期望来源，不碰任何产品代码，`prompt.py` / `manual.js` / `onboarding.js` 现有抄本一字未动。
+- `_en_num` 只覆盖 Atlas 坐标带 100–119；若将来坐标越出该区间会退回数字字面量，需扩展——本卷 117 在带内。

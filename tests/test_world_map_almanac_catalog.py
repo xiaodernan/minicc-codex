@@ -27,9 +27,16 @@ PROMPT = ROOT / "minicc" / "prompt.py"
 MANUAL = ROOT / "web" / "src" / "panels" / "manual.js"
 ONBOARDING = ROOT / "web" / "src" / "panels" / "onboarding.js"
 
-CATALOG_HEADER = "年鉴七十九卷目录（Almanac · 双语 · 每卷一行）:"
 CATALOG_END = "每卷的 en 侧"
-COUNT_LINE = "- 年鉴 79 卷（全部双语并存，en 零 CJK 是实测）"
+
+
+def _zh_num(n: int) -> str:
+    """Chinese numeral for 1..99, enough for any almanac volume count."""
+    digits = "零一二三四五六七八九"
+    if n < 10:
+        return digits[n]
+    tens, ones = divmod(n, 10)
+    return (digits[tens] + "十" + (digits[ones] if ones else ""))
 
 
 def _rail_entries() -> list[tuple[str, str]]:
@@ -41,11 +48,42 @@ def _rail_entries() -> list[tuple[str, str]]:
     )
 
 
+def _en_num(n: int) -> str:
+    """English words for 100..119 (the Atlas coordinate band)."""
+    ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+    teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+             "sixteen", "seventeen", "eighteen", "nineteen"]
+    if 100 <= n <= 119:
+        tail = n - 100
+        if tail == 0:
+            return "one hundred"
+        word = teens[tail - 10] if tail >= 10 else ones[tail]
+        return f"one hundred {word}"
+    return str(n)
+
+
+def _newest_en_title() -> str:
+    """The en title of the newest Rail chapter (for the manual's en blurb)."""
+    src = ALMANAC.read_text(encoding="utf-8")
+    entries = re.findall(
+        r'roman: \{ zh: "[^"]+", en: "[^"]+" \}, title: \{ zh: "[^"]+", en: "([^"]+)"',
+        src,
+    )
+    return entries[-1]
+
+
 def _prompt_catalog() -> list[tuple[str, str]]:
-    """The hand-written catalogue inside the system prompt's world map."""
+    """The hand-written catalogue inside the system prompt's world map.
+
+    The header count is derived from the Rail so this latch follows the next
+    volume automatically: a forge that adds a chapter in almanac.js but forgets
+    to bump the prompt's 目录 header/entries makes this test fail, which is the
+    whole point — never the other way round.
+    """
     text = PROMPT.read_text(encoding="utf-8")
-    assert CATALOG_HEADER in text, "catalogue header drifted — update this test"
-    block = text.split(CATALOG_HEADER, 1)[1].split(CATALOG_END, 1)[0]
+    header = re.search(r"年鉴[一二三四五六七八九十]+卷目录（Almanac[^\n]*:", text)
+    assert header, "catalogue header missing from the system prompt"
+    block = text.split(header.group(0), 1)[1].split(CATALOG_END, 1)[0]
     entries: list[tuple[str, str]] = []
     for line in block.splitlines():
         line = line.strip()
@@ -60,7 +98,7 @@ def _prompt_catalog() -> list[tuple[str, str]]:
 def test_prompt_catalogue_matches_rail_exactly() -> None:
     rail = _rail_entries()
     catalog = _prompt_catalog()
-    assert len(rail) == 79, f"Rail has {len(rail)} chapters, expected 79"
+    assert len(rail) >= 18, f"Rail unexpectedly short: {len(rail)} chapters"
     assert catalog == rail, (
         "system prompt's 年鉴 catalogue drifted from almanac.js — "
         f"first mismatch: "
@@ -74,53 +112,67 @@ def test_prompt_catalogue_matches_rail_exactly() -> None:
 def test_prompt_count_lines_match_the_rail_count() -> None:
     text = PROMPT.read_text(encoding="utf-8")
     n = len(_rail_entries())
-    assert COUNT_LINE in text, (
-        f"the 卷数 line must read {COUNT_LINE!r} (Rail has {n})"
+    count_line = f"- 年鉴 {n} 卷（全部双语并存，en 零 CJK 是实测）"
+    header = f"年鉴{_zh_num(n)}卷目录（Almanac"
+    assert count_line in text, (
+        f"the 卷数 line must read {count_line!r} (Rail has {n})"
     )
-    assert CATALOG_HEADER in text, (
-        f"the catalogue header must still say {CATALOG_HEADER!r} "
+    assert header in text, (
+        f"the catalogue header must still say {header!r}… "
         f"(Rail has {n} chapters)"
     )
 
 
 def test_manual_newest_volume_title_matches_rail() -> None:
-    """The manual's 'newest volume' blurb must name LXXIX's real title.
+    """The manual's 'newest volume' blurb must name the Rail's real newest title.
 
-    Both the zh and en blurbs had LXXIX's title copied from LXXVII
+    Both blurbs once copied LXXIX's title from LXXVII
     (``等 CI 的那一夜`` / ``The Night the CI Answered``), so a reader who
     followed the manual into the almanac saw a title that did not exist.
+    Expectations derive from the newest Rail entry, so the next volume's forge
+    is checked automatically.
     """
     manual = MANUAL.read_text(encoding="utf-8")
     rail = _rail_entries()
     newest_roman, newest_title = rail[-1]
-    assert newest_roman == "卷七十九", f"unexpected newest roman: {newest_roman}"
+    # LXXIX's historical wrong title must never come back in either blurb.
+    assert "等 CI 的那一夜" not in manual, "the zh manual copied LXXVII's title again"
+    assert "The Night the CI Answered" not in manual, "the en manual copied LXXVII's title again"
     assert f"最新卷：{newest_roman}《{newest_title}》" in manual, (
-        "the zh manual blurb must name the newest volume's real title"
+        f"the zh manual blurb must name the newest Rail title {newest_roman}《{newest_title}》"
     )
-    assert "The Night the CI Answered" not in manual.split("seventy-nine chapters", 1)[-1][:400], (
-        "the en manual blurb must not copy LXXVII's title onto LXXIX"
-    )
-    assert 'Chapter LXXIX “The Night the Route Was Chosen”' in manual, (
-        "the en manual blurb must name LXXIX's real title"
+    newest_en = _newest_en_title()
+    assert f'Chapter {len(rail)} “{newest_en}”' in manual or f'“{newest_en}”' in manual, (
+        f"the en manual blurb must name the newest Rail title '{newest_en}'"
     )
 
 
 def test_manual_atlas_counts_match_source() -> None:
-    """The en Atlas blurb had 116/78/twelve while zh + atlas.js say 117/79/13."""
+    """The en Atlas blurb must carry the current coordinate/volume counts.
+
+    It once said 116/78/twelve while zh + atlas.js said 117/79/13. Derive the
+    expected numbers from the Rail so the next volume is checked automatically.
+    """
     manual = MANUAL.read_text(encoding="utf-8")
-    assert "one hundred sixteen real coordinates" not in manual
-    assert "78 almanac satellites" not in manual
+    n = len(_rail_entries())
+    current_atlas = n + 38  # 18 panes + n almanac + 20 manual
+    assert str(current_atlas - 1) + " real coordinates" not in manual
+    assert f"{n - 1} almanac satellites" not in manual
     assert "Islands, twelve" not in manual
-    assert "one hundred seventeen real coordinates — 18 panes + 79 almanac satellites + 20 manual satellites" in manual
+    assert f"{_en_num(current_atlas)} real coordinates — 18 panes + {n} almanac satellites + 20 manual satellites" in manual
     assert "the “Islands, thirteen” drawer" in manual
 
 
 def test_onboarding_zh_almanac_step_matches_rail_count() -> None:
-    """The zh onboarding step said 卷七十八 while its own en twin said 79."""
+    """The zh onboarding step must reach the Rail's current volume count.
+
+    It once said 卷七十八 while its own en twin said 79. Derived from the Rail
+    so the next volume is checked automatically.
+    """
     onboarding = ONBOARDING.read_text(encoding="utf-8")
     n = len(_rail_entries())
     assert "卷一到卷七十八" not in onboarding
-    assert "卷一到卷七十九" in onboarding, (
+    assert f"卷一到卷{_zh_num(n)}" in onboarding, (
         f"the zh onboarding almanac step must reach 卷{n} (Rail has {n})"
     )
 
