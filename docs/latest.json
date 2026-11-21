@@ -1,43 +1,43 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-20T07:18:04.155Z",
+  "generated_at": "2026-11-21T04:56:26.232Z",
   "branch": "main",
-  "head": "b047018",
-  "total_commits": 2057,
+  "head": "5b610c7",
+  "total_commits": 2061,
   "recent_commits": [
+    {
+      "short": "5b610c7c",
+      "at": "2026-11-21T12:55:46+08:00",
+      "subject": "M8-T1272: AGENTS.md lands - workspace guidance enters the fixed prefix for the first time."
+    },
+    {
+      "short": "3e4e25c6",
+      "at": "2026-11-21T12:55:46+08:00",
+      "subject": "M8-T1271: the verify-failed fork is a decision, not a reflex - the model reads a bounded failure snapshot and picks repair or an honest early summarize, fail-cl"
+    },
+    {
+      "short": "0cfd6fa5",
+      "at": "2026-11-21T12:55:46+08:00",
+      "subject": "M8-T1270: volume LXXIX's UI node lands - thentheroutewaschosen wired into almanac and atlas, stale 116/78 counts fixed everywhere, and a lone-surrogate docstrin"
+    },
+    {
+      "short": "a7049538",
+      "at": "2026-11-20T07:18:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b0470184",
       "at": "2026-11-20T15:17:20+08:00",
       "subject": "docs: drop the deleted placeholder path from the T1269 ledger so doc_pointers stays green."
-    },
-    {
-      "short": "a4a4b040",
-      "at": "2026-11-20T15:17:20+08:00",
-      "subject": "M8-T1269: take over the stalled parallel forge - volume LXXIX lands for real, and fix a cross-file mixup."
-    },
-    {
-      "short": "6dddd48b",
-      "at": "2026-11-20T15:17:19+08:00",
-      "subject": "M8-T1268: take over the parallel session's bundle wrap-up - check:web back to green."
-    },
-    {
-      "short": "eb8beeb7",
-      "at": "2026-11-20T15:17:19+08:00",
-      "subject": "M8-T1267: an LLM transition router puts model analysis inside the state graph's edge choice."
-    },
-    {
-      "short": "697917fc",
-      "at": "2026-11-19T18:29:45Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 496,
+  "roadmap_batches": 499,
   "changelog_entries": 26,
-  "roadmap_lines": 55843,
-  "tracked_files": 1161,
-  "test_files": 749,
-  "almanac_chapters": 78,
+  "roadmap_lines": 55901,
+  "tracked_files": 1164,
+  "test_files": 751,
+  "almanac_chapters": 79,
   "module_count": 14,
   "feature_surface": [
     "workbench",
