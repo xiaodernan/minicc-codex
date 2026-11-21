@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T10:51:04.982Z",
+  "generated_at": "2026-11-21T11:18:38.941Z",
   "branch": "main",
-  "head": "31bc65c",
-  "total_commits": 2077,
+  "head": "c57eb07",
+  "total_commits": 2079,
   "recent_commits": [
+    {
+      "short": "c57eb07b",
+      "at": "2026-11-21T19:17:53+08:00",
+      "subject": "M8-T1280: derive the almanac-catalog gate's expectations from the Rail instead of hardcoding 79 - _zh_num/_en_num helpers, regex header, all counts from n; stro"
+    },
+    {
+      "short": "2122fd9f",
+      "at": "2026-11-21T10:51:05Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "31bc65c4",
       "at": "2026-11-21T18:50:16+08:00",
@@ -19,22 +29,12 @@
       "short": "9c53fc89",
       "at": "2026-11-21T16:23:56+08:00",
       "subject": "M8-T1278: take over merged T1271's five full-suite regressions - llm_router bare repair/verify literals -> STAGE_REPAIR/PHASE_VERIFY, drop unused _MAX_EVIDENCE,"
-    },
-    {
-      "short": "fb3479ca",
-      "at": "2026-11-21T06:44:27Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c802cfaf",
-      "at": "2026-11-21T14:43:57+08:00",
-      "subject": "M8-T1277: narrow the event-retention one-home gate to skip forged almanac LEDGER prose - LXXVII's honest '2048 commits' historical fact was flagged as a cap mis"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 506,
+  "roadmap_batches": 507,
   "changelog_entries": 26,
-  "roadmap_lines": 56029,
+  "roadmap_lines": 56046,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
