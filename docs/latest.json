@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T11:18:38.941Z",
+  "generated_at": "2026-11-21T11:34:38.126Z",
   "branch": "main",
-  "head": "c57eb07",
-  "total_commits": 2079,
+  "head": "77a8680",
+  "total_commits": 2081,
   "recent_commits": [
+    {
+      "short": "77a86802",
+      "at": "2026-11-21T19:33:45+08:00",
+      "subject": "M8-T1281: add the number-single-home discipline to AGENTS.md - feeds this session's drift lessons into the stable system-prompt prefix for every future session "
+    },
+    {
+      "short": "4d2e2a23",
+      "at": "2026-11-21T11:18:39Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c57eb07b",
       "at": "2026-11-21T19:17:53+08:00",
@@ -19,22 +29,12 @@
       "short": "31bc65c4",
       "at": "2026-11-21T18:50:16+08:00",
       "subject": "M8-T1279: atlas_smoke derives the charted-coordinate count from atlas.js instead of hardcoding 116 - LXXIX moved Atlas to 117 and this gate was the last stale p"
-    },
-    {
-      "short": "84de111a",
-      "at": "2026-11-21T08:25:53Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9c53fc89",
-      "at": "2026-11-21T16:23:56+08:00",
-      "subject": "M8-T1278: take over merged T1271's five full-suite regressions - llm_router bare repair/verify literals -> STAGE_REPAIR/PHASE_VERIFY, drop unused _MAX_EVIDENCE,"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 507,
+  "roadmap_batches": 508,
   "changelog_entries": 26,
-  "roadmap_lines": 56046,
+  "roadmap_lines": 56062,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 79,
