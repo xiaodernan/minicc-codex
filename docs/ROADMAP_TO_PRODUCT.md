@@ -55972,3 +55972,19 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 只补一个 trace 事件的名字；决策本身、fail-closed 语义、trace 落账结构一概不动。
 - 不把该事件加进 `hiddenRoutineTraceCodes`（隐藏集合）——它是模型决策的可观测证据，应当可见；若将来产品决定折叠 routine 决策，那是另一个语义变更。
+
+## 批次 1177 · M8-T1277: 留痕门把年鉴叙事里的历史数字误判成常量重复 —— 收窄扫描到真正的代码引用
+
+### 缺什么
+- 在 20 个前端 smoke 全扫时发现 `tests/frontend_event_retention_one_home_smoke.mjs` 红：`the 2048 retention cap is spelled outside its home`，点名 `web/src/panels/almanac.js` 的 `LEDGER_ZH_LXXVII` / `LEDGER_EN_LXXVII` 两行。门 M8-T585（2026-11-08）的本意是钉住**事件去重上限常量** `MAX_SEEN_EVENT_KEYS=2048` 只有一个家；它扫整个 `web/src` 的裸 `2048`。但 LXXVII 卷（2026-11-20 锻造）正文里如实写着事实包的「2048 total commits」——那是历史读数，不是对上限常量的引用。门比内容先落地，锻造卷时没人执行这个不在 CI/预推门里的 smoke，于是误报一直潜伏。
+
+### 做了什么
+- 该门原本就跳过 `//` 注释（理由是「comments are not references」）。按同一逻辑补一条：跳过 `const LEDGER_ZH_*/EN_* = "..."` 叙事字符串常量——年鉴正文里的数字是数据，不可能重绑 `MAX_SEEN_EVENT_KEYS`。只跳过这类声明行，代码里任何其它裸 `2048` 仍会被抓，门的约束力不减。
+
+### 证据与门
+- `node tests/frontend_event_retention_one_home_smoke.mjs` 由红转绿：`M8-T585 ok: the event-retention and session-view caps each have one home`。
+- 扫描确认 `web/src` 中 4 处 2048：`bounded-cache.js`（家，允许）、`state.js` finalizedTaskIds（门明文允许的第二个）、`almanac.js` 两处叙事正文（本批豁免）——无真实越界拼写。
+
+### 边界
+- 只改门的豁免规则，不动任何产品代码，也不改 LXXVII 的历史读数（那 2048 是真实快照，必须保留）。
+- 豁免按 `LEDGER_(ZH|EN)_*` 常量声明形态匹配；若将来叙事改用别的变量名承载数字，门会重新报红——这是期望的保守行为。

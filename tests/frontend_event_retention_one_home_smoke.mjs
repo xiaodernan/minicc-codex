@@ -54,6 +54,11 @@ for (const file of files) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     if (line.trim().startsWith("//")) continue; // comments are not references
+    // Forged almanac ledger prose is data, not a code reference to the cap.
+    // LXXVII (2026-11-20) legitimately states "2048 total commits" as a
+    // historical fact-pack reading; a number inside a narrative string cannot
+    // rebind MAX_SEEN_EVENT_KEYS. Skip only declared LEDGER_ZH/EN_* constants.
+    if (/^\s*const LEDGER_(ZH|EN)_[A-Z0-9]+\s*=\s*["']/.test(line)) continue;
     if (/(?<![0-9_])2048(?![0-9_])/.test(line)) {
       const allowed =
         (file === BOUNDED && /MAX_SEEN_EVENT_KEYS = 2048/.test(line))
