@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T13:23:16.538Z",
+  "generated_at": "2026-11-21T13:43:00.275Z",
   "branch": "main",
-  "head": "25b5462",
-  "total_commits": 2086,
+  "head": "59e642f",
+  "total_commits": 2088,
   "recent_commits": [
+    {
+      "short": "59e642f6",
+      "at": "2026-11-21T21:42:10+08:00",
+      "subject": "M8-T1284: land almanac volume LXXXI/Atlas 119 - real gpt-6.2-sol StateGraph forge (attempts=1, en zero CJK, 21138/16344 cached=77.3%) wired into all 5 almanac.j"
+    },
+    {
+      "short": "1a3d67f3",
+      "at": "2026-11-21T13:23:16Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "25b5462c",
       "at": "2026-11-21T21:22:23+08:00",
@@ -19,25 +29,15 @@
       "short": "744ed048",
       "at": "2026-11-21T12:25:59Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "dc8f3cc3",
-      "at": "2026-11-21T20:25:28+08:00",
-      "subject": "M8-T1282: land almanac volume LXXX/Atlas 118 - real gpt-6.2-sol StateGraph forge (attempts=1, en zero CJK, 21120/16346 cached=77.4%) wired into all 5 almanac.js"
-    },
-    {
-      "short": "92f30d6e",
-      "at": "2026-11-21T11:34:38Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 510,
+  "roadmap_batches": 511,
   "changelog_entries": 26,
-  "roadmap_lines": 56100,
+  "roadmap_lines": 56119,
   "tracked_files": 1165,
   "test_files": 752,
-  "almanac_chapters": 80,
+  "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
     "workbench",
