@@ -56116,3 +56116,20 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 正文是 gpt-6.2-sol 真实锻造原样留存，未手写改字；快照数字按历史读数处理。
 - 全量 pytest 未在推理负载下重跑；锻造/派生/烟测/构建家族定点验证。
+
+
+## 批次 1185 · M8-T1285: 年鉴烟测自己也会漏章 —— 让覆盖度从真值源断言
+
+### 缺什么
+- `tests/almanac_smoke.mjs` 的 `chapters` 数组是手写的。LXXX / LXXXI 两次锻造都得手动往里加 id——若某次锻造只改了 `almanac.js` 而忘了加这个数组，新卷会渲染却从不被烟测覆盖，门照样绿。这是「门自己会漂移」的最后一处（atlas_smoke 的坐标数、world-map 目录门已分别在 T1279 / T1280 改成从真值源派生）。
+
+### 做了什么
+- 烟测开头从 `web/src/panels/almanac.js` 正则抽出所有 `{ id: "…", roman:` 作为 `sourceIds`，加一条覆盖断言：任何 source 里存在、烟测数组里没有的 id 直接 `assert.deepEqual` 报红。
+
+### 证据与门
+- 实际读数：source 81 卷 = 烟测覆盖 81 卷，uncovered 为空；`node --check` 绿。
+- 红臂：往 source 列表注入一个假章节 id，覆盖断言当场报红（"a new source chapter not in the smoke array is caught"）——证明下次锻造漏加 id 会被抓住。
+- 真机 `almanac_smoke` 绿：81 chapters render fully bilingual, no mixed-language prose。
+
+### 边界
+- 只加覆盖断言，不自动展开 `chapters` / `CHAPTER_MARKERS`：新卷仍需显式补 marker， forcing 锻造批次为每卷写下中英标记——这是期望的保守行为。

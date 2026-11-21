@@ -1,8 +1,22 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
+
+// Derive the chapter ids from the source of truth (almanac.js CHAPTERS) so a
+// future forge that registers a chapter but forgets to add it here cannot pass
+// this smoke silently — the coverage assertion below turns that into a red gate.
+const almanacSource = await readFile(
+  path.join(process.cwd(), "web", "src", "panels", "almanac.js"), "utf8");
+const sourceIds = [...almanacSource.matchAll(/\{ id: "([^"]+)", roman: \{/g)].map(m => m[1]);
+
 const chapters = ["prologue", "spark", "depth", "sentry", "bloom", "hand", "gate", "mesh", "witness", "craft", "backlog", "echo", "answer", "ember", "atlas", "firstlight", "fever", "lighthouse", "gatekeeper", "meridian", "nightwatch", "fence", "compass", "deepfield", "lawn", "litmus", "harbour", "return", "steward", "relay", "tide", "lamplighter", "firefly", "candle", "newcoast", "unscathed", "slacktide", "negativespace", "greatbasin", "blackoutdrill", "quota", "arithmetic", "gathering", "oracle", "sleepless", "threshold", "remeasure", "eviction", "thewall", "livewire", "thesurge", "livecurrent", "twelfthlight", "thereckoning", "thealarm", "theledger", "thegreenline", "twoshards", "onenine", "quotation", "parallelwind", "ownscale", "forgedworld", "seventhday", "etchedwaterline", "theclick", "densemap", "oneclickmanyhands", "thelivepage", "therunnerwithoutbash", "theplanethatanswered", "thestaleassertion", "theverifierdeclines", "theredinthecapabilitylist", "theladdersnaps", "thenighttheledgerturnedgreen", "thenightthecianswered", "thequeuethatneverstops", "thentheroutewaschosen", "theledgercalibrates", "theledgerteaches"];
+// Every source chapter must be covered; otherwise a forge that only touched
+// almanac.js would render an untested chapter while the smoke stayed green.
+const uncovered = sourceIds.filter(id => !chapters.includes(id));
+assert.deepEqual(uncovered, [], `almanac.js chapters missing from almanac_smoke: ${uncovered.join(", ")}`);
 const CHAPTER_MARKERS = {
   prologue: ["序章", "Prologue"],
   spark: ["火种", "The Spark"],
