@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-21T13:54:57.576Z",
+  "generated_at": "2026-11-21T14:07:08.376Z",
   "branch": "main",
-  "head": "1afe82f",
-  "total_commits": 2090,
+  "head": "78898e9",
+  "total_commits": 2092,
   "recent_commits": [
+    {
+      "short": "78898e9a",
+      "at": "2026-11-21T22:06:16+08:00",
+      "subject": "M8-T1286: stategraph panel verify node now describes the model-driven failure fork (bounded snapshot, repair-vs-summarize decision, fail-closed) instead of an a"
+    },
+    {
+      "short": "371fcb69",
+      "at": "2026-11-21T13:54:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1afe82f4",
       "at": "2026-11-21T21:54:16+08:00",
@@ -19,22 +29,12 @@
       "short": "59e642f6",
       "at": "2026-11-21T21:42:10+08:00",
       "subject": "M8-T1284: land almanac volume LXXXI/Atlas 119 - real gpt-6.2-sol StateGraph forge (attempts=1, en zero CJK, 21138/16344 cached=77.3%) wired into all 5 almanac.j"
-    },
-    {
-      "short": "1a3d67f3",
-      "at": "2026-11-21T13:23:16Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "25b5462c",
-      "at": "2026-11-21T21:22:23+08:00",
-      "subject": "M8-T1283: document the model-driven verify-failed decision fork in the embedded manual (zh+en StateGraph chapters) - the key deep-LLM feature (T1271) was taught"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 512,
+  "roadmap_batches": 513,
   "changelog_entries": 26,
-  "roadmap_lines": 56136,
+  "roadmap_lines": 56151,
   "tracked_files": 1165,
   "test_files": 752,
   "almanac_chapters": 81,
