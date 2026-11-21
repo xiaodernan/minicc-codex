@@ -765,6 +765,40 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._json({"live": False, "zh": [], "en": [],
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-trend":
+            # M8-T1287: the model reads the real 7-day series + the rule
+            # forecast baseline and writes a grounded trend verdict with
+            # verifiable next moves. Zero signal costs zero tokens; an
+            # unreachable model is live:false, never a 500.
+            _trend_empty = {"narrative": "", "moves": []}
+
+            def _trend_denied(meta):
+                return {"live": False, "verdict": "rate-limited", "direction": "unknown",
+                        "baseline_direction": None, "zh": dict(_trend_empty), "en": dict(_trend_empty),
+                        "error": "rate limit exceeded; retry shortly", "rate_limited": True,
+                        "retry_after_seconds": int(meta.get("window_seconds", 60) or 60)}
+
+            try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-trend")
+                if not allowed:
+                    self._json(_trend_denied(rmeta))
+                    return
+                from .oracle_trend import build_trend_insight
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_trend_insight(
+                    workspace=self.server.service.workspace,
+                    stats=self.server.service.stats(),
+                    summary=self.server.service.admin_summary(),
+                    force_refresh=fresh,
+                ))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "verdict": "endpoint-error", "direction": "unknown",
+                            "baseline_direction": None, "zh": dict(_trend_empty),
+                            "en": dict(_trend_empty),
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-review":
             # The model as reviewer of this repo's own latest diff — real facts in,
             # bilingual review out; ?fresh=1 bypasses the memo; wire death honest.

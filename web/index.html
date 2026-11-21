@@ -520,6 +520,12 @@
                 <small id="adminForecastNote">—</small>
               </div>
             </section>
+            <section class="admin-card admin-brief admin-trend-oracle" aria-label="trend oracle">
+              <div class="admin-card-kicker"><i data-lucide="trending-up"></i><span data-i18n="admin.trendOracleKicker">趋势研判 · 值守分析师</span><span class="admin-brief-by" id="adminTrendOracleModel"></span><button class="admin-brief-refresh" id="adminTrendOracleRefresh" type="button" aria-label="refresh trend reading" data-i18n-aria="admin.trendOracleRefresh"><i data-lucide="refresh-cw"></i></button></div>
+              <div class="admin-brief-body" id="adminTrendOracleBody"><p class="admin-brief-pending" data-i18n="admin.trendOraclePending">正在读七日真实序列并研判趋势…</p></div>
+              <ol class="admin-plan-list" id="adminTrendOracleMoves"></ol>
+              <p class="admin-brief-usage" id="adminTrendOracleUsage"></p>
+            </section>
           </div>
           <section class="admin-card admin-card-live" aria-label="mainline health">
             <div class="admin-card-kicker"><i data-lucide="activity-square"></i><span data-i18n="admin.ciKicker">主线健康 · 本仓库 CI 实况</span><span class="admin-card-note" data-i18n="admin.ciNote">缓存 5 分钟 · 数字来自真实 API · 从不伪造</span></div>

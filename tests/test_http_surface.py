@@ -1052,6 +1052,27 @@ def test_get_oracle_recommendations_never_500s(live: _LiveServer, monkeypatch) -
     assert fresh[0] == 200
 
 
+def test_get_oracle_trend_never_500s(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1287: the trend analyst route is entered by the HTTP suite too —
+    # the seam stub yields the honest failure payload, the route must still answer.
+    import minicc.oracle_trend as ot_mod
+
+    monkeypatch.setattr(ot_mod, "build_trend_insight", lambda **kwargs: {
+        "live": False, "verdict": "model-unavailable", "direction": "unknown",
+        "baseline_direction": None, "zh": {"narrative": "", "moves": []},
+        "en": {"narrative": "", "moves": []},
+        "error": "model-unavailable: TimeoutError",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-trend", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert payload["zh"]["moves"] == [] and payload["en"]["moves"] == []
+    assert "sk-" not in body.decode("utf-8", "replace")
+    fresh = _request(f"{live.url}/api/oracle-trend?fresh=1", method="GET")
+    assert fresh[0] == 200
+
+
 def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(live: _LiveServer, monkeypatch) -> None:
     # M8-T1178: every gateway-calling route is behind the shared token bucket;
     # a denial must be an honest 200 payload (live=False, rate_limited=True),
@@ -1064,7 +1085,7 @@ def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(l
         "/api/oracle-ci-diagnosis", "/api/oracle-audit-story",
         "/api/oracle-retrospective", "/api/oracle-review",
         "/api/oracle-plan", "/api/oracle-diagnosis",
-        "/api/oracle-brief", "/api/provider-ping",
+        "/api/oracle-brief", "/api/oracle-trend", "/api/provider-ping",
     ]
     for route in routes:
         status, _, body = _request(f"{live.url}{route}", method="GET")

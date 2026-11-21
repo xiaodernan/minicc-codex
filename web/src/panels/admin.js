@@ -406,6 +406,57 @@ export async function openAdmin() {
     const briefPromise = requestJson("/api/oracle-brief", {}, 30000).catch(() => null);
     briefPromise.then((brief) => renderBrief(brief, false));
 
+    // M8-T1287: live trend analyst — the model reads the real 7-day series and
+    // the rule forecast baseline, then writes a grounded direction verdict with
+    // verifiable next moves. Fire-and-forget like the rest of the oracle family.
+    function renderTrendOracle(reading, refreshed) {
+      const bodyEl = $("#adminTrendOracleBody");
+      const movesEl = $("#adminTrendOracleMoves");
+      const usageEl = $("#adminTrendOracleUsage");
+      const byEl = $("#adminTrendOracleModel");
+      if (byEl && reading && reading.model) byEl.textContent = reading.model;
+      else if (byEl) byEl.textContent = zh() ? "由模型现判" : "read live by the model";
+      if (!reading || !reading.live) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.trendOracleOutage"))}</p>`;
+        if (movesEl) movesEl.innerHTML = "";
+        if (usageEl) usageEl.textContent = reading?.error ? `error: ${String(reading.error).slice(0, 140)}` : "";
+        return;
+      }
+      const side = zh() ? (reading.zh || {}) : (reading.en || {});
+      const dirKey = {
+        cooling: "admin.trendOracleDirCooling", rising: "admin.trendOracleDirRising",
+        steady: "admin.trendOracleDirSteady", unknown: "admin.trendOracleDirUnknown",
+      }[reading.direction] || "admin.trendOracleDirUnknown";
+      const base = reading.baseline_direction
+        ? ` · ${esc(t("admin.trendOracleBaseline"))}: ${esc(String(reading.baseline_direction))}` : "";
+      if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text"><strong>[${esc(t(dirKey))}]</strong> ${esc(side.narrative || "")}${base}</p>`;
+      const moves = Array.isArray(side.moves) ? side.moves : [];
+      if (movesEl) movesEl.innerHTML = moves.length
+        ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc(t("admin.trendOracleMoves"))}</em></li>`
+          + moves.map((m, i) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${i + 1}</strong><span>${esc(String(m))}</span></li>`).join("")
+        : "";
+      if (usageEl) {
+        const u = reading.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        const v = reading.verdict === "no-signal" ? (zh() ? " · 零信号 · 模型未被调用" : " · zero-signal · model not called") : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${v}${refreshed ? " · 已重读" : ""}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}${v}${refreshed ? " · re-read" : ""}`;
+      }
+    }
+    const trendOracleRefresh = $("#adminTrendOracleRefresh");
+    if (trendOracleRefresh) {
+      trendOracleRefresh.addEventListener("click", () => {
+        const bodyEl = $("#adminTrendOracleBody");
+        const usageEl = $("#adminTrendOracleUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.trendOraclePending"))}</p>`;
+        if (usageEl) usageEl.textContent = "";
+        requestJson("/api/oracle-trend?fresh=1", {}, 30000).catch(() => null).then((reading) => renderTrendOracle(reading, true));
+      });
+    }
+    const trendOraclePromise = requestJson("/api/oracle-trend", {}, 30000).catch(() => null);
+    trendOraclePromise.then((reading) => renderTrendOracle(reading, false));
+
     // Live workspace diagnosis — same pattern, pointed at the triage snapshot.
     function renderDiagnosis(diagnosis, refreshed) {
       const bodyEl = $("#adminDiagnosisBody");

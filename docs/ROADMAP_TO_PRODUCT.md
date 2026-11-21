@@ -56148,3 +56148,27 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 ### 边界
 - 只改面板节点文案，不动图结构或任何执行代码；节点/边数量与 live payload 一致。
+
+
+## 批次 1187 · M8-T1287: 趋势预测交给模型裁决 —— req #9 最后一块纯规则缺口
+
+### 缺什么
+- 管理员面板的七日趋势 + forecast 自 T 早期就是 minicc.admin._forecast_from_trend 的纯最小二乘直线，面板明文标注“估计不是承诺”。用户 req #9 明确要“做分析和趋势预测，并根据这些数据给出下一步应该采取的深度优化措施”——直线能给方向，却不会把峰值、近两日均值、中断原因、缓存读数一起权衡，也写不出每条都能当场验收的措施。这是 9 个管理员 oracle（简报/诊断/规划/评审/复核/审计/CI/军师/brief）之外，唯一还纯规则的预测位。
+
+### 做了什么
+- 新增 minicc/oracle_trend.py：build_trend_insight() 把七日真实序列 + 同一次快照的 forecast 基线/中断原因/cache/工具分布喂给配置模型，要求返回 {direction: cooling|rising|steady, zh:{narrative,moves}, en:{...}}；方向越界或不可解析即 fail-closed（unknown / live:false），零信号零 token，10 分钟 memo。
+- webserver.py 加 /api/oracle-trend（限流 key oracle-trend，?fresh=1 绕过 memo，拒绝/异常都返回与 live 同形状的 trend 载荷，面板无需分支）。
+- 管理员面板 index.html 在趋势卡内加 admin-trend-oracle 子卡（方向徽标 + 研判句 + 基线对照 + 措施列表 + token 脚注 + 刷新键），admin.js 加 renderTrendOracle()，styles.css 加 amber 主题；i18n 中英各 11 键（admin.trendOracle*）。
+- tests/test_oracle_trend.py 7 项（证据入 prompt / 方向有界 / 未知 fail-closed / 不可解析诚实 outage / 零信号零调用 / 失败不 raise / memo）；test_http_surface.py 加 never-500 用例并把新路由纳入 429 形状族；frontend_i18n_dict 门覆盖新键；admin_smoke.mjs 加双语新卡断言。
+- 内嵌说明书 modules 章的中英 admin 条目补“模型值守团 + 趋势研判官”说明。
+
+### 证据与门
+- 真实 API（gpt-6.2-sol @ aizzz.xyz/v1，走 Clash 7897）：模块级实测 live=True / cooling / baseline=down，narrative 引用真实读数（11/15 峰值 147、近两日均值 17.5、4 个零值），缓存命中 16,480/19,787=83.3%；端点级经运行中的 web 服务 GET /api/oracle-trend 同样 live=True、2 条措施、缓存命中 83.2%。fresh=1 命中限流闸门返回诚实 429 形状（限流保护自证）。
+- pytest：test_oracle_trend 7 passed；test_http_surface -k oracle 10 passed；基线 test_llm_transition_router + test_almanac_forge + test_oracle_recommendations 29 passed。
+- 真浏览器：manual_smoke 20 章双语零混排；admin_smoke 123 解锁 + 新卡双语 + token 脚注 + 零 pageerror；en_cjk 英文零 CJK；frontend_i18n_dict 837 双语键一致、268 t() 引用全解析。
+- node --check（admin.js/i18n.js/manual.js）+ py_compile + npm run build:web（app.js 1,596,757 chars）+ check:web 全绿。
+
+### 边界
+- 只加一个只读 oracle：不碰任何状态流转代码、不改规则 forecast 本身（它仍是面板上的诚实基线），趋势裁决只在新卡展示，用户仍可对照基线判断模型是否 disagree。
+- 模型输出只进面板，不自动派发为任务（与“值守军师”的一键派发刻意区分——研判是判断，不是待办）。
+- 全量 pytest 未在推理负载下重跑；新增/相关家族定点全绿。

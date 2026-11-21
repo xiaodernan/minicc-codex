@@ -80,6 +80,24 @@ async function checkMode(locale, expectCjk) {
     /缓存|主线|main|模型|分支|Outage|unreachable|model|记录|记录|审计|cache|task|提交/i.test(briefOutage) || briefOutage.length >= 12,
     "brief text should be substantive or the honest outage sentence",
   );
+  // M8-T1287: trend analyst tile — a live reading, a zero-signal note, or the
+  // honest outage line; never a blank or an unresolved i18n key. Both locales.
+  assert.ok(await page.locator("#adminTrendOracleBody").count(), "trend oracle tile must exist in the panel");
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminTrendOracleBody");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return text.length > 0 && !text.includes("正在读七日") && !text.includes("Reading the real seven");
+  }, null, { timeout: 45000 });
+  const trendOracleText = (await page.locator("#adminTrendOracleBody").innerText()).trim();
+  assert.ok(trendOracleText.length > 0, "trend oracle must carry a live reading or the honest outage line");
+  assert.ok(!/^admin\./.test(trendOracleText), "trend oracle body must never read as an unresolved i18n key");
+  const trendOracleUsage = await page.locator("#adminTrendOracleUsage").innerText();
+  assert.ok(
+    /prompt|error/i.test(trendOracleUsage) || trendOracleUsage.trim().length === 0,
+    "trend oracle usage footer must carry token accounting or an error, never a fabricated number",
+  );
+
   await page.waitForFunction(() => {
     const el = document.querySelector("#adminDiagnosisBody");
     if (!el) return false;
