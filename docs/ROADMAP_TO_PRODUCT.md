@@ -55898,3 +55898,22 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - AGENTS.md 的数字型事实（提交数等）刻意不写死——那类数字的家在 `docs/latest.json` 与 `_WORLD_MAP`，避免同一事实两个家。
 - 上下文利用率与 Codex 的剩余差距主要在历史保留策略（Codex 保留大体量工具输出），本批不动；固定前缀密度第一步已到位。
+
+## 批次 1173 · M8-T1273: 系统提示词的手抄年鉴目录与 Rail 对齐 —— 三处「模型对自己说的不真」被钉住
+
+### 缺什么
+- `minicc/prompt.py` 的 `_WORLD_MAP` 里有一段手抄的年鉴目录（罗马数字 + 中文标题，每卷一行），模型每个会话都读它；但它与真正的 Rail（`web/src/panels/almanac.js` 的 `CHAPTERS`）之间没有任何门。T1270 把第 79 卷接进 UI 时只改了 `almanac.js`，漏掉了这段抄本，于是同一份 `_WORLD_MAP` 内三处事实同时失真：`- 年鉴 70 卷`（数字停在卷 LXX）、`年鉴七十八卷目录`（表头少一卷）、`卷七十九 等 CI 的那一夜`（LXXIX 的标题抄成了 LXXVII 的）。这是系统对自己陈述的、经不起核对的事实——正是「没有一行是装的」要拦的那类漂移。
+
+### 做了什么
+- 修 `prompt.py` 三处抄本：`70 卷` → `79 卷`；表头 `七十八卷` → `七十九卷`；LXXIX 标题 `等 CI 的那一夜` → `路由决定的那一夜`（与 `CHAPTER_DRAFT.md` / `INDEX.md` / `almanac.js` 的「路由决定的那一夜 / The Night the Route Was Chosen」一致）。
+- 新增 `tests/test_world_map_almanac_catalog.py`：从 `almanac.js` 正则抽出 `(roman.zh, title.zh)` 作为真值，逐条比对 `prompt.py` 的抄本（79 条、顺序、标题逐字），另钉住两处卷数行；从此抄本漂移即红灯。
+
+### 证据与门
+- 新门 2 测试 + `test_digest_almanac_chapters.py` 3 测试：`.venv` 3.11 实跑 **5 passed**。
+- 红臂实测：把 LXXIX 标题改回 `等 CI 的那一夜`，`test_prompt_catalogue_matches_rail_exactly` 立即红（`At index 78 diff: ('卷七十九','路由决定的那一夜') != ('卷七十九','等 CI 的那一夜')`）；从备份逐字节还原后复跑全绿。备份文件已删，仓库根无运行产物。
+- `git diff minicc/prompt.py` 只含上述三行，无连带改动。
+
+### 边界
+- 本批只钉住中文侧 roman+title 的逐字对齐；英文侧（`每卷的 en 侧用上面的英文对照`）仍是人工约定，未纳入门。
+- `_WORLD_MAP` 其余数字（提交数、批次、测试数）的家在 `docs/latest.json`，按既有纪律只在零不诚实风险时机刷新，本批不碰。
+- 系统提示词字节因三处修正而变化（缓存前缀一次失效后重新预热）；这是修正失真必须付的代价，不是缓存回归。

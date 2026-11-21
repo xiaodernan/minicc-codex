@@ -32,7 +32,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 ## 产品现状（今天的实测）
 - 提交 2,030（HEAD e468373e · 2026-11-19 实测）· 路线图批次 493 · 测试文件 747 · 跟踪文件 1,158 · 55,786 行 roadmap
 - Atlas 真实坐标 = 117：18 panes + 79 年鉴卫星 + 20 说明书卫星（一一注册、每个都端到端连上）
-- 年鉴 70 卷（全部双语并存，en 零 CJK 是实测）
+- 年鉴 79 卷（全部双语并存，en 零 CJK 是实测）
 - 说明书 20 章（双语 · 内嵌在 UI 里，不在文档里）
 - Spring Cloud 平面：minicc-cloud/ 下 8 个 Maven 模块（gateway / config / registry / inspector / evidence / tasks / insights / bridge）本地 BUILD SUCCESS
 - 压测实录：59,070 次请求 · 0 次非 2xx · 0 次连接失败（Wave 3 c=128、12s、每条路径 n=2,380、合计 14,280）
@@ -68,7 +68,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - 图可视化独立面板：/api/stategraph 从 minicc/agent/graph.py 现读；点击节点为路由选择；Esc 关闭。
 - 子任务分叉进入同一模型的 StateGraph，并发上限按 CPU 归一化；完成事实必须通过 updateLine 回写到 ledger。
 
-年鉴七十八卷目录（Almanac · 双语 · 每卷一行）:
+年鉴七十九卷目录（Almanac · 双语 · 每卷一行）:
   序章 一封给未来的信
   第一章 火种
   第二章 深度
@@ -147,7 +147,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
   卷七十六 全绿的那一夜
   卷七十七 等 CI 的那一夜
   卷七十八 排不队的队伍
-  卷七十九 等 CI 的那一夜
+  卷七十九 路由决定的那一夜
 每卷的 en 侧用上面的英文对照即可。Atlas = 79 almanac satellites + 20 manual satellites + 18 panes = 117 真实坐标。
 说明书二十章目录（Manual · 双语，每章一行）:
   一 五分钟上手 / Quick Start
