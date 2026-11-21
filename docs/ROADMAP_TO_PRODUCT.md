@@ -56082,3 +56082,18 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 本卷正文是 gpt-6.2-sol 真实锻造的原样留存，标题《会自己校准的账 / The Ledger That Calibrates Itself》由模型按事实包自定；未手写改一个字。
 - 事实包里的事实（2079 提交、79 卷、head c57eb07 等）是锻造时刻的快照，正文明确当作历史读数处理，不冒充「最新」。
 - 全量 pytest 未在推理负载下重跑；锻造/派生/烟测/构建家族已定点全绿。
+
+
+## 批次 1183 · M8-T1283: 说明书补上「失败分叉交给模型裁决」——把关键大模型能力写进内嵌教学
+
+### 缺什么
+- req #7 要求内嵌说明书覆盖项目所有功能。StateGraph 那一章写于 T1271 之前，只讲「阶段轴 / 只读 DAG / 预算护栏」三件事，把 repair 描述成「verify 失败才进、最多两轮」的自动反射——完全没提模型现在会读有界失败快照、在 repair 与 summarize 之间裁决。用户把这条「通过大模型分析能力实现状态流转」列为关键迫切需求，说明书却教不到它。
+
+### 做了什么
+- `manual.js` 的 `zhStateGraph` / `enStateGraph` 各加一张卡：失败分叉交给模型裁决——读有界快照、二选一、fail-closed（越界/不可解析/异常一律回退 repair，只能带理由跳过一次修复，不能扩大图或洗白失败），每次裁决写进 `llm_route_decision` trace。双语各一段，零混排。
+
+### 证据与门
+- `npm run build:web` 重建 app.js（1,577,949 chars）/ `check:web` 绿；`manual_smoke` 绿（20 chapters fully bilingual, no mixed-language prose）；`en_cjk_smoke` 绿（en 零 CJK）。该章其余文案与门一字未动。
+
+### 边界
+- 只加说明书教学卡片，不改任何状态图代码或路由决策行为；T1271 的 fail-closed 语义原样。
