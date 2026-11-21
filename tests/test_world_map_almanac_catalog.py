@@ -123,3 +123,45 @@ def test_onboarding_zh_almanac_step_matches_rail_count() -> None:
     assert "卷一到卷七十九" in onboarding, (
         f"the zh onboarding almanac step must reach 卷{n} (Rail has {n})"
     )
+
+
+def test_synced_chapter_instruments_bumped_to_current_coordinate() -> None:
+    """The recent synced window must carry the current Atlas/volume reading.
+
+    Discipline (CHANGELOG: 前十四卷仪表同步 116/78, etc.): on each volume the
+    recent window of chapters is bumped to the current coordinate, while older
+    chapters keep their intentional historical snapshot (Atlas 54..101,
+    volumes 23..63). LXXIX landed at Atlas 117 / 79 volumes but left 15
+    synced-window chapters baking the just-superseded 116 / 78, so the same
+    almanac showed two different 'current' readings.
+
+    This latch forbids only the immediately-stale values (116 / 78) and pins
+    that the current ones (117 / 79) appear across the synced window; it leaves
+    the older historical snapshots alone.
+    """
+    src = ALMANAC.read_text(encoding="utf-8")
+    n = len(_rail_entries())
+    current_atlas = n + 38          # 18 panes + n almanac + 20 manual
+    prev_atlas = current_atlas - 1  # the just-superseded coordinate (116)
+    atlas_values = re.findall(
+        r'"Atlas coordinates"\}</div><div class="almanac-instrument-value">(\d+)</div>',
+        src,
+    )
+    assert atlas_values, "no Atlas coordinate instruments found"
+    assert str(prev_atlas) not in atlas_values, (
+        f"stale Atlas coordinate {prev_atlas} still baked in some chapters"
+    )
+    assert atlas_values.count(str(current_atlas)) >= 15, (
+        f"expected the synced window (>=15 chapters) to read Atlas {current_atlas}"
+    )
+    volume_values = re.findall(
+        r'"Volumes, both sides"\}</div><div class="almanac-instrument-value">(\d+) / (\d+)</div>',
+        src,
+    )
+    assert volume_values, "no volume instruments found"
+    assert not any(str(n - 1) in pair for pair in volume_values), (
+        f"stale volume count {n - 1} still baked in some chapters"
+    )
+    assert sum(1 for pair in volume_values if pair == (str(n), str(n))) >= 15, (
+        f"expected the synced window (>=15 chapters) to read {n} / {n}"
+    )

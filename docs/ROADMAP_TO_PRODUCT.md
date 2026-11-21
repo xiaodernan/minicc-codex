@@ -55918,7 +55918,7 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - `_WORLD_MAP` 其余数字（提交数、批次、测试数）的家在 `docs/latest.json`，按既有纪律只在零不诚实风险时机刷新，本批不碰。
 - 系统提示词字节因三处修正而变化（缓存前缀一次失效后重新预热）；这是修正失真必须付的代价，不是缓存回归。
 
-## 批次 1174 · M8-T1274: 说明书里的「最新卷」与 Atlas 英侧读数对齐 —— 同一批幻觉的第二现场
+## 批次 1174 · M8-T1274: 说明书 / 入门 / 年鉴仪表的最新卷与 Atlas 读数对齐 —— 同一批幻觉的第二现场
 
 ### 缺什么
 - T1273 在 `prompt.py` 抄本里钉住了 LXXIX 的标题，但同一场幻觉还有第二个现场：`web/src/panels/manual.js` 的 `zhModules()` / `enModules()` 里，「最新卷」的标题两语都抄成了 LXXVII 的《等 CI 的那一夜》/“The Night the CI Answered”；英文 Atlas 段还停在 `one hundred sixteen real coordinates — 18 panes + 78 almanac satellites + 20 manual satellites` 与 “Islands, twelve”，而中文段、真正的 Atlas（`atlas.js`: 117 / 79 / 13）与 Rail（79 卷）都是 117 / 79 / 十三岛。T1270 接第 79 卷时也没扫到这份说明文字。模型与用户从说明书进入时看到的是一个不存在的最新卷标题和一套少算的星图读数。
@@ -55926,10 +55926,12 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 做了什么
 - 修 `manual.js` 五处：zh 最新卷 → 卷七十九《路由决定的那一夜》——分叉处，模型开了口；en 最新卷 → Chapter LXXIX “The Night the Route Was Chosen” — at the fork, the model spoke；en Atlas → one hundred seventeen real coordinates / 79 almanac satellites / “Islands, thirteen”。
 - 修 `onboarding.js` 第 9 步 zh 一处：`卷一到卷七十八` → `卷一到卷七十九`（同一段的 en 双胞胎早已写 seventy-nine，只有中文侧停在 78）。
-- 把 `tests/test_world_map_almanac_catalog.py` 从 2 门扩到 5 门：新增 `test_manual_newest_volume_title_matches_rail`（从 Rail 的最后一个条目反推最新卷标题，zh/en 两侧逐字比对，并禁止 en 侧再出现 LXXVII 标题）、`test_manual_atlas_counts_match_source`（禁 116/78/twelve 旧读数，钉住 117/79/thirteen）与 `test_onboarding_zh_almanac_step_matches_rail_count`（禁 卷七十八，钉住 卷七十九）。
+- 修 `almanac.js` 同步窗口 15 卷的仪表读数：`116` → `117`（Atlas 坐标）、`78 / 78` → `79 / 79`（卷数）。按 CHANGELOG 各卷「前 N 卷仪表同步」纪律，LXXVIII 曾把最近窗口钉到 116/78；LXXIX 落卷时漏了「前十五卷仪表同步 117/79」这一步，导致同一本年鉴里 15 卷写着旧的 current、LXXIX 自己写着 117/79。更早卷的 54–101 / 23–63 是各卷锻造时的历史快照，刻意不动。
+- 把 `tests/test_world_map_almanac_catalog.py` 从 2 门扩到 6 门：新增 `test_manual_newest_volume_title_matches_rail`（从 Rail 的最后一个条目反推最新卷标题，zh/en 两侧逐字比对，并禁止 en 侧再出现 LXXVII 标题）、`test_manual_atlas_counts_match_source`（禁 116/78/twelve 旧读数，钉住 117/79/thirteen）、`test_onboarding_zh_almanac_step_matches_rail_count`（禁 卷七十八，钉住 卷七十九）与 `test_synced_chapter_instruments_bumped_to_current_coordinate`（禁同步窗口里刚被取代的 116/78，钉住 ≥15 卷读 117/79；历史快照 54–101 不误伤）。
 
 ### 证据与门
-- 新门 5 测试 `.venv` 3.11 实跑 **5 passed**（含 T1273 的 2 门）。
+- 新门 6 测试 `.venv` 3.11 实跑 **6 passed**（含 T1273 的 2 门）。
+- 仪表门红臂实测：把一处同步窗口 Atlas 117 改回 116，`test_synced_chapter_instruments_bumped_to_current_coordinate` 立即红（`stale Atlas coordinate 116 still baked in some chapters`）；从备份逐字节还原后全绿，备份已删。
 - 前端门禁：`npm run build:web` 重建 `web/app.js` + `web/game.js`（pruned 1 stale bundle）；`npm run check:web` 绿（bundle + asset-manifest 同步，3 referenced bundles 清洁）。
 - 浏览器 E2E（本地 minicc-web .venv）：`almanac_smoke` 绿——79 chapters render fully bilingual, chapter switching verified, no mixed-language prose；`en_cjk_smoke` 绿——en mode renders zero CJK across workbench, all 12 nav views, 6 stage overlays, the 10-step Wayfinder tour, and boot-time custom strings。两脚本分别跑在 127.0.0.1:8765 / 127.0.0.1:8899。
 

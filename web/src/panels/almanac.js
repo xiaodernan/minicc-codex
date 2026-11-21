@@ -4135,8 +4135,8 @@ function seventhdayMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数(真)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "卷数 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造回合（真）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4176,8 +4176,8 @@ function etchedwaterlineMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4217,8 +4217,8 @@ function theclickMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4258,8 +4258,8 @@ function densemapMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4294,8 +4294,8 @@ function oneclickmanyhandsMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4333,8 +4333,8 @@ function thelivepageMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4372,8 +4372,8 @@ function therunnerwithoutbashMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=2</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4411,8 +4411,8 @@ function theplanethatansweredMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4450,8 +4450,8 @@ function thestaleassertionMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4489,8 +4489,8 @@ function theverifierdeclinesMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4528,8 +4528,8 @@ function theredinthecapabilitylistMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4567,8 +4567,8 @@ function theladdersnapsMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4606,8 +4606,8 @@ function thenighttheledgerturnedgreenMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4645,8 +4645,8 @@ function thenighttheciansweredMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -4684,8 +4684,8 @@ function thequeuethatneverstopsMarkup() {
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "提交总数（实）" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas 坐标" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "年鉴 · 双语" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "锻造次数（实）" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [

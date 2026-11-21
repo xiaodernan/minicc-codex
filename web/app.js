@@ -6825,8 +6825,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570(\u771F)" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5377\u6570 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5377\u6570 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u56DE\u5408\uFF08\u771F\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -6858,8 +6858,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -6891,8 +6891,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -6924,8 +6924,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -6955,8 +6955,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -6988,8 +6988,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7021,8 +7021,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=2</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7054,8 +7054,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7087,8 +7087,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7120,8 +7120,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7153,8 +7153,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7186,8 +7186,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7219,8 +7219,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7252,8 +7252,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
@@ -7285,8 +7285,8 @@
       </div>
       <div class="almanac-instrument almanac-instrument-grid">
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570\uFF08\u5B9E\uFF09" : "Commits (live)"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">116</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">78 / 78</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "Atlas \u5750\u6807" : "Atlas coordinates"}</div><div class="almanac-instrument-value">117</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u5E74\u9274 \xB7 \u53CC\u8BED" : "Volumes, both sides"}</div><div class="almanac-instrument-value">79 / 79</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u953B\u9020\u6B21\u6570\uFF08\u5B9E\uFF09" : "Forge rounds (live)"}</div><div class="almanac-instrument-value">attempts=1</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
