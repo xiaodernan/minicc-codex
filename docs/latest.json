@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T16:40:41.346Z",
+  "generated_at": "2026-11-22T17:12:39.939Z",
   "branch": "main",
-  "head": "e76e687",
-  "total_commits": 2127,
+  "head": "8980da1",
+  "total_commits": 2129,
   "recent_commits": [
+    {
+      "short": "8980da1a",
+      "at": "2026-11-23T01:11:59+08:00",
+      "subject": "M8-T1301: 「文件名焊进单词」这条规则有了永远在场的证人"
+    },
+    {
+      "short": "23f78124",
+      "at": "2026-11-22T16:40:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e76e6872",
       "at": "2026-11-23T00:39:58+08:00",
@@ -19,22 +29,12 @@
       "short": "536517c7",
       "at": "2026-11-22T21:01:25+08:00",
       "subject": "M8-T1297: bench-history filter chips (window/kind) wired to the existing query; empty-filter state is honest"
-    },
-    {
-      "short": "0bbfa761",
-      "at": "2026-11-22T12:47:19Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c711ece1",
-      "at": "2026-11-22T20:46:49+08:00",
-      "subject": "docs(M8-T1296): record the real filtered bench-history reading"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 532,
+  "roadmap_batches": 533,
   "changelog_entries": 26,
-  "roadmap_lines": 56601,
+  "roadmap_lines": 56637,
   "tracked_files": 1182,
   "test_files": 759,
   "almanac_chapters": 81,
