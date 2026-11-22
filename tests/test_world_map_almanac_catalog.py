@@ -26,6 +26,8 @@ ALMANAC = ROOT / "web" / "src" / "panels" / "almanac.js"
 PROMPT = ROOT / "minicc" / "prompt.py"
 MANUAL = ROOT / "web" / "src" / "panels" / "manual.js"
 ONBOARDING = ROOT / "web" / "src" / "panels" / "onboarding.js"
+TOOLTIPS = ROOT / "web" / "src" / "core" / "tooltips.js"
+I18N = ROOT / "web" / "src" / "core" / "i18n.js"
 
 CATALOG_END = "每卷的 en 侧"
 
@@ -217,3 +219,68 @@ def test_synced_chapter_instruments_bumped_to_current_coordinate() -> None:
     assert sum(1 for pair in volume_values if pair == (str(n), str(n))) >= 15, (
         f"expected the synced window (>=15 chapters) to read {n} / {n}"
     )
+
+
+def test_teaching_tooltips_carry_current_volume_and_coordinate_counts() -> None:
+    """The sidebar teaching tooltips must not freeze an old world count.
+
+    They once read ``年鉴 70 卷`` / ``117 real coordinates`` while the Rail was
+    at 79 and Atlas at 117. Both are the numbers a first-time visitor reads
+    on hover, so a stale one is a false fact stated by the UI itself. Derived
+    from the Rail so the next forge is checked automatically.
+    """
+    tips = TOOLTIPS.read_text(encoding="utf-8")
+    n = len(_rail_entries())
+    atlas = n + 38  # 18 panes + n almanac + 20 manual
+    assert f"年鉴：{n} 卷双语世界叙事" in tips
+    assert f"Almanac: {n} bilingual volumes of the world" in tips
+    assert f"{atlas} 个真实坐标" in tips
+    assert f"{atlas} real coordinates" in tips
+    # the just-superseded readings must never come back
+    assert "70 卷" not in tips and "70 bilingual" not in tips
+    assert "117 个真实坐标" not in tips and "117 real coordinates" not in tips
+
+
+def test_session_empty_chip_carries_current_coordinate_count() -> None:
+    """The empty-session hint's coordinate count must follow the Atlas."""
+    i18n = I18N.read_text(encoding="utf-8")
+    n = len(_rail_entries())
+    atlas = n + 38
+    assert f"打开世界地图——{atlas} 个真实坐标随便点" in i18n
+    assert f"Open the world map — {atlas} real coordinates to tap" in i18n
+    assert "117 个真实坐标" not in i18n
+    assert "117 real coordinates" not in i18n
+
+
+def test_onboarding_zh_atlas_step_matches_its_en_twin_counts() -> None:
+    """The zh onboarding Atlas step once said 117/79 while en said 119/81.
+
+    Both languages must state the Rail's current volume count and the Atlas'
+    current coordinate total; a mixed pair is exactly the '中英文夹杂 + 数字
+   不准' the manual promises never to ship.
+    """
+    onboarding = ONBOARDING.read_text(encoding="utf-8")
+    n = len(_rail_entries())
+    atlas = n + 38
+    assert f"{atlas} 个坐标" in onboarding
+    assert f"{n} 卷年鉴卫星" in onboarding
+    assert f"{_en_num(atlas)} real coordinates" in onboarding
+    assert "117 个坐标" not in onboarding
+    assert "79 卷年鉴卫星" not in onboarding
+
+
+def test_prompt_atlas_feature_line_matches_current_coordinate() -> None:
+    """The prompt's feature inventory must state the Atlas' current total.
+
+    It read ``116 个 Canvas 坐标`` long after the Rail reached 81 volumes /
+    119 coordinates. The model reads this inventory every session, so a stale
+    coordinate there is a fact the system asserts about itself that is false.
+    Derived from the Rail so the next forge is checked automatically.
+    """
+    text = PROMPT.read_text(encoding="utf-8")
+    n = len(_rail_entries())
+    atlas = n + 38
+    assert f"13 座岛屿、{atlas} 个 Canvas 坐标" in text
+    assert f"Atlas {atlas} / {n} 卷" in text
+    assert "116 个 Canvas 坐标" not in text
+    assert "Atlas 116 / 78 卷" not in text

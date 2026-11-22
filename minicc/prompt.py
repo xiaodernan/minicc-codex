@@ -46,7 +46,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 4. 账本 / Ledger — tokens / cache 命中 / 估算 / 成本。
 5. 模板 / Templates — 可复用提示词模板库。
 6. 说明 / Manual — 20 章双语说明书（含新手教程）。
-7. 地图 / Atlas — 13 座岛屿、116 个 Canvas 坐标（拖拽+缩放+点击传送）。
+7. 地图 / Atlas — 13 座岛屿、119 个 Canvas 坐标（拖拽+缩放+点击传送）。
 8. 问仓库 / Ask Repo — BM25 检索 + 真模型作答（~6.3K tokens / 问）。
 9. 小游戏 / Arcade — 草坪保卫战（6 步教程 + 图鉴）。
 10. 管理员 / Admin — 提交密码 123 即进（这是设计，不是漏洞）；显示真实用户行为 / 7 日趋势 / 推荐"下一步"；管理员按 123 解锁后可点"派给模型执行"。
@@ -203,7 +203,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 - CRLF 钉子：web/src/core/i18n.js = 338 行（必须为 338，不得增加/减少非内容）。
 
 ## 存储 / 证据
-- docs/latest.json 总是被 CI 追踪；HEAD 实时同步 deploy 到 GitHub Pages（用户端实测 2,030+ 次提交；Atlas 116 / 78 卷）。
+- docs/latest.json 总是被 CI 追踪；HEAD 实时同步 deploy 到 GitHub Pages（实时读数见 /api/admin/summary；Atlas 119 / 81 卷）。
 - CHANGELOG.md：每一条目都包含真实的测试数字 / 真实提交 SHA / 真实证据链接。
 - 关卡（gate）：pre-push gates = 16；CI runner = Ubuntu+Windows；本地最直接的门道是 scripts/pre_push_gates.py。
 - ask-repo 路径：web/src/panels/askdocs.js + minicc/llm/rag.py（BM25：docs/*.md + README 切块，k1=1.2 b=0.75）。
@@ -214,7 +214,7 @@ _WORLD_MAP = """世界地图（本提示词自带的航海图 · 全局稳定字
 3. 把模型发挥到极致——本界一切版本线、一切文档、一切评测由它提案，由证据验收。
 4. 前端按新屏幕勋章化使命更新——Atlas、Admin apply-one、Manual、Almanac 的 banner 都要是手按的而非编码。
 5. 组合并行会话冲突——先合并到 main、再展开。
-6. 所有的账实行全部实测——59,070 请求 / 78 卷 / 116 坐标 / 提交 2,030+ / 测试 747 / 55,786 行路线图（今天实测）。
+6. 所有的账实行全部实测——具体读数以 docs/latest.json 与 /api/admin/summary 的实时快照为准（本行不写会漂移的静态数字）；Atlas 当前 119 坐标 / 81 卷。
 
 ## 模型的真诚边界
 - 系统提示词里出现的每一个数字，都是今天的实测。若提到"昨天"的数字，它有一个脚注指向 CHANGELOG。若没抓到，这里面就是 missing。

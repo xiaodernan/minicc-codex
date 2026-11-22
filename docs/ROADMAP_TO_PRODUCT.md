@@ -56265,3 +56265,23 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 纯代码增量，不花 token、不调模型、不碰状态流转与缓存；路径来自真浏览器点击序列，日志在 gitignore 的 .minicc/ 下不入库。
 - 只聚合 observed 路径，不推断「因为走了 X 所以跳出」这类没有证据的因果。
 - 旧旅程日志没有路径字段，聚合时如实为空——不拿新字段去倒推旧数据、不编造历史路径。
+
+
+## 批次 1192 · M8-T1289d: 教学文案的世界计数归位 —— 鼠标悬停说的数字终于和真值一致
+
+### 缺什么
+- req #5 要「系统性修复错别字」。tooltips.js 给侧栏 19 个面板的教学提示里，年鉴写「70 卷」、地图写「117 个真实坐标」；i18n.js 的空会话提示写「117 个真实坐标」；onboarding.js 第 5 步中文写「117 个坐标 · 79 卷年鉴卫星」，而它自己的英文 twin 已经是 119 / 八十一——中英数字不一致，正是用户最在意的「中英文夹杂 + 数字不准」。这些是访客第一眼和悬停就读到的数字，是 UI 对自己说的假话。
+- 现有 `test_world_map_almanac_catalog.py` 门（T1273 起）守护 prompt/manual/almanac 仪表，但从 Rail 派生真值 `current_atlas = n + 38`——它没覆盖 tooltips.js / i18n.js / onboarding 第 5 步，所以 LXXXI 落卷后这三处继续说旧数字，门照样绿。
+
+### 做了什么
+- 修正四处文案到当前真值（n=81 卷 / atlas=119 坐标 / 18 面板 / 20 章）：tooltips.js 中英各 2 条、i18n.js `session.emptyChip5` 中英各 1 条、onboarding.js 第 5 步中文（与已正确的英文对齐）。
+- 给 `test_world_map_almanac_catalog.py` 扩 3 门，全部从 Rail 派生真值：`test_teaching_tooltips_carry_current_volume_and_coordinate_counts`（禁 70 卷 / 117 坐标回来）、`test_session_empty_chip_carries_current_coordinate_count`、`test_onboarding_zh_atlas_step_matches_its_en_twin_counts`（中英数字必须同源）。下次锻造 LXXXII 若漏同步，这 3 门会红，强制对齐。
+
+### 证据与门
+- 真浏览器（8767 端口实测）：悬停 almanac = 「年鉴：81 卷双语世界叙事」、atlas = 「世界地图：13 座岛 · 119 个真实坐标」；全域扫 `web/src/` 无残留 117/70 卷/79 卷旧数字。
+- `test_world_map_almanac_catalog.py` 从 6 门扩到 9 门全绿；i18n 字典 922 键双语一致、287 t() 全解析；en_cjk 10 步 tour 零 CJK；node --check（tooltips/i18n/onboarding）；build:web + check:web 绿；doc_pointers 无 DANGLING。
+
+### 边界
+- 只改展示文案 + 守护测试，不碰任何逻辑、状态流转、模型调用、缓存；零 token。
+- 历史年鉴卷里的仪表数字是刻意的历史快照，本批不动（只改当前悬停提示与 onboarding/i18n 的「现在时」文案）。
+- 同批补 `minicc/prompt.py`：功能清单「116 个 Canvas 坐标」、deploy 行「Atlas 116 / 78 卷」、实测行「59,070 请求 / 78 卷 / 116 坐标 / 2,030+ 提交 / 747 测试 / 55,786 行」全是会漂移的静态假话——坐标/卷数改为真值并加第 10 门守护，其余易漂数字改为「以 docs/latest.json 与 /api/admin/summary 实时快照为准」的指引，不再伪造一个必然过时的快照。prompt 相关 28 测试全绿。
