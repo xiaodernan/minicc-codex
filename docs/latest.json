@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T17:12:39.939Z",
+  "generated_at": "2026-11-22T17:49:18.325Z",
   "branch": "main",
-  "head": "8980da1",
-  "total_commits": 2129,
+  "head": "df47a78",
+  "total_commits": 2131,
   "recent_commits": [
+    {
+      "short": "df47a788",
+      "at": "2026-11-23T01:48:34+08:00",
+      "subject": "M8-T1302: 未解析键的门只认六个命名空间，而字典有七十一个"
+    },
+    {
+      "short": "543a3351",
+      "at": "2026-11-22T17:12:40Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8980da1a",
       "at": "2026-11-23T01:11:59+08:00",
@@ -19,22 +29,12 @@
       "short": "e76e6872",
       "at": "2026-11-23T00:39:58+08:00",
       "subject": "M8-T1299+M8-T1300: bench 读数分出六态，按钮自带说明不再把文件名焊进单词"
-    },
-    {
-      "short": "85454d93",
-      "at": "2026-11-22T22:38:38+08:00",
-      "subject": "M8-T1298: bench 筛选写入 URL（?bench=window:kind），刷新/分享回到同一读数"
-    },
-    {
-      "short": "536517c7",
-      "at": "2026-11-22T21:01:25+08:00",
-      "subject": "M8-T1297: bench-history filter chips (window/kind) wired to the existing query; empty-filter state is honest"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 533,
+  "roadmap_batches": 534,
   "changelog_entries": 26,
-  "roadmap_lines": 56637,
+  "roadmap_lines": 56675,
   "tracked_files": 1182,
   "test_files": 759,
   "almanac_chapters": 81,
