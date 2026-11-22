@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T10:52:10.266Z",
+  "generated_at": "2026-11-22T11:48:37.053Z",
   "branch": "main",
-  "head": "22097a8",
-  "total_commits": 2119,
+  "head": "7ba7fc1",
+  "total_commits": 2121,
   "recent_commits": [
+    {
+      "short": "7ba7fc1d",
+      "at": "2026-11-22T19:48:04+08:00",
+      "subject": "M8-T1296: filter bench history by suite/kind/window; memo key follows the filter"
+    },
+    {
+      "short": "25db310b",
+      "at": "2026-11-22T10:52:10Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "22097a8d",
       "at": "2026-11-22T18:51:45+08:00",
@@ -19,22 +29,12 @@
       "short": "1bb62388",
       "at": "2026-11-22T18:50:09+08:00",
       "subject": "M8-T1294: finish the large-context assembler and make it visible in admin"
-    },
-    {
-      "short": "7cd6a326",
-      "at": "2026-11-22T18:40:35+08:00",
-      "subject": "M8-T1293: derive the cache-affinity lane from today's date"
-    },
-    {
-      "short": "cded8a05",
-      "at": "2026-11-22T08:38:12Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 527,
+  "roadmap_batches": 528,
   "changelog_entries": 26,
-  "roadmap_lines": 56468,
+  "roadmap_lines": 56489,
   "tracked_files": 1182,
   "test_files": 759,
   "almanac_chapters": 81,
