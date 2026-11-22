@@ -1,42 +1,42 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T07:18:24.824Z",
+  "generated_at": "2026-11-22T08:14:25.479Z",
   "branch": "main",
-  "head": "a426be9",
-  "total_commits": 2104,
+  "head": "a28450e",
+  "total_commits": 2108,
   "recent_commits": [
+    {
+      "short": "a28450e0",
+      "at": "2026-11-22T16:12:37+08:00",
+      "subject": "M8-T1291: Prefix Vault — third arcade game with real LRU and session-affinity rules, bilingual guide and browser smoke"
+    },
+    {
+      "short": "77e8a832",
+      "at": "2026-11-22T15:57:00+08:00",
+      "subject": "M8-T1290b: credential-stuffing probe — weak dictionary, repeated unlock and 240-way read burst all measured"
+    },
+    {
+      "short": "a46f7e37",
+      "at": "2026-11-22T15:56:09+08:00",
+      "subject": "M8-T1290a: browser layout audit catches clipped breadcrumb and verifies six viewport/locale combinations"
+    },
+    {
+      "short": "06781818",
+      "at": "2026-11-22T07:18:25Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a426be9a",
       "at": "2026-11-22T15:17:50+08:00",
       "subject": "M8-T1289d: teaching tooltips and prompt stop stating stale world counts"
-    },
-    {
-      "short": "e24731db",
-      "at": "2026-11-22T06:57:56Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e677f7d1",
-      "at": "2026-11-22T14:57:31+08:00",
-      "subject": "M8-T1289c: visitor walks — from 'how many bounced' to 'where they went'"
-    },
-    {
-      "short": "b65cae44",
-      "at": "2026-11-22T06:04:23Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "c396aeee",
-      "at": "2026-11-22T14:03:59+08:00",
-      "subject": "M8-T1289b: the model reads the visitor sample — req #9's last clause closed"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 519,
+  "roadmap_batches": 522,
   "changelog_entries": 26,
-  "roadmap_lines": 56288,
-  "tracked_files": 1174,
-  "test_files": 756,
+  "roadmap_lines": 56361,
+  "tracked_files": 1178,
+  "test_files": 757,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
