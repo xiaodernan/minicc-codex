@@ -56358,3 +56358,27 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 第三游戏纯前端、离线可玩，不接模型、不写服务端、不产生行为日志；localStorage 只存最佳分。
 - 缓存教学是**规则同源**而非直接调用 Python 缓存：真实生产命中率仍以 `/api/admin/summary` 与 token 脚注为准，游戏里的命中率只描述这一局。
+
+
+## 批次 1196 · M8-T1292: 上游没额度也有措施 —— 从真实旅程规则推导、零模型调用
+
+### 缺什么
+- req #9 要「根据这些数据给出下一步应该采取的深度优化措施」。T1289b 把这件事交给了模型，但真实 API 现在 403 额度不足：管理员一开面板，模型卡只说 outage，访客卡底下的措施区是空的。数据还在，判断没了——这不叫闭环。
+- 规则推导若随手糊几条通用建议，就会变成另一种幻觉：没有读数依据、没有可跑的验收、甚至编造路径。
+
+### 做了什么
+- 新增 `minicc/visitor_advice.py`：`build_visitor_advice(report)` 只吃 `build_journey_report` 的真实聚合，按阈值触发至多四条措施：可点击耗时 ≥1200 ms → 启动闪屏；跳出率 ≥30% → 新手第一步入口；狂点会话 ≥20% → 导航按下反馈；page_errors >0 → 控制台异常；退出视图占比 ≥40% → 对应真面板的回退入口；停留短但不跳出 → 更深章节入口。每条同时带**触发读数**、**落到真文件/选择器或真命令的动作**、**用户能当场跑的验收**；退出视图不在已知面板白名单时只写 `.nav-item`，不编路径。样本 confidence=thin 时双语明确标「只作方向参考」。
+- 焦点按严重度而非规则书写顺序收敛：可点击耗时 > 反馈 > 导航 > 内容；狂点与页面错误不会因为跳出率同时偏高就被盖掉。
+- `web.py` 加 `visitor_advice()` 5 秒 memo；`webserver.py` 加只读 `GET /api/visitor-advice`（异常也返回同形状、永不 500）。管理员访客卡加「即时优化措施」区：焦点徽标 + 研判句 + 依据/动作/验收逐条列出；中英各 10 键；说明书管理员条目补一句，明确「规则推断绝不冒充模型研判」。
+- 零 token、零网络、零写入；模型按钮仍在，只是不再是唯一路径。
+
+### 证据与门
+- 真端点（本地真旅程样本 10 段）：`focus=navigation` / `confidence=usable`，研判「跳出 40%、可点击耗时 1040 ms、狂点 1、页面错误 0」；两条真措施——`bounce_rate=40% over n=10` → `web/src/panels/onboarding.js` 第一步给两扇门；`exit_view=landing share=50%` → `.nav-item` 放回退入口。没有一条凭空数字或虚构文件。
+- pytest：`tests/test_visitor_advice.py` 12 项（空态 / 启动阈值 / 阈值下不误报 / 跳出导航 / 狂点与错误 / 真面板路径 / 未知视图退回选择器 / 短停留内容 / 上限与双语 / 薄样本标注 / 数字只来自报告 / 坏输入不抛）+ `test_http_surface.py` 新端点形状，合计 118 passed。
+- **踩坑**：第一版在 `_memo_http("visitor_advice")` 的 builder 里调用 `self.behavior_journeys()`，而它内部也拿同一把普通 `Lock`——HTTP 请求直接挂死 30 s 超时。改成在 builder 内直接调 `build_journey_report(self.workspace)`，嵌套消失，测试转绿。并行浏览器烟测的 doctor 点击又超时一次，单跑即绿，按并发干扰处理。
+- 真浏览器：`test:admin` 绿（新条件断言：措施卡显示时必含依据/动作/验收、零裸键）；`test:layout` 绿（修了审计正则把 `admin.js` 文件名误判为裸键）；`test:parity` 单跑绿；i18n 974 键双语一致、290 处 t() 全解析；build:web + check:web 绿。
+
+### 边界
+- 规则只从本批样本推导，明确不给因果结论（不说「因为 X 所以跳出」）；thin 样本只作方向。
+- 措施绝不自动改代码、不派给模型执行：它只是用户能照着做的下一步，判断权仍在用户。
+- 模型路径保持独立：有额度时仍可点「让模型读这批旅程」拿带 token 脚注的研判，两条路径不互相冒充。

@@ -756,6 +756,20 @@ def test_get_behavior_journeys_answers_the_visitor_log(live: _LiveServer) -> Non
     assert payload["how_to"].startswith("node scripts/behavior_sim.mjs")
 
 
+def test_get_visitor_advice_is_model_free_even_on_an_empty_log(live: _LiveServer) -> None:
+    """M8-T1292: rule-derived fixes never call a model, even when upstream is dry."""
+    status, _, body = _request(f"{live.url}/api/visitor-advice", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert payload["verdict"] == "no-signal"
+    assert payload["model_free"] is True
+    assert payload["source"] == "deterministic-rules"
+    assert payload["zh"]["moves"] == []
+    assert payload["en"]["moves"] == []
+    assert "behavior_sim.mjs" in payload["en"]["how_to"]
+
+
 def test_get_rag_search_returns_bm25_results(live: _LiveServer, tmp_path: Path) -> None:
     """M8-T971: /api/rag/search is a read-only, in-process BM25 retrieval over
     the repo's own bundled documentation. It never makes network calls,

@@ -524,6 +524,18 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # what they did. No model, no network, never-raise.
             self._json(self.server.service.behavior_journeys())
             return
+        if path == "/api/visitor-advice":
+            # M8-T1292: the same measured sample, turned into bounded fixes
+            # without a model call. Works when the upstream account is dry.
+            try:
+                self._json(self.server.service.visitor_advice())
+            except Exception as exc:  # noqa: BLE001 - admin tile must never 500
+                self._json({"live": False, "verdict": "endpoint-error", "focus": "unknown",
+                            "model_free": True,
+                            "zh": {"narrative": "", "moves": []},
+                            "en": {"narrative": "", "moves": []},
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/roadmap":
             # M8-T940: the ledger, parsed - every batch heading, verbatim,
             # bounded titles, grouped into hundred-epoch eras.

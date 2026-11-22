@@ -3610,6 +3610,23 @@ class AgentService:
 
         return self._memo_http("behavior_journeys", 5.0, lambda: build_journey_report(self.workspace))
 
+    def visitor_advice(self) -> dict[str, Any]:
+        """Model-free optimisation moves derived from the measured journeys.
+
+        The oracle path can be out of credit; this floor still turns the real
+        sample into bounded, checkable actions. Zero tokens, zero network.
+        """
+        from .behavior_journeys import build_journey_report
+        from .visitor_advice import build_visitor_advice
+
+        # Build the sample inline: _memo_http's single-flight lock is a plain
+        # Lock, so calling behavior_journeys() (which takes the same lock)
+        # from inside this builder would deadlock the admin route.
+        return self._memo_http(
+            "visitor_advice", 5.0,
+            lambda: build_visitor_advice(build_journey_report(self.workspace), self.workspace),
+        )
+
     def stats(self) -> dict[str, Any]:
         """The read-only operational inventory for ``/api/stats``.
 

@@ -546,15 +546,42 @@ export async function openAdmin() {
         howEl.innerHTML = `${esc(t("admin.journeysHow"))} <code>${esc(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
       }
     }
+    // M8-T1292: the same measured sample, turned into concrete fixes without
+    // spending a token. The model oracle below stays optional; this floor is
+    // always available, including when the upstream account has no credit.
+    function renderAdvice(advice) {
+      const box = $("#adminJourneysAdvice");
+      if (!box) return;
+      const text = zh() ? advice?.zh : advice?.en;
+      if (!advice?.live || !text || !text.moves?.length) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      const bodyEl = $("#adminJourneysAdviceBody");
+      const movesEl = $("#adminJourneysAdviceMoves");
+      const focus = t(`admin.adviceFocus.${advice.focus}`);
+      if (bodyEl) bodyEl.innerHTML = `<strong>${esc(focus)}</strong> ${esc(text.narrative)}`;
+      if (movesEl) {
+        movesEl.innerHTML = text.moves.map((move, index) =>
+          `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong>` +
+          `<span><em class="admin-brief-pending">${esc(t("admin.adviceEvidence"))} ${esc(move.evidence || "")}</em>` +
+          `<br/>${esc(t("admin.adviceAction"))}：${esc(move.action || "")}` +
+          `<br/>${esc(t("admin.adviceAccept"))}：${esc(move.accept || "")}</span></li>`).join("");
+      }
+    }
+    function loadAdvice() {
+      requestJson("/api/visitor-advice", {}, 20000).catch(() => null).then(renderAdvice);
+    }
     const journeysRefresh = $("#adminJourneysRefresh");
     if (journeysRefresh) {
       journeysRefresh.addEventListener("click", () => {
         const factsEl = $("#adminJourneysFacts");
         if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeysPending"))}</p>`;
-        requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => renderJourneys(report, true));
+        requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => { renderJourneys(report, true); loadAdvice(); });
       });
     }
-    requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => renderJourneys(report, false));
+    requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => { renderJourneys(report, false); loadAdvice(); });
 
     // M8-T1289b: the visitor oracle is user-initiated on purpose — reading a
     // sample costs tokens and this panel opens many times a day. First click

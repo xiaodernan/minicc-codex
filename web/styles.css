@@ -5935,6 +5935,10 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .admin-journey-how { color: var(--quiet); font: 10px var(--font-mono, ui-monospace, monospace); line-height: 1.7; margin: 6px 0 0; overflow-wrap: anywhere; }
 .admin-journey-how code { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 5px; color: var(--mint); padding: 1px 5px; }
 
+.admin-visitor-advice { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 10px; }
+.admin-visitor-advice[hidden] { display: none; }
+.admin-visitor-advice-body { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 4px 0 8px; }
+.admin-visitor-advice-body strong { color: var(--mint); }
 .admin-journey-oracle { border-top: 1px dashed var(--line); display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; }
 .admin-journey-oracle[hidden] { display: none; }
 .admin-journey-oracle-btn { align-self: start; background: var(--surface-raised); border: 1px solid color-mix(in srgb, var(--mint) 45%, var(--line)); border-radius: 8px; color: var(--text); cursor: pointer; font: 600 11px var(--font-mono, ui-monospace, monospace); padding: 7px 12px; transition: border-color .18s, color .18s; }

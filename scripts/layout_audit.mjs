@@ -125,7 +125,9 @@ async function auditPage(page, locale, viewport) {
 
     // 2. Garbage literals and unresolved keys in visible chrome.
     const garbage = /NaN|undefined|\[object Object\]|\bnull\b/;
-    const unresolved = /\b(admin|manual|nav|tooltips|session|monitor|oracle)\.[a-zA-Z][\w.]*\b/;
+    // File names in advice copy (web/src/panels/admin.js) are legitimate;
+    // only dictionary-style keys count as unresolved UI strings.
+    const unresolved = /\b(admin|manual|nav|tooltips|session|monitor|oracle)\.(?!js\b|mjs\b|css\b)[a-zA-Z][\w.]*\b/;
     for (const el of document.querySelectorAll("body *")) {
       if (!visible(el)) continue;
       if (el.matches(SCROLL_EXEMPT) || el.closest(SCROLL_EXEMPT)) continue;

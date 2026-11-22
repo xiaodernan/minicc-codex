@@ -118,6 +118,15 @@ async function checkMode(locale, expectCjk) {
     assert.ok(walkText.includes("→"), "a rendered walk must show its from → to direction");
     assert.ok(!/admin\.journey/i.test(walkText), "walk list must never render a raw i18n key");
   }
+  // M8-T1292: rule-derived fixes are visible only when a real sample exists;
+  // an empty log legitimately hides the tile. When shown, every move must
+  // carry evidence, an action and an acceptance check — never a raw key.
+  const adviceBox = page.locator("#adminJourneysAdvice");
+  if (await adviceBox.isVisible()) {
+    const adviceText = `${await page.locator("#adminJourneysAdviceBody").innerText()} ${await page.locator("#adminJourneysAdviceMoves").innerText()}`.trim();
+    assert.ok(adviceText.length > 20, "advice tile must carry substantive measured moves");
+    assert.ok(!/admin\.advice/i.test(adviceText), "advice tile must never render a raw i18n key");
+  }
 
   await page.waitForFunction(() => {
     const el = document.querySelector("#adminDiagnosisBody");
