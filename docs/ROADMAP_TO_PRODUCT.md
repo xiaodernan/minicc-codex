@@ -56634,3 +56634,41 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 `unresolved-i18n` 的六个命名空间（`scripts/layout_audit.mjs:186`）还是手抄的。这一批量了字典真实有 71 个命名空间；直接换成派生名单会把 `minicc/changes.py` 这种真文件名读成未解析的键——`changes` 正好是字典里的一个命名空间，而这条规则的负向断言只豁免 js/mjs/css 三种扩展名。所以下一批的顺序是先把扩展名豁免表覆盖到 `welded` 已经认识的那一整套（并回答 `.pyx` 这种「扩展名后还有字母」的形状），再谈派生名单。第二件：夹具只在桌面视口跑，变更面板在 1280 还看得见、390 看不见，窄视口里的变更行仍没人测。第三件：`/api/changes` 若超过 30 秒没交出文件，规则 6 报的是 `fixture-row-missing`，报告和「工作区里真的没有这一行」用的是同一条词——超时和缺席分开，是这条规则自己的下一次演进。
 
+## 批次 1207 · M8-T1302: 未解析键的门只认六个命名空间，而字典有七十一个
+
+### 缺什么
+
+`unresolved-i18n` 问的是「字典里的键有没有原样漏到屏幕上」，但它认得的命名空间是手抄的六个（`admin|manual|nav|tooltips|session|monitor|oracle`）。真实字典 `web/src/core/i18n.js` 有 71 个——第六个之后的任何一次漏键，这条以「未解析」命名的门都看不见，而且它照样报 PASS。批次 1205 已经给 `welded` 换过口径（问形状而不是认名字），同批的边界写的下一步就是「先把扩展名豁免表覆盖全，再谈派生名单」。
+
+豁免本身也是猜的：它只认两条 token 线索——「尾巴是已知扩展名」「前面出现过斜杠」。这两条在变更行上都失效，因为应用把路径切成 `web/`、`src/`、`composer.send` 三段显示，最后那一段既没有斜杠，尾巴也不是已知扩展名。这一段是实测撞出来的，不是推想出来的：名单一旦派生加宽，全量走查立刻红了 4 条，全部点在 `composer.send` 上。
+
+### 做了什么
+
+- 命名空间名单改为从字典派生（`scripts/layout_audit.mjs:162` 的 `dictionaryNamespaces()`），本次量到 71 个；读出来不足 40 个就抛错「读数的人瞎了」，而不是拿着空名单报白卷。
+- 豁免从 token 改成作用域，并且精确到段：`pathSegments()` 取该行 `data-open-diff` / `data-file` 上的路径，按分隔符切成段（`scripts/layout_audit.mjs:243`），只有当匹配串本身就是其中一段，才算文件名。
+- 为什么不能整行豁免：同一个变更行还渲染 `t("changes.now")`（`web/src/chat/stream.js:912`）——真实漏键恰好落在路径旁边。整行豁免会把它一起放过，按段豁免会报（arm E2 两条都实测了）。
+- 夹具从 2 个证人扩到 4 个，规则 6 从「认一个文件」改成「整份名单逐一点名」（`scripts/layout_audit.mjs:106`、`scripts/layout_audit.mjs:358`）：面板目录里那份被改过的（`scripts/layout_audit.mjs:95`）、docs 里那份从未提交过的（`scripts/layout_audit.mjs:96`）、工作区根目录上一份改过两行的 `.py`、以及一份名字长得就像字典键的未跟踪文件（`scripts/layout_audit.mjs:103`）——这四份只活在那个一次性仓库里，所以这里不写它们的路径，写了就是悬空引用。缺哪个，规则 6 就指名哪个。
+- 夹具走查从只有桌面扩到桌面 + 笔记本两个视口、中英两种语言（`scripts/layout_audit.mjs:418`），等待条件同步改成「整份名单都出现」，缺席不再靠 30 秒超时才被发现。
+- `welded` 的扩展名换成一份 42 项的表（`scripts/layout_audit.mjs:152`），并回答批次 1205 留下的 `.pyx` 形状问题：不在表里的尾巴，规则不声称认识。旧表只认 20 种尾巴，新表是它的超集（实测：旧的 20 项一项没丢）。
+
+### 证据与门
+
+- 名单与形状都是量出来的：`dictionaryNamespaces()` 得 71 个命名空间；`git ls-files` 1182 个跟踪文件有 18 种尾巴，15 种已在表内，表外三种是 `inx`、`properties`、`example`；「扩展名后还有字母」这一形状在本仓库只有 `json`（以 `js` 开头）一例。`welded` 对 `admin.jsModified`、`changes.py已修改`、`app.min.js打开`、`guide.mdNext` 为真，对 `kernel.pyx已修改`、`data.parquet新增` 为假。
+- 全量走查（本机、本次）：`node scripts/layout_audit.mjs` 10 个 pass 全绿（zh/en × desktop/laptop/mobile 六次真实工作区 + zh/en × desktop/laptop 四次夹具），报告行 `fixture: 4 change row(s), workspace removed`。
+- 反向变异（手跑，驱动脚本在仓库外的 scratch，不入库；每条都读的是仓库里那份规则原文）：
+  - 第一次落地（派生名单 + token 豁免）在全量走查里红 4 条，两条 `unresolved-i18n`、两条 `unresolved-i18n-attribute`，点的都是那个名字像键的夹具文件——这条红是豁免改型的直接原因。
+  - A 蒙住作用域豁免 → 4 条红（同名）；豁免不是空转。
+  - B 换回六个手抄命名空间 → 同一份 DOM 上 0 条；派生的名单真的在换东西。
+  - C 在顶栏按钮注入一个原始键 `atlas.milestone99` → 派生名单报 1 条红；同一注入在六个手抄名单下 0 条（对照组）。第 7 个之后的命名空间从此看得见。
+  - E2 在变更行里放一个真键 `changes.now` → 按段豁免报 1 条；对照组（整行豁免）把同一条放过。
+  - D 把读名单的正则换成永不匹配 → 门拒绝运行并报 `the dictionary yielded 0 namespaces - the reader went blind`，不是绿。
+  - E 把那份「名字长得像字典键」的夹具文件的写盘删掉（`scripts/layout_audit.mjs:133`）、跑完整门 → 4 个夹具 pass 各报一条 `fixture-row-missing`，点名缺席的那一个并把它旁边三个证人一起列出；审计脚本按 sha256 还原后复核一致（d3de87156efbb9d7）。
+- 门：`python scripts/pre_push_gates.py` 全绿；`npm run check:web` 产物未变（本批只动 `scripts/layout_audit.mjs`），`test:layout` 即上面那次全量走查。
+
+### 边界
+
+下一批接手三件：
+
+1. 超时和缺席还是同一条词。`/api/changes` 若 30 秒不交齐名单，等待条件被 `.catch` 咽下，规则 6 报的还是 `fixture-row-missing`——「我没等到」和「工作区里真没有这一行」打出来的字一模一样。这条从批次 1206 就挂着，现在多了一个证人也没有改变它。（承接批次 1206。）
+2. 按段豁免认的是「匹配串等于路径的一段」。`softPath()` 只是把 `/` 换成 `/<wbr>`（`web/src/chat/stream.js:875`），切出来的段是 `web`、`src`、`composer.send`，目录段带不上键名那种点。反过来，工作区里若真有一个目录或文件叫 `nav.home`，它的名字本身就是一段路径，按段豁免会把它当文件名放过——而 `nav.home` 真的漏键时也正是这个样子。要让这种放过也有证人，夹具里得放一个名字恰好等于某个字典键的文件，量出规则认不认输。
+3. 扩展名表还是手抄的 42 项，而它服务的是「认识哪些尾巴」这个问题。本仓库 18 种尾巴里 3 种不在表内；表该不该改成从 `git ls-files` 派生（并回答 `.min.js` 这种一段里两个点），是这条规则自己的下一次演进。

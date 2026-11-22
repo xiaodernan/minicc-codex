@@ -32,7 +32,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,6 +94,16 @@ async function startServer(workspace = REPO) {
 // test is about an extension running straight into the next word.
 const FIXTURE_MODIFIED = join("web", "src", "panels", "changes_fixture.js");
 const FIXTURE_ADDED = join("docs", "fixture_guide.md");
+// Two more, for the other question: is a dotted thing a file name or a leaked
+// dictionary key? They are the two shapes the answer has to cover. `changes.py` is a
+// whole path whose last segment *is* the dotted name; `web/src/composer.send` is a
+// dotted name the row shows as the tail of a longer path. Neither tail is a known
+// extension, so the extension table cannot save either one - the row's own path can.
+const FIXTURE_ROOT_PY = "changes.py";
+const FIXTURE_KEY_LIKE = join("web", "src", "composer.send");
+// Every row the fixture promises to render, by basename. Rule 6 requires the whole
+// roster on screen: a witness that quietly stopped showing up is not a clean sheet.
+const FIXTURE_ROSTER = ["changes_fixture.js", "fixture_guide.md", "changes.py", "composer.send"];
 const FIXTURE_BASELINE = "export const rows = [\n  'alpha',\n  'beta',\n  'gamma',\n];\n";
 const FIXTURE_EDITED = "export const rows = [\n  'alpha',\n  'beta renamed',\n  'gamma',\n];\nexport const total = rows.length;\n";
 
@@ -114,10 +124,13 @@ function makeFixtureWorkspace() {
   mkdirSync(dirname(join(root, FIXTURE_MODIFIED)), { recursive: true });
   mkdirSync(dirname(join(root, FIXTURE_ADDED)), { recursive: true });
   writeFileSync(join(root, FIXTURE_MODIFIED), FIXTURE_BASELINE, "utf-8");
+  writeFileSync(join(root, FIXTURE_ROOT_PY), "VERSION = 1\n", "utf-8");
   git(root, ["add", "-A"]);
   git(root, ["commit", "-q", "-m", "layout audit fixture baseline"]);
   writeFileSync(join(root, FIXTURE_MODIFIED), FIXTURE_EDITED, "utf-8");
+  writeFileSync(join(root, FIXTURE_ROOT_PY), "VERSION = 2\n", "utf-8");
   writeFileSync(join(root, FIXTURE_ADDED), "# fixture guide\n\nA row the workspace never committed.\n", "utf-8");
+  writeFileSync(join(root, FIXTURE_KEY_LIKE), "composer send\n", "utf-8");
   return root;
 }
 
@@ -131,6 +144,33 @@ function removeFixtureWorkspace(root) {
     return `left behind: ${error.message}`;
   }
 }
+
+// The extensions `welded` (rule 2b) claims to know, measured against this repository:
+// 1182 tracked files have 18 distinct tails and 15 of them are listed here. A tail that
+// is not listed — `kernel.pyx`, `data.parquet` — is not claimed, and the rule says so
+// by staying quiet instead of guessing that a word is an extension.
+const FILE_EXTENSIONS = [
+  "js", "mjs", "cjs", "json", "jsonl", "css", "md", "py", "rb", "ts", "tsx", "jsx",
+  "yml", "yaml", "html", "txt", "sh", "go", "rs", "java", "csv", "toml", "ini",
+  "sql", "svg", "png", "jpg", "jpeg", "gif", "ico", "webp", "woff", "woff2", "ttf",
+  "xml", "log", "lock", "patch", "ps1", "bat", "gradle", "jar",
+];
+
+// The namespaces the dictionary actually ships. This rule used to carry six of them
+// by hand while the dictionary had 71, so a raw key leaking under any other namespace
+// was invisible to the very gate named after it.
+function dictionaryNamespaces() {
+  const source = readFileSync(resolve(REPO, "web", "src", "core", "i18n.js"), "utf-8");
+  const names = new Set();
+  for (const match of source.matchAll(/["']([a-z][a-z0-9]*)\.[A-Za-z0-9_.]+["']\s*:/g)) names.add(match[1]);
+  if (names.size < 40) {
+    throw new Error(`the dictionary yielded ${names.size} namespaces - the reader went blind, `
+      + "and a rule that matches nothing passes by construction");
+  }
+  return [...names].sort();
+}
+
+const NAMESPACES = dictionaryNamespaces();
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 960 },
@@ -150,7 +190,7 @@ const SCROLL_EXEMPT = [
 ];
 
 async function auditPage(page, locale, viewport, { fixture = false } = {}) {
-  return page.evaluate(({ locale, viewport, SCROLL_EXEMPT, fixture }) => {
+  return page.evaluate(({ locale, viewport, SCROLL_EXEMPT, fixture, NAMESPACES, FILE_EXTENSIONS, FIXTURE_ROSTER }) => {
     const findings = [];
     const label = `${locale}/${viewport}`;
     const bad = (kind, where, snippet, detail = "") =>
@@ -181,35 +221,60 @@ async function auditPage(page, locale, viewport, { fixture = false } = {}) {
 
     // 2. Garbage literals and unresolved keys in visible chrome.
     const garbage = /NaN|undefined|\[object Object\]|\bnull\b/;
-    // File names in advice copy (web/src/panels/admin.js) are legitimate;
-    // only dictionary-style keys count as unresolved UI strings.
-    const unresolved = /\b(admin|manual|nav|tooltips|session|monitor|oracle)\.(?!js\b|mjs\b|css\b)[a-zA-Z][\w.]*\b/;
-    // 2b. A file name welded into the next word — "web/src/panels/admin.jsModified"
-    // — is not a sentence. The exemption above only knows six basenames, so it
-    // reports such a tooltip by luck of which file happens to be dirty; this rule
-    // asks a shape question instead: no extension may run straight into a capital
-    // letter or a CJK glyph without a separator between them.
-    const welded = /\.(js|mjs|cjs|css|json|jsonl|md|py|rb|ts|tsx|jsx|yml|yaml|html|txt|sh|go|rs|java)(?=[A-Z\u4e00-\u9fff])/;
+    const EXT = FILE_EXTENSIONS.join("|");
+    // 2a. A dictionary key that reached the screen as itself: a namespace the shipped
+    //     dictionary knows, a dot, then a word. The namespace list is derived from
+    //     web/src/core/i18n.js; it used to be six names copied into this file while the
+    //     dictionary carried 71, so a leak under any other namespace was invisible to
+    //     the very gate named after it.
+    //
+    //     The widened list immediately disagreed with the product about
+    //     `web/src/composer.send`, which proves the exemption cannot be a token test:
+    //     a change row shows its path split into runs (`web/` `src/` `composer.send`),
+    //     so the run holding the file name has no slash in it and `send` is not a known
+    //     extension. What does know it is a file name is the DOM — the app only sets
+    //     `data-open-diff` / `data-file` on a row it built from a git path — so the
+    //     exemption is scope: the row carries the path it was built from, and only a
+    //     token that is one of that path's own segments counts as a file name. Scope
+    //     has to be per segment, not per row, because the same row also renders
+    //     `changes.now` — a real key, in a real path's neighbourhood, which an
+    //     amnesty for the whole row would have hidden.
+    const leakedKey = new RegExp("\\b(" + NAMESPACES.join("|") + ")\\.[a-zA-Z][\\w.]*", "g");
+    const pathSegments = (el) => {
+      const row = el.closest("[data-open-diff], [data-file]");
+      if (!row) return [];
+      const path = row.getAttribute("data-open-diff") || row.getAttribute("data-file") || "";
+      return path.split(/[\\/]/);
+    };
+    // 2b. A file name welded into the next word — "web/src/panels/admin.jsModified" is
+    //     not a sentence. Shape question: no known extension may run straight into a
+    //     capital letter or a CJK glyph without a separator between them.
+    const welded = new RegExp("\\.(" + EXT + ")(?=[A-Z\u4e00-\u9fff])");
+    const scan = (text, where, kinds, el) => {
+      if (!text) return;
+      if (garbage.test(text)) bad(kinds.garbage, where, text);
+      if (welded.test(text)) bad("welded-filename-label", where, text);
+      const segments = pathSegments(el);
+      for (const match of text.matchAll(leakedKey)) {
+        if (segments.includes(match[0])) continue;
+        bad(kinds.unresolved, where, text, `a dictionary key printed as itself: ${match[0]}`);
+      }
+    };
     for (const el of document.querySelectorAll("body *")) {
       if (!visible(el)) continue;
       if (el.matches(SCROLL_EXEMPT) || el.closest(SCROLL_EXEMPT)) continue;
       for (const node of el.childNodes) {
         if (node.nodeType !== 3) continue;
-        const text = (node.nodeValue || "").trim();
-        if (!text) continue;
-        if (garbage.test(text)) bad("garbage-literal", describe(el), text);
-        if (unresolved.test(text)) bad("unresolved-i18n", describe(el), text);
-        if (welded.test(text)) bad("welded-filename-label", describe(el), text);
+        scan((node.nodeValue || "").trim(), describe(el),
+          { garbage: "garbage-literal", unresolved: "unresolved-i18n" }, el);
       }
       for (const attr of ["placeholder", "title", "aria-label", "alt"]) {
         const value = el.getAttribute(attr);
         if (!value) continue;
-        if (garbage.test(value)) bad("garbage-attribute", `${describe(el)}[${attr}]`, value);
-        if (unresolved.test(value)) bad("unresolved-i18n-attribute", `${describe(el)}[${attr}]`, value);
-        if (welded.test(value)) bad("welded-filename-label", `${describe(el)}[${attr}]`, value);
+        scan(value.trim(), `${describe(el)}[${attr}]`,
+          { garbage: "garbage-attribute", unresolved: "unresolved-i18n-attribute" }, el);
       }
     }
-
     // 3. Text clipped inside its own box. Only leaf-ish chrome elements are
     //    measured: a wrapper intentionally clipping an animated stage is not a
     //    clipped label. Hidden overflow + real horizontal loss + text = defect.
@@ -274,15 +339,25 @@ async function auditPage(page, locale, viewport, { fixture = false } = {}) {
     // 6. Fixture pass only: the witness has to be in the room. Every rule above
     //    measures what happens to be on screen, so a pass that rendered no change
     //    rows would report a clean sheet for having looked at nothing. The fixture
-    //    exists to make that impossible: its own file name must be on screen, and
-    //    the app must have auto-titled the row that carries it.
+    //    exists to make that impossible: each of its files must be on screen, and the
+    //    app must have auto-titled the row that carries them.
+    //
+    //    The roster is not one row but four, because rule 2's two exemptions each need
+    //    their own witness: `changes.py` only survives the namespace sweep through the
+    //    shared extension table, and `web/src/composer.send` only survives it through
+    //    the path test. If either witness stops rendering, the corresponding exemption
+    //    becomes a rule that matches nothing — so a missing roster entry is reported as
+    //    the ruler's own failure, never as a clean sheet.
     if (fixture) {
       const rows = [...document.querySelectorAll("#changeList .change-item-button, #fileList .file-row")]
         .filter(visible);
       const named = rows.map((el) => el.getAttribute("data-open-diff") || el.getAttribute("data-file") || "");
-      if (!named.some((path) => /changes_fixture\.js/.test(path))) {
-        bad("fixture-row-missing", "#changeList", named.join(" ") || "(no rows)",
-          "the edited fixture file never rendered, so the change-list rules measured nothing");
+      const seen = new Set(named.map((path) => path.split(/[\\/]/).pop()));
+      for (const want of FIXTURE_ROSTER) {
+        if (!seen.has(want)) {
+          bad("fixture-row-missing", "#changeList", named.join(" ") || "(no rows)",
+            `the fixture file ${want} never rendered, so the change-list rule it witnesses measured nothing`);
+        }
       }
       const titled = rows.filter((el) => el.getAttribute("data-auto-title") === "true"
         && (el.getAttribute("title") || "").trim());
@@ -293,7 +368,7 @@ async function auditPage(page, locale, viewport, { fixture = false } = {}) {
     }
 
     return findings;
-  }, { locale, viewport, SCROLL_EXEMPT, fixture });
+  }, { locale, viewport, SCROLL_EXEMPT, fixture, NAMESPACES, FILE_EXTENSIONS, FIXTURE_ROSTER });
 }
 
 async function openApp(browser, url, locale, viewport, onPageError) {
@@ -338,24 +413,28 @@ async function main() {
     try {
       fixtureServer = await startServer(fixtureRoot);
       for (const locale of LOCALES) {
-        const viewport = VIEWPORTS[0];
-        const page = await openApp(browser, fixtureServer.url, locale, viewport,
-          (e) => report.jsErrors.push(`${locale}/fixture: ${e.message}`));
-        // The rows come from /api/changes, which shells out to git; wait for the
-        // fixture's own file rather than a fixed sleep, then for the observer that
-        // titles newly rendered buttons (it debounces at 200ms).
-        await page.waitForFunction(() =>
-          [...document.querySelectorAll("#changeList [data-open-diff]")]
-            .some((el) => /changes_fixture\.js/.test(el.getAttribute("data-open-diff") || "")),
-        null, { timeout: 30000 }).catch(() => { /* rule 6 reports the absence */ });
-        await page.waitForTimeout(600);
-        const findings = await auditPage(page, locale, "fixture", { fixture: true });
-        const rows = await page.evaluate(() => [...document.querySelectorAll("#changeList .change-item-button")]
-          .map((el) => el.getAttribute("data-open-diff")).filter(Boolean));
-        report.viewports.push(`${locale}/fixture`);
-        report.findings.push(...findings);
-        report.fixture = { workspace: fixtureRoot, rows, cleanup: null };
-        await page.close();
+        // Desktop and laptop: the change list scrolls on a phone but is fully on
+        // screen above 800px, and a witness is only a witness where the rule reads it.
+        for (const viewport of [VIEWPORTS[0], VIEWPORTS[1]]) {
+          const page = await openApp(browser, fixtureServer.url, locale, viewport,
+            (e) => report.jsErrors.push(`${locale}/${viewport.name}/fixture: ${e.message}`));
+          // The rows come from /api/changes, which shells out to git; wait for every
+          // fixture file by name rather than a fixed sleep, then for the observer that
+          // titles newly rendered buttons (it debounces at 200ms).
+          await page.waitForFunction((roster) => {
+            const seen = new Set([...document.querySelectorAll("#changeList [data-open-diff], #fileList [data-file]")]
+              .map((el) => (el.getAttribute("data-open-diff") || el.getAttribute("data-file") || "").split(/[\\/]/).pop()));
+            return roster.every((want) => seen.has(want));
+          }, FIXTURE_ROSTER, { timeout: 30000 }).catch(() => { /* rule 6 reports the absence */ });
+          await page.waitForTimeout(600);
+          const findings = await auditPage(page, locale, `${viewport.name}/fixture`, { fixture: true });
+          const rows = await page.evaluate(() => [...document.querySelectorAll("#changeList .change-item-button")]
+            .map((el) => el.getAttribute("data-open-diff")).filter(Boolean));
+          report.viewports.push(`${locale}/${viewport.name}/fixture`);
+          report.findings.push(...findings);
+          report.fixture = { workspace: fixtureRoot, rows, cleanup: null };
+          await page.close();
+        }
       }
     } finally {
       if (fixtureServer) fixtureServer.stop();
