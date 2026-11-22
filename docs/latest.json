@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T08:14:25.479Z",
+  "generated_at": "2026-11-22T08:15:06.573Z",
   "branch": "main",
-  "head": "a28450e",
-  "total_commits": 2108,
+  "head": "9f0bcac",
+  "total_commits": 2109,
   "recent_commits": [
+    {
+      "short": "9f0bcac4",
+      "at": "2026-11-22T16:14:31+08:00",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "a28450e0",
       "at": "2026-11-22T16:12:37+08:00",
@@ -24,11 +29,6 @@
       "short": "06781818",
       "at": "2026-11-22T07:18:25Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a426be9a",
-      "at": "2026-11-22T15:17:50+08:00",
-      "subject": "M8-T1289d: teaching tooltips and prompt stop stating stale world counts"
     }
   ],
   "first_commit_at": "2026-08-24",
