@@ -56219,3 +56219,26 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 探针不进 CI（要浏览器、要服务、要真实墙钟），本机手跑；它产生的日志在 gitignore 的 `.minicc/` 下，绝不入库——空日志的面板会说"还没跑过"，不会拿别人的数字冒充自己的。
 - 不碰任何模型调用、缓存、状态流转代码；一次采集零 token、零网关请求。
 - 只聚合，不推断因果：面板给的是分布与退出去向，不给「因为 X 所以卸载」这种没有证据的结论。
+
+
+## 批次 1190 · M8-T1289b: 让模型读这批旅程 —— req #9「根据数据给出深度优化措施」闭环
+
+### 缺什么
+- 批次 1189 把「真实用户行为」采到了：15 段真浏览器旅程、跳出率 0.333、停留中位 7,908 ms、狂点 3 次。但那只是计数。req #9 的最后一句是「根据这些数据给出下一步应该采取的深度优化措施」——数据有了，判断没有；模型完全不知道存在这批旅程。
+
+### 做了什么
+- 新增 `minicc/oracle_visitors.py`：`build_visitor_insight()` 把样本聚合进有界快照（sample_size / bounce_rate / median_dwell_ms / median_boot_ms / rage_sessions / page_errors / 每 persona 一行 / exit_views / known_views），要求模型返回 `focus`（time-to-clickable｜navigation｜feedback｜content 之一）+ `zh/en` 各一句研判 + 至多四条措施，每条都要带动作与验收标准。
+- **反幻觉白名单**：快照里带 `known_files`（从磁盘真读：web/index.html、web/styles.css、web/src/main.js、web/src/core/i18n.js + web/src/panels 下 14 个真实模块）与 `known_commands`（build:web / check:web / behavior_sim / python -m minicc.web）。提示词明确：点名的文件只能来自 known_files，命令只能来自 known_commands，指不到具体文件就写选择器。第一次真实调用就抓到模型编造了一个 `web/src/panels/` 下并不存在的 landing 模块——加白名单后复跑，四条措施全部落在真文件与真命令上。
+- 纪律：日志为空零 token（回 no-signal 双语，按钮也不出现）；不可解析 fail-closed；模型失败 `live:false` 不 raise；memo 按样本签名 `total:window.end` 失效——重跑一次采集不会读到上一批的意见。
+- `webserver.py` 加 `GET /api/oracle-visitors`（限流 key oracle-visitors、`?fresh=1` 绕 memo、限流与异常返回与 live 同形状）；管理员访客卡底部加「让模型读这批旅程」按钮（仅在有旅程时出现，用户手动触发），渲染焦点徽标 + 研判句 + 四条措施 + 样本 n 与置信带 + token 脚注；中英各 11 键；说明书补一句「一次读取只花一次 token」。
+
+### 证据与门
+- 真实 API（gpt-6.2-sol @ aizzz.xyz/v1，走 Clash 7897）：模块级 `live=True`、`focus=navigation`、narrative 引用真实读数（跳出 0.333、landing 占 0.6），四条措施落在 web/index.html、web/src/main.js、web/src/panels/dockyard.js 与 `npm run check:web`；usage prompt 5,276 / completion 878 / cached 4,171（79.1%）。
+- 真浏览器（1440×960，中文）：123 解锁 → 访客卡显示 15 段 / 33% / 7,908 ms / 1,057 ms / 狂点 3 / 页面错误 0 → 点按钮 → 徽标「首要问题 · 导航迷路」+ 四条措施 + token 脚注，零 pageerror。
+- pytest：`tests/test_oracle_visitors.py` 8 项（空日志零调用 / 证据入 prompt / 双语与样本 / focus 越界 fail-closed / 不可解析诚实 outage / 模型失败不 raise / memo 复用 / 新样本使 memo 失效）；test_http_surface 加端点 outage 形状并纳入 429 形状族，10 passed。
+- i18n 字典 921 键双语一致、286 处 t() 全解析；`npm run build:web` + `check:web` 绿；admin_smoke、en_cjk 绿。
+
+### 边界
+- 手动触发，绝不自动研判：面板一天开很多次，自动调模型就是烧 token。按钮只在真有样本时出现。
+- 只读建议：不自动改代码、不自动派任务；措施由用户决定做不做。
+- 样本不足时面板标「样本偏薄 · 只作方向参考」，模型看到的快照里也带 confidence——不让三次会话的跳出率冒充产品结论。

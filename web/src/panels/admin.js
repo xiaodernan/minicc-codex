@@ -486,8 +486,12 @@ export async function openAdmin() {
         if (personasEl) personasEl.innerHTML = "";
         if (exitsEl) exitsEl.innerHTML = "";
         if (howEl) howEl.innerHTML = `${esc(t("admin.journeysHow"))} <code>${esc(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
+        const oracleEl = $("#adminJourneysOracle");
+        if (oracleEl) oracleEl.hidden = true; // nothing to diagnose yet — do not offer a paid read
         return;
       }
+      const oracleEl = $("#adminJourneysOracle");
+      if (oracleEl) oracleEl.hidden = false;
       const bandKey = {
         thin: "admin.journeysConfidenceThin",
         usable: "admin.journeysConfidenceUsable",
@@ -539,6 +543,73 @@ export async function openAdmin() {
       });
     }
     requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => renderJourneys(report, false));
+
+    // M8-T1289b: the visitor oracle is user-initiated on purpose — reading a
+    // sample costs tokens and this panel opens many times a day. First click
+    // rides the memo; a second click asks for a fresh reading.
+    let journeyOracleRead = false;
+    function renderVisitorOracle(reading) {
+      const bodyEl = $("#adminJourneysOracleBody");
+      const movesEl = $("#adminJourneysOracleMoves");
+      const usageEl = $("#adminJourneysOracleUsage");
+      const btn = $("#adminJourneysOracleBtn");
+      if (btn) btn.textContent = t(journeyOracleRead ? "admin.journeyOracleReread" : "admin.journeyOracleRun");
+      if (!reading || reading.live === false) {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeyOracleOutage"))}</p>`;
+        if (movesEl) movesEl.innerHTML = "";
+        if (usageEl) usageEl.textContent = reading?.error ? `error: ${String(reading.error).slice(0, 140)}` : "";
+        return;
+      }
+      if (reading.verdict === "no-signal") {
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeyOracleNoSignal"))}</p>`;
+        if (movesEl) movesEl.innerHTML = "";
+        if (usageEl) usageEl.textContent = zh() ? "零信号 · 模型未被调用" : "zero-signal · model not called";
+        return;
+      }
+      const side = zh() ? (reading.zh || {}) : (reading.en || {});
+      const rawFocus = t(`admin.journeyOracleFocus.${reading.focus}`);
+      const focusLabel = typeof rawFocus === "string" && rawFocus && !rawFocus.startsWith("admin.")
+        ? rawFocus
+        : t("admin.journeyOracleFocus.unknown");
+      const sample = reading.sample || {};
+      if (bodyEl) {
+        bodyEl.innerHTML =
+          `<p class="admin-journey-oracle-badge">${esc(focusLabel)}</p>` +
+          `<p class="admin-brief-text">${esc(side.narrative || "")}</p>` +
+          `<p class="admin-journey-band">${esc(t("admin.journeyOracleSample"))} n=${esc(String(sample.total ?? "—"))} · ${esc(String(sample.confidence || "—"))}</p>`;
+      }
+      const moves = Array.isArray(side.moves) ? side.moves : [];
+      if (movesEl) {
+        movesEl.innerHTML = moves
+          .map((move, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc(String(move))}</span></li>`)
+          .join("");
+      }
+      if (usageEl) {
+        const u = reading.usage || {};
+        const cached = u.cached_tokens != null ? (zh() ? ` · 缓存命中 ${u.cached_tokens}` : ` · cached ${u.cached_tokens}`) : "";
+        usageEl.textContent = zh()
+          ? `tokens：prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}`
+          : `tokens: prompt ${u.prompt_tokens ?? "—"} · completion ${u.completion_tokens ?? "—"}${cached}`;
+      }
+    }
+    const visitorOracleBtn = $("#adminJourneysOracleBtn");
+    if (visitorOracleBtn) {
+      visitorOracleBtn.addEventListener("click", () => {
+        const bodyEl = $("#adminJourneysOracleBody");
+        const movesEl = $("#adminJourneysOracleMoves");
+        const usageEl = $("#adminJourneysOracleUsage");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeyOraclePending"))}</p>`;
+        if (movesEl) movesEl.innerHTML = "";
+        if (usageEl) usageEl.textContent = "";
+        const suffix = journeyOracleRead ? "?fresh=1" : "";
+        requestJson(`/api/oracle-visitors${suffix}`, {}, 45000)
+          .catch(() => null)
+          .then((reading) => {
+            journeyOracleRead = true;
+            renderVisitorOracle(reading);
+          });
+      });
+    }
 
     // Live workspace diagnosis — same pattern, pointed at the triage snapshot.
     function renderDiagnosis(diagnosis, refreshed) {

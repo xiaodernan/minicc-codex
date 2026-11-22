@@ -806,6 +806,37 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                             "en": dict(_trend_empty),
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
             return
+        if path == "/api/oracle-visitors":
+            # M8-T1289b: the model reads the synthetic visitor sample (real
+            # headless sessions) and names the top obstacle plus verifiable
+            # fixes. Empty log costs zero tokens; unreachable model is live:false.
+            _visitors_empty = {"narrative": "", "moves": []}
+
+            def _visitors_denied(meta):
+                return {"live": False, "verdict": "rate-limited", "focus": "unknown",
+                        "zh": dict(_visitors_empty), "en": dict(_visitors_empty),
+                        "error": "rate limit exceeded; retry shortly", "rate_limited": True,
+                        "retry_after_seconds": int(meta.get("window_seconds", 60) or 60)}
+
+            try:
+                allowed, rmeta = _oracle_rate_limited(self, "oracle-visitors")
+                if not allowed:
+                    self._json(_visitors_denied(rmeta))
+                    return
+                from .oracle_visitors import build_visitor_insight
+
+                query = parse_qs(parsed.query)
+                fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
+                self._json(build_visitor_insight(
+                    workspace=self.server.service.workspace,
+                    report=self.server.service.behavior_journeys(),
+                    force_refresh=fresh,
+                ))
+            except Exception as exc:  # noqa: BLE001 - the panel must never 500
+                self._json({"live": False, "verdict": "endpoint-error", "focus": "unknown",
+                            "zh": dict(_visitors_empty), "en": dict(_visitors_empty),
+                            "error": f"{type(exc).__name__}: {exc}"}, 200)
+            return
         if path == "/api/oracle-review":
             # The model as reviewer of this repo's own latest diff — real facts in,
             # bilingual review out; ?fresh=1 bypasses the memo; wire death honest.

@@ -1093,6 +1093,27 @@ def test_get_oracle_trend_never_500s(live: _LiveServer, monkeypatch) -> None:
     assert fresh[0] == 200
 
 
+def test_oracle_visitors_route_reports_an_honest_outage(live: _LiveServer, monkeypatch) -> None:
+    # M8-T1289b: the visitor analyst route answers even when the model is gone —
+    # live:false with the same zh/en shape the panel already knows, never a 500,
+    # never the api key.
+    import minicc.oracle_visitors as ov_mod
+
+    monkeypatch.setattr(ov_mod, "build_visitor_insight", lambda **kwargs: {
+        "live": False, "verdict": "model-unavailable", "focus": "unknown",
+        "zh": {"narrative": "", "moves": []}, "en": {"narrative": "", "moves": []},
+        "error": "model-unavailable: TimeoutError",
+    })
+    status, _, body = _request(f"{live.url}/api/oracle-visitors", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert payload["focus"] == "unknown"
+    assert payload["zh"]["moves"] == [] and payload["en"]["moves"] == []
+    assert "sk-" not in body.decode("utf-8", "replace")
+    assert _request(f"{live.url}/api/oracle-visitors?fresh=1", method="GET")[0] == 200
+
+
 def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(live: _LiveServer, monkeypatch) -> None:
     # M8-T1178: every gateway-calling route is behind the shared token bucket;
     # a denial must be an honest 200 payload (live=False, rate_limited=True),
@@ -1105,7 +1126,7 @@ def test_all_gateway_calling_oracles_answer_honest_429_shape_when_bucket_holds(l
         "/api/oracle-ci-diagnosis", "/api/oracle-audit-story",
         "/api/oracle-retrospective", "/api/oracle-review",
         "/api/oracle-plan", "/api/oracle-diagnosis",
-        "/api/oracle-brief", "/api/oracle-trend", "/api/provider-ping",
+        "/api/oracle-brief", "/api/oracle-trend", "/api/oracle-visitors", "/api/provider-ping",
     ]
     for route in routes:
         status, _, body = _request(f"{live.url}{route}", method="GET")
