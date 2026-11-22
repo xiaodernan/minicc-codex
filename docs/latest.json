@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T06:57:56.647Z",
+  "generated_at": "2026-11-22T07:18:24.824Z",
   "branch": "main",
-  "head": "e677f7d",
-  "total_commits": 2102,
+  "head": "a426be9",
+  "total_commits": 2104,
   "recent_commits": [
+    {
+      "short": "a426be9a",
+      "at": "2026-11-22T15:17:50+08:00",
+      "subject": "M8-T1289d: teaching tooltips and prompt stop stating stale world counts"
+    },
+    {
+      "short": "e24731db",
+      "at": "2026-11-22T06:57:56Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e677f7d1",
       "at": "2026-11-22T14:57:31+08:00",
@@ -19,22 +29,12 @@
       "short": "c396aeee",
       "at": "2026-11-22T14:03:59+08:00",
       "subject": "M8-T1289b: the model reads the visitor sample — req #9's last clause closed"
-    },
-    {
-      "short": "08abb421",
-      "at": "2026-11-22T05:45:17Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "474c35d6",
-      "at": "2026-11-22T13:44:45+08:00",
-      "subject": "M8-T1289: synthetic visitors — req #9's 'simulate real user behaviour' finally runs for real"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 518,
+  "roadmap_batches": 519,
   "changelog_entries": 26,
-  "roadmap_lines": 56268,
+  "roadmap_lines": 56288,
   "tracked_files": 1174,
   "test_files": 756,
   "almanac_chapters": 81,
