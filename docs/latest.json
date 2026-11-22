@@ -1,10 +1,15 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T08:15:06.573Z",
+  "generated_at": "2026-11-22T08:33:08.774Z",
   "branch": "main",
-  "head": "9f0bcac",
-  "total_commits": 2109,
+  "head": "6309377",
+  "total_commits": 2110,
   "recent_commits": [
+    {
+      "short": "63093778",
+      "at": "2026-11-22T16:32:24+08:00",
+      "subject": "M8-T1292: model-free visitor advice — measured fixes with evidence and acceptance checks, no token needed"
+    },
     {
       "short": "9f0bcac4",
       "at": "2026-11-22T16:14:31+08:00",
@@ -24,19 +29,14 @@
       "short": "a46f7e37",
       "at": "2026-11-22T15:56:09+08:00",
       "subject": "M8-T1290a: browser layout audit catches clipped breadcrumb and verifies six viewport/locale combinations"
-    },
-    {
-      "short": "06781818",
-      "at": "2026-11-22T07:18:25Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 522,
+  "roadmap_batches": 523,
   "changelog_entries": 26,
-  "roadmap_lines": 56361,
-  "tracked_files": 1178,
-  "test_files": 757,
+  "roadmap_lines": 56385,
+  "tracked_files": 1180,
+  "test_files": 758,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
