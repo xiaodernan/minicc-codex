@@ -36,6 +36,7 @@
     "test:stategraph": "node tests/stategraph_smoke.mjs",
     "test:admin": "node tests/admin_smoke.mjs",
     "test:layout": "node scripts/layout_audit.mjs",
+    "test:stress:credential": "node scripts/stress_credential_probe.mjs",
     "test:dazzle": "node tests/dazzle_smoke.mjs",
     "test:orbit": "node tests/orbit_smoke.mjs",
     "test:manual": "node tests/manual_smoke.mjs",
