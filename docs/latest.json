@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T05:45:17.533Z",
+  "generated_at": "2026-11-22T06:04:23.344Z",
   "branch": "main",
-  "head": "474c35d",
-  "total_commits": 2098,
+  "head": "c396aee",
+  "total_commits": 2100,
   "recent_commits": [
+    {
+      "short": "c396aeee",
+      "at": "2026-11-22T14:03:59+08:00",
+      "subject": "M8-T1289b: the model reads the visitor sample — req #9's last clause closed"
+    },
+    {
+      "short": "08abb421",
+      "at": "2026-11-22T05:45:17Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "474c35d6",
       "at": "2026-11-22T13:44:45+08:00",
@@ -19,24 +29,14 @@
       "short": "cf00e33d",
       "at": "2026-11-21T23:58:45+08:00",
       "subject": "M8-T1288: Orbit Beacon — a real second arcade game, req #6 first literal hit"
-    },
-    {
-      "short": "cebe4e12",
-      "at": "2026-11-21T15:25:22Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "eeee61af",
-      "at": "2026-11-21T23:24:21+08:00",
-      "subject": "M8-T1287: trend forecast now model-adjudicated — the last pure-rule slot in req #9 goes live"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 516,
+  "roadmap_batches": 517,
   "changelog_entries": 26,
-  "roadmap_lines": 56222,
-  "tracked_files": 1172,
-  "test_files": 755,
+  "roadmap_lines": 56245,
+  "tracked_files": 1174,
+  "test_files": 756,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
