@@ -54,8 +54,8 @@ function openArcadePicker() {
       <div class="picker-card" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
         <div class="orbit-actions"><button class="orbit-close icon-button" id="pickerClose" type="button" aria-label="Close">${oIcon("x")}</button></div>
         <div class="orbit-kicker" data-i18n="picker.kicker">MINICC ARCADE · 选择战场</div>
-        <h2 id="pickerTitle" data-i18n="picker.title">两片战场，随便挑</h2>
-        <p class="picker-sub" data-i18n="picker.sub">同一个街机，两种玩法。你的最佳分数都只存在本机。</p>
+        <h2 id="pickerTitle" data-i18n="picker.title">三片战场，随便挑</h2>
+        <p class="picker-sub" data-i18n="picker.sub">同一个街机，三种玩法。你的最佳分数都只存在本机。</p>
         <div class="picker-grid">
           <button class="picker-option" id="pickerLawn" type="button">
             <span class="picker-glyph">🌱</span>
@@ -67,6 +67,11 @@ function openArcadePicker() {
             <strong data-i18n="picker.orbit">轨道信标</strong>
             <small data-i18n="picker.orbitSub">旋转炮口、拦截碎片，波次无上限。</small>
           </button>
+          <button class="picker-option" id="pickerVault" type="button">
+            <span class="picker-glyph">▦</span>
+            <strong data-i18n="picker.vault">前缀密库</strong>
+            <small data-i18n="picker.vaultSub">守住有限槽位，用前缀命中率逼近 90%。</small>
+          </button>
         </div>
       </div>
     </div>`;
@@ -75,6 +80,7 @@ function openArcadePicker() {
     OPicker.querySelector("#pickerClose").addEventListener("click", closeArcadePicker);
     OPicker.querySelector("#pickerLawn").addEventListener("click", () => { closeArcadePicker(); window.closeGame?.(); window.openGame?.(); });
     OPicker.querySelector("#pickerOrbit").addEventListener("click", () => { closeArcadePicker(); window.closeGame?.(); openOrbit(); });
+    OPicker.querySelector("#pickerVault").addEventListener("click", () => { closeArcadePicker(); window.closeGame?.(); window.closeOrbit?.(); window.openVault?.(); });
     OPicker.addEventListener("click", (e) => { if (e.target === OPicker) closeArcadePicker(); });
     oRefresh(OPicker);
   }
@@ -233,7 +239,7 @@ function openOrbit() {
     orbitSetStatus(oT("orbit.ready"));
   }
 }
-function closeOrbit() {
+export function closeOrbit() {
   if (!O.modal) return;
   cancelAnimationFrame(O.raf);
   O.running = false;

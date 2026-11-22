@@ -5859,7 +5859,7 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .orbit-kicker { color: var(--coral); font: 12px var(--font-mono, monospace); letter-spacing: 1px; }
 .picker-card h2, .orbit-card h2 { font-size: 24px; letter-spacing: -.4px; margin: 8px 0 4px; }
 .picker-sub, .orbit-subtitle { color: var(--muted); font-size: 12.5px; line-height: 1.6; margin: 0 0 16px; }
-.picker-grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.picker-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .picker-option { align-items: flex-start; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 18px 16px; text-align: left; transition: transform .16s, border-color .16s, box-shadow .16s; }
 .picker-option:hover { border-color: var(--mint); box-shadow: var(--shadow); transform: translateY(-2px); }
 .picker-glyph { font-size: 30px; line-height: 1; }
@@ -5891,6 +5891,34 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .orbit-how-list span { color: var(--muted); }
 .orbit-how-ready { width: 100%; }
 @media (max-width: 640px) { .picker-grid { grid-template-columns: 1fr; } .orbit-hud { font-size: 10px; } }
+
+/* M8-T1291 - Prefix Vault: the third arcade field. Reuses the orbit shell and
+   guide styles; only the slot economy needs its own rules. */
+.vault-modal { align-items: center; background: rgba(8, 9, 11, .78); display: flex; inset: 0; justify-content: center; opacity: 0; pointer-events: none; position: fixed; transition: opacity .2s ease, visibility .2s ease; visibility: hidden; z-index: 42; }
+.vault-modal.show { opacity: 1; pointer-events: auto; visibility: visible; }
+.vault-card { width: 620px; }
+.vault-hud { font-size: 10.5px; }
+.vault-stage { position: relative; }
+.vault-request { align-items: center; background: var(--surface-raised); border: 1px solid var(--line-bright); border-radius: 10px; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 8px; padding: 12px 14px; }
+.vault-request-copy { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: var(--muted); }
+.vault-request-copy strong { color: var(--mint); font: 700 20px var(--font-mono, monospace); }
+.vault-request-copy small { color: var(--quiet); font: 10px var(--font-mono, monospace); }
+.vault-request-actions { display: flex; gap: 6px; }
+.vault-timer { background: var(--surface-soft); border-radius: 99px; height: 5px; margin-bottom: 12px; overflow: hidden; }
+.vault-timer span { background: linear-gradient(90deg, var(--mint), var(--blue)); display: block; height: 100%; width: 100%; }
+.vault-slots { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.vault-slot { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 10px; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 74px; padding: 8px; text-align: center; transition: border-color .15s, transform .15s; }
+.vault-slot:hover { border-color: var(--mint); transform: translateY(-2px); }
+.vault-slot b { align-self: flex-start; color: var(--quiet); font: 9px var(--font-mono, monospace); }
+.vault-slot strong { font: 700 22px var(--font-mono, monospace); }
+.vault-slot small { color: var(--quiet); font-size: 9.5px; }
+.vault-slot.empty strong { color: var(--quiet); }
+.vault-slot.filled { border-color: color-mix(in srgb, var(--mint) 34%, var(--line)); }
+.vault-hint { color: var(--quiet); font-size: 10.5px; line-height: 1.6; margin: 10px 0 0; }
+.vault-overlay { align-items: center; background: rgba(8, 14, 26, .82); display: flex; inset: 0; justify-content: center; position: absolute; }
+.vault-overlay[hidden] { display: none; }
+@media (max-width: 720px) { .vault-card { width: 94vw; } .vault-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } .vault-request { flex-direction: column; align-items: flex-start; } }
+
 
 
 /* M8-T1289 — synthetic visitor journeys card. Real sessions only: when the log

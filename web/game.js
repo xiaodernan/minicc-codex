@@ -78,8 +78,8 @@
       <div class="picker-card" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
         <div class="orbit-actions"><button class="orbit-close icon-button" id="pickerClose" type="button" aria-label="Close">${oIcon("x")}</button></div>
         <div class="orbit-kicker" data-i18n="picker.kicker">MINICC ARCADE \xB7 \u9009\u62E9\u6218\u573A</div>
-        <h2 id="pickerTitle" data-i18n="picker.title">\u4E24\u7247\u6218\u573A\uFF0C\u968F\u4FBF\u6311</h2>
-        <p class="picker-sub" data-i18n="picker.sub">\u540C\u4E00\u4E2A\u8857\u673A\uFF0C\u4E24\u79CD\u73A9\u6CD5\u3002\u4F60\u7684\u6700\u4F73\u5206\u6570\u90FD\u53EA\u5B58\u5728\u672C\u673A\u3002</p>
+        <h2 id="pickerTitle" data-i18n="picker.title">\u4E09\u7247\u6218\u573A\uFF0C\u968F\u4FBF\u6311</h2>
+        <p class="picker-sub" data-i18n="picker.sub">\u540C\u4E00\u4E2A\u8857\u673A\uFF0C\u4E09\u79CD\u73A9\u6CD5\u3002\u4F60\u7684\u6700\u4F73\u5206\u6570\u90FD\u53EA\u5B58\u5728\u672C\u673A\u3002</p>
         <div class="picker-grid">
           <button class="picker-option" id="pickerLawn" type="button">
             <span class="picker-glyph">\u{1F331}</span>
@@ -90,6 +90,11 @@
             <span class="picker-glyph">\u25CE</span>
             <strong data-i18n="picker.orbit">\u8F68\u9053\u4FE1\u6807</strong>
             <small data-i18n="picker.orbitSub">\u65CB\u8F6C\u70AE\u53E3\u3001\u62E6\u622A\u788E\u7247\uFF0C\u6CE2\u6B21\u65E0\u4E0A\u9650\u3002</small>
+          </button>
+          <button class="picker-option" id="pickerVault" type="button">
+            <span class="picker-glyph">\u25A6</span>
+            <strong data-i18n="picker.vault">\u524D\u7F00\u5BC6\u5E93</strong>
+            <small data-i18n="picker.vaultSub">\u5B88\u4F4F\u6709\u9650\u69FD\u4F4D\uFF0C\u7528\u524D\u7F00\u547D\u4E2D\u7387\u903C\u8FD1 90%\u3002</small>
           </button>
         </div>
       </div>
@@ -106,6 +111,12 @@
         closeArcadePicker();
         window.closeGame?.();
         openOrbit();
+      });
+      OPicker.querySelector("#pickerVault").addEventListener("click", () => {
+        closeArcadePicker();
+        window.closeGame?.();
+        window.closeOrbit?.();
+        window.openVault?.();
       });
       OPicker.addEventListener("click", (e) => {
         if (e.target === OPicker) closeArcadePicker();
@@ -680,6 +691,348 @@
     open: openOrbit,
     close: closeOrbit
   };
+
+  // web/src/vault-game.js
+  var V = {
+    modal: null,
+    inited: false,
+    timer: 0,
+    last: 0,
+    running: false,
+    ended: false,
+    started: false,
+    slots: [],
+    request: null,
+    ttl: 2400,
+    deadline: 0,
+    score: 0,
+    combo: 0,
+    bestCombo: 0,
+    hits: 0,
+    misses: 0,
+    lives: 5,
+    wave: 1,
+    served: 0,
+    hot: "A",
+    hotUntil: 0,
+    best: (() => {
+      const n = Number(localStorage.getItem("minicc-vault-best"));
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    })()
+  };
+  var VS = { SLOTS: 6, BASE_TTL: 2400, MIN_TTL: 950, WAVE_SIZE: 10, EVICT_COST: 12, CACHE_COST: 4 };
+  var VPREFIXES = ["A", "B", "C", "D", "E", "F"];
+  function vT(key) {
+    return window.t ? window.t(key) : key;
+  }
+  function vEsc(value) {
+    return window.escapeHtml ? window.escapeHtml(String(value)) : String(value);
+  }
+  function vIcon(name) {
+    return window.icon ? window.icon(name) : "";
+  }
+  function vRefresh(root) {
+    return window.refreshIcons?.(root);
+  }
+  function vApplyDomI18n(root) {
+    if (!root || !window.t) return;
+    root.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = window.t(el.dataset.i18n);
+    });
+    root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+      el.placeholder = window.t(el.dataset.i18nPlaceholder);
+    });
+    root.querySelectorAll("[data-i18n-title]").forEach((el) => {
+      el.title = window.t(el.dataset.i18nTitle);
+    });
+    root.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+      el.setAttribute("aria-label", window.t(el.dataset.i18nAria));
+    });
+  }
+  function vStatus() {
+    const el = document.querySelector("#vaultStatus");
+    if (el) el.textContent = vT(V.running ? "vault.running" : V.ended ? "vault.gameOver" : "vault.ready");
+  }
+  function vaultModalMarkup() {
+    return `
+  <div class="vault-modal" id="vaultModal" aria-hidden="true">
+    <div class="vault-card" role="dialog" aria-modal="true" aria-labelledby="vaultTitle">
+      <div class="orbit-actions">
+        <button class="orbit-tool" id="vaultBack" type="button" data-i18n-title="vault.back" title="Back to arcade">${vIcon("arrow-left")}<span data-i18n="vault.back">\u8FD4\u56DE\u8857\u673A</span></button>
+        <button class="orbit-tool" id="vaultHowBtn" type="button" data-i18n-title="vault.how" title="Guide">${vIcon("book-open")}<span data-i18n="vault.how">\u6559\u7A0B</span></button>
+        <button class="orbit-close icon-button" id="vaultClose" type="button" aria-label="Close" data-i18n-aria="vault.close">${vIcon("x")}</button>
+      </div>
+      <div class="orbit-kicker" data-i18n="vault.kicker">MINICC ARCADE \xB7 PREFIX ECONOMY</div>
+      <h2 id="vaultTitle" data-i18n="vault.title">\u524D\u7F00\u5BC6\u5E93 \xB7 \u628A\u70ED\u4E0A\u4E0B\u6587\u7559\u5728\u624B\u8FB9</h2>
+      <p class="orbit-subtitle" data-i18n="vault.subtitle">\u6BCF\u4E2A\u8BF7\u6C42\u5E26\u7740\u4E00\u4E2A\u524D\u7F00\u7B7E\u540D\u3002\u547D\u4E2D\u5DF2\u7F13\u5B58\u7684\u524D\u7F00\u5F97\u5206\uFF0C\u6F0F\u6389\u4F1A\u6389\u4E00\u6761\u547D\uFF1B\u69FD\u4F4D\u6709\u9650\uFF0C\u4F60\u5FC5\u987B\u51B3\u5B9A\u8C01\u7559\u4E0B\u3002</p>
+      <div class="orbit-hud vault-hud">
+        <span><span data-i18n="vault.score">\u5F97\u5206</span> <strong id="vaultScore">0</strong></span>
+        <span><span data-i18n="vault.hitRate">\u547D\u4E2D\u7387</span> <strong id="vaultHitRate">\u2014</strong></span>
+        <span><span data-i18n="vault.wave">\u6CE2\u6B21</span> <strong id="vaultWave">1</strong></span>
+        <span><span data-i18n="vault.combo">\u8FDE\u51FB</span> <strong id="vaultCombo">0</strong></span>
+        <span><span data-i18n="vault.lives">\u4F59\u547D</span> <strong id="vaultLives">5</strong></span>
+        <span><span data-i18n="vault.best">\u6700\u4F73</span> <strong id="vaultBest">0</strong></span>
+        <span class="orbit-status" id="vaultStatus" data-i18n="vault.ready">\u51C6\u5907\u5C31\u7EEA</span>
+      </div>
+      <div class="vault-stage">
+      <div class="vault-request" id="vaultRequest">
+        <div class="vault-request-copy"><span data-i18n="vault.incoming">\u5F53\u524D\u8BF7\u6C42</span> <strong id="vaultRequestPrefix">\u2014</strong><small id="vaultRequestCost">\u2014</small></div>
+        <div class="vault-request-actions">
+          <button class="orbit-tool" id="vaultCacheBtn" type="button" data-i18n-title="vault.cacheHint"><span data-i18n="vault.cache">\u653E\u5165\u7A7A\u69FD</span></button>
+          <button class="orbit-tool" id="vaultEvictBtn" type="button" data-i18n-title="vault.evictHint"><span data-i18n="vault.evict">\u6362\u51FA\u6700\u4E45\u672A\u7528</span></button>
+        </div>
+      </div>
+      <div class="vault-timer"><span id="vaultTimerBar"></span></div>
+      <div class="vault-slots" id="vaultSlots" aria-label="Cache slots"></div>
+      <p class="vault-hint" data-i18n="vault.hint">\u70B9\u547D\u4E2D\u76F8\u540C\u524D\u7F00\u7684\u69FD\u4F4D\u5F97\u5206 \xB7 \u7A7A\u69FD\u653E\u5165\u8981\u4ED8 token \xB7 \u69FD\u6EE1\u65F6\u6362\u51FA\u6700\u4E45\u672A\u7528\u7684\u90A3\u4E2A</p>
+      <div class="vault-overlay" id="vaultOverlay" hidden>
+        <div class="orbit-overlay-card">
+          <strong id="vaultOverlayTitle">\u2014</strong>
+          <p id="vaultOverlayBody">\u2014</p>
+          <button class="send-button" id="vaultOverlayBtn" type="button" data-i18n="vault.start">\u5F00\u59CB\u6E38\u620F</button>
+        </div>
+      </div>
+      </div>
+      <div class="orbit-how" id="vaultHowPanel" aria-hidden="true">
+       <div class="orbit-how-card">
+        <h3 data-i18n="vault.howTitle">\u4E94\u6B65\u5B66\u4F1A\u524D\u7F00\u5BC6\u5E93</h3>
+        <p class="orbit-how-sub" data-i18n="vault.howSub">\u6BCF\u4E00\u6761\u90FD\u5BF9\u5E94\u771F\u5B9E\u7F13\u5B58\u7B56\u7565\uFF0C\u73A9\u4E00\u904D\u5C31\u61C2\u3002</p>
+        <ol class="orbit-how-list">
+          <li><strong data-i18n="vault.how1t">\u8BA4\u524D\u7F00</strong><span data-i18n="vault.how1">\u8BF7\u6C42\u5361\u4E0A\u7684\u5B57\u6BCD\u662F\u5B83\u7684\u524D\u7F00\u7B7E\u540D\u3002\u70B9\u5F00\u5E26\u6709\u540C\u4E00\u4E2A\u5B57\u6BCD\u7684\u69FD\u4F4D\u5C31\u662F\u547D\u4E2D\u2014\u2014\u771F\u5B9E\u9879\u76EE\u91CC\uFF0C\u524D\u7F00\u9010\u5B57\u8282\u7A33\u5B9A\u624D\u80FD\u547D\u4E2D\u3002</span></li>
+          <li><strong data-i18n="vault.how2t">\u522B\u4E71\u70B9</strong><span data-i18n="vault.how2">\u70B9\u9519\u524D\u7F00\u6216\u8BA9\u8BF7\u6C42\u8D85\u65F6\u90FD\u7B97\u6F0F\uFF0C\u6389\u4E00\u6761\u547D\u5E76\u6E05\u7A7A\u8FDE\u51FB\u3002\u4E94\u6761\u547D\u7528\u5B8C\uFF0C\u672C\u5C40\u7ED3\u675F\u3002</span></li>
+          <li><strong data-i18n="vault.how3t">\u7A7A\u69FD\u4E0D\u662F\u767D\u7ED9\u7684</strong><span data-i18n="vault.how3">\u300C\u653E\u5165\u7A7A\u69FD\u300D\u8981\u4ED8 token \u6210\u672C\uFF0C\u4E0D\u76F4\u63A5\u5F97\u5206\u3002\u53EA\u6709\u4F60\u5224\u65AD\u8FD9\u4E2A\u524D\u7F00\u540E\u9762\u8FD8\u4F1A\u6765\uFF0C\u624D\u503C\u5F97\u5360\u4E00\u4E2A\u69FD\u3002</span></li>
+          <li><strong data-i18n="vault.how4t">\u4F1A\u6362\u51FA\u624D\u7B97\u4F1A\u7F13\u5B58</strong><span data-i18n="vault.how4">\u69FD\u4F4D\u6EE1\u65F6\u70B9\u300C\u6362\u51FA\u6700\u4E45\u672A\u7528\u300D\uFF1A\u6DD8\u6C70\u6700\u65E7\u7684\u524D\u7F00\uFF0C\u628A\u5F53\u524D\u8BF7\u6C42\u653E\u8FDB\u53BB\u3002\u8FD9\u5C31\u662F LRU\u2014\u2014\u547D\u4E2D\u7387\u4E0D\u662F\u9760\u69FD\u591A\uFF0C\u662F\u9760\u6362\u5BF9\u3002</span></li>
+          <li><strong data-i18n="vault.how5t">\u76EF\u4F4F\u4F1A\u8BDD\u4EB2\u548C</strong><span data-i18n="vault.how5">\u67D0\u4E2A\u5B57\u6BCD\u4F1A\u7A81\u7136\u53D8\u70ED\u4E00\u9635\uFF0C\u50CF\u771F\u5B9E\u4F1A\u8BDD\u8FDE\u7EED\u6253\u540C\u4E00\u6BB5\u4E0A\u4E0B\u6587\u3002\u8D81\u5B83\u70ED\u7684\u65F6\u5019\u591A\u547D\u4E2D\uFF0C\u70ED\u5EA6\u8FC7\u53BB\u518D\u6362\u51FA\u3002</span></li>
+        </ol>
+        <button class="send-button orbit-how-ready" id="vaultHowReady" type="button" data-i18n="vault.howReady">\u6211\u51C6\u5907\u597D\u4E86</button>
+       </div>
+      </div>
+    </div>
+  </div>`;
+  }
+  function vInit() {
+    const host = document.createElement("div");
+    host.innerHTML = vaultModalMarkup();
+    V.modal = host.firstElementChild;
+    document.body.append(V.modal);
+    vApplyDomI18n(V.modal);
+    vRefresh(V.modal);
+    V.modal.querySelector("#vaultClose").addEventListener("click", closeVault);
+    V.modal.querySelector("#vaultBack").addEventListener("click", () => {
+      closeVault();
+      window.openArcadePicker?.();
+    });
+    V.modal.addEventListener("click", (e) => {
+      if (e.target === V.modal) closeVault();
+    });
+    V.modal.querySelector("#vaultCacheBtn").addEventListener("click", () => vPlace(false));
+    V.modal.querySelector("#vaultEvictBtn").addEventListener("click", () => vPlace(true));
+    V.modal.querySelector("#vaultOverlayBtn").addEventListener("click", () => {
+      if (V.ended) vReset();
+      vStart();
+    });
+    V.modal.querySelector("#vaultHowBtn").addEventListener("click", () => {
+      const panel = V.modal.querySelector("#vaultHowPanel");
+      panel.classList.add("show");
+      panel.setAttribute("aria-hidden", "false");
+    });
+    V.modal.querySelector("#vaultHowReady").addEventListener("click", () => {
+      const panel = V.modal.querySelector("#vaultHowPanel");
+      panel.classList.remove("show");
+      panel.setAttribute("aria-hidden", "true");
+    });
+    V.modal.querySelector("#vaultSlots").addEventListener("click", (e) => {
+      const slot = e.target.closest("[data-slot]");
+      if (slot) vClickSlot(Number(slot.dataset.slot));
+    });
+    document.addEventListener("keydown", (e) => {
+      if (!V.modal?.classList.contains("show")) return;
+      if (e.key >= "1" && e.key <= "6") vClickSlot(Number(e.key) - 1);
+    });
+    V.inited = true;
+  }
+  function vReset() {
+    V.running = false;
+    V.ended = false;
+    V.started = true;
+    V.slots = Array.from({ length: VS.SLOTS }, () => ({ prefix: null, used: 0 }));
+    V.request = null;
+    V.score = 0;
+    V.combo = 0;
+    V.bestCombo = 0;
+    V.hits = 0;
+    V.misses = 0;
+    V.lives = 5;
+    V.wave = 1;
+    V.served = 0;
+    V.hot = "A";
+    V.hotUntil = 0;
+    V.ttl = VS.BASE_TTL;
+    if (V.timer) {
+      clearInterval(V.timer);
+      V.timer = 0;
+    }
+    V.modal.querySelector("#vaultOverlay").hidden = false;
+    vRender();
+  }
+  function vStart() {
+    if (!V.started) vReset();
+    V.running = true;
+    V.ended = false;
+    V.modal.querySelector("#vaultOverlay").hidden = true;
+    vSpawn();
+    V.last = performance.now();
+    if (!V.timer) V.timer = setInterval(vTick, 100);
+    vStatus();
+    vRender();
+  }
+  function vSpawn(forced) {
+    const now = performance.now();
+    if (now > V.hotUntil) {
+      V.hot = VPREFIXES[Math.floor(Math.random() * VPREFIXES.length)];
+      V.hotUntil = now + 4200 + Math.random() * 2600;
+    }
+    const prefix = forced || (Math.random() < 0.52 ? V.hot : VPREFIXES[Math.floor(Math.random() * VPREFIXES.length)]);
+    V.request = { prefix, cost: 50 + Math.floor(Math.random() * 180), at: now };
+    V.deadline = now + V.ttl;
+    vRender();
+  }
+  function vTick() {
+    if (!V.running || V.ended) return;
+    const now = performance.now();
+    const bar = V.modal.querySelector("#vaultTimerBar");
+    if (bar) bar.style.width = `${Math.max(0, Math.min(100, (V.deadline - now) / V.ttl * 100))}%`;
+    if (now >= V.deadline) vMiss();
+  }
+  function vScore(base) {
+    V.score += Math.max(0, Math.round(base * (1 + V.combo * 0.25)));
+    if (V.score > V.best) {
+      V.best = V.score;
+      try {
+        localStorage.setItem("minicc-vault-best", String(V.best));
+      } catch {
+      }
+    }
+  }
+  function vHit(index) {
+    V.slots[index].used = V.served;
+    V.hits += 1;
+    V.combo += 1;
+    V.bestCombo = Math.max(V.bestCombo, V.combo);
+    vScore(V.request.cost);
+    V.served += 1;
+    V.request = null;
+    V.wave = 1 + Math.floor(V.served / VS.WAVE_SIZE);
+    V.ttl = Math.max(VS.MIN_TTL, VS.BASE_TTL - (V.wave - 1) * 140);
+    vSpawn();
+  }
+  function vMiss() {
+    V.misses += 1;
+    V.lives -= 1;
+    V.combo = 0;
+    V.served += 1;
+    V.wave = 1 + Math.floor(V.served / VS.WAVE_SIZE);
+    V.ttl = Math.max(VS.MIN_TTL, VS.BASE_TTL - (V.wave - 1) * 140);
+    V.request = null;
+    if (V.lives <= 0) {
+      vEnd();
+      return;
+    }
+    vSpawn();
+  }
+  function vClickSlot(index) {
+    if (!V.running || V.ended || !V.request || !V.slots[index]) return;
+    if (V.slots[index].prefix === V.request.prefix) vHit(index);
+    else vMiss();
+    vRender();
+  }
+  function vPlace(evict) {
+    if (!V.running || V.ended || !V.request) return;
+    let target = V.slots.findIndex((s) => s.prefix === null);
+    if (target < 0 && evict) {
+      let oldest = Infinity;
+      V.slots.forEach((s, i) => {
+        if (s.used < oldest) {
+          oldest = s.used;
+          target = i;
+        }
+      });
+    }
+    if (target < 0) return;
+    V.slots[target] = { prefix: V.request.prefix, used: V.served };
+    V.score = Math.max(0, V.score - (evict ? VS.EVICT_COST : VS.CACHE_COST));
+    V.request = null;
+    V.served += 1;
+    V.wave = 1 + Math.floor(V.served / VS.WAVE_SIZE);
+    vSpawn();
+    vRender();
+  }
+  function vEnd() {
+    V.running = false;
+    V.ended = true;
+    if (V.timer) {
+      clearInterval(V.timer);
+      V.timer = 0;
+    }
+    const total = V.hits + V.misses;
+    const rate = total ? Math.round(V.hits / total * 100) : 0;
+    const overlay = V.modal.querySelector("#vaultOverlay");
+    V.modal.querySelector("#vaultOverlayTitle").textContent = vT("vault.gameOver");
+    V.modal.querySelector("#vaultOverlayBody").textContent = `${vT("vault.score")} ${V.score} \xB7 ${vT("vault.hitRate")} ${rate}% \xB7 ${vT("vault.wave")} ${V.wave}`;
+    V.modal.querySelector("#vaultOverlayBtn").textContent = vT("vault.again");
+    overlay.hidden = false;
+    vRender();
+  }
+  function vRender() {
+    if (!V.modal) return;
+    const set = (id, value) => {
+      const el = V.modal.querySelector(`#${id}`);
+      if (el) el.textContent = String(value);
+    };
+    set("vaultScore", V.score);
+    set("vaultHitRate", V.hits + V.misses ? `${Math.round(V.hits / (V.hits + V.misses) * 100)}%` : "\u2014");
+    set("vaultWave", V.wave);
+    set("vaultCombo", V.combo);
+    set("vaultLives", V.lives);
+    set("vaultBest", V.best);
+    set("vaultRequestPrefix", V.request ? V.request.prefix : "\u2014");
+    set("vaultRequestCost", V.request ? `${vT("vault.token")} ${V.request.cost}` : "\u2014");
+    const slots = V.modal.querySelector("#vaultSlots");
+    if (slots) {
+      slots.innerHTML = V.slots.map((s, i) => `<button class="vault-slot ${s.prefix ? "filled" : "empty"}" data-slot="${i}" type="button" aria-label="${vEsc(vT("vault.slot"))} ${i + 1}">
+         <b>${i + 1}</b><strong>${s.prefix ? vEsc(s.prefix) : "\xB7"}</strong>
+         <small>${s.prefix ? `${vEsc(vT("vault.used"))} ${s.used}` : vEsc(vT("vault.empty"))}</small>
+       </button>`).join("");
+    }
+    vStatus();
+  }
+  function openVault() {
+    if (!V.inited) vInit();
+    vApplyDomI18n(V.modal);
+    V.modal.classList.add("show");
+    V.modal.setAttribute("aria-hidden", "false");
+    if (!V.started) vReset();
+    else vRender();
+    window.__vaultProbe = {
+      state: V,
+      forceRequest: (prefix) => vSpawn(prefix),
+      tick: () => vTick(),
+      clickSlot: (i) => vClickSlot(i),
+      start: () => vStart()
+    };
+  }
+  function closeVault() {
+    if (!V.modal) return;
+    V.running = false;
+    if (V.timer) {
+      clearInterval(V.timer);
+      V.timer = 0;
+    }
+    V.modal.classList.remove("show");
+    V.modal.setAttribute("aria-hidden", "true");
+  }
+  window.openVault = openVault;
+  window.closeVault = closeVault;
 
   // web/src/game.js
   function $(selector) {

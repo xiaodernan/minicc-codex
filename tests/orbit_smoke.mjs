@@ -33,7 +33,7 @@ async function checkMode(locale, expectCjk) {
   // Field picker → Orbit Beacon.
   await page.locator("#gameMoreGames").click();
   await page.locator("#arcadePicker.show").waitFor();
-  assert.equal(await page.locator(".picker-option").count(), 2, "picker must offer two games");
+  assert.equal(await page.locator(".picker-option").count(), 3, "picker must offer three games");
   await page.locator("#pickerOrbit").click();
   await page.locator("#orbitModal.show").waitFor();
   assert.equal(await page.locator("#gameModal.show").count(), 0, "lawn modal must close when orbit opens");

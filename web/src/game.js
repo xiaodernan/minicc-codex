@@ -2,6 +2,7 @@
 // M8-T1288: the second game (Orbit Beacon) is a side-effect module folded into
 // this same bundle — no extra request, no change to the lawn-defence object.
 import "./orbit-game.js";
+import "./vault-game.js";
 function $(selector) { return window.$(selector); }
 function $$(selector) { return window.$$(selector); }
 function t(key) { return window.t(key); }

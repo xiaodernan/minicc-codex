@@ -798,8 +798,8 @@
       "game.skillNeedEnergy": "\u80FD\u91CF\u4E0D\u8DB3",
       "game.moreGames": "\u66F4\u591A\u6E38\u620F",
       "picker.kicker": "MINICC ARCADE \xB7 \u9009\u62E9\u6218\u573A",
-      "picker.title": "\u4E24\u7247\u6218\u573A\uFF0C\u968F\u4FBF\u6311",
-      "picker.sub": "\u540C\u4E00\u4E2A\u8857\u673A\uFF0C\u4E24\u79CD\u73A9\u6CD5\u3002\u4F60\u7684\u6700\u4F73\u5206\u6570\u90FD\u53EA\u5B58\u5728\u672C\u673A\u3002",
+      "picker.title": "\u4E09\u7247\u6218\u573A\uFF0C\u968F\u4FBF\u6311",
+      "picker.sub": "\u540C\u4E00\u4E2A\u8857\u673A\uFF0C\u4E09\u79CD\u73A9\u6CD5\u3002\u4F60\u7684\u6700\u4F73\u5206\u6570\u90FD\u53EA\u5B58\u5728\u672C\u673A\u3002",
       "picker.lawn": "\u8349\u576A\u4FDD\u536B\u6218",
       "picker.lawnSub": "\u79CD\u690D\u7269\u3001\u5E03\u7EB5\u6DF1\uFF0C\u5B88\u4F4F\u5341\u6CE2\u50F5\u5C38\u8FDB\u5C4B\u3002",
       "picker.orbit": "\u8F68\u9053\u4FE1\u6807",
@@ -845,6 +845,48 @@
       "orbit.how6t": "\u6CE2\u6B21\u6CA1\u6709\u5C3D\u5934",
       "orbit.how6": "\u6E05\u7A7A\u4E00\u6CE2\u7ACB\u523B\u8FDB\u5165\u4E0B\u4E00\u6CE2\uFF0C\u901F\u5EA6\u4E0E\u6570\u91CF\u90FD\u4E0A\u6DA8\u2014\u2014\u6CA1\u6709\u901A\u5173\uFF0C\u53EA\u6709\u4F60\u8FD9\u4E00\u5C40\u6491\u5230\u7B2C\u51E0\u6CE2\u3002\u6700\u4F73\u5206\u6570\u53EA\u5B58\u5728\u672C\u673A\u3002",
       "orbit.howReady": "\u6211\u51C6\u5907\u597D\u4E86",
+      "picker.vault": "\u524D\u7F00\u5BC6\u5E93",
+      "picker.vaultSub": "\u5B88\u4F4F\u6709\u9650\u69FD\u4F4D\uFF0C\u7528\u524D\u7F00\u547D\u4E2D\u7387\u903C\u8FD1 90%\u3002",
+      "vault.kicker": "MINICC ARCADE \xB7 PREFIX ECONOMY",
+      "vault.title": "\u524D\u7F00\u5BC6\u5E93 \xB7 \u628A\u70ED\u4E0A\u4E0B\u6587\u7559\u5728\u624B\u8FB9",
+      "vault.subtitle": "\u6BCF\u4E2A\u8BF7\u6C42\u5E26\u7740\u4E00\u4E2A\u524D\u7F00\u7B7E\u540D\u3002\u547D\u4E2D\u5DF2\u7F13\u5B58\u7684\u524D\u7F00\u5F97\u5206\uFF0C\u6F0F\u6389\u4F1A\u6389\u4E00\u6761\u547D\uFF1B\u69FD\u4F4D\u6709\u9650\uFF0C\u4F60\u5FC5\u987B\u51B3\u5B9A\u8C01\u7559\u4E0B\u3002",
+      "vault.back": "\u8FD4\u56DE\u8857\u673A",
+      "vault.how": "\u6559\u7A0B",
+      "vault.close": "\u5173\u95ED\u524D\u7F00\u5BC6\u5E93",
+      "vault.score": "\u5F97\u5206",
+      "vault.hitRate": "\u547D\u4E2D\u7387",
+      "vault.wave": "\u6CE2\u6B21",
+      "vault.combo": "\u8FDE\u51FB",
+      "vault.lives": "\u4F59\u547D",
+      "vault.best": "\u6700\u4F73",
+      "vault.ready": "\u51C6\u5907\u5C31\u7EEA",
+      "vault.running": "\u4FDD\u7BA1\u4E2D",
+      "vault.gameOver": "\u4F59\u547D\u8017\u5C3D",
+      "vault.start": "\u5F00\u59CB\u6E38\u620F",
+      "vault.again": "\u518D\u6765\u4E00\u5C40",
+      "vault.incoming": "\u5F53\u524D\u8BF7\u6C42",
+      "vault.token": "\u8BCD\u5143",
+      "vault.cache": "\u653E\u5165\u7A7A\u69FD",
+      "vault.cacheHint": "\u4E3A\u4E00\u4E2A\u8FD8\u4F1A\u518D\u6765\u7684\u524D\u7F00\u5360\u4E00\u4E2A\u7A7A\u69FD\uFF0C\u4ED8\u51FA\u5C11\u91CF\u8BCD\u5143\u6210\u672C",
+      "vault.evict": "\u6362\u51FA\u6700\u4E45\u672A\u7528",
+      "vault.evictHint": "\u69FD\u4F4D\u6EE1\u65F6\uFF0C\u6DD8\u6C70\u6700\u4E45\u6CA1\u88AB\u547D\u4E2D\u7684\u524D\u7F00\uFF0C\u653E\u5165\u5F53\u524D\u8BF7\u6C42",
+      "vault.slot": "\u7F13\u5B58\u69FD\u4F4D",
+      "vault.used": "\u547D\u4E2D\u5E8F\u53F7",
+      "vault.empty": "\u7A7A",
+      "vault.hint": "\u70B9\u547D\u4E2D\u76F8\u540C\u524D\u7F00\u7684\u69FD\u4F4D\u5F97\u5206 \xB7 \u7A7A\u69FD\u653E\u5165\u8981\u4ED8\u8BCD\u5143 \xB7 \u69FD\u6EE1\u65F6\u6362\u51FA\u6700\u4E45\u672A\u7528\u7684\u90A3\u4E2A",
+      "vault.howTitle": "\u4E94\u6B65\u5B66\u4F1A\u524D\u7F00\u5BC6\u5E93",
+      "vault.howSub": "\u6BCF\u4E00\u6761\u90FD\u5BF9\u5E94\u771F\u5B9E\u7F13\u5B58\u7B56\u7565\uFF0C\u73A9\u4E00\u904D\u5C31\u61C2\u3002",
+      "vault.how1t": "\u8BA4\u524D\u7F00",
+      "vault.how1": "\u8BF7\u6C42\u5361\u4E0A\u7684\u5B57\u6BCD\u662F\u5B83\u7684\u524D\u7F00\u7B7E\u540D\u3002\u70B9\u5F00\u5E26\u6709\u540C\u4E00\u4E2A\u5B57\u6BCD\u7684\u69FD\u4F4D\u5C31\u662F\u547D\u4E2D\u2014\u2014\u771F\u5B9E\u9879\u76EE\u91CC\uFF0C\u524D\u7F00\u9010\u5B57\u8282\u7A33\u5B9A\u624D\u80FD\u547D\u4E2D\u3002",
+      "vault.how2t": "\u522B\u4E71\u70B9",
+      "vault.how2": "\u70B9\u9519\u524D\u7F00\u6216\u8BA9\u8BF7\u6C42\u8D85\u65F6\u90FD\u7B97\u6F0F\uFF0C\u6389\u4E00\u6761\u547D\u5E76\u6E05\u7A7A\u8FDE\u51FB\u3002\u4E94\u6761\u547D\u7528\u5B8C\uFF0C\u672C\u5C40\u7ED3\u675F\u3002",
+      "vault.how3t": "\u7A7A\u69FD\u4E0D\u662F\u767D\u7ED9\u7684",
+      "vault.how3": "\u300C\u653E\u5165\u7A7A\u69FD\u300D\u8981\u4ED8\u8BCD\u5143\u6210\u672C\uFF0C\u4E0D\u76F4\u63A5\u5F97\u5206\u3002\u53EA\u6709\u4F60\u5224\u65AD\u8FD9\u4E2A\u524D\u7F00\u540E\u9762\u8FD8\u4F1A\u6765\uFF0C\u624D\u503C\u5F97\u5360\u4E00\u4E2A\u69FD\u3002",
+      "vault.how4t": "\u4F1A\u6362\u51FA\u624D\u7B97\u4F1A\u7F13\u5B58",
+      "vault.how4": "\u69FD\u4F4D\u6EE1\u65F6\u70B9\u300C\u6362\u51FA\u6700\u4E45\u672A\u7528\u300D\uFF1A\u6DD8\u6C70\u6700\u65E7\u7684\u524D\u7F00\uFF0C\u628A\u5F53\u524D\u8BF7\u6C42\u653E\u8FDB\u53BB\u3002\u8FD9\u5C31\u662F\u6309\u6700\u4E45\u672A\u7528\u89C4\u5219\u6DD8\u6C70\u2014\u2014\u547D\u4E2D\u7387\u4E0D\u662F\u9760\u69FD\u591A\uFF0C\u662F\u9760\u6362\u5BF9\u3002",
+      "vault.how5t": "\u76EF\u4F4F\u4F1A\u8BDD\u4EB2\u548C",
+      "vault.how5": "\u67D0\u4E2A\u5B57\u6BCD\u4F1A\u7A81\u7136\u53D8\u70ED\u4E00\u9635\uFF0C\u50CF\u771F\u5B9E\u4F1A\u8BDD\u8FDE\u7EED\u6253\u540C\u4E00\u6BB5\u4E0A\u4E0B\u6587\u3002\u8D81\u5B83\u70ED\u7684\u65F6\u5019\u591A\u547D\u4E2D\uFF0C\u70ED\u5EA6\u8FC7\u53BB\u518D\u6362\u51FA\u3002",
+      "vault.howReady": "\u6211\u51C6\u5907\u597D\u4E86",
       "message.you": "\u4F60",
       "message.now": "\u73B0\u5728",
       "message.agent": "Agent",
@@ -1722,8 +1764,8 @@
       "game.skillNeedEnergy": "Need energy",
       "game.moreGames": "More games",
       "picker.kicker": "MINICC ARCADE \xB7 PICK A FIELD",
-      "picker.title": "Two fields, take your pick",
-      "picker.sub": "One arcade, two ways to play. Your best scores stay on this machine only.",
+      "picker.title": "Three fields, take your pick",
+      "picker.sub": "One arcade, three ways to play. Your best scores stay on this machine only.",
       "picker.lawn": "Lawn Defence",
       "picker.lawnSub": "Plant, build depth, hold ten waves of zombies out of the house.",
       "picker.orbit": "Orbit Beacon",
@@ -1769,6 +1811,48 @@
       "orbit.how6t": "Waves never end",
       "orbit.how6": "Clear a wave and the next starts at once, faster and denser \u2014 no finishing line, only how many waves you survive. Best scores stay local.",
       "orbit.howReady": "I am ready",
+      "picker.vault": "Prefix Vault",
+      "picker.vaultSub": "Guard six slots and push prefix hit rate toward 90%.",
+      "vault.kicker": "MINICC ARCADE \xB7 PREFIX ECONOMY",
+      "vault.title": "Prefix Vault \xB7 Keep the hot context close",
+      "vault.subtitle": "Every request carries a prefix signature. Hit a cached prefix to score; miss one and lose a life. Slots are finite \u2014 decide who stays.",
+      "vault.back": "Back to arcade",
+      "vault.how": "Guide",
+      "vault.close": "Close Prefix Vault",
+      "vault.score": "Score",
+      "vault.hitRate": "Hit rate",
+      "vault.wave": "Wave",
+      "vault.combo": "Combo",
+      "vault.lives": "Lives",
+      "vault.best": "Best",
+      "vault.ready": "Ready",
+      "vault.running": "Guarding",
+      "vault.gameOver": "Out of lives",
+      "vault.start": "Start game",
+      "vault.again": "Play again",
+      "vault.incoming": "Incoming request",
+      "vault.token": "tokens",
+      "vault.cache": "Put in an empty slot",
+      "vault.cacheHint": "Reserve an empty slot for a prefix that will return; costs a few tokens",
+      "vault.evict": "Evict least recently used",
+      "vault.evictHint": "When full, drop the oldest prefix and store the current request",
+      "vault.slot": "Cache slot",
+      "vault.used": "last hit",
+      "vault.empty": "empty",
+      "vault.hint": "Click the slot with the same prefix to score \xB7 filling a slot costs tokens \xB7 when full, evict the least recently used",
+      "vault.howTitle": "Five steps to Prefix Vault",
+      "vault.howSub": "Every rule mirrors a real cache strategy. Play once and it sticks.",
+      "vault.how1t": "Read the prefix",
+      "vault.how1": "The letter on the request card is its prefix signature. Click the slot with the same letter to hit it \u2014 in the real project, byte-stable prefixes are what make a cache hit.",
+      "vault.how2t": "Do not guess",
+      "vault.how2": "A wrong slot or a timed-out request is a miss: you lose one life and the combo resets. Five misses end the run.",
+      "vault.how3t": "Empty slots are not free",
+      "vault.how3": "Putting a request into an empty slot costs tokens and scores nothing. Only reserve a slot when you expect that prefix again.",
+      "vault.how4t": "Eviction is the skill",
+      "vault.how4": "When every slot is full, evict the least recently used prefix and store the current one. Hit rate comes from choosing well, not from having more slots.",
+      "vault.how5t": "Watch session affinity",
+      "vault.how5": "One letter suddenly goes hot for a while, like a real conversation reusing the same context. Ride the hot prefix, then evict it when the surge passes.",
+      "vault.howReady": "I am ready",
       "message.you": "You",
       "message.now": "now",
       "message.agent": "Agent",
@@ -7931,10 +8015,11 @@
   }
   function zhArcade() {
     return `
-    <p class="manual-lede">\u300C\u6E38\u620F\u5385\u300D\u662F\u5DE5\u4F5C\u53F0\u81EA\u5E26\u7684\u4E24\u6B3E\u771F\xB7\u6E38\u620F\u2014\u2014\u4E0D\u662F demo\uFF0C\u4E0D\u662F\u5360\u4F4D\u7B26\u3002\u8349\u576A\u5854\u9632\u4E0E\u65E0\u5C3D\u8F68\u9053\uFF0C\u7EAF\u524D\u7AEF\uFF0C\u79BB\u7EBF\u53EF\u73A9\u3002</p>
+    <p class="manual-lede">\u300C\u6E38\u620F\u5385\u300D\u662F\u5DE5\u4F5C\u53F0\u81EA\u5E26\u7684\u4E09\u6B3E\u771F\xB7\u6E38\u620F\u2014\u2014\u4E0D\u662F demo\uFF0C\u4E0D\u662F\u5360\u4F4D\u7B26\u3002\u8349\u576A\u5854\u9632\u4E0E\u65E0\u5C3D\u8F68\u9053\uFF0C\u7EAF\u524D\u7AEF\uFF0C\u79BB\u7EBF\u53EF\u73A9\u3002</p>
     <div class="manual-arcade">
       <div><span class="arcade-label">\u600E\u4E48\u8FDB</span><p>\u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u6216\u8005\u547D\u4EE4\u9762\u677F\u641C\u300CArcade/\u6E38\u620F\u5385\u300D\uFF0C\u6309 <code>Enter</code> \u5373\u73A9\u3002\u968F\u65F6\u6309 <code>Esc</code> \u8FD4\u56DE\u5DE5\u4F5C\u53F0\u3002</p></div>
-      <div><span class="arcade-label">\u7B2C\u4E8C\u6218\u573A \xB7 \u8F68\u9053\u4FE1\u6807</span><p>\u5728\u5854\u9632\u754C\u9762\u70B9\u5DE5\u5177\u680F\u300C\u66F4\u591A\u6E38\u620F\u300D\uFF0C\u4E24\u6B3E\u6E38\u620F\u968F\u4FBF\u6311\u3002<strong>\u8F68\u9053\u4FE1\u6807</strong>\u662F\u53E6\u4E00\u4E2A\u73A9\u6CD5\uFF1A\u4E2D\u592E\u80FD\u6E90\u6838\u3001\u7ED5\u6838\u516C\u8F6C\u7684\u53D1\u5C04\u53F0\uFF0C\u56DB\u9762\u516B\u65B9\u6F02\u6765\u788E\u7247\u2014\u2014<code>\u2190 \u2192 / A D</code> \u8F6C\u5411\uFF0C<code>\u7A7A\u683C</code> \u6216\u70B9\u51FB\u753B\u5E03\u53D1\u5C04\uFF0C<code>P</code> \u6682\u505C\u3002\u9752\u8272\u666E\u901A\u3001\u6A59\u8272\u66F4\u5FEB\u3001\u7D2B\u8272\u8981\u4E24\u53D1\uFF1B\u8FDE\u7EED\u547D\u4E2D\u6512\u8FDE\u51FB\u500D\u7387\uFF0C\u51FB\u788E\u5076\u5C14\u6389\u7EFF\u5149\u70B9\uFF0C\u70B9\u5B83\u8865 20 \u62A4\u76FE\u3002\u6E05\u7A7A\u4E00\u6CE2\u7ACB\u523B\u8FDB\u4E0B\u4E00\u6CE2\uFF0C\u901F\u5EA6\u4E0E\u6570\u91CF\u90FD\u4E0A\u6DA8\uFF0C\u6CA1\u6709\u901A\u5173\uFF0C\u53EA\u6709\u4F60\u6491\u5230\u7B2C\u51E0\u6CE2\uFF1B\u62A4\u76FE\u5F52\u96F6\u7ED3\u675F\uFF0C\u6700\u4F73\u5206\u6570\u53EA\u5B58\u672C\u673A\u3002\u6E38\u620F\u5185\u300C\u6559\u7A0B\u300D\u6709\u516D\u6B65\u771F\u89C4\u5219\u6559\u5B66\u3002</p></div>
+      <div><span class="arcade-label">\u7B2C\u4E8C\u6218\u573A \xB7 \u8F68\u9053\u4FE1\u6807</span><p>\u5728\u5854\u9632\u754C\u9762\u70B9\u5DE5\u5177\u680F\u300C\u66F4\u591A\u6E38\u620F\u300D\uFF0C\u4E09\u6B3E\u6E38\u620F\u968F\u4FBF\u6311\u3002<strong>\u8F68\u9053\u4FE1\u6807</strong>\u662F\u53E6\u4E00\u4E2A\u73A9\u6CD5\uFF1A\u4E2D\u592E\u80FD\u6E90\u6838\u3001\u7ED5\u6838\u516C\u8F6C\u7684\u53D1\u5C04\u53F0\uFF0C\u56DB\u9762\u516B\u65B9\u6F02\u6765\u788E\u7247\u2014\u2014<code>\u2190 \u2192 / A D</code> \u8F6C\u5411\uFF0C<code>\u7A7A\u683C</code> \u6216\u70B9\u51FB\u753B\u5E03\u53D1\u5C04\uFF0C<code>P</code> \u6682\u505C\u3002\u9752\u8272\u666E\u901A\u3001\u6A59\u8272\u66F4\u5FEB\u3001\u7D2B\u8272\u8981\u4E24\u53D1\uFF1B\u8FDE\u7EED\u547D\u4E2D\u6512\u8FDE\u51FB\u500D\u7387\uFF0C\u51FB\u788E\u5076\u5C14\u6389\u7EFF\u5149\u70B9\uFF0C\u70B9\u5B83\u8865 20 \u62A4\u76FE\u3002\u6E05\u7A7A\u4E00\u6CE2\u7ACB\u523B\u8FDB\u4E0B\u4E00\u6CE2\uFF0C\u901F\u5EA6\u4E0E\u6570\u91CF\u90FD\u4E0A\u6DA8\uFF0C\u6CA1\u6709\u901A\u5173\uFF0C\u53EA\u6709\u4F60\u6491\u5230\u7B2C\u51E0\u6CE2\uFF1B\u62A4\u76FE\u5F52\u96F6\u7ED3\u675F\uFF0C\u6700\u4F73\u5206\u6570\u53EA\u5B58\u672C\u673A\u3002\u6E38\u620F\u5185\u300C\u6559\u7A0B\u300D\u6709\u516D\u6B65\u771F\u89C4\u5219\u6559\u5B66\u3002</p></div>
+      <div><span class="arcade-label">\u7B2C\u4E09\u6218\u573A \xB7 \u524D\u7F00\u5BC6\u5E93</span><p>\u540C\u4E00\u4E2A\u300C\u66F4\u591A\u6E38\u620F\u300D\u5165\u53E3\u91CC\u7684\u7B2C\u4E09\u6B3E\uFF1A<strong>\u524D\u7F00\u5BC6\u5E93</strong>\u628A\u771F\u5B9E\u7F13\u5B58\u7B56\u7565\u53D8\u6210\u73A9\u6CD5\u3002\u8BF7\u6C42\u5361\u4E0A\u7684\u5B57\u6BCD\u662F\u524D\u7F00\u7B7E\u540D\uFF0C\u70B9\u76F8\u540C\u524D\u7F00\u7684\u69FD\u4F4D\u547D\u4E2D\u5F97\u5206\uFF1B\u70B9\u9519\u6216\u8D85\u65F6\u6389\u547D\u5E76\u6E05\u7A7A\u8FDE\u51FB\u3002\u7A7A\u69FD\u653E\u5165\u8981\u4ED8\u8BCD\u5143\uFF0C\u69FD\u6EE1\u65F6\u70B9\u300C\u6362\u51FA\u6700\u4E45\u672A\u7528\u300D\u6DD8\u6C70\u65E7\u524D\u7F00\u2014\u2014\u8FD9\u5C31\u662F\u6309\u6700\u4E45\u672A\u7528\u89C4\u5219\u6DD8\u6C70\u3002\u67D0\u4E2A\u5B57\u6BCD\u4F1A\u7A81\u7136\u53D8\u70ED\u4E00\u9635\uFF0C\u50CF\u771F\u5B9E\u4F1A\u8BDD\u590D\u7528\u540C\u4E00\u6BB5\u4E0A\u4E0B\u6587\uFF0C\u8D81\u70ED\u591A\u547D\u4E2D\u3002\u547D\u4E2D\u7387\u4F1A\u5B9E\u65F6\u663E\u793A\uFF0C\u4E94\u6761\u547D\u7528\u5B8C\u7ED3\u675F\uFF0C\u6700\u4F73\u5206\u6570\u53EA\u5B58\u672C\u673A\uFF1B\u6E38\u620F\u5185\u300C\u6559\u7A0B\u300D\u6709\u4E94\u6B65\u771F\u89C4\u5219\u6559\u5B66\u3002</p></div>
       <div><span class="arcade-label">\u6838\u5FC3\u673A\u5236</span><p>\u79CD\u690D\u7269\u62B5\u5FA1\u50F5\u5C38\u8FDB\u653B\u3002\u9633\u5149\u662F\u8D44\u6E90\uFF0C\u79CD\u690D\u9700\u8981\u9633\u5149\u503C\uFF1B\u6BCF\u79CD\u690D\u7269\u6709\u653B\u51FB/\u9632\u5FA1/\u7279\u6B8A\u80FD\u529B\uFF1B\u50F5\u5C38\u4ECE\u53F3\u5411\u5DE6\u63A8\u8FDB\uFF0C\u89E6\u78B0\u5230\u4F60\u7684\u57FA\u5730\u5219\u5931\u8D25\u3002</p></div>
       <div><span class="arcade-label">\u56DB\u79CD\u6280\u80FD</span><p>Pulse\uFF0825 \u9633\u5149\uFF0C7 \u79D2\u51B7\u5374\uFF09\u3001Sun\uFF0835 \u9633\u5149\uFF0C\u7ACB\u5373\u56DE\u80FD\uFF09\u3001Rally\uFF0845 \u9633\u5149\uFF0C14 \u79D2\u51B7\u5374\uFF09\u3001Time Stop\uFF0855 \u9633\u5149\uFF0C18 \u79D2\u51B7\u5374\uFF09\u2014\u2014\u6BCF\u79CD\u6280\u80FD\u53EA\u5BF9\u7279\u5B9A\u5C40\u9762\u6709\u6548\uFF0C\u5408\u7406\u6512\u9633\u5149\u6BD4\u76F2\u76EE\u79CD\u690D\u66F4\u91CD\u8981\u3002</p></div>
       <div><span class="arcade-label">\u56FE\u9274</span><p>\u6E38\u620F\u5185\u7F6E\u690D\u7269/\u50F5\u5C38\u56FE\u9274\u2014\u2014peashooter\u3001sunflower\u3001wall-nut\u3001cherry bomb\u3001gatling pea\u3001jalapeno\u3001magnetshroom\u2026\u2026\u6BCF\u79CD\u690D\u7269\u90FD\u6709\u5C5E\u6027\u4E0E special \u63CF\u8FF0\uFF1B\u7EC8\u6781\u5173\u5361\u662F\u300C\u5DE8\u4EBA\u50F5\u5C38\u300D\u3002</p></div>
@@ -7949,10 +8034,11 @@
   }
   function enArcade() {
     return `
-    <p class="manual-lede">The Arcade carries two real games baked into the workbench \u2014 not demos, not placeholders. Lawn tower-defence and an endless orbital run, pure frontend, offline-playable.</p>
+    <p class="manual-lede">The Arcade carries three real games baked into the workbench \u2014 not demos, not placeholders. Lawn tower-defence and an endless orbital run, pure frontend, offline-playable.</p>
     <div class="manual-arcade">
       <div><span class="arcade-label">How to open</span><p>Sidebar entry \xAB Arcade \xBB or type \u201CArcade\u201D in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
-      <div><span class="arcade-label">Second field \xB7 Orbit Beacon</span><p>From the lawn game, hit \xAB More games \xBB in the toolbar \u2014 pick either field. <strong>Orbit Beacon</strong> plays differently: an energy core at the centre, a launcher orbiting it, debris drifting in from every side. <code>\u2190 \u2192 / A D</code> to turn, <code>space</code> or click the canvas to fire, <code>P</code> to pause. Teal shards are ordinary, orange faster, purple take two hits; consecutive hits build a combo multiplier, broken shards sometimes drop a green mote \u2014 click it for +20 shield. Clear a wave and the next starts at once, faster and denser \u2014 there is no finish line, only how many waves you survive. Shield depletion ends the run; the best score stays local. The in-game Guide carries a six-step real-rules tutorial.</p></div>
+      <div><span class="arcade-label">Second field \xB7 Orbit Beacon</span><p>From the lawn game, hit \xAB More games \xBB in the toolbar \u2014 pick any of the three fields. <strong>Orbit Beacon</strong> plays differently: an energy core at the centre, a launcher orbiting it, debris drifting in from every side. <code>\u2190 \u2192 / A D</code> to turn, <code>space</code> or click the canvas to fire, <code>P</code> to pause. Teal shards are ordinary, orange faster, purple take two hits; consecutive hits build a combo multiplier, broken shards sometimes drop a green mote \u2014 click it for +20 shield. Clear a wave and the next starts at once, faster and denser \u2014 there is no finish line, only how many waves you survive. Shield depletion ends the run; the best score stays local. The in-game Guide carries a six-step real-rules tutorial.</p></div>
+      <div><span class="arcade-label">Third field \xB7 Prefix Vault</span><p>The third game behind \xAB More games \xBB: <strong>Prefix Vault</strong> turns real cache strategy into play. The letter on a request is its prefix signature; click the slot with the same letter to score. A wrong click or timeout costs a life and resets combo. Filling an empty slot costs tokens; when full, evict the least recently used prefix. One letter periodically goes hot, like a real conversation reusing its context \u2014 ride that wave. Hit rate is shown live, five misses end the run, and the best score stays local. The in-game Guide carries a five-step real-rules tutorial.</p></div>
       <div><span class="arcade-label">Core loop</span><p>Plant units on the lawn and hold the line against zombies. Sun is the resource; planting costs sun; every plant has attack/defense/special traits; zombies push from right to left \u2014 reaching your base means failure.</p></div>
       <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun, instant refill), Rally (45 sun, 14s cooldown), Time Stop (55 sun, 18s cooldown) \u2014 each skill is situational, none is generic; hoarding sun beats mindless planting.</p></div>
       <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex \u2014 peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom \u2026 each with stats and a special. The final wave is the gargantuar.</p></div>
