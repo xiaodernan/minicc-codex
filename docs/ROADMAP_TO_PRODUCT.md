@@ -56672,3 +56672,37 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 超时和缺席还是同一条词。`/api/changes` 若 30 秒不交齐名单，等待条件被 `.catch` 咽下，规则 6 报的还是 `fixture-row-missing`——「我没等到」和「工作区里真没有这一行」打出来的字一模一样。这条从批次 1206 就挂着，现在多了一个证人也没有改变它。（承接批次 1206。）
 2. 按段豁免认的是「匹配串等于路径的一段」。`softPath()` 只是把 `/` 换成 `/<wbr>`（`web/src/chat/stream.js:875`），切出来的段是 `web`、`src`、`composer.send`，目录段带不上键名那种点。反过来，工作区里若真有一个目录或文件叫 `nav.home`，它的名字本身就是一段路径，按段豁免会把它当文件名放过——而 `nav.home` 真的漏键时也正是这个样子。要让这种放过也有证人，夹具里得放一个名字恰好等于某个字典键的文件，量出规则认不认输。
 3. 扩展名表还是手抄的 42 项，而它服务的是「认识哪些尾巴」这个问题。本仓库 18 种尾巴里 3 种不在表内；表该不该改成从 `git ls-files` 派生（并回答 `.min.js` 这种一段里两个点），是这条规则自己的下一次演进。
+
+## 批次 1208 · M8-T1303: 一次读不出的变更，在面板上留下三个答案，门还把它报成「没有这一行」
+
+### 缺什么
+
+`loadChanges` 的 catch 只重写 `#changeList` 这一格（旧 `web/src/chat/stream.js:950`），另外两格——页签计数 `#changeTabCount` 与汇总 `#changeSummary`——留着上一次真答过的读数。本机实测（一次性仓库里两个脏文件，`page.route` 把 `/api/changes` 掐死，再点产品自己的刷新钮 `#refreshFiles`）：列表说 "Changes are unavailable."，页签同时说 `2`，汇总同时说 `+ 2 / - 1`。同一时刻屏幕上对「这个工作区改了什么」有两个互相矛盾的答案。
+
+更要紧的是这三格都不肯说得出自己属哪一类：`文件读不出来`、`工作区真的没有变更`、`门没等到` 打出来的 DOM 形状是一样的。旧文案还是硬编码的中英二选一（`state.locale === "zh" ? "…" : "…"`），不进字典、不带任何机器可读的标记，所以走查器只能猜。而它猜错了：批次 1206/1207 两次挂下的边界就是这条——夹具等待超时被 `.catch(() => {})` 咽下（旧 `scripts/layout_audit.mjs:428`），规则 6 一律报 `fixture-row-missing`，把「我没等到」印成「这个工作区没有这一行」。这正是本项目在产品里反复修的同一个错，只不过这次长在门自己身上。
+
+### 做了什么
+
+- 产品侧一次读失败现在在三格同时改口：列表渲染 `data-change-status="unavailable"` + `role="status"` 的两行状态（`web/src/chat/stream.js:950`），汇总把两个数换成产品本来就在用的「数不出」（`changes.uncounted`），页签换成 `--`。失败态不再借用上一次成功态的数字。
+- 那两句文案进字典（`web/src/core/i18n.js:54` 与 `:223`）：新增 `changes.unavailable` / `changes.unavailableHint` 两键 × 双语。文案不是重写出来的——补丁脚本先把旧字面量从源码里读出来，按中文句号 U+3002 与英文 ". " 各自切成两句再写回字典，读回校验逐码点相同（zh 22 个码点：`6682 65f6 … 3002`）；改完之后 stream.js 里那句硬编码已经不存在。
+- 门侧把三种成因分开写（`scripts/layout_audit.mjs:351`、`:367`）：面板自己标了 unavailable 就是 `fixture-changes-unavailable`，等待被超时截断就是 `fixture-roster-wait-timed-out`，只有面板答了而名单里确实少一个才是 `fixture-row-missing`；`detail` 里说清是哪一种、少的是谁。等待结果不再被咽下，而是当作事实传给规则（`scripts/layout_audit.mjs:461` 的 `.then(() => true).catch(() => false)`）。
+- 新增一条不分工况的自检（`scripts/layout_audit.mjs:391`、`:400`）：只要 `#changeList` 落到了状态格，页签和汇总就不许还带着数字（`stale-count-after-failed-read`），状态格不许是空的（`unavailable-without-words`），也不许只有人能读没有机器能读（`unread-read-without-marker`）。这条刻意认的是 `.file-tree-status` 而不是标记属性——产品哪天把标记丢了，检查不能跟着一起失明。
+
+### 证据与门
+
+- 改前/改后同一支探针（仓库外手跑，三态各测一遍）：
+  - ABORT 改前：`tabCount="2"`、`summary="+ 2- 1"`、`data-change-status` 0 个；改后：`tabCount="--"`、`summary="+ not counted- not counted"`、`data-change-status="unavailable"` 在场。
+  - EMPTY（`files: []`）改前改后一致：`tabCount="0"`、`+ 0- 0`、渲染的是 `changes.clean` 那张卡——读得出来且真的没有，仍然是另一个形状。
+- 反向变异（手跑 `arm1303b.mjs`，驱动在仓库外不入库；每条跑的都是仓库里那份规则原文，夹具用与出货名单同名同形状的四份证人）：BASE 健康读数 0 条；1 掐死读取 → `fixture-changes-unavailable` 且不报缺席，对照组把规则对标记失明 → 退化成 `fixture-row-missing`（讲成另一个故事）；2 把旧产品行为在活 DOM 上重放（无标记 + 数字留着）→ `stale-count-after-failed-read` 与 `unread-read-without-marker` 各一条，对照组对状态格失明 → 两条都消失；4 清空列表且不报状态、`rosterWaited=false` → `fixture-roster-wait-timed-out`，同一 DOM 换成 `true` → `fixture-row-missing`（同一个 DOM 因这一个事实不同而说两句话）；3 真删一个证人 → `fixture-row-missing` 点名那一个并把在场的另外三个列出来，对照组让规则永不报缺席 → 0 条。9 条臂全部咬住。
+- 门（本批最后一次全量运行）：`node scripts/layout_audit.mjs` 10 个 pass 全绿（zh/en × desktop/laptop/mobile 六次真实工作区 + zh/en × desktop/laptop 四次夹具，`fixture: 4 change row(s), workspace removed`）；`npm run check:web` 说产物与源码一致（`web/app.js + web/game.js are up to date`，1807276 字符——上一批是 1806682，多出来的 594 就是这两句文案与三格改口）；`npm run test:i18n` 报 `zh/en carry the same 986 keys; 295 literal t() references all resolve`（984 → 986，正是新增的两键）；`npm run test:web` 报 `web smoke passed: timeline, product path, desktop, mobile`；`npm run test:admin` 报 `admin smoke passed: 123 unlocked, totals live, …, zero pageerror` 与 `bench tile states exercised (zh/en): filtered_empty, present, unreachable`；`python scripts/pre_push_gates.py` 16/16 全绿（606.0s，本机当时还挂着两支给冒烟套件用的一次性服务器，独跑时这一批的门是 3 分钟量级）。
+
+### 边界
+
+下一批接手三件：
+
+1. 失败态还是只有「读不出来」这一句，没有说出为什么。文件树那头已经把 `fileTreeState.rootError` 印在 `<small>` 里（`web/src/panels/index.js:652`），变更面板这里服务器给的是 `ChangeError`（`minicc/webserver.py:659` 把 `ChangeError` 交给 `_fail(400, …)`），文案却被丢掉了；而 `.file-tree-status` 在 `#fileList` 里同样会出现（加载中、空目录、逐目录报错），规则 6b 目前只看 `#changeList`。要补的是：把原因端上来并让它上屏，同时给 `#fileList` 那份状态格同样的标记。
+2. `files: []` 与「还没开始跑任务」共用一张卡，文案是 `changes.clean` = 「等待变更 / Waiting for changes」——干净的工作区不是在等，跑了任务也不会有变更。真实工作区的六个 pass 里没有证人能区分这两者（规则 6 只在夹具里跑），要把这条口径也变成可测的。
+3. 页签上的 `--` 是手写字面量，走的是符号不是文案，因此没进字典；`stale-count-after-failed-read` 断言的是「不许带数字」而不是「必须等于 `--`」。若下一批想让它也随语言切换，就得先决定 `--` 到底算不算需要本地化的句子。
+
+4. 这批自己踩到的：`npm run test:web` 需要先有一个跑在 127.0.0.1:8765 的服务器（`tests/web_smoke.mjs:6` 读 `MINICC_WEB_URL`，否则默认那个端口）。服务器不在的时候，它先打印 `SMOKE_FAILURE_CODE=TIMELINE_SUITE_FAILED`，再抛 `net::ERR_CONNECTION_REFUSED` 未捕获退出——把「我没连上量具」报成「产品的时间线坏了」。这跟 M8-T534 修的是同一件事，只是长在冒烟套件的入口上：连接被拒绝应当是一个自己的读数，不该占用产品套件的失败码。
+

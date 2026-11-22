@@ -901,6 +901,8 @@
       "changes.minute": "1 \u5206\u949F\u524D",
       "changes.clean": "\u7B49\u5F85\u53D8\u66F4",
       "changes.cleanHint": "\u8FD0\u884C\u4EFB\u52A1\u540E\u4F1A\u5728\u8FD9\u91CC\u540C\u6B65",
+      "changes.unavailable": "\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\u53D8\u66F4\u3002",
+      "changes.unavailableHint": "\u53EF\u5728\u66F4\u591A\u9009\u9879\u4E2D\u5237\u65B0\u5DE5\u4F5C\u533A\u3002",
       "changes.modified": "\u5DF2\u4FEE\u6539",
       "changes.added": "\u5DF2\u65B0\u589E",
       "changes.deleted": "\u5DF2\u5220\u9664",
@@ -1887,6 +1889,8 @@
       "changes.minute": "1m",
       "changes.clean": "Waiting for changes",
       "changes.cleanHint": "Changes will sync here after a task runs",
+      "changes.unavailable": "Changes are unavailable.",
+      "changes.unavailableHint": "Refresh the workspace from More options.",
       "changes.modified": "Modified",
       "changes.added": "Added",
       "changes.deleted": "Deleted",
@@ -11418,7 +11422,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       renderChanges(data);
     } catch {
       if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
-      $("#changeList").innerHTML = `<div class="file-tree-status">${escapeHtml(state.locale === "zh" ? "\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\u53D8\u66F4\u3002\u53EF\u5728\u66F4\u591A\u9009\u9879\u4E2D\u5237\u65B0\u5DE5\u4F5C\u533A\u3002" : "Changes are unavailable. Refresh the workspace from More options.")}</div>`;
+      const uncounted = escapeHtml(t("changes.uncounted"));
+      $("#changeList").innerHTML = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
+      const summary = $("#changeSummary");
+      if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
+      const tabCount = $("#changeTabCount");
+      if (tabCount) tabCount.textContent = "--";
     } finally {
       if (path === state.workspacePath && version === runtime.workspaceVersion && request === runtime.changesRequest) $("#changesSection")?.setAttribute("aria-busy", "false");
     }

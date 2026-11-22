@@ -189,8 +189,8 @@ const SCROLL_EXEMPT = [
   ".admin-task-message", ".todo-content", ".recent-copy", ".promo-body",
 ];
 
-async function auditPage(page, locale, viewport, { fixture = false } = {}) {
-  return page.evaluate(({ locale, viewport, SCROLL_EXEMPT, fixture, NAMESPACES, FILE_EXTENSIONS, FIXTURE_ROSTER }) => {
+async function auditPage(page, locale, viewport, { fixture = false, rosterWaited = true } = {}) {
+  return page.evaluate(({ locale, viewport, SCROLL_EXEMPT, fixture, rosterWaited, NAMESPACES, FILE_EXTENSIONS, FIXTURE_ROSTER }) => {
     const findings = [];
     const label = `${locale}/${viewport}`;
     const bad = (kind, where, snippet, detail = "") =>
@@ -353,11 +353,21 @@ async function auditPage(page, locale, viewport, { fixture = false } = {}) {
         .filter(visible);
       const named = rows.map((el) => el.getAttribute("data-open-diff") || el.getAttribute("data-file") || "");
       const seen = new Set(named.map((path) => path.split(/[\\/]/).pop()));
-      for (const want of FIXTURE_ROSTER) {
-        if (!seen.has(want)) {
-          bad("fixture-row-missing", "#changeList", named.join(" ") || "(no rows)",
-            `the fixture file ${want} never rendered, so the change-list rule it witnesses measured nothing`);
-        }
+      const unavailable = !!document.querySelector('#changeList [data-change-status="unavailable"]');
+      const missing = FIXTURE_ROSTER.filter((want) => !seen.has(want));
+      if (missing.length) {
+        // Three different reasons the roster is not on screen, and the ruler has to name
+        // the one it can actually see. Reporting "the witness is absent" when the panel
+        // said it got no answer - or when the ruler itself stopped waiting - is the same
+        // mistake this project keeps fixing in the product: a failed read answering as
+        // "there is nothing here".
+        const cause = unavailable ? "the panel said the read failed"
+          : !rosterWaited ? "the ruler stopped waiting before the roster arrived"
+          : "the workspace rendered an answer without it";
+        bad(unavailable ? "fixture-changes-unavailable"
+          : !rosterWaited ? "fixture-roster-wait-timed-out"
+          : "fixture-row-missing", "#changeList", named.join(" ") || "(no rows)",
+          `${cause}: ${missing.join(", ")} - the rules this fixture witnesses would measure nothing`);
       }
       const titled = rows.filter((el) => el.getAttribute("data-auto-title") === "true"
         && (el.getAttribute("title") || "").trim());
@@ -367,8 +377,33 @@ async function auditPage(page, locale, viewport, { fixture = false } = {}) {
       }
     }
 
+    // 6b. A failed read has to fail in every place the fact lives. The panel used to
+    //     repaint the list with "unavailable" while the tab badge and the +/- summary
+    //     went on advertising the numbers of the last read that did answer - one
+    //     question, two answers, both on screen. It keys off the status slot rather than
+    //     off the marker attribute, because a product that lost the marker must not
+    //     therefore lose the check too. Every pass runs it, not only the fixture.
+    const statusBox = document.querySelector("#changeList .file-tree-status");
+    if (statusBox) {
+      const badge = (document.querySelector("#changeTabCount")?.textContent || "").trim();
+      const summary = (document.querySelector("#changeSummary")?.textContent || "").replace(/\s+/g, " ").trim();
+      if (/\d/.test(badge) || /\+\s*\d/.test(summary)) {
+        bad("stale-count-after-failed-read", "#changeTabCount + #changeSummary",
+          `${badge} | ${summary}`,
+          "the change list says it has no answer while the counters still show a read that answered");
+      }
+      if (!statusBox.textContent.trim()) {
+        bad("unavailable-without-words", "#changeList", describe(statusBox),
+          "the change list fell back to a status slot and rendered no copy in it");
+      }
+      if (!document.querySelector('#changeList [data-change-status]')) {
+        bad("unread-read-without-marker", "#changeList", describe(statusBox),
+          "the failure state has no data-change-status, so nothing but this probe can tell it from an empty workspace");
+      }
+    }
+
     return findings;
-  }, { locale, viewport, SCROLL_EXEMPT, fixture, NAMESPACES, FILE_EXTENSIONS, FIXTURE_ROSTER });
+  }, { locale, viewport, SCROLL_EXEMPT, fixture, rosterWaited, NAMESPACES, FILE_EXTENSIONS, FIXTURE_ROSTER });
 }
 
 async function openApp(browser, url, locale, viewport, onPageError) {
@@ -420,14 +455,16 @@ async function main() {
             (e) => report.jsErrors.push(`${locale}/${viewport.name}/fixture: ${e.message}`));
           // The rows come from /api/changes, which shells out to git; wait for every
           // fixture file by name rather than a fixed sleep, then for the observer that
-          // titles newly rendered buttons (it debounces at 200ms).
-          await page.waitForFunction((roster) => {
+          // titles newly rendered buttons (it debounces at 200ms). Whether that wait
+          // ended on its own or on the timeout is a fact rule 6 needs: "we stopped
+          // waiting" must never be printed as "this workspace has no such row".
+          const rosterWaited = await page.waitForFunction((roster) => {
             const seen = new Set([...document.querySelectorAll("#changeList [data-open-diff], #fileList [data-file]")]
               .map((el) => (el.getAttribute("data-open-diff") || el.getAttribute("data-file") || "").split(/[\\/]/).pop()));
             return roster.every((want) => seen.has(want));
-          }, FIXTURE_ROSTER, { timeout: 30000 }).catch(() => { /* rule 6 reports the absence */ });
+          }, FIXTURE_ROSTER, { timeout: 30000 }).then(() => true).catch(() => false);
           await page.waitForTimeout(600);
-          const findings = await auditPage(page, locale, `${viewport.name}/fixture`, { fixture: true });
+          const findings = await auditPage(page, locale, `${viewport.name}/fixture`, { fixture: true, rosterWaited });
           const rows = await page.evaluate(() => [...document.querySelectorAll("#changeList .change-item-button")]
             .map((el) => el.getAttribute("data-open-diff")).filter(Boolean));
           report.viewports.push(`${locale}/${viewport.name}/fixture`);
