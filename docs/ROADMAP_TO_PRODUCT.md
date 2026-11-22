@@ -56446,3 +56446,22 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 全程零模型调用：本批证明的是「装得进、装得稳、看得见」，不证明回答质量或线上缓存命中率；模型额度关闭期间不做任何 live 百分比声称。
 - token 数是 `ceil(字符数 / 4)` 的保守估算，中文会被高估，真实 token 只会更少；它不是分词器的精确计数，面板与文档都按估算口径标注。
 - 接口只监听本机回环，数据来自本仓库语料；不引入外部抓取，也不改任何写路径。
+
+
+## 批次 1200 · M8-T1295: Java 测试日志必须自带用例数 —— 不许再靠「绿了」两个字交差
+
+### 缺什么
+- `java-tests` job 跑的是 `mvn -B -q test`：`-q` 把 Surefire 的 `Tests run: …` 汇总一起吞掉，日志里只剩一个退出码。写着「CI 全绿」，却说不清到底跑了多少条用例、有没有模块被静默跳过。
+- 用户要求压力测试与质量证据可复现；没有用例数的绿，是不可核验的绿。
+
+### 做了什么
+- 改为 `set -o pipefail; mvn -B test | tee mvn-test.log`：保留完整输出，Maven 失败仍能让 step 失败。
+- 新增「Print Java test totals」步骤：打印各模块 `[INFO] Tests run:` 汇总与逐类 `Tests run: … in …` 结果，最后一行指出日志路径。
+- scope 判定不变：只有 `minicc-cloud/` 变更才启动 Java 工具链，纯 Python 推送不付第二套工具链的成本。
+
+### 证据与门
+- `.github/workflows/ci.yml` 经 YAML 解析验证：`jobs: pytest, reliability-probe, claims, js-check, web-smoke, web-smoke-mutation, eval-pr, eval-nightly, java-tests`。
+- 两条 grep 都是只读日志、失败不掩盖：`|| true` 只作用于「没有匹配行」的展示，`pipefail` 保证 mvn 非零会让主步骤失败。
+
+### 边界
+- 本批没有触发 GitHub Actions 实跑（需要一次 `minicc-cloud/` 变更的推送）；YAML 与命令形状已验证，真实用例数要等下一次该 job 运行时才出现在日志里，不提前编造数字。

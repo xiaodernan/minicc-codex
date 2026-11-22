@@ -468,4 +468,15 @@ jobs:
       - name: Run service plane tests
         if: steps.scope.outputs.changed == 'true'
         working-directory: minicc-cloud
-        run: mvn -B -q test
+        run: |
+          set -o pipefail
+          mvn -B test | tee mvn-test.log
+      - name: Print Java test totals
+        if: steps.scope.outputs.changed == 'true'
+        working-directory: minicc-cloud
+        run: |
+          echo "── Surefire module totals ──"
+          grep -hE "^\[INFO\] Tests run:" mvn-test.log | tail -20 || true
+          echo "── Per-class results ──"
+          grep -hE "Tests run: .* in " mvn-test.log | tail -40 || true
+          echo "Java test log: minicc-cloud/mvn-test.log"
