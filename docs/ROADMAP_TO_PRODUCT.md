@@ -56242,3 +56242,26 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 手动触发，绝不自动研判：面板一天开很多次，自动调模型就是烧 token。按钮只在真有样本时出现。
 - 只读建议：不自动改代码、不自动派任务；措施由用户决定做不做。
 - 样本不足时面板标「样本偏薄 · 只作方向参考」，模型看到的快照里也带 confidence——不让三次会话的跳出率冒充产品结论。
+
+
+## 批次 1191 · M8-T1289c: 访客漫游路径 —— 从「跳出多少」到「从哪走到哪」
+
+### 缺什么
+- 批次 1189 的访客实录能回答跳出率、停留、狂点、退出视图，但回答不了最要紧的一句：人从落地页先去了哪、在哪两屏之间掉了队、哪条路是死胡同。req #9 要「观察所有用户的行为」，只有计数没有路径，等于只看见人进来了、没看见人往哪走。
+
+### 做了什么
+- scripts/behavior_sim.mjs 给每段旅程记下有序 transitions（含 landing→首视图），从真实点击序列生成，不是拼出来的演示路径；按行追加进 .minicc/behavior/journeys.jsonl。
+- minicc/behavior_journeys.py 解析并聚合 top 路径（from→to、次数、占样本比例），最多 24 条裁剪；旧记录无 transitions 字段时如实为空（报告里就不出现路径，而不是拿旧数据猜）。boot_ms 的 0 与 null 仍严格区分。
+- 管理员访客卡加「常见漫游路径 · 谁去了哪」列表；i18n 中英各 1 键；说明书管理员条目补一句「从哪到哪」。
+- tests/test_behavior_journeys.py 新增 3 项（路径聚合 / 上界裁剪 / 旧记录无字段诚实为空）；admin_smoke.mjs 加条件断言（有旅程时路径必须含箭头、绝不渲染裸 i18n 键，空日志是合法态不强制）。
+
+### 证据与门
+- 真实重采集（node scripts/behavior_sim.mjs --url http://127.0.0.1:8765 --runs 2 --seed 23）：10 段真浏览器旅程落盘，8 段带真实路径。端点聚合读数——total 10 / confidence usable / 跳出 0.4；top 路径 landing→manual ×4（0.4）、manual→atlas ×2（0.2）、pulse→manual ×2（0.2）、activity→pulse / almanac→workspaces / archive→activity / landing→archive / landing→ledger 各 ×1。
+- pytest：test_behavior_journeys 11 passed；相关家族（behavior/journey/oracle_visitors）13 passed。
+- 真浏览器：admin_smoke（含新路径断言）绿、en_cjk 绿、manual_smoke 20 章双语零混排。
+- 静态门：i18n 字典 922 键双语一致、287 t() 全解析；node --check；npm run build:web + check:web 绿。
+
+### 边界
+- 纯代码增量，不花 token、不调模型、不碰状态流转与缓存；路径来自真浏览器点击序列，日志在 gitignore 的 .minicc/ 下不入库。
+- 只聚合 observed 路径，不推断「因为走了 X 所以跳出」这类没有证据的因果。
+- 旧旅程日志没有路径字段，聚合时如实为空——不拿新字段去倒推旧数据、不编造历史路径。

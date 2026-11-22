@@ -465,11 +465,13 @@ export async function openAdmin() {
       const factsEl = $("#adminJourneysFacts");
       const personasEl = $("#adminJourneysPersonas");
       const exitsEl = $("#adminJourneysExits");
+      const pathsEl = $("#adminJourneysPaths");
       const howEl = $("#adminJourneysHow");
       if (!report || report.error) {
         if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeysOutage"))}</p>`;
         if (personasEl) personasEl.innerHTML = "";
         if (exitsEl) exitsEl.innerHTML = "";
+        if (pathsEl) pathsEl.innerHTML = "";
         if (howEl) howEl.textContent = report?.error ? `error: ${String(report.error).slice(0, 140)}` : "";
         return;
       }
@@ -485,6 +487,7 @@ export async function openAdmin() {
         if (factsEl) factsEl.innerHTML = `<p class="admin-journey-empty">${esc(t("admin.journeysEmpty"))}</p>`;
         if (personasEl) personasEl.innerHTML = "";
         if (exitsEl) exitsEl.innerHTML = "";
+        if (pathsEl) pathsEl.innerHTML = "";
         if (howEl) howEl.innerHTML = `${esc(t("admin.journeysHow"))} <code>${esc(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
         const oracleEl = $("#adminJourneysOracle");
         if (oracleEl) oracleEl.hidden = true; // nothing to diagnose yet — do not offer a paid read
@@ -527,6 +530,15 @@ export async function openAdmin() {
           ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc(t("admin.journeysExits"))}</em></li>`
             + exits
               .map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc(String(row.count))}</strong><span>${esc(String(row.view))} · ${esc(pct(row.share))}</span></li>`)
+              .join("")
+          : "";
+      }
+      const paths = Array.isArray(report.transitions) ? report.transitions : [];
+      if (pathsEl) {
+        pathsEl.innerHTML = paths.length
+          ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc(t("admin.journeysPaths"))}</em></li>`
+            + paths
+              .map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc(String(row.count))}</strong><span>${esc(String(row.from))} → ${esc(String(row.to))} · ${esc(pct(row.share))}</span></li>`)
               .join("")
           : "";
       }

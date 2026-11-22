@@ -314,6 +314,15 @@ async function runJourney(browser, persona) {
   }
   const dwellMs = Date.now() - startedMs;
   const lastView = state.views.length ? state.views[state.views.length - 1] : "landing";
+  // The walk as a chain of moves: every landing is "landing -> first room", and
+  // every later hop is room -> room. This is the evidence for "clicked around
+  // lost" — a bounce rate says someone left, a chain says where they wandered.
+  const walked = state.views.slice();
+  const transitions = walked.length
+    ? [{ from: "landing", to: walked[0] }].concat(
+        walked.slice(1).map((to, index) => ({ from: walked[index], to })),
+      )
+    : [];
   await context.close().catch(() => {});
   return {
     persona,
@@ -321,6 +330,7 @@ async function runJourney(browser, persona) {
     dwell_ms: dwellMs,
     boot_ms: bootMs,
     views: state.views.length ? state.views : ["landing"],
+    transitions,
     clicks: state.clicks,
     rage_clicks: state.rage_clicks,
     bounced: Boolean(outcome.bounced),

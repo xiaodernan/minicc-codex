@@ -14,6 +14,7 @@ from pathlib import Path
 from minicc.behavior_journeys import (
     HOW_TO,
     MAX_JOURNEYS,
+    MAX_TRANSITIONS,
     MAX_VIEWS,
     build_journey_report,
     journey_path,
@@ -166,6 +167,55 @@ def test_rage_bursts_are_counted_separately(tmp_path: Path) -> None:
     assert report["rage_journeys"] == 2
     wanderer = next(row for row in report["personas"] if row["id"] == "wanderer")
     assert wanderer["rage_journeys"] == 1
+
+
+def test_transitions_record_the_walk_and_cannot_inflate(tmp_path: Path) -> None:
+    # Two journeys walk landing->pulse->manual; one of them repeats pulse->manual
+    # five times. Counting per journey keeps the share at 2/3 rather than 6/3.
+    _write(
+        tmp_path,
+        [
+            _journey(
+                persona="wanderer",
+                transitions=[
+                    {"from": "landing", "to": "pulse"},
+                    {"from": "pulse", "to": "manual"},
+                    {"from": "pulse", "to": "manual"},
+                    {"from": "pulse", "to": "manual"},
+                    {"from": "pulse", "to": "manual"},
+                    {"from": "pulse", "to": "manual"},
+                ],
+            ),
+            _journey(persona="reader", transitions=[{"from": "landing", "to": "pulse"}, ["pulse", "manual"]]),
+            _journey(persona="impatient", transitions=[]),
+        ],
+    )
+    report = build_journey_report(tmp_path)
+    walks = {(row["from"], row["to"]): row for row in report["transitions"]}
+    assert walks[("pulse", "manual")]["count"] == 2
+    assert walks[("pulse", "manual")]["share"] == 0.667
+    assert walks[("landing", "pulse")]["count"] == 2
+    assert all(row["share"] <= 1.0 for row in report["transitions"])
+
+
+def test_transitions_tolerate_old_and_broken_records(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        [
+            _journey(persona="reader"),  # predates the field entirely
+            _journey(persona="wanderer", transitions=[{"from": "", "to": "pulse"}, {"to": "manual"}, 7, ["only-one"]]),
+        ],
+    )
+    rows = load_journeys(tmp_path)
+    assert rows[0]["transitions"] == []
+    assert rows[1]["transitions"] == []
+    assert build_journey_report(tmp_path)["transitions"] == []
+
+
+def test_transitions_are_bounded_per_record(tmp_path: Path) -> None:
+    walk = [{"from": f"v{index}", "to": f"v{index + 1}"} for index in range(MAX_TRANSITIONS + 10)]
+    _write(tmp_path, [_journey(persona="wanderer", transitions=walk)])
+    assert len(load_journeys(tmp_path)[0]["transitions"]) == MAX_TRANSITIONS
 
 
 def test_boot_time_keeps_null_and_zero_apart(tmp_path: Path) -> None:

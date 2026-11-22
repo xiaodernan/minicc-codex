@@ -111,6 +111,13 @@ async function checkMode(locale, expectCjk) {
   const journeyText = `${await page.locator("#adminJourneysFacts").innerText()} ${await page.locator("#adminJourneysHow").innerText()}`.trim();
   assert.ok(journeyText.length > 0, "visitor log must answer with aggregates or the honest empty state");
   assert.ok(!/admin\.journey/i.test(journeyText), "visitor log must never render a raw i18n key");
+  // M8-T1289c: when real journeys exist the walk list shows from → to pairs;
+  // an empty log legitimately leaves it blank, so assert conditionally.
+  const walkText = await page.locator("#adminJourneysPaths").innerText();
+  if (walkText.trim()) {
+    assert.ok(walkText.includes("→"), "a rendered walk must show its from → to direction");
+    assert.ok(!/admin\.journey/i.test(walkText), "walk list must never render a raw i18n key");
+  }
 
   await page.waitForFunction(() => {
     const el = document.querySelector("#adminDiagnosisBody");

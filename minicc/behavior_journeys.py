@@ -31,6 +31,7 @@ JOURNEY_DIR = "behavior"
 JOURNEY_FILE = "journeys.jsonl"
 MAX_JOURNEYS = 400
 MAX_VIEWS = 40
+MAX_TRANSITIONS = 24
 MAX_ID = 32
 
 HOW_TO = "node scripts/behavior_sim.mjs --runs 6"
@@ -102,12 +103,31 @@ def _clean(record: Any) -> dict[str, Any] | None:
     boot_ms: int | None = None
     if isinstance(boot_raw, (int, float)) and not isinstance(boot_raw, bool) and boot_raw >= 0:
         boot_ms = int(boot_raw)
+    # Transitions are the "clicked around lost" evidence — an ordered pair per
+    # move. Older records predate the field, so an absent or broken list is an
+    # honest empty list, never a reconstructed guess.
+    transitions: list[tuple[str, str]] = []
+    raw_pairs = record.get("transitions")
+    if isinstance(raw_pairs, list):
+        for item in raw_pairs:
+            if isinstance(item, dict):
+                src = _as_text(item.get("from"))
+                dst = _as_text(item.get("to"))
+                if src and dst:
+                    transitions.append((src, dst))
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                src, dst = _as_text(item[0]), _as_text(item[1])
+                if src and dst:
+                    transitions.append((src, dst))
+            if len(transitions) >= MAX_TRANSITIONS:
+                break
     return {
         "persona": persona,
         "started_at": _as_text(record.get("started_at"), 40),
         "dwell_ms": _as_count(record.get("dwell_ms")),
         "boot_ms": boot_ms,
         "views": views,
+        "transitions": transitions,
         "clicks": _as_count(record.get("clicks")),
         "rage_clicks": _as_count(record.get("rage_clicks")),
         "page_errors": _as_count(record.get("page_errors")),
@@ -212,6 +232,7 @@ def build_journey_report(workspace: Path) -> dict[str, Any]:
             "mean_clicks": None,
             "rage_journeys": 0,
             "page_errors": 0,
+            "transitions": [],
             "last_views": [],
             "window": None,
             "confidence": "empty",
@@ -244,6 +265,19 @@ def build_journey_report(workspace: Path) -> dict[str, Any]:
     stamps = sorted(row["started_at"] for row in rows if row["started_at"])
     window = {"start": stamps[0], "end": stamps[-1]} if stamps else None
 
+    # Counted per *journey*, not per occurrence: a visitor who bounced between
+    # two rooms five times has still only walked that path once as a story.
+    # So ``share`` can never exceed 1.0 and always reads as "how many sessions
+    # took this step".
+    pairs: dict[tuple[str, str], int] = {}
+    for row in rows:
+        for pair in set(row["transitions"]):
+            pairs[pair] = pairs.get(pair, 0) + 1
+    transitions = [
+        {"from": src, "to": dst, "count": count, "share": _rate(count, total)}
+        for (src, dst), count in sorted(pairs.items(), key=lambda item: (-item[1], item[0]))[:8]
+    ]
+
     return {
         "live": True,
         "total": total,
@@ -254,6 +288,7 @@ def build_journey_report(workspace: Path) -> dict[str, Any]:
         "mean_clicks": round(clicks_total / total, 2) if total else None,
         "rage_journeys": sum(1 for row in rows if row["rage_clicks"] > 0),
         "page_errors": sum(row["page_errors"] for row in rows),
+        "transitions": transitions,
         "last_views": last_views,
         "window": window,
         "confidence": _confidence(total),
