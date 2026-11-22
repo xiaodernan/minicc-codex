@@ -56401,3 +56401,22 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 压测机器负载会左右 p95（同轮 C 段首项 p95 冲到 1335 ms，下一项回到 331 ms），账本只记数量 verdict 与当轮观测延迟，不把单次 p95 当 SLA。
 - 依旧只打本机：PAT、模型 key、公网系统都不参与。
+
+
+## 批次 1198 · M8-T1293: 缓存探针的 lane 必须每天新生 —— 不许旧缓存冒充今天的命中
+
+### 缺什么
+- `scripts/measure_cache_affinity.py` 的 docstring 承诺「lane 每天一条、冷/暖从数据读出」，但 `LANE` 被钉死成 `minicc-measurement-2026-11-17-a`。跨天再跑，第一发就可能命中几天前的残留前缀，「冷启动 74%」不再成立，暖启动读数也无从归因。
+- 用户要求缓存命中稳定、不得中途掉缓存；测量口径本身漂移，后续任何优化都无法证明有效。
+
+### 做了什么
+- `LANE` 改为 `minicc-measurement-{date.today().isoformat()}-a`，与 docstring 的每日新 lane 承诺一致；`--dry-run` 直接打印当天 lane，跑之前就能核对。
+- 其余请求形状、稳定前缀、三问顺序、密钥不落盘等纪律不变。
+
+### 证据与门
+- `--dry-run` 输出：`lane=minicc-measurement-2026-11-22-a prefix_lines=14 asks=3`，零网络、零 token。
+- 缓存/假 provider 家族 31 passed（`test_the_fake_provider_switch_has_one_home` · `test_prompt_cache_key` · `test_session_cache_affinity` · `test_measure_cache_affinity` · `test_cache_keeper`）；流式与上下文家族 62 passed（`test_responses_streaming` · `test_chat_stream_progress` · `test_subagent_streaming` · `test_agent_context` · `test_the_cli_compact_triggers_context_compaction` · `test_the_context_payload_have_one_home`）。
+
+### 边界
+- 模型 API 额度已由用户关闭，本批拿不到真实 live 命中率；只修测量方法与验证链路，不声称任何新的线上百分比。
+- 额度恢复后按 `docs/CACHE_AFFINITY_MATRIX.md` 的 live 流程跑，冷/暖两组读数都必须来自当天 lane。

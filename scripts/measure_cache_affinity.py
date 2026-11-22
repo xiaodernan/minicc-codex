@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
-LANE = "minicc-measurement-2026-11-17-a"
+# 每天一条新 lane：冷/暖必须由数据读出，不能靠昨天残留的缓存冒充今天的命中。
+LANE = f"minicc-measurement-{date.today().isoformat()}-a"
 RULE = (
     "你是一个在代码仓库里工作的智能体。先观察，后动手。"
     "每次变更必须最小：只改必须改的文件，不引入多余依赖，不改变未要求的行为。"
