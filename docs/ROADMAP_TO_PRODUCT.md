@@ -56706,3 +56706,44 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 4. 这批自己踩到的：`npm run test:web` 需要先有一个跑在 127.0.0.1:8765 的服务器（`tests/web_smoke.mjs:6` 读 `MINICC_WEB_URL`，否则默认那个端口）。服务器不在的时候，它先打印 `SMOKE_FAILURE_CODE=TIMELINE_SUITE_FAILED`，再抛 `net::ERR_CONNECTION_REFUSED` 未捕获退出——把「我没连上量具」报成「产品的时间线坏了」。这跟 M8-T534 修的是同一件事，只是长在冒烟套件的入口上：连接被拒绝应当是一个自己的读数，不该占用产品套件的失败码。
 
+## 批次 1209 · M8-T1304: 冒烟套件连不上自己的服务器，却把账记在产品头上
+
+### 缺什么
+
+把 `MINICC_WEB_URL` 指到一个什么都没绑的端口（127.0.0.1:8799），逐个跑那些硬依赖一台真实服务器的套件，实测五个：
+
+| 套件 | 退出码 | 日志里的 SMOKE_FAILURE_CODE | 秒 |
+| --- | --- | --- | --- |
+| `node tests/web_smoke.mjs` | 1 | `TIMELINE_SUITE_FAILED` | 5 |
+| `node tests/admin_smoke.mjs` | 1 | 一个都没有 | 5 |
+| `node tests/orbit_smoke.mjs` | 1 | 一个都没有 | 4 |
+| `node tests/en_cjk_smoke.mjs` | 1 | 一个都没有 | 4 |
+| `node tests/manual_smoke.mjs` | 1 | 一个都没有 | 4 |
+
+两句话都不对：`web_smoke` 把「一台服务器都没起来」说成「产品那条时间线套件失败了」——它的确失败在时间线那一段的 `page.goto`，可是那条时间线一行都没跑；其余四个只留一叠 Playwright 栈。变异门读这两种日志，拿到的都是「这一步什么都没测」的同一条兜底句，跟「跑错了套件」分不开。分母是 `tests/` 下把 `process.env.MINICC_WEB_URL` 当硬依赖的 13 个套件（上面是其中五个的实测，其余八个是同一形状的 `const baseUrl = ...` 加一处 `chromium.launch`）；每一个都先起一次真浏览器、白等 4~5 秒，再报一个产品的名字。
+
+### 做了什么
+
+- `tests/web_smoke_suites.mjs:25` 起三个常量：探针路径 `/api/health`、代码 `HARNESS_UNREACHABLE`、退出码 `3`；`tests/web_smoke_suites.mjs:29` 的 `requireHarness` 探一次（默认 4 秒超时），只认 `{"ok": true, "service": "minicc"}`（`minicc/webserver.py:358` 那条不用口令的路由），别人家的 200、503、非 JSON 都算没连上；`tests/web_smoke_suites.mjs:53` 的 `requireHarnessOrExit` 连不上时宣布代码、写清探的是哪个 URL 和该设哪个环境变量，再退 3。`exitImpl`/`fetchImpl` 都可换，node 子进程不启动浏览器就能测这条路径。
+- 13 个套件各自在第一次 `chromium.launch` 之前加一行 `await requireHarnessOrExit(baseUrl);`（`tests/web_smoke.mjs:8`、`tests/admin_smoke.mjs:7`、`tests/orbit_smoke.mjs:15` 是其中三处），全部从共享模块 import，没有一个套件留下自己的探针副本。
+- `scripts/web_smoke_verdict.py:33` 起同名常量，`scripts/web_smoke_verdict.py:44` 的 `codes` 读出日志里所有代码，`scripts/web_smoke_verdict.py:49` 的 `harness_absent` 只要看见 `HARNESS_UNREACHABLE` 就答「这一步什么都没测」，`scripts/web_smoke_verdict.py:95` 在主流程里先问它，命中就退 3；`decide()` 原来的两元契约和三条旧句子一字未动。这一步既不把它读成「抓到了变异」，也不读成「名字不对」——退出 3 是第三个答案。
+- `tests/test_a_smoke_without_its_harness_says_so.py` 八条：端口拒连（要报自己的名字、不许借 `TIMELINE_SUITE_FAILED`、必须比它替掉的浏览器路径快）、真起一台只答健康载荷的 http server 放行、三种「有人听但不是这个 app」（503 / service 不对 / 不是 JSON）、名单派生的顺序检查（分母是 grep `MINICC_WEB_URL` 得到的套件数，不是手写的 13）、两侧常量必须一致（代码同字、退出码同数且不许撞 0/1）、CLI 退 3 且句子里有 `tested nothing`、产品代码排在探针代码前后都遮不住这个答案、CI 那步仍在读 `MINICC_WEB_URL`（不再设它的话每一次运行都会报成缺 harness）。
+
+### 证据与门
+
+- 改后同一个空端口重跑 `缺什么` 那五个（`scratch/arm1304a2.sh`）：`exit=3`、1~2 秒、`code=SMOKE_FAILURE_CODE=HARNESS_UNREACHABLE`、日志里 `page.goto` 行数为 0；全量 13 个的同一张表在下面。
+- 变异门两边各读一次真日志：读改后这份 → `harness absent: ... zero suites ran, so this step tested nothing ...`，verdict 退出 3；读改前留档那份 → `mutation not attributed: the smoke failed with TIMELINE_SUITE_FAILED`，退出 1。同一件事现在有两种说法，这才是这一步要的。
+- 反向控制 7 条全咬（基线 8 条先绿）：探针挪到 launch 之后、某个套件干脆不探了、探针放宽到任意监听、退出码改成 1、两侧代码字面不一致、主流程不再问 `harness_absent`、句子里删掉 `tested nothing`；每条跑完按 sha256 还原并核对。
+- 空端口重跑从「那五个」扩到全量（`scratch/arm1304_deadport_all.sh`）：名单由 `grep process.env.MINICC_WEB_URL tests/*_smoke.mjs` 派生出来的 13 个套件，每一个都 `rc=3`、都报 `SMOKE_FAILURE_CODE=HARNESS_UNREACHABLE`、1~2 秒退出、日志里 `page.goto` 行数为 0。
+- 负对照（服务器活着时探针必须闭嘴）：`scratch/chain1304b.sh` 起 8765 与 8899 两台，跑 `check:web`（26 秒绿）、`test:i18n`（9 秒绿）、`test:layout`（116 秒绿）再加这 13 个套件，整份 `scratch/chain1304.log` 里 `HARNESS_UNREACHABLE` 出现 0 次，12 个套件绿。
+- 变异这一侧也没被遮住（`scratch/arm1304a3.sh`）：服务器在听，只把上游 provider 指到 `127.0.0.1:9`，`npm run test:web` 退 1、日志里只有 `PRODUCT_PATH_NO_COMPLETION_VERDICT` 这一个代码，verdict 答 `mutation caught: PRODUCT_PATH_NO_COMPLETION_VERDICT` 并退 0——探针没有把一次真变异说成「这一步什么都没测」。
+- 这条链唯一的红是 `test:admin rc=1`（02:59），`#adminContextFacts` 印的是「装配接口不可达——这一格留空，不填假数字。」而不是 8000。归因（`scratch/admin1304_attr.sh`）：安静机器 + 同一台新起的 8899，带探针这份 rc=0（64 秒），`git show HEAD:tests/admin_smoke.mjs` 那份也 rc=0（36 秒），同一时刻 `/api/rag/context` 连打 25 次全部 ok=true、没有 rate_limited、最慢 3.0 秒。所以这不是本批引入的红：是 16 步并发把 `web/src/panels/admin.js:449` 那句 20 秒的 `requestJson` 拖过了限，而 `web/src/panels/admin.js:417` 把「等超时」和「接口不可达」写成同一句话（`web/src/panels/admin.js:418` 那一行就是「不可达」这句）。红留着，已登记为下一批（超时那一格）。
+- 16 道门（`scratch/gates1304.log`，helper 服务器全停、`env -u NO_PROXY`）：首轮 15/16 绿，红的只有 `tracked evidence census`，原因与新行为无关——`tests/test_a_smoke_without_its_harness_says_so.py` 还没进 git 索引，census 读 `git ls-files`，未跟踪的文件就是「证据读者引不到的模块」。`git add` 后单跑这道门 1/1 绿（`scratch/gates1304b.log`，10.3 秒），其余 15 道一字未动。
+
+### 边界
+
+1. 探针只证明「有一台 minicc 在听这个端口」，不证明它听的是这个套件要的那份工作区：`tests/almanac_smoke.mjs`、`tests/manual_smoke.mjs` 从仓库源码派生断言，`tests/admin_smoke.mjs` 要的是 8899 上那台带管理员的实例，指错了服务器这一批照样放行。下一步让探针读出工作区身份再比对。
+2. `.github/workflows/ci.yml:155` 那一步「Verify responsive UI and task protocol」实测展开是 23 条 `npm run`、24 个 `.mjs`，其中真的 `chromium.launch` 的只有 4 个（`tests/frontend_scale_smoke.mjs`、`tests/frontend_optimization_smoke.mjs`、`tests/frontend_lifecycle_smoke.mjs`、`tests/frontend_phase_classes_smoke.mjs`），另外 20 个是 DOM-free 的源码/i18n 契约（`tests/frontend_transport_smoke.mjs` 用 `data:` URL 加 `globalThis.fetch` 打桩，`tests/frontend_timeline_one_home_smoke.mjs` 只断言源码），浏览器没装也照跑。所以浏览器这一半边得另起一批（`HARNESS_BROWSER_MISSING`，共用退出码 3），分母从这一步的 `npm run` 列表派生、再按 `chromium.launch` 收窄，不能沿用 `MINICC_WEB_URL` 这一把尺子。
+3. 手工驱动器还是老样子：`scripts/behavior_sim.mjs:92` 连不上时先等满 `READY_TIMEOUT`（默认 45 秒）再写它采到的那点东西，而 `scripts/stress_credential_probe.mjs:62` 早就有一句对的写法（`web server never answered /api/health`）。让前者的失败也先说是自己的环境。
+4. 退出码 3 目前只有 verdict 分得出来，CI 那一步非零一律红：把「这一步什么都没测」抬到 step 结论/artifact 名字上，人才不必翻日志才知道该去看服务器。
+5. 探针只在套件开头探一次，服务器中途死了它一句话都不说。实测（`scratch/arm1304-middeath/summary.txt`）：`admin_smoke` 起跑 4 秒后 8866 那台被 `taskkill` 收走，套件退 1、`HARNESS_UNREACHABLE` 出现 0 次、日志里一个 `SMOKE_FAILURE_CODE` 都没有，只剩一句裸的 `page.waitForFunction: Timeout 45000ms exceeded`（`tests/admin_smoke.mjs:35`）——正是这一批在开头补掉的那个形状，只是搬到了中途。下一步要么让套件里的每次读都过同一个判据，要么让 `page.on("requestfailed")` 把「连不上了」也写成自己的名字。

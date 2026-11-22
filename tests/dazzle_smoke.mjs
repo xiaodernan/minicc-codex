@@ -6,9 +6,12 @@
 //      any overlay that pops up (the user who mashes everything, knows nothing)
 // All walks assert console.error === 0 and pageerror === 0.
 import { chromium } from "playwright";
+import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
 import assert from "node:assert/strict";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
+
+await requireHarnessOrExit(baseUrl);
 
 // deterministic seeded PRNG (mulberry32) — same walk every CI, no flake budget
 function rng(seed) {

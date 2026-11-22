@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
+
+await requireHarnessOrExit(baseUrl);
 const plantKeys = [
   "peashooter", "sunflower", "wallnut", "repeater", "cherrybomb", "icepeashooter",
   "firepeashooter", "twinpea", "kernelpult", "pumpkin", "spikeweed", "gloomshroom",

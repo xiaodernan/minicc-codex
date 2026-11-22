@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
+
+await requireHarnessOrExit(baseUrl);
 
 // Derive the charted-coordinate count from the source of truth in atlas.js.
 // Hardcoding 116 let the LXXIX landing (117) slip past this gate — the number

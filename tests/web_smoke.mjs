@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
-import { failProductPath, runNamedSuite } from "./web_smoke_suites.mjs";
+import { failProductPath, requireHarnessOrExit, runNamedSuite } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
+
+await requireHarnessOrExit(baseUrl);
 const screenshotsDir = "output";
 
 // M8-T534/M8-T537: every suite names its failure. The mutation CI step runs this

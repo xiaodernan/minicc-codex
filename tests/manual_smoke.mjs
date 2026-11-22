@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
+
+await requireHarnessOrExit(baseUrl);
 const chapterIds = ["start", "workbench", "modules", "keys", "arcade", "trouble", "limits", "vault", "philosophy", "askdocs", "load", "cloud", "arch", "stategraph", "cache", "sandbox", "fanout", "evidence", "ciwall", "twoshards"];
 const CJK = /[一-鿿]/;
 

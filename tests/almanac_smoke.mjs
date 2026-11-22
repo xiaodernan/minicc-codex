@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
+
+await requireHarnessOrExit(baseUrl);
 
 // Derive the chapter ids from the source of truth (almanac.js CHAPTERS) so a
 // future forge that registers a chapter but forgets to add it here cannot pass

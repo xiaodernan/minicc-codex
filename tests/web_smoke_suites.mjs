@@ -12,6 +12,62 @@ function announce(code) {
   console.error(`SMOKE_FAILURE_CODE=${code}`);
 }
 
+// M8-T1304: a suite whose own server is not running has executed zero
+// assertions, but it reported that as a product failure. Playwright raises
+// "page.goto: net::ERR_CONNECTION_REFUSED" a few seconds after launching a
+// browser, and the failure that reaches the log is the suite's own: measured
+// against a port with nothing bound, web_smoke.mjs exited 1 naming
+// TIMELINE_SUITE_FAILED - a product suite that never ran - while admin, orbit,
+// en_cjk and manual each exited 1 naming nothing at all. The probe answers in
+// milliseconds, before any browser is launched, and names itself, so "the
+// harness was not there" is a sentence the log can tell apart from "the product
+// path did not complete".
+export const HARNESS_PROBE_PATH = "/api/health";
+export const HARNESS_UNREACHABLE_CODE = "HARNESS_UNREACHABLE";
+export const HARNESS_UNREACHABLE_EXIT = 3;
+
+export async function requireHarness(baseUrl, { fetchImpl = globalThis.fetch, timeoutMs = 4000 } = {}) {
+  const probeUrl = new URL(HARNESS_PROBE_PATH, baseUrl).href;
+  let response;
+  try {
+    response = await fetchImpl(probeUrl, { signal: AbortSignal.timeout(timeoutMs) });
+  } catch (error) {
+    const kind = error?.cause?.code || error?.name || "Error";
+    const reason = error?.cause?.message || error?.message || "no detail";
+    return { ok: false, probeUrl, detail: `${kind}: ${reason}` };
+  }
+  if (!response?.ok) {
+    return { ok: false, probeUrl, detail: `answered HTTP ${response?.status ?? "no response"}` };
+  }
+  const payload = await response.json().catch(() => null);
+  if (payload?.ok !== true || payload?.service !== "minicc") {
+    return {
+      ok: false,
+      probeUrl,
+      detail: `answered ${JSON.stringify(payload)} where the minicc health payload was expected`,
+    };
+  }
+  return { ok: true, probeUrl };
+}
+
+export async function requireHarnessOrExit(
+  baseUrl,
+  { exitImpl = (code) => process.exit(code), ...probeOptions } = {},
+) {
+  const harness = await requireHarness(baseUrl, probeOptions);
+  if (harness.ok) return harness;
+  announce(HARNESS_UNREACHABLE_CODE);
+  console.error(
+    [
+      `${HARNESS_UNREACHABLE_CODE}: the server this smoke drives is not answering at ${harness.probeUrl} (${harness.detail}).`,
+      "Start one (python -m minicc.web --workspace . --port <port>) or point MINICC_WEB_URL at one that is already running.",
+      `The suite is exiting ${HARNESS_UNREACHABLE_EXIT} without launching a browser: no suite ran, so nothing this step ` +
+        "reports says anything about the product.",
+    ].join(" "),
+  );
+  return exitImpl(HARNESS_UNREACHABLE_EXIT);
+}
+
 export async function runNamedSuite(code, run) {
   try {
     return await run();

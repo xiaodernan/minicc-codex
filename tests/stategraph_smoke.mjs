@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
+
+await requireHarnessOrExit(baseUrl);
+
 const browser = await chromium.launch({ headless: true });
 const errors = [];
 
