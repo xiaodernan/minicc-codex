@@ -56482,6 +56482,7 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - `tests/test_http_surface.py -k bench_history` 2 passed（新增「查询参数真的到达 read_history」腿；`window=garbage` 退化为无过滤）。
 - 样式与路由门：`test_import_hygiene` / 未使用 import / UTC 单一之家 / logging 共 37 passed；`test_route_coverage_measurement` + `test_http_route_inventory` 共 28 passed。
 - 本机真实历史读数（只读）：`all=41 · suite=v2=41 · window=last-30d=41`，窗口 `2026-11-17T23:31:32Z → 2026-11-18T13:10:54Z`。
+- 端到端实测（本地 server，`--no-auth`，仅回环）：`?suite=v2&kind=suite_run&window=last-30d` → `count=5 / matched=5 / mean=0.583`，窗口同 11-17→11-18；`?window=garbage` → 退化为 41 条（不过滤、不 500）。
 
 ### 边界
 - 本批没有改 admin 面板的取数 URL（tile 仍吃全量）；过滤能力先以只读 API 提供，等有真实窗口需求再接 UI。
