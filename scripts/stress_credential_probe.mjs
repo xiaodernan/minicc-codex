@@ -196,14 +196,26 @@ async function main() {
       });
     }
 
-    // --- D. concurrent admin reads while the barrage is over
+    // --- D. concurrent admin reads while the barrage is over. Two lanes:
+    // the summary tile and the model-free advice tile. The latter builds from
+    // the journey log inside a memo; an accidental nested lock there would
+    // hang exactly under this burst, so it belongs in the pressure matrix.
+    const authHeaders = { Authorization: "Bearer credential-probe-token" };
     const reads = await burst(url, "/api/admin/summary", {
-      headers: { Authorization: "Bearer credential-probe-token" }, n: 240, workers: 32,
+      headers: authHeaders, n: 240, workers: 32,
     });
     const served = reads.codes[200] || 0;
-    record(results, "D. admin summary read burst 240 / c=32", {
+    record(results, "D1. admin summary read burst 240 / c=32", {
       ...reads, served, pass: served === reads.n,
       note: "the shared admin tile must survive many simultaneous readers",
+    });
+    const advice = await burst(url, "/api/visitor-advice", {
+      headers: authHeaders, n: 240, workers: 32,
+    });
+    const advised = advice.codes[200] || 0;
+    record(results, "D2. model-free advice burst 240 / c=32", {
+      ...advice, served: advised, pass: advised === advice.n,
+      note: "rule-derived advice must not deadlock or 5xx under a concurrent burst",
     });
 
     // --- E. aftermath
