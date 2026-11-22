@@ -15,6 +15,13 @@
  *   - avatar glyphs cropped or overflowing their badge
  *   - visible JS exceptions
  *
+ * A rule that never has anything to look at is not a rule, so the audit also
+ * runs one **fixture pass**: a throwaway git repository is built in the system
+ * temp dir, dirtied deterministically, and served by a second throwaway server.
+ * That is the only way the change-list rules (a file name welded into the next
+ * word) have a witness on a clean checkout, where the real workspace's
+ * `git status` is empty. Nothing is written inside the audited repository.
+ *
  * Run standalone (starts a throwaway fake-provider server):
  *   node scripts/layout_audit.mjs
  * Run against an existing server:
@@ -23,9 +30,11 @@
  *   node scripts/layout_audit.mjs --json
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
@@ -57,7 +66,7 @@ async function waitForHealth(url, timeoutMs = 45000) {
   throw new Error("web server never answered /api/health");
 }
 
-async function startServer() {
+async function startServer(workspace = REPO) {
   const port = await freePort();
   const python = process.env.MINICC_PYTHON || (process.platform === "win32"
     ? resolve(REPO, ".venv/Scripts/python.exe")
@@ -68,12 +77,59 @@ async function startServer() {
     MINICC_API_KEY: "layout-audit",
     MINICC_BASE_URL: "https://example.invalid/v1",
   };
-  const child = spawn(python, ["-m", "minicc.web", "--workspace", REPO,
+  const child = spawn(python, ["-m", "minicc.web", "--workspace", workspace,
     "--host", "127.0.0.1", "--port", String(port), "--token", "layout-audit-token"],
     { cwd: REPO, env, stdio: "ignore" });
   const url = `http://127.0.0.1:${port}`;
   await waitForHealth(url);
   return { url, stop: () => child.kill("SIGTERM") };
+}
+
+// --- the fixture workspace -------------------------------------------------
+//
+// Two paths the change list will render: one tracked and edited (a `modified`
+// row with a real +/- count), one new and untracked (an `added` row whose counts
+// the reader cannot know, which is the state the panel used to print as +0).
+// Both names carry a `/` and a `.js`/`.md` extension, because the rule under
+// test is about an extension running straight into the next word.
+const FIXTURE_MODIFIED = join("web", "src", "panels", "changes_fixture.js");
+const FIXTURE_ADDED = join("docs", "fixture_guide.md");
+const FIXTURE_BASELINE = "export const rows = [\n  'alpha',\n  'beta',\n  'gamma',\n];\n";
+const FIXTURE_EDITED = "export const rows = [\n  'alpha',\n  'beta renamed',\n  'gamma',\n];\nexport const total = rows.length;\n";
+
+function git(cwd, args) {
+  const run = spawnSync("git", args, { cwd, encoding: "utf-8" });
+  if (run.status !== 0) {
+    throw new Error(`git ${args.join(" ")} failed (${run.status}): ${run.stderr || run.stdout}`);
+  }
+  return run.stdout;
+}
+
+function makeFixtureWorkspace() {
+  const root = mkdtempSync(join(tmpdir(), "minicc-layout-fixture-"));
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "layout-audit@example.invalid"]);
+  git(root, ["config", "user.name", "layout audit"]);
+  git(root, ["config", "commit.gpgsign", "false"]);
+  mkdirSync(dirname(join(root, FIXTURE_MODIFIED)), { recursive: true });
+  mkdirSync(dirname(join(root, FIXTURE_ADDED)), { recursive: true });
+  writeFileSync(join(root, FIXTURE_MODIFIED), FIXTURE_BASELINE, "utf-8");
+  git(root, ["add", "-A"]);
+  git(root, ["commit", "-q", "-m", "layout audit fixture baseline"]);
+  writeFileSync(join(root, FIXTURE_MODIFIED), FIXTURE_EDITED, "utf-8");
+  writeFileSync(join(root, FIXTURE_ADDED), "# fixture guide\n\nA row the workspace never committed.\n", "utf-8");
+  return root;
+}
+
+function removeFixtureWorkspace(root) {
+  try {
+    rmSync(root, { recursive: true, force: true });
+    return "removed";
+  } catch (error) {
+    // A temp dir the OS would not give back is not a layout defect, but it must
+    // not be reported as cleaned either.
+    return `left behind: ${error.message}`;
+  }
 }
 
 const VIEWPORTS = [
@@ -93,8 +149,8 @@ const SCROLL_EXEMPT = [
   ".admin-task-message", ".todo-content", ".recent-copy", ".promo-body",
 ];
 
-async function auditPage(page, locale, viewport) {
-  return page.evaluate(({ locale, viewport, SCROLL_EXEMPT }) => {
+async function auditPage(page, locale, viewport, { fixture = false } = {}) {
+  return page.evaluate(({ locale, viewport, SCROLL_EXEMPT, fixture }) => {
     const findings = [];
     const label = `${locale}/${viewport}`;
     const bad = (kind, where, snippet, detail = "") =>
@@ -215,8 +271,45 @@ async function auditPage(page, locale, viewport) {
       }
     }
 
+    // 6. Fixture pass only: the witness has to be in the room. Every rule above
+    //    measures what happens to be on screen, so a pass that rendered no change
+    //    rows would report a clean sheet for having looked at nothing. The fixture
+    //    exists to make that impossible: its own file name must be on screen, and
+    //    the app must have auto-titled the row that carries it.
+    if (fixture) {
+      const rows = [...document.querySelectorAll("#changeList .change-item-button, #fileList .file-row")]
+        .filter(visible);
+      const named = rows.map((el) => el.getAttribute("data-open-diff") || el.getAttribute("data-file") || "");
+      if (!named.some((path) => /changes_fixture\.js/.test(path))) {
+        bad("fixture-row-missing", "#changeList", named.join(" ") || "(no rows)",
+          "the edited fixture file never rendered, so the change-list rules measured nothing");
+      }
+      const titled = rows.filter((el) => el.getAttribute("data-auto-title") === "true"
+        && (el.getAttribute("title") || "").trim());
+      if (rows.length > 0 && titled.length === 0) {
+        bad("fixture-tooltip-absent", "#changeList", describe(rows[0]),
+          `${rows.length} change row(s) rendered without a derived tooltip`);
+      }
+    }
+
     return findings;
-  }, { locale, viewport, SCROLL_EXEMPT });
+  }, { locale, viewport, SCROLL_EXEMPT, fixture });
+}
+
+async function openApp(browser, url, locale, viewport, onPageError) {
+  const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
+  page.on("pageerror", onPageError);
+  await page.addInitScript((l) => {
+    try { localStorage.clear(); localStorage.setItem("minicc-locale", l); } catch {}
+  }, locale);
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+  // The splash is a real overlay: until it says "ready" every DOM
+  // measurement below would describe the loading screen, not the app.
+  await page.waitForFunction(() =>
+    document.querySelector("#startupSplash")?.dataset.state === "ready",
+    null, { timeout: 30000 });
+  await page.waitForTimeout(450);
+  return page;
 }
 
 async function main() {
@@ -224,27 +317,49 @@ async function main() {
     ? { url: process.env.MINICC_WEB_URL, stop: () => {} }
     : await startServer();
   const browser = await chromium.launch({ headless: true });
-  const report = { url: server.url, viewports: [], findings: [], jsErrors: [] };
+  const report = { url: server.url, viewports: [], findings: [], jsErrors: [], fixture: null };
   try {
     for (const locale of LOCALES) {
       for (const viewport of VIEWPORTS) {
-        const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
-        page.on("pageerror", (e) => report.jsErrors.push(`${locale}/${viewport.name}: ${e.message}`));
-        await page.addInitScript((l) => {
-          try { localStorage.clear(); localStorage.setItem("minicc-locale", l); } catch {}
-        }, locale);
-        await page.goto(server.url, { waitUntil: "domcontentloaded", timeout: 60000 });
-        // The splash is a real overlay: until it says "ready" every DOM
-        // measurement below would describe the loading screen, not the app.
-        await page.waitForFunction(() =>
-          document.querySelector("#startupSplash")?.dataset.state === "ready",
-          null, { timeout: 30000 });
-        await page.waitForTimeout(450);
+        const page = await openApp(browser, server.url, locale, viewport,
+          (e) => report.jsErrors.push(`${locale}/${viewport.name}: ${e.message}`));
         const findings = await auditPage(page, locale, viewport.name);
         report.viewports.push(`${locale}/${viewport.name}`);
         report.findings.push(...findings);
         await page.close();
       }
+    }
+
+    // The fixture pass: a workspace that is *guaranteed* to have change rows, so
+    // the change-list rules have a witness on a clean checkout. It runs on its
+    // own server over a throwaway repository; the audited workspace is untouched.
+    const fixtureRoot = makeFixtureWorkspace();
+    let fixtureServer = null;
+    try {
+      fixtureServer = await startServer(fixtureRoot);
+      for (const locale of LOCALES) {
+        const viewport = VIEWPORTS[0];
+        const page = await openApp(browser, fixtureServer.url, locale, viewport,
+          (e) => report.jsErrors.push(`${locale}/fixture: ${e.message}`));
+        // The rows come from /api/changes, which shells out to git; wait for the
+        // fixture's own file rather than a fixed sleep, then for the observer that
+        // titles newly rendered buttons (it debounces at 200ms).
+        await page.waitForFunction(() =>
+          [...document.querySelectorAll("#changeList [data-open-diff]")]
+            .some((el) => /changes_fixture\.js/.test(el.getAttribute("data-open-diff") || "")),
+        null, { timeout: 30000 }).catch(() => { /* rule 6 reports the absence */ });
+        await page.waitForTimeout(600);
+        const findings = await auditPage(page, locale, "fixture", { fixture: true });
+        const rows = await page.evaluate(() => [...document.querySelectorAll("#changeList .change-item-button")]
+          .map((el) => el.getAttribute("data-open-diff")).filter(Boolean));
+        report.viewports.push(`${locale}/fixture`);
+        report.findings.push(...findings);
+        report.fixture = { workspace: fixtureRoot, rows, cleanup: null };
+        await page.close();
+      }
+    } finally {
+      if (fixtureServer) fixtureServer.stop();
+      report.fixture = { ...(report.fixture || { workspace: fixtureRoot }), cleanup: removeFixtureWorkspace(fixtureRoot) };
     }
   } finally {
     await browser.close();
@@ -256,6 +371,9 @@ async function main() {
     process.stdout.write(JSON.stringify(report, null, 2) + "\n");
   } else {
     process.stdout.write(`layout audit: ${report.viewports.join(", ")}\n`);
+    if (report.fixture) {
+      process.stdout.write(`  fixture: ${report.fixture.rows.length} change row(s), workspace ${report.fixture.cleanup}\n`);
+    }
     for (const f of report.findings) {
       process.stdout.write(`  FAIL ${f.kind} ${f.where}: ${f.snippet}${f.detail ? ` (${f.detail})` : ""}\n`);
     }

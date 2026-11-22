@@ -56598,3 +56598,39 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 六个 basename 的旧白名单还留在 `unresolved-i18n` 里；本批只加了一条不依赖它的规则，没有把它一并收掉。
 - 提示文本变长后（叶级用 ` · ` 连接），依赖 title 做截断可达性判断的规则组需要复跑，已在同批 `test:layout` 绿里覆盖。
 
+## 批次 1206 · M8-T1301: 让「文件名焊进单词」这把尺子有一个永远在场的证人
+
+### 缺什么
+
+批次 1204 把 `welded-filename-label` 从「只认六个文件名」改成问形状（`scripts/layout_audit.mjs:192`：扩展名后面直接跟大写或中日韩字符就算焊死）。规则本身不再是运气，但它要响，屏幕上得先有一个变更行按钮——而变更行只在 `/api/changes` 交出文件时才渲染，也就是只在 `git status` 脏的时候。干净检出永远走不到这一支：CI 的每一次运行、任何人第一次 clone，都是这样。上一批的边界自己就写了这句话——「CI 上它只是不在场的证人」。
+
+更深一层，这是整个走查器的口径问题：它只测「此刻屏幕上碰巧有什么」。一次「没有变更行所以什么都没得测」的 PASS，和一次「测了、干净」的 PASS，打出来的字一模一样，谁都分不开。前者就是假绿。
+
+### 做了什么
+
+- `scripts/layout_audit.mjs:108` 新增 `makeFixtureWorkspace()`：在系统临时目录 `mkdtemp` 出一个真的 git 仓库，先提交一份放在面板目录下的源文件（带 `/` 与 `.js` 扩展名），再改它（git 数出 `+2 -1`），最后留一份未跟踪的 `.md`（`+3 -0`，走的是「数不出」之外的另一种新增行）。两个名字都要有目录分隔符和扩展名，因为被测的规则问的就是扩展名后面紧跟什么。
+- 第二个一次性服务器指向这个夹具工作区（同一套假 provider 环境，`startServer(workspace)` 现在收工作区参数），走查器在中英两种语言各跑一遍这个相位；等的仍是**产品自己渲染的东西**——`waitForFunction` 等夹具文件名出现在 `#changeList`，再留 600ms 给那个 200ms 防抖的按钮装饰观察器落地，不靠固定睡眠。
+- `scripts/layout_audit.mjs:274` 加了规则 6「证人必须在场」：变更行必须可见、必须有一行的 `data-open-diff` 指向 `changes_fixture.js`、且至少一行带着产品自己写上的 `data-auto-title`。任何一条不满足就是 `fixture-row-missing` / `fixture-tooltip-absent`，是 FAIL 而不是静默跳过。
+- 临时目录用完删；删不掉就把原因写进 `report.fixture.cleanup` 并打印出来，不假报「已清理」。
+- 抽出 `openApp()`（`scripts/layout_audit.mjs:299`）让两个相位共用同一段导航代码，`pageerror` 仍在 `goto` 之前挂——顺序与上一批一致，这里没有修 bug，只是不让新相位漏听。
+- 文件头文档同步改了：这份审计除了「只读」，现在还会造一个临时仓库，这件事写在文件里，不只在 commit message 里。
+
+### 证据与门
+
+- 绿（干净检出）：HEAD `e76e6872` 上 `node scripts/layout_audit.mjs` = 8 个相位（zh/en × desktop/laptop/mobile，加 zh/en × fixture），打印 `fixture: 2 change row(s), workspace removed`，`layout audit: PASS`。
+- 反证 A（把产品改坏）：把 `web/src/main.js:567` 的 `join(" · ")` 用字节级脚本改回 `join("")`，`npm run build:web` 重新打包，同一把尺子报 `layout audit: 28 finding(s)`，其中 4 条挂在夹具名下：`web/src/panels/changes_fixture.js已修改 ·+2-1现在`、`docs/fixture_guide.md已新增 ·+3-0现在`，以及对应英文 `changes_fixture.jsModified ·+2-1now`、`fixture_guide.mdAdded ·+3-0now`。这批要的正是这个：规则的红灯不再取决于谁的工作树脏。
+- 反证 B（把证人抽走）：夹具只写回基线内容、不留未跟踪文件 → `layout audit: 2 finding(s)`，两条都是 `fixture-row-missing #changeList: (no rows)`，并附 `fixture: 0 change row(s)`。规则 6 不是装饰。
+- 还原干净：`weld_arm.mjs restore` 后重新构建，`git status --short` 只剩 `scripts/layout_audit.mjs` 一个文件（+138 −20），内容寻址的包名与构建前逐字相同——一来一回没在 `web/app.js` 的字节里留下痕迹。
+- `npm run check:web`：`web/app.js + web/game.js are up to date (1806682 chars)`、`web/assets is clean (3 referenced bundle(s))`。
+- `npm run test:web`：`web smoke passed: timeline, product path, desktop, mobile`；`npm run test:i18n`：`zh/en carry the same 984 keys; 293 literal t() references all resolve`。
+- `npm run test:admin`：`bench tile states exercised (zh/en): filtered_empty, present, unreachable`，`admin smoke passed: … zero pageerror`。
+- 普查面（怕新代码把走查计数带偏）：`pytest tests/test_two_fixture_keys_must_share_one_workspace.py tests/test_layout_gate_plane_composition_mutation.py -q` = `52 passed in 35.68s`。
+- 上一批补的 CI 播种步骤，在这一批拿到了它的结果：run 45045145474 的 `Playwright web smoke` 作业转绿，其中播种那一步与 arcade suites 两步都 success；同一个作业在 run 45033963635 上是红的，红点在 admin 走查等 `#adminBenchUsage` 交出 `suite_run` 的那次 20 秒超时——那是「干净检出的工作区里没有 bench 历史」，不是断言写错。
+- 本条目初稿被两道文档门各自拦下：`content-addressed quotes` 不许账本引用一个内容寻址的包名（重建就改名、指针就悬空），`doc pointers` 报了两条 `DANGLING EVIDENCE`——一条是夹具里那两个只存在于临时仓库的文件名，一条是为了举例写下的手册路径。改述后两门转绿（`3 passed in 0.19s`，ROADMAP 的 dangling 计数 0）。规则要有证人，证人也不能靠在文档里编一个路径。
+- 门禁（本条目所述最终树）：`python scripts/pre_push_gates.py` = `16/16 gates green in 104.7s; red: none`。
+- 改述之后又单跑过那两道文档门，仍各自绿：`3 passed`、ROADMAP 的 dangling 计数 0。
+
+### 边界
+
+`unresolved-i18n` 的六个命名空间（`scripts/layout_audit.mjs:186`）还是手抄的。这一批量了字典真实有 71 个命名空间；直接换成派生名单会把 `minicc/changes.py` 这种真文件名读成未解析的键——`changes` 正好是字典里的一个命名空间，而这条规则的负向断言只豁免 js/mjs/css 三种扩展名。所以下一批的顺序是先把扩展名豁免表覆盖到 `welded` 已经认识的那一整套（并回答 `.pyx` 这种「扩展名后还有字母」的形状），再谈派生名单。第二件：夹具只在桌面视口跑，变更面板在 1280 还看得见、390 看不见，窄视口里的变更行仍没人测。第三件：`/api/changes` 若超过 30 秒没交出文件，规则 6 报的是 `fixture-row-missing`，报告和「工作区里真的没有这一行」用的是同一条词——超时和缺席分开，是这条规则自己的下一次演进。
+
