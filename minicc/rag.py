@@ -167,17 +167,44 @@ def reload_index() -> int:
     return len(_LazyIndex.get().docs)
 
 
-def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_tokens: int = 700) -> dict[str, Any]:
+def answer(query: str, limit: int = 5, *, config: Any | None = None,
+           max_output_tokens: int = 700, budget_tokens: int | None = None) -> dict[str, Any]:
     """One-shot RAG over the repo docs: retrieve, then ask the configured model.
 
     Uses the same provider settings as the rest of minicc (MINICC_* env). Returns a
     dict with ``sources`` (the retrieved documents), ``answer`` (the model's text),
     and ``usage`` (token counters when the gateway provides them).
     Never leaks the api_key; the base_url in the result is the public host only.
+
+    M8-T1294: ``budget_tokens=None`` (the default) keeps the original five-chunk
+    call byte-for-byte. Passing a budget switches to the large-context assembler
+    in ``context_assembly``: lexical fan-out, de-duplicated line-anchored chunks
+    packed in a stable order up to the budget. The returned ``context`` block
+    makes the decision auditable (token count, candidates, prefix fingerprint).
     """
-    sources = search(query, limit=limit)
+    context_meta: dict[str, Any] | None = None
+    if budget_tokens is None:
+        sources = search(query, limit=limit)
+    else:
+        from .context_assembly import build_context_pack, render_context
+
+        pack = build_context_pack(query, budget_tokens=budget_tokens)
+        sources = pack["chunks"]
+        context_meta = {
+            "budget_tokens": pack["budget_tokens"],
+            "estimated_tokens": pack["estimated_tokens"],
+            "candidates": pack["candidates"],
+            "chunks": len(sources),
+            "query_variants": pack["query_variants"],
+            "prefix_fingerprint": pack["prefix_fingerprint"],
+            "truncated": pack["truncated"],
+            "evidence": render_context(pack),
+        }
     if not sources:
-        return {"query": query, "answer": "", "sources": [], "model": None, "usage": None}
+        result: dict[str, Any] = {"query": query, "answer": "", "sources": [], "model": None, "usage": None}
+        if context_meta is not None:
+            result["context"] = context_meta
+        return result
 
     from .config import load_config
     from openai import OpenAI
@@ -203,14 +230,21 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
     explicit_key = str(getattr(config, "prompt_cache_key", "") or "")
     cache_key = _prompt_cache_key(base_url, model_name, explicit_key)
 
+    # The large-context path renders numbered, line-anchored evidence so every
+    # [n] citation is auditable against a real file range. The legacy path keeps
+    # its exact original bytes — changing it would invalidate cached prefixes.
+    if context_meta is not None:
+        evidence = context_meta["evidence"]
+    else:
+        evidence = "\n\n".join(
+            f"[{index + 1}] file: {item['source']}\n{item['chunk']}" for index, item in enumerate(sources)
+        )
     prompt = (
         "You answer only from the documents below. Copy the language of the question.\n"
         "Answer briefly and cite the source numbers like [1], [2] for the facts you use.\n"
         "If ANY document addresses part of the question, answer that part, and say explicitly which part is missing.\n"
         "If and only if NONE of the documents addresses the question, not even partially, reply with one short sentence in the same language as the question saying the documents do not directly answer it — do not mix languages in that sentence.\n\n"
-        + "\n\n".join(
-            f"[{index + 1}] file: {item['source']}\n{item['chunk']}" for index, item in enumerate(sources)
-        )
+        + evidence
         + f"\n\nQuestion: {query}"
     )
     messages = [{"role": "user", "content": prompt}]
@@ -244,7 +278,7 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             usage["prompt_cache_hit_tokens"] = int(cached)
         # Note: /usage does not carry cached_tokens on chat/completions; it is
         # intentionally honest about that — we do not fabricate a cache hit rate.
-        return {
+        result = {
             "query": query,
             "answer": text,
             "model": model_name,
@@ -253,8 +287,11 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             "sources": sources,
             "citation": citation_report(text, sources),
         }
+        if context_meta is not None:
+            result["context"] = context_meta
+        return result
     except Exception as exc:  # noqa: BLE001 - surface the failure to the caller, not a stack trace
-        return {
+        result = {
             "query": query,
             "answer": "",
             "model": model_name,
@@ -263,6 +300,9 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None, max_output_
             "sources": sources,
             "error": f"{type(exc).__name__}: {exc}",
         }
+        if context_meta is not None:
+            result["context"] = context_meta
+        return result
 
 
 class BM25Index:

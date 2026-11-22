@@ -35,6 +35,33 @@ async function checkMode(locale, expectCjk) {
   // unlocked state must be visible
   assert.ok(await page.locator("#adminUnlocked").isVisible(), "unlocked dashboard must render");
 
+  // M8-T1294: the context assembler tile hydrates from /api/rag/context with
+  // real fields (budget, packed tokens, line-anchored sources) and survives a
+  // manual re-read. It must never print NaN or invent sources.
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminContextFacts");
+    if (!el) return false;
+    const text = (el.innerText || "").trim();
+    return Boolean(el.querySelector(".admin-context-facts-grid")) ||
+      text.includes("没有命中") || text.includes("No corpus hit") ||
+      text.includes("不可达") || text.includes("unreachable");
+  }, null, { timeout: 45000 });
+  const contextFacts = await page.evaluate(() => {
+    const el = document.querySelector("#adminContextFacts");
+    return el ? (el.innerText || "").replace(/\s+/g, " ").trim() : "";
+  });
+  assert.match(contextFacts, /8000/, "context tile must state the requested token budget");
+  assert.ok(!/NaN/.test(contextFacts), "context tile must never print NaN");
+  const contextSources = await page.locator("#adminContextSources .admin-context-source").count();
+  assert.ok(contextSources >= 1, "context tile must list at least one line-anchored source");
+  await page.click("#adminContextRefresh");
+  await page.waitForTimeout(300);
+  assert.ok(await page.locator("#adminContextFacts").isVisible(), "refresh must keep the context tile visible");
+  assert.ok(
+    (await page.locator("#adminContextSources .admin-context-source").count()) >= 1,
+    "re-read must restore the source list",
+  );
+
   // pick up real numbers from /api/admin/summary — never assert hardcoded counts, only shape
   const totals = await page.evaluate(() => ({
     tasks: document.querySelector("#adminTotalTasks")?.innerText,

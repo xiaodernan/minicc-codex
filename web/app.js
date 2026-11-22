@@ -1036,6 +1036,12 @@
       "admin.briefKicker": "\u5DE5\u4F5C\u533A\u7B80\u62A5 \xB7 \u7531\u6A21\u578B\u73B0\u626B",
       "admin.briefPending": "\u6B63\u5728\u8BFB\u53D6\u5B9E\u6D4B\u5FEB\u7167\u2026",
       "admin.briefRefresh": "\u91CD\u65B0\u751F\u6210\u7B80\u62A5",
+      "admin.contextKicker": "\u4E0A\u4E0B\u6587\u88C5\u914D \xB7 \u6BCF\u6B21\u63D0\u95EE\u88C5\u8FDB\u591A\u5C11",
+      "admin.contextNote": "\u8BCD\u6CD5\u6269\u5C55 \xB7 \u884C\u53F7\u951A\u70B9 \xB7 \u96F6\u6A21\u578B\u8C03\u7528",
+      "admin.contextRefresh": "\u91CD\u65B0\u88C5\u914D\u4E0A\u4E0B\u6587",
+      "admin.contextPending": "\u6B63\u5728\u88C5\u914D\u4EE3\u8868\u6027\u63D0\u95EE\u7684\u4E0A\u4E0B\u6587\u2026",
+      "admin.contextEmpty": "\u8BED\u6599\u91CC\u6CA1\u6709\u547D\u4E2D\u2014\u2014\u88C5\u914D\u5668\u4E0D\u4F1A\u7F16\u9020\u8BC1\u636E\u3002",
+      "admin.contextOutage": "\u88C5\u914D\u63A5\u53E3\u4E0D\u53EF\u8FBE\u2014\u2014\u8FD9\u4E00\u683C\u7559\u7A7A\uFF0C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
       "admin.briefOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u5199\u4E0D\u4E86\u7B80\u62A5\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.diagnosisKicker": "\u8BCA\u65AD \xB7 \u503C\u5B88\u8BCA\u65AD\u5E08",
       "admin.diagnosisPending": "\u6B63\u5728\u8BFB\u5B9E\u6D4B\u8BCA\u65AD\u5FEB\u7167\u2026",
@@ -2012,6 +2018,12 @@
       "admin.briefKicker": "Workspace brief \xB7 read live by the model",
       "admin.briefPending": "Reading the measured snapshot\u2026",
       "admin.briefRefresh": "Refresh the brief",
+      "admin.contextKicker": "Context assembly \xB7 how much goes in",
+      "admin.contextNote": "lexical fan-out \xB7 line anchors \xB7 zero model calls",
+      "admin.contextRefresh": "Re-assemble context",
+      "admin.contextPending": "Assembling context for a representative question\u2026",
+      "admin.contextEmpty": "No corpus hit \u2014 the assembler does not invent evidence.",
+      "admin.contextOutage": "Assembler unreachable \u2014 this tile stays empty rather than invent numbers.",
       "admin.briefOutage": "The model is unreachable \u2014 the panel cannot write the brief. That is the only honest sentence.",
       "admin.diagnosisKicker": "Diagnosis \xB7 on-duty analyst",
       "admin.diagnosisPending": "Reading the measured diagnosis snapshot\u2026",
@@ -9618,6 +9630,40 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       }
       const briefPromise = requestJson("/api/oracle-brief", {}, 3e4).catch(() => null);
       briefPromise.then((brief) => renderBrief(brief, false));
+      const contextQuestion = () => zh8() ? "\u7F13\u5B58 \u547D\u4E2D\u7387 \u4F18\u5316" : "cache hit rate context";
+      function renderContext(pack) {
+        const factsEl = $("#adminContextFacts");
+        const srcEl = $("#adminContextSources");
+        if (!factsEl || !srcEl) return;
+        if (!pack || pack.ok === false) {
+          factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.contextOutage"))}</p>`;
+          srcEl.innerHTML = "";
+          return;
+        }
+        const chunks = Array.isArray(pack.chunks) ? pack.chunks : [];
+        if (!chunks.length) {
+          factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.contextEmpty"))}</p>`;
+          srcEl.innerHTML = "";
+          return;
+        }
+        const rows = [
+          [zh8() ? "\u9884\u7B97" : "budget", `${pack.budget_tokens}`],
+          [zh8() ? "\u88C5\u5165" : "packed", `${pack.estimated_tokens} tokens`],
+          [zh8() ? "\u7247\u6BB5 / \u5019\u9009" : "chunks / candidates", `${chunks.length} / ${pack.candidates}`],
+          [zh8() ? "\u524D\u7F00\u6307\u7EB9" : "prefix fingerprint", String(pack.prefix_fingerprint || "\u2014")]
+        ];
+        const note = pack.truncated ? `<p class="admin-context-note">${esc2(zh8() ? "\u9884\u7B97\u622A\u65AD\uFF1A\u5C3E\u90E8\u5019\u9009\u672A\u88C5\u5165\uFF1B\u5934\u90E8\u987A\u5E8F\u4E0D\u53D8\uFF0C\u7F13\u5B58\u524D\u7F00\u4ECD\u53EF\u547D\u4E2D\u3002" : "Budget truncated: tail candidates left out; head order unchanged, so the cached prefix still hits.")}</p>` : "";
+        factsEl.innerHTML = `<div class="admin-context-facts-grid">${rows.map(([k, v]) => `<div><span>${esc2(k)}</span><b>${esc2(v)}</b></div>`).join("")}</div>${note}`;
+        srcEl.innerHTML = chunks.slice(0, 6).map((chunk, index) => `<div class="admin-context-source"><span class="n">[${index + 1}]</span><code>${esc2(chunk.source)}:${chunk.start_line}\u2013${chunk.end_line}</code><span class="tok">${chunk.tokens} tok</span></div>`).join("");
+      }
+      function readContext(refreshed) {
+        const factsEl = $("#adminContextFacts");
+        if (refreshed && factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.contextPending"))}</p>`;
+        requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 2e4).catch(() => null).then((pack) => renderContext(pack));
+      }
+      const contextRefresh = $("#adminContextRefresh");
+      if (contextRefresh) contextRefresh.addEventListener("click", () => readContext(true));
+      readContext(false);
       function renderTrendOracle(reading, refreshed) {
         const bodyEl = $("#adminTrendOracleBody");
         const movesEl = $("#adminTrendOracleMoves");

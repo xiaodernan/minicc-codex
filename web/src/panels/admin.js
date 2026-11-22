@@ -406,6 +406,54 @@ export async function openAdmin() {
     const briefPromise = requestJson("/api/oracle-brief", {}, 30000).catch(() => null);
     briefPromise.then((brief) => renderBrief(brief, false));
 
+    // M8-T1294: context assembler inspector — a deterministic, zero-token view
+    // of what the large-context path would put in front of the model. The
+    // endpoint is read-only and never 500s; this tile only renders real fields.
+    const contextQuestion = () => (zh() ? "缓存 命中率 优化" : "cache hit rate context");
+    function renderContext(pack) {
+      const factsEl = $("#adminContextFacts");
+      const srcEl = $("#adminContextSources");
+      if (!factsEl || !srcEl) return;
+      if (!pack || pack.ok === false) {
+        factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextOutage"))}</p>`;
+        srcEl.innerHTML = "";
+        return;
+      }
+      const chunks = Array.isArray(pack.chunks) ? pack.chunks : [];
+      if (!chunks.length) {
+        factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextEmpty"))}</p>`;
+        srcEl.innerHTML = "";
+        return;
+      }
+      const rows = [
+        [zh() ? "预算" : "budget", `${pack.budget_tokens}`],
+        [zh() ? "装入" : "packed", `${pack.estimated_tokens} tokens`],
+        [zh() ? "片段 / 候选" : "chunks / candidates", `${chunks.length} / ${pack.candidates}`],
+        [zh() ? "前缀指纹" : "prefix fingerprint", String(pack.prefix_fingerprint || "—")],
+      ];
+      const note = pack.truncated
+        ? `<p class="admin-context-note">${esc(zh()
+            ? "预算截断：尾部候选未装入；头部顺序不变，缓存前缀仍可命中。"
+            : "Budget truncated: tail candidates left out; head order unchanged, so the cached prefix still hits.")}</p>`
+        : "";
+      factsEl.innerHTML = `<div class="admin-context-facts-grid">${rows.map(([k, v]) =>
+        `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>${note}`;
+      srcEl.innerHTML = chunks.slice(0, 6).map((chunk, index) =>
+        `<div class="admin-context-source"><span class="n">[${index + 1}]</span>` +
+        `<code>${esc(chunk.source)}:${chunk.start_line}–${chunk.end_line}</code>` +
+        `<span class="tok">${chunk.tokens} tok</span></div>`).join("");
+    }
+    function readContext(refreshed) {
+      const factsEl = $("#adminContextFacts");
+      if (refreshed && factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextPending"))}</p>`;
+      requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 20000)
+        .catch(() => null)
+        .then((pack) => renderContext(pack));
+    }
+    const contextRefresh = $("#adminContextRefresh");
+    if (contextRefresh) contextRefresh.addEventListener("click", () => readContext(true));
+    readContext(false);
+
     // M8-T1287: live trend analyst — the model reads the real 7-day series and
     // the rule forecast baseline, then writes a grounded direction verdict with
     // verifiable next moves. Fire-and-forget like the rest of the oracle family.

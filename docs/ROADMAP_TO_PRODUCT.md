@@ -56420,3 +56420,29 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 模型 API 额度已由用户关闭，本批拿不到真实 live 命中率；只修测量方法与验证链路，不声称任何新的线上百分比。
 - 额度恢复后按 `docs/CACHE_AFFINITY_MATRIX.md` 的 live 流程跑，冷/暖两组读数都必须来自当天 lane。
+
+
+## 批次 1199 · M8-T1294: 大上下文装配器 —— 把「每次只喂 1k」改成可审计的 8k 预算
+
+### 缺什么
+- `rag.answer` 固定取 5 个约 800 字片段，合起来约一千 token；而网关窗口是 30 万，Codex 类调用一次可进 5 万–9 万。用户反复指出「输入上下文总是太少」——路是通的，是我们自己只舀了一瓢。
+- 面板里没有一个零 token 的窗口能看到「这次提问究竟装了什么」：装了多少 token、来自哪些文件的哪些行、前缀指纹是什么、有没有因预算被截断。
+- 工作区里躺着一份未收尾的实现：`context_assembly.py` 与测试已写好，`/api/rag/context` 与前端卡片已挂上，但卡片没有任何渲染逻辑、i18n 键缺失、构建产物未更新——打开只会永远停在「正在装配」。
+
+### 做了什么
+- 收尾并接管 `minicc/context_assembly.py`：问题做词法扩展（原句 + 独立词 + 相邻词对），按 `(source, start_line, end_line)` 去重合并，按全序 `(-score, source, start_line)` 装进 token 预算；预算夹在 256–60,000，默认 8,000；输出 `prefix_fingerprint` 与 `truncated`，预算变大只放行尾部、不重排头部，缓存前缀因此仍可命中。
+- `rag.answer` 新增可选 `budget_tokens`：默认 None 时逐字节保持原来的五片段路径（不动既有缓存前缀）；传预算才走装配器，并把 `context` 元数据随结果返回。
+- 新增只读 `GET /api/rag/context`：零模型调用、空查询与非法预算都降级成合法形状，永不 500。
+- 前端补齐：`web/src/panels/admin.js` 渲染预算 / 装入 token / 片段与候选数 / 前缀指纹 / 行号锚定来源，刷新按钮重读；中英 i18n 各补 6 个键；CSS 补装配卡片版式；重新构建 `web/app.js`。
+- `tests/admin_smoke.mjs` 增加断言：卡片必须真正水合、显示 8000 预算、不出现 NaN、至少一条带行号的来源、刷新后来源仍在。
+
+### 证据与门
+- 本机活服务实测（fake provider，不花真实额度）：`/api/rag/context?q=缓存 命中率 优化&budget=8000` → `ok=True budget=8000 packed=5141 chunks=36 candidates=36 variants=8 prefix=ca71a73b3a8e294d truncated=False`；前五条来源为 `CHANGELOG.md:63-68`、`CACHE_AFFINITY_MATRIX.md:37-46`、`CACHE_AFFINITY_MATRIX.md:31-35`、`ROADMAP_TO_PRODUCT.md:49162-49182`、`ROADMAP_TO_PRODUCT.md:49184-49196`。
+- `pytest tests/test_context_assembly.py tests/test_http_surface.py -q` → 119 passed。
+- `npm run test:admin` → passed（zh + en 两轮，含新卡片水合与刷新断言，零 pageerror）。
+- `npm run check:web` → `web/app.js + web/game.js are up to date`；`npm run test:i18n` → zh/en 各 980 键一致、293 处 `t()` 引用全部可解析。
+
+### 边界
+- 全程零模型调用：本批证明的是「装得进、装得稳、看得见」，不证明回答质量或线上缓存命中率；模型额度关闭期间不做任何 live 百分比声称。
+- token 数是 `ceil(字符数 / 4)` 的保守估算，中文会被高估，真实 token 只会更少；它不是分词器的精确计数，面板与文档都按估算口径标注。
+- 接口只监听本机回环，数据来自本仓库语料；不引入外部抓取，也不改任何写路径。

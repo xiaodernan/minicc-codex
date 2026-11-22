@@ -794,6 +794,31 @@ def test_get_rag_search_returns_bm25_results(live: _LiveServer, tmp_path: Path) 
     assert json.loads(body)["results"] == []
 
 
+def test_get_rag_context_reports_bounded_deterministic_evidence(live: _LiveServer) -> None:
+    """M8-T1294: /api/rag/context is the zero-token window into the large-context
+    assembler. It must stay read-only, bounded and never 500 on an odd query."""
+    status, _, body = _request(
+        f"{live.url}/api/rag/context?q=%E7%BC%93%E5%AD%98%20%E5%91%BD%E4%B8%AD%E7%8E%87&budget=2400",
+        method="GET",
+    )
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["ok"] is True
+    assert payload["budget_tokens"] == 2400
+    assert payload["estimated_tokens"] <= 2400
+    assert isinstance(payload["chunks"], list)
+    assert payload["candidates"] >= len(payload["chunks"])
+    for chunk in payload["chunks"]:
+        assert chunk["source"].endswith(".md")
+        assert chunk["start_line"] >= 1
+    assert isinstance(payload["prefix_fingerprint"], str) and len(payload["prefix_fingerprint"]) == 16
+    # Empty query and absurd budget degrade to a valid shape, never 500
+    status, _, body = _request(f"{live.url}/api/rag/context?q=&budget=oops", method="GET")
+    assert status == 200
+    empty = json.loads(body)
+    assert empty["ok"] is True and empty["chunks"] == []
+
+
 def test_get_worldpulse_returns_live_or_honest_failure(live: _LiveServer, monkeypatch) -> None:
     """M8-T993: /api/worldpulse is the live-glance route to the outside
     world — public GitHub facts, 5-minute shared cache, fail-open. This

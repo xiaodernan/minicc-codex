@@ -5763,6 +5763,17 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .admin-brief-pending { color: var(--quiet); font-size: 12px; margin: 0; }
 .admin-brief-text { color: var(--text); font-size: 13px; line-height: 1.7; margin: 0; }
 .admin-brief-usage { border-top: 1px dashed var(--line); color: var(--quiet); font: 10px "DM Mono", monospace; letter-spacing: .05em; margin: 0; padding-top: 8px; }
+/* M8-T1294 · context assembler inspector: budget, packed tokens, line-anchored sources */
+.admin-context-facts-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin: 0 0 6px; }
+.admin-context-facts-grid div { border-top: 1px dashed var(--line); padding-top: 7px; }
+.admin-context-facts-grid span { display: block; color: var(--quiet); font: 10px "DM Mono", monospace; letter-spacing: .05em; }
+.admin-context-facts-grid b { color: var(--text); font: 600 13px "DM Mono", monospace; }
+.admin-context-note { color: var(--quiet); font-size: 11px; line-height: 1.6; margin: 6px 0 0; }
+.admin-context-sources { display: grid; gap: 5px; margin-top: 8px; }
+.admin-context-source { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; border-top: 1px dashed var(--line); padding-top: 5px; font-size: 11px; }
+.admin-context-source .n { color: var(--quiet); font: 10px "DM Mono", monospace; }
+.admin-context-source code { color: var(--text); font: 10.5px "DM Mono", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-context-source .tok { color: var(--quiet); font: 10px "DM Mono", monospace; }
 /* ============================================================
    StateGraph · stage-axis explorer panel (M8-T1094)
    ============================================================ */

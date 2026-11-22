@@ -546,6 +546,11 @@
               </div>
             </section>
           </div>
+          <section class="admin-card admin-context-card" id="adminContextCard" aria-label="context assembly">
+            <div class="admin-card-kicker"><i data-lucide="layers-3"></i><span data-i18n="admin.contextKicker">上下文装配 · 每次提问装进多少</span><span class="admin-card-note" data-i18n="admin.contextNote">词法扩展 · 行号锚点 · 零模型调用</span><button class="admin-brief-refresh" id="adminContextRefresh" type="button" aria-label="re-read context" data-i18n-aria="admin.contextRefresh"><i data-lucide="refresh-cw"></i></button></div>
+            <div class="admin-context-facts" id="adminContextFacts"><p class="admin-brief-pending" data-i18n="admin.contextPending">正在装配代表性提问的上下文…</p></div>
+            <div class="admin-context-sources" id="adminContextSources"></div>
+          </section>
           <section class="admin-card admin-card-live" aria-label="mainline health">
             <div class="admin-card-kicker"><i data-lucide="activity-square"></i><span data-i18n="admin.ciKicker">主线健康 · 本仓库 CI 实况</span><span class="admin-card-note" data-i18n="admin.ciNote">缓存 5 分钟 · 数字来自真实 API · 从不伪造</span></div>
             <div class="admin-ci-wrap">

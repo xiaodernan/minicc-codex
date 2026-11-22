@@ -477,6 +477,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - read-only path, never 500s
                 self._json({"q": "", "results": [], "error": f"{type(exc).__name__}: {exc}"})
             return
+        if path == "/api/rag/context":
+            # M8-T1294: inspect what the large-context assembler would put in
+            # front of a model — deterministic, line-anchored, zero tokens.
+            # Read-only and never-raise: an odd query cannot 500 the panel.
+            try:
+                params = parse_qs(parsed.query)
+                q = (params.get("q") or [""])[0].strip()
+                try:
+                    budget = int((params.get("budget") or ["8000"])[0])
+                except ValueError:
+                    budget = 8000
+                from .context_assembly import build_context_pack
+
+                pack = build_context_pack(q, budget_tokens=budget)
+                self._json({"ok": True, **pack})
+            except Exception as exc:  # noqa: BLE001 - read-only, never 500
+                self._json({"ok": False, "query": "", "chunks": [],
+                            "error": f"{type(exc).__name__}: {exc}"})
+            return
         if path == "/api/rag/query":
             # M8-T973: full RAG — retrieve top-k docs BM25, then ask the configured
             # chat model with the retrieved chunks as evidence. Pure lexical→chat;
