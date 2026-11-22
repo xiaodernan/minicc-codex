@@ -5891,3 +5891,18 @@ body:has(.immersive-modal.show) .tour-offer { display: none; }
 .orbit-how-list span { color: var(--muted); }
 .orbit-how-ready { width: 100%; }
 @media (max-width: 640px) { .picker-grid { grid-template-columns: 1fr; } .orbit-hud { font-size: 10px; } }
+
+
+/* M8-T1289 — synthetic visitor journeys card. Real sessions only: when the log
+   is empty the card prints the command instead of a placeholder figure. */
+.admin-journeys { border-color: color-mix(in srgb, var(--mint) 38%, var(--line)); }
+.admin-journeys .admin-card-kicker i { color: var(--mint); }
+.admin-journey-facts { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); margin-bottom: 10px; }
+.admin-journey-band { color: var(--quiet); font: 10px var(--font-mono, ui-monospace, monospace); letter-spacing: .04em; margin: 8px 0 0; grid-column: 1 / -1; }
+.admin-journey-personas { display: grid; gap: 6px; }
+.admin-journey-persona { align-items: baseline; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 9px; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 7px 10px; }
+.admin-journey-persona strong { color: var(--text); font-size: 11.5px; }
+.admin-journey-persona span { color: var(--quiet); font: 10px var(--font-mono, ui-monospace, monospace); }
+.admin-journey-empty { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 8px; }
+.admin-journey-how { color: var(--quiet); font: 10px var(--font-mono, ui-monospace, monospace); line-height: 1.7; margin: 6px 0 0; overflow-wrap: anywhere; }
+.admin-journey-how code { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 5px; color: var(--mint); padding: 1px 5px; }

@@ -517,6 +517,13 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 self._json({"q": "", "answer": "", "error": f"{type(exc).__name__}: {exc}"})
             return
+        if path == "/api/behavior/journeys":
+            # M8-T1289: the synthetic visitor log, aggregated. The rows were
+            # written by real headless Chromium sessions (scripts/
+            # behavior_sim.mjs) driving the actual UI - this route only counts
+            # what they did. No model, no network, never-raise.
+            self._json(self.server.service.behavior_journeys())
+            return
         if path == "/api/roadmap":
             # M8-T940: the ledger, parsed - every batch heading, verbatim,
             # bounded titles, grouped into hundred-epoch eras.

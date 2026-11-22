@@ -56194,3 +56194,28 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 新增纯前端游戏，不碰任何状态流转 / LLM / 缓存 / 后端代码；游戏数据只在浏览器 localStorage，不出网、不消耗 API token。
 - 现有直达入口（?arcade=1 与 #arcadeButton）行为逐字不变，第二游戏只能通过「更多游戏」选择器进入——这是刻意保守，保护既有测试与用户肌肉记忆。
 - 全量 pytest 未在推理负载下重跑；前端烟测族与静态门禁定点全绿。
+
+
+## 批次 1189 · M8-T1289: 合成访客实录 —— req #9「模拟真实用户行为」第一次真跑
+
+### 缺什么
+- req #9 写得很具体：「模拟真实用户行为：打开页面没耐心就关掉、不知道去哪就瞎点等，把这些真实行为模拟出来。」账本里 `journey` 词频为 0，面板上所有行为数字都是**任务**的审计事件——没有一个数字描述**访客**。而这恰恰是管理员面板该回答的问题：人从哪来、在第几屏失去耐心、是不是点了没反应。压测探针（stress_probe / load-test）量的是吞吐，量不到「没耐心」。
+
+### 做了什么
+- 新增 `scripts/behavior_sim.mjs`：Playwright 驱动**真实无头 Chromium** 走真实界面，五种访客性格在真规则下行动——`impatient`（落地 0.6–1.8 秒就走，不等应用可点）、`wanderer`（2–5 次随机点击，18% 概率同一按钮连点三下＝狂点）、`reader`（真打开说明书、真滚轮、真停留）、`explorer`（4–6 个房间串门）、`power`（Ctrl+K 命令面板 → 搜 manual → Enter → Esc → 再开一图）。逐条记录 dwell / 可点击耗时 boot_ms / views / clicks / rage_clicks / page_errors / 退出视图，按行追加 `.minicc/behavior/journeys.jsonl`。种子化 PRNG 可复跑；`--journey-cap` 60 秒上限把卡死的浏览器会话记成 `timed-out` 而不是拉高停留中位数；每一步带独立超时，一次卡顿不吞掉整段旅程。
+- 关键真实性修复（实测踩出来的）：面板是覆盖式舞台，开着说明书时侧栏点不到。真人会先 Esc 退出再开下一个房间，探针照做（`backOutOfPanel`，等待滑出动画结束再点），否则每次「点不动」都会被误记成访客的困惑。
+- 新增 `minicc/behavior_journeys.py`：只做聚合，不做判断。每 persona 的 runs / 跳出率 / 停留中位数 / 平均点击 / 平均视图 / 狂点会话 / 主要退出去向；全局跳出率、停留中位数、**可点击耗时中位数**、狂点会话数、页面错误总数、退出视图分布、时间窗、样本置信带（thin < 10 ≤ usable < 30 ≤ solid）。`boot_ms` 的 0 与 null 严格区分：0 是「立刻就点得动」，null 是「到走都没点得动」，混起来就是替产品说好话。
+- `web.py` 加 `behavior_journeys()`（5 秒 memo，跑完一批立刻能在面板看到），`webserver.py` 加只读 `GET /api/behavior/journeys`——不调模型、不出网、永不 500；空日志回诚实空态并给出填充命令。
+- 管理员面板加「访客实录 · 合成旅程」卡：六个事实格（旅程 / 跳出率 / 中位停留 / 可点击耗时 / 狂点会话 / 页面错误）+ 每 persona 一行 + 退出去向列表 + 样本置信带 + 命令行脚注；中英各 24 键；说明书管理员条目补这段能力。
+
+### 证据与门
+- 真跑（`node scripts/behavior_sim.mjs --url http://127.0.0.1:8765 --runs 3 --seed 11`，服务 `python -m minicc.web --port 8765`）：15 段真实旅程落盘。端点聚合读数——total 15、confidence usable、跳出率 0.333、停留中位数 7,908 ms、**可点击耗时中位数 1,057 ms**、狂点会话 3、页面错误 0；persona 分解 impatient 3/100%/2,929 ms、wanderer 3/33%/8,690 ms/平均 7 次点击、reader 3/0%/8,007 ms、explorer 3/33%/22,821 ms、power 3/0%/6,052 ms；退出去向 landing 60% · dockyard 20% · doctor 20%。全部来自浏览器实测，没有一个是写死的。
+- 15 段里 1 段 explorer 触到 60 秒上限，如实记 `timed-out` 并计入跳出——卡死是事实，不是要抹平的噪声。
+- pytest：新增 `tests/test_behavior_journeys.py` 8 项（空态诚实 / 聚合正确 / 坏行跳过 / 上界裁剪 / 置信带 / 目录当文件不炸 / 狂点分计 / boot 0 与 null 不混），`test_http_surface.py` 加端点空态形状，9 passed。
+- 真浏览器：admin_smoke 含新卡断言通过（123 解锁、双 locale、零 pageerror、绝不出现裸 i18n 键）；manual_smoke 20 章双语零混排；en_cjk 英文零 CJK。
+- 静态门：i18n 字典 910 键双语一致、281 处 t() 全解析；`npm run build:web` + `check:web` 绿；doc_pointers 无 DANGLING。
+
+### 边界
+- 探针不进 CI（要浏览器、要服务、要真实墙钟），本机手跑；它产生的日志在 gitignore 的 `.minicc/` 下，绝不入库——空日志的面板会说"还没跑过"，不会拿别人的数字冒充自己的。
+- 不碰任何模型调用、缓存、状态流转代码；一次采集零 token、零网关请求。
+- 只聚合，不推断因果：面板给的是分布与退出去向，不给「因为 X 所以卸载」这种没有证据的结论。

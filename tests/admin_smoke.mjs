@@ -98,6 +98,20 @@ async function checkMode(locale, expectCjk) {
     "trend oracle usage footer must carry token accounting or an error, never a fabricated number",
   );
 
+  // M8-T1289: visitor log tile — either real aggregated journeys or the honest
+  // empty state naming the command that fills the log; never a blank, never a
+  // raw i18n key. Both outcomes are legitimate, a placeholder is not.
+  assert.ok(await page.locator("#adminJourneysCard").count(), "visitor journey card must exist");
+  await page.waitForFunction(() => {
+    const facts = document.querySelector("#adminJourneysFacts");
+    const how = document.querySelector("#adminJourneysHow");
+    const text = `${facts?.innerText || ""} ${how?.innerText || ""}`.trim();
+    return text.length > 0 && !text.includes("正在读真实访客");
+  }, null, { timeout: 30000 });
+  const journeyText = `${await page.locator("#adminJourneysFacts").innerText()} ${await page.locator("#adminJourneysHow").innerText()}`.trim();
+  assert.ok(journeyText.length > 0, "visitor log must answer with aggregates or the honest empty state");
+  assert.ok(!/admin\.journey/i.test(journeyText), "visitor log must never render a raw i18n key");
+
   await page.waitForFunction(() => {
     const el = document.querySelector("#adminDiagnosisBody");
     if (!el) return false;

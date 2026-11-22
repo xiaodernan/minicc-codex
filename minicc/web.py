@@ -3598,6 +3598,18 @@ class AgentService:
 
         return self._memo_http("admin_summary", 15.0, lambda: build_summary(self.workspace))
 
+    def behavior_journeys(self) -> dict[str, Any]:
+        """5s-memo of the synthetic-visitor aggregate for ``/api/behavior/journeys``.
+
+        The log is appended by ``scripts/behavior_sim.mjs`` (real headless
+        Chromium sessions). The memo is short on purpose: a freshly finished
+        simulation should show up on the next panel refresh, not in a minute.
+        Never raises; an absent log answers the honest empty state.
+        """
+        from .behavior_journeys import build_journey_report
+
+        return self._memo_http("behavior_journeys", 5.0, lambda: build_journey_report(self.workspace))
+
     def stats(self) -> dict[str, Any]:
         """The read-only operational inventory for ``/api/stats``.
 

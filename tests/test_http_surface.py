@@ -736,6 +736,26 @@ def test_get_roadmap_answers_the_archive(live: _LiveServer, tmp_path: Path) -> N
     ]
 
 
+def test_get_behavior_journeys_answers_the_visitor_log(live: _LiveServer) -> None:
+    """M8-T1289: /api/behavior/journeys answers the synthetic visitor aggregate.
+
+    The live fixture's workspace has never been walked, so the honest answer is
+    the empty state — never a fabricated bounce rate. ``live: False`` plus the
+    command that would fill the log is the whole contract the admin card reads.
+    """
+    status, _, body = _request(f"{live.url}/api/behavior/journeys", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["live"] is False
+    assert payload["total"] == 0
+    assert payload["personas"] == []
+    assert payload["bounce_rate"] is None
+    assert payload["median_dwell_ms"] is None
+    assert payload["confidence"] == "empty"
+    assert payload["source"] == "synthetic-real-execution"
+    assert payload["how_to"].startswith("node scripts/behavior_sim.mjs")
+
+
 def test_get_rag_search_returns_bm25_results(live: _LiveServer, tmp_path: Path) -> None:
     """M8-T971: /api/rag/search is a read-only, in-process BM25 retrieval over
     the repo's own bundled documentation. It never makes network calls,

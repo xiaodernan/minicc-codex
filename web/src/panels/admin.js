@@ -457,6 +457,89 @@ export async function openAdmin() {
     const trendOraclePromise = requestJson("/api/oracle-trend", {}, 30000).catch(() => null);
     trendOraclePromise.then((reading) => renderTrendOracle(reading, false));
 
+    // M8-T1289: synthetic visitor journeys. The rows come from real headless
+    // Chromium sessions that walked this UI (scripts/behavior_sim.mjs); this
+    // card only counts what they did. When the log is empty it says so and
+    // prints the command that would fill it — never a placeholder percentage.
+    function renderJourneys(report, refreshed) {
+      const factsEl = $("#adminJourneysFacts");
+      const personasEl = $("#adminJourneysPersonas");
+      const exitsEl = $("#adminJourneysExits");
+      const howEl = $("#adminJourneysHow");
+      if (!report || report.error) {
+        if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeysOutage"))}</p>`;
+        if (personasEl) personasEl.innerHTML = "";
+        if (exitsEl) exitsEl.innerHTML = "";
+        if (howEl) howEl.textContent = report?.error ? `error: ${String(report.error).slice(0, 140)}` : "";
+        return;
+      }
+      const personaName = (id) => {
+        const label = t(`admin.journeyPersona.${id}`);
+        // A persona the dictionary has never met renders as its raw id — a
+        // readable truth — rather than as a dangling "admin.journeyPersona.x".
+        return typeof label === "string" && label && !label.startsWith("admin.") ? label : String(id);
+      };
+      const ms = (value) => (value == null ? "—" : `${Math.round(value)} ms`);
+      const pct = (value) => (value == null ? "—" : `${Math.round(value * 100)}%`);
+      if (!report.live) {
+        if (factsEl) factsEl.innerHTML = `<p class="admin-journey-empty">${esc(t("admin.journeysEmpty"))}</p>`;
+        if (personasEl) personasEl.innerHTML = "";
+        if (exitsEl) exitsEl.innerHTML = "";
+        if (howEl) howEl.innerHTML = `${esc(t("admin.journeysHow"))} <code>${esc(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
+        return;
+      }
+      const bandKey = {
+        thin: "admin.journeysConfidenceThin",
+        usable: "admin.journeysConfidenceUsable",
+        solid: "admin.journeysConfidenceSolid",
+      }[report.confidence] || "admin.journeysConfidenceThin";
+      if (factsEl) {
+        const facts = [
+          [t("admin.journeysTotal"), String(report.total)],
+          [t("admin.journeysBounce"), pct(report.bounce_rate)],
+          [t("admin.journeysDwell"), ms(report.median_dwell_ms)],
+          [t("admin.journeysBoot"), ms(report.median_boot_ms)],
+          [t("admin.journeysRage"), String(report.rage_journeys ?? 0)],
+          [t("admin.journeysErrors"), String(report.page_errors ?? 0)],
+        ];
+        factsEl.innerHTML = facts
+          .map(([label, value]) => `<div class="admin-fact"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`)
+          .join("") + `<p class="admin-journey-band">${esc(t(bandKey))}</p>`;
+      }
+      if (personasEl) {
+        personasEl.innerHTML = (report.personas || []).map((row) =>
+          `<div class="admin-journey-persona">` +
+          `<strong>${esc(personaName(row.id))}</strong>` +
+          `<span>${esc(String(row.runs))} ${esc(t("admin.journeysRuns"))}</span>` +
+          `<span>${esc(t("admin.journeysBounce"))} ${esc(pct(row.bounce_rate))}</span>` +
+          `<span>${esc(t("admin.journeysDwell"))} ${esc(ms(row.median_dwell_ms))}</span>` +
+          `<span>${esc(t("admin.journeysClicks"))} ${esc(String(row.mean_clicks ?? "—"))}</span>` +
+          `</div>`,
+        ).join("");
+      }
+      const exits = Array.isArray(report.last_views) ? report.last_views : [];
+      if (exitsEl) {
+        exitsEl.innerHTML = exits.length
+          ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc(t("admin.journeysExits"))}</em></li>`
+            + exits
+              .map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc(String(row.count))}</strong><span>${esc(String(row.view))} · ${esc(pct(row.share))}</span></li>`)
+              .join("")
+          : "";
+      }
+      if (howEl) {
+        howEl.innerHTML = `${esc(t("admin.journeysHow"))} <code>${esc(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
+      }
+    }
+    const journeysRefresh = $("#adminJourneysRefresh");
+    if (journeysRefresh) {
+      journeysRefresh.addEventListener("click", () => {
+        const factsEl = $("#adminJourneysFacts");
+        if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.journeysPending"))}</p>`;
+        requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => renderJourneys(report, true));
+      });
+    }
+    requestJson("/api/behavior/journeys", {}, 20000).catch(() => null).then((report) => renderJourneys(report, false));
+
     // Live workspace diagnosis — same pattern, pointed at the triage snapshot.
     function renderDiagnosis(diagnosis, refreshed) {
       const bodyEl = $("#adminDiagnosisBody");
