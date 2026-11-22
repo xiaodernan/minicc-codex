@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +65,40 @@ def append_entry(
     return {"recorded": True, "path": str(target)}
 
 
-def read_history(workspace: Path, *, limit: int = _MAX_ENTRIES) -> dict[str, Any]:
+def _parse_ts(raw: Any) -> datetime | None:
+    """Parse a history timestamp; unparseable / missing values are simply not in any window."""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        stamp = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=timezone.utc)
+
+
+def parse_window_days(raw: Any) -> int | None:
+    """``last-30d`` / ``30d`` / ``30`` → 30; anything else → None (unfiltered, never a 500)."""
+    if raw is None:
+        return None
+    text = str(raw).strip().lower()
+    if not text:
+        return None
+    if text.startswith("last-"):
+        text = text[5:]
+    if text.endswith("d"):
+        text = text[:-1]
+    return int(text) if text.isdigit() else None
+
+
+def read_history(
+    workspace: Path,
+    *,
+    limit: int = _MAX_ENTRIES,
+    suite: str | None = None,
+    kind: str | None = None,
+    window_days: int | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     """Read up to `limit` newest entries; honest absent state three-states: absent / empty / present."""
     path = _history_path(workspace)
     if not path.is_file():
@@ -99,6 +133,17 @@ def read_history(workspace: Path, *, limit: int = _MAX_ENTRIES) -> dict[str, Any
         except json.JSONDecodeError:
             bad_lines += 1
 
+    if suite is not None:
+        parsed = [item for item in parsed if item.get("suite") == suite]
+    if kind is not None:
+        parsed = [item for item in parsed if item.get("kind") == kind]
+    if window_days is not None and window_days >= 0:
+        cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=window_days)
+        parsed = [
+            item for item in parsed
+            if (stamp := _parse_ts(item.get("ts"))) is not None and stamp >= cutoff
+        ]
+
     if limit < 0:
         limit = 0
     window = parsed[-limit:][::-1] if limit else []
@@ -122,6 +167,7 @@ def read_history(workspace: Path, *, limit: int = _MAX_ENTRIES) -> dict[str, Any
         "mean_elapsed_ms": mean_elapsed_ms,
         "window_from": (window[-1]["ts"] if window else None),
         "window_to": (window[0]["ts"] if window else None),
+        "filters": {"suite": suite, "kind": kind, "window_days": window_days},
         "entries": window,
     }
 

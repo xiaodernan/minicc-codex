@@ -1512,6 +1512,29 @@ def test_get_bench_history_never_500s(live: _LiveServer, monkeypatch) -> None:
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_bench_history_query_filters_reach_read_history(live: _LiveServer, monkeypatch) -> None:
+    import minicc.bench_history as bh_mod
+
+    seen: dict = {}
+
+    def fake_read(workspace, **kwargs):
+        seen.update(kwargs)
+        return {"present": False, "reason": "filter probe", "count": 0, "entries": []}
+
+    monkeypatch.setattr(bh_mod, "read_history", fake_read)
+    status, _, body = _request(
+        f"{live.url}/api/bench-history?suite=v2&kind=task&window=last-30d",
+        method="GET",
+    )
+    assert status == 200
+    assert json.loads(body)["reason"] == "filter probe"
+    assert seen == {"suite": "v2", "kind": "task", "window_days": 30}
+
+    status, _, _ = _request(f"{live.url}/api/bench-history?window=garbage", method="GET")
+    assert status == 200
+    assert seen == {"suite": None, "kind": None, "window_days": None}
+
+
 def test_get_evidence_never_500s(live: _LiveServer, monkeypatch) -> None:
     import minicc.evidence as ev_mod
 

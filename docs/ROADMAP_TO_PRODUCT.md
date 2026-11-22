@@ -56465,3 +56465,24 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 
 ### 边界
 - 本批没有触发 GitHub Actions 实跑（需要一次 `minicc-cloud/` 变更的推送）；YAML 与命令形状已验证，真实用例数要等下一次该 job 运行时才出现在日志里，不提前编造数字。
+
+## 批次 1201 · M8-T1296: 评估时序可按套件 / 类型 / 窗口查询，且缓存键不许串味
+
+### 缺什么
+- `/api/bench-history` 只回最后 200 行，T1198 蓝图里写的 `?suite=v2&kind=…&window=last-30d` 一直没落地；admin 只能看全量混合序列，无法回答「v2 最近 30 天怎么样」。
+- 更隐蔽的一条：路由的 memo 键写死 `"bench-history"`。一旦开始接查询参数，第一个带过滤的请求会把过滤结果缓存 10 秒，后面的无参请求会读到别人的窗口——这正是并行会话下缓存互相干扰的形状。
+
+### 做了什么
+- `read_history(..., suite=None, kind=None, window_days=None, now=None)`：三个过滤都在解析后、限窗前进；时间戳解析容错（坏 ts 不参与窗口，但不让整次读取失败）；返回 `filters` 回显，窗口边界与均值只按过滤后的条目算。
+- `parse_window_days()`：接受 `last-30d` / `30d` / `30`，空值与垃圾值一律 `None`（不过滤，绝不 500）。
+- 路由：解析 `suite`/`kind`/`window` 后传入；memo 键变成 `bench-history:{suite}:{kind}:{days}`，过滤读数不会污染无参读数。
+
+### 证据与门
+- `tests/test_bench_history.py` 12 passed（新增 suite/kind/窗口三腿 + 窗口拼写六例）。
+- `tests/test_http_surface.py -k bench_history` 2 passed（新增「查询参数真的到达 read_history」腿；`window=garbage` 退化为无过滤）。
+- 样式与路由门：`test_import_hygiene` / 未使用 import / UTC 单一之家 / logging 共 37 passed；`test_route_coverage_measurement` + `test_http_route_inventory` 共 28 passed。
+- 本机真实历史读数（只读）：`all=41 · suite=v2=41 · window=last-30d=41`，窗口 `2026-11-17T23:31:32Z → 2026-11-18T13:10:54Z`。
+
+### 边界
+- 本批没有改 admin 面板的取数 URL（tile 仍吃全量）；过滤能力先以只读 API 提供，等有真实窗口需求再接 UI。
+- 没有执行真实 `--suite v2 --run`，不声称任何新评测分数。

@@ -121,3 +121,46 @@ def test_ingest_translates_suite_run_and_task_rows(tmp_path: Path) -> None:
     assert history["count"] == 4
     scores = [e["score"] for e in history["entries"]]
     assert 1.0 in scores and 0.0 in scores
+
+
+def test_filters_narrow_the_rollup_without_rewriting_the_file(tmp_path: Path) -> None:
+    rows = [
+        {"ts": "2026-11-17T10:00:00Z", "suite": "v2", "kind": "task", "task_id": "a", "score": 0.5, "elapsed_ms": 100},
+        {"ts": "2026-11-18T10:00:00Z", "suite": "v2", "kind": "suite_run", "task_id": "*", "score": 0.9, "elapsed_ms": 900},
+        {"ts": "2026-11-19T10:00:00Z", "suite": "behavior", "kind": "task", "task_id": "b", "score": 1.0, "elapsed_ms": 300},
+    ]
+    for row in rows:
+        bh.append_entry(tmp_path, row, allow_changes=True)
+
+    by_suite = bh.read_history(tmp_path, suite="behavior")
+    assert by_suite["count"] == 1
+    assert by_suite["total_lines_matched"] == 1
+    assert by_suite["entries"][0]["task_id"] == "b"
+    assert by_suite["filters"] == {"suite": "behavior", "kind": None, "window_days": None}
+
+    by_kind = bh.read_history(tmp_path, kind="suite_run")
+    assert by_kind["count"] == 1
+    assert by_kind["mean_score"] == pytest.approx(0.9)
+
+    from datetime import datetime, timezone
+
+    recent = bh.read_history(
+        tmp_path,
+        window_days=2,
+        now=datetime(2026, 11, 21, 0, 0, 0, tzinfo=timezone.utc),
+    )
+    assert recent["count"] == 1
+    assert [item["task_id"] for item in recent["entries"]] == ["b"]
+
+    everything = bh.read_history(tmp_path)
+    assert everything["count"] == 3
+
+
+def test_parse_window_days_accepts_the_blueprint_spellings() -> None:
+    assert bh.parse_window_days("last-30d") == 30
+    assert bh.parse_window_days("30d") == 30
+    assert bh.parse_window_days("30") == 30
+    assert bh.parse_window_days("LAST-7D") == 7
+    assert bh.parse_window_days("") is None
+    assert bh.parse_window_days("garbage") is None
+    assert bh.parse_window_days(None) is None

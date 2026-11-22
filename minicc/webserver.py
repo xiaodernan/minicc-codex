@@ -745,12 +745,24 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # Memoized 10s at the service layer. Never raises; an absent /
             # unreadable file is an honest present:false payload, not a 5xx.
             try:
-                from .bench_history import read_history
+                from .bench_history import parse_window_days, read_history
 
+                query = parse_qs(parsed.query)
+                suite = (query.get("suite") or [""])[0].strip() or None
+                kind = (query.get("kind") or [""])[0].strip() or None
+                window_days = parse_window_days((query.get("window") or [""])[0])
+                # The memo key must include the filters; otherwise a filtered read
+                # would poison the unfiltered tile for the whole TTL window.
+                memo_key = f"bench-history:{suite or '*'}:{kind or '*'}:{window_days if window_days is not None else '*'}"
                 self._json(self.server.service._memo_http(
-                    "bench-history",
+                    memo_key,
                     10.0,
-                    lambda: read_history(self.server.service.workspace),
+                    lambda: read_history(
+                        self.server.service.workspace,
+                        suite=suite,
+                        kind=kind,
+                        window_days=window_days,
+                    ),
                 ))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"present": False,
