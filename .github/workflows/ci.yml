@@ -196,6 +196,27 @@ jobs:
         run: |
           npm ci
           npx playwright install chromium --with-deps
+      # M8-T1299: the bench reader has six states and an empty checkout can only
+      # ever show `absent`, so the tile's filter branches were never executed in
+      # CI. Seed two kinds — suite_run and command_contract, and deliberately no
+      # `ungraded` — so present / filtered_empty are both reachable on every push.
+      - name: Seed a bench history for the admin tile
+        run: |
+          mkdir -p .minicc
+          python - <<'PY'
+          import datetime, json
+          now = datetime.datetime.now(datetime.timezone.utc)
+          rows = [
+              {"suite": "v2", "kind": "suite_run", "task_id": "*", "score": 0.75, "elapsed_ms": 800},
+              {"suite": "v2", "kind": "command_contract", "task_id": "seeded", "score": 1.0, "elapsed_ms": 300},
+          ]
+          with open(".minicc/bench_history.jsonl", "w", encoding="utf-8") as handle:
+              for index, row in enumerate(rows):
+                  row["ts"] = (now - datetime.timedelta(days=len(rows) - 1 - index)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                  row["provider"] = "fake"
+                  row["deterministic"] = True
+                  handle.write(json.dumps(row) + "\n")
+          PY
       - name: Start minicc web server
         env:
           MINICC_API_KEY: dummy-key-for-smoke

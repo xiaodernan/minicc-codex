@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
 const browser = await chromium.launch({ headless: true });
 const errors = [];
+const BENCH_SEEN = new Set();
 
 async function checkMode(locale, expectCjk) {
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
@@ -74,6 +75,7 @@ async function checkMode(locale, expectCjk) {
   const benchFiltered = await page.evaluate(() => ({
     usage: (document.querySelector("#adminBenchUsage")?.innerText || "").replace(/\s+/g, " ").trim(),
     body: (document.querySelector("#adminBenchBody")?.innerText || "").replace(/\s+/g, " ").trim(),
+    benchState: document.querySelector("#adminBenchBody")?.dataset?.benchState || "",
     pressed: document.querySelectorAll('#adminBenchFilters button[data-bench-key="kind"][aria-pressed="true"]').length,
     urlBench: new URL(location.href).searchParams.get("bench"),
   }));
@@ -81,12 +83,88 @@ async function checkMode(locale, expectCjk) {
   assert.equal(benchFiltered.urlBench, ":suite_run", "bench filter must land in the URL (?bench=:suite_run)");
   assert.ok(!/NaN/.test(benchFiltered.body), "filtered bench tile must never print NaN");
   assert.match(benchFiltered.usage, /suite_run|无样本|No samples|已筛选|filtered/, "usage line must name the active filter or the empty state");
+  // M8-T1299: the tile must say which of the reader's states it is in, and the
+  // wording has to follow that state. "This slice is empty" may never be printed
+  // as "this file was never written", and vice versa.
+  const BENCH_STATES = ["present", "absent", "empty", "filtered_empty", "capped", "unreadable", "unreachable", "error"];
+  assert.ok(BENCH_STATES.includes(benchFiltered.benchState),
+    `bench tile must name one of the reader's states, got "${benchFiltered.benchState}"`);
+  BENCH_SEEN.add(benchFiltered.benchState);
+  const NEVER_WRITTEN = /暂无 bench_history\.jsonl|No bench history yet/;
+  const neverWritten = NEVER_WRITTEN.test(benchFiltered.body);
+  if (benchFiltered.benchState === "filtered_empty" || benchFiltered.benchState === "capped") {
+    assert.ok(!neverWritten, `${benchFiltered.benchState} must never be worded as "no history yet"`);
+    assert.match(benchFiltered.usage, /文件里还有 \d+ 条|the file still holds \d+ entries/,
+      "an empty slice of a full file must say how full the file is");
+  }
+  if (benchFiltered.benchState === "absent") {
+    assert.ok(neverWritten, "absent is the only empty state allowed to send the user to the v2 suite");
+    assert.doesNotMatch(benchFiltered.usage, /文件里还有|the file still holds/, "an absent file has no rows to count");
+  }
   await page.click('#adminBenchFilters button[data-bench-key="kind"][data-bench-value=""]');
   await page.waitForFunction(() => {
     const el = document.querySelector("#adminBenchUsage");
     return el && !/suite_run/.test(el.innerText || "");
   }, null, { timeout: 20000 });
   assert.equal(await page.evaluate(() => new URL(location.href).searchParams.get("bench")), null, "clearing the filter must clear the URL state");
+
+  // M8-T1299: a read that never arrives is the panel's own failure, not a workspace
+  // that was never measured. Cut the endpoint and the tile must say so — it must
+  // not fall back to "no bench history yet", which would send the user to run a
+  // suite whose results the panel simply could not fetch.
+  await page.route("**/api/bench-history**", (route) => route.abort());
+  await page.click('#adminBenchFilters button[data-bench-key="window"][data-bench-value="7"]');
+  await page.waitForFunction(
+    () => document.querySelector("#adminBenchBody")?.dataset?.benchState === "unreachable",
+    null, { timeout: 20000 },
+  );
+  const benchDown = await page.evaluate(() => ({
+    body: (document.querySelector("#adminBenchBody")?.innerText || "").replace(/\s+/g, " ").trim(),
+    usage: (document.querySelector("#adminBenchUsage")?.innerText || "").replace(/\s+/g, " ").trim(),
+  }));
+  assert.ok(!NEVER_WRITTEN.test(benchDown.body),
+    `an unreachable read must not be worded as missing history: ${benchDown.body}`);
+  assert.ok(benchDown.body.length > 0 && !/NaN|undefined|\[object/.test(benchDown.body),
+    `the outage sentence must be a real sentence: ${benchDown.body}`);
+  assert.ok(benchDown.usage.length > 0, "the outage must name a reason, not fall silent");
+  BENCH_SEEN.add("unreachable");
+  await page.unroute("**/api/bench-history**");
+  await page.click('#adminBenchFilters button[data-bench-key="window"][data-bench-value=""]');
+  await page.waitForFunction(
+    () => ["present", "absent", "empty", "filtered_empty", "capped", "unreadable", "error"]
+      .includes(document.querySelector("#adminBenchBody")?.dataset?.benchState || ""),
+    null, { timeout: 20000 },
+  );
+
+  // M8-T1299: a kind the file never recorded is an empty slice, not a missing
+  // history. The assertion is conditional on the state because this smoke runs
+  // against whatever workspace it is pointed at; CI seeds a two-kind history so
+  // the filtered_empty branch is really taken there, and the reader-level cells
+  // in tests/test_bench_history.py pin all six states unconditionally.
+  await page.click('#adminBenchFilters button[data-bench-key="kind"][data-bench-value="ungraded"]');
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminBenchUsage");
+    return el && /ungraded/.test(el.innerText || "");
+  }, null, { timeout: 20000 });
+  const sliced = await page.evaluate(() => ({
+    state: document.querySelector("#adminBenchBody")?.dataset?.benchState || "",
+    body: (document.querySelector("#adminBenchBody")?.innerText || "").replace(/\s+/g, " ").trim(),
+    usage: (document.querySelector("#adminBenchUsage")?.innerText || "").replace(/\s+/g, " ").trim(),
+  }));
+  assert.ok(BENCH_STATES.includes(sliced.state), `kind=ungraded must also name a state, got "${sliced.state}"`);
+  BENCH_SEEN.add(sliced.state);
+  assert.ok(!NEVER_WRITTEN.test(sliced.body),
+    "an empty slice must never be worded as missing history");
+  if (sliced.state === "filtered_empty") {
+    assert.match(sliced.usage, /文件里还有 \d+ 条|the file still holds \d+ entries/,
+      "the empty slice must say how many rows the file really holds");
+  }
+  await page.click('#adminBenchFilters button[data-bench-key="kind"][data-bench-value=""]');
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminBenchUsage");
+    return el && !/ungraded/.test(el.innerText || "");
+  }, null, { timeout: 20000 });
+  console.log(`bench tile states exercised (${locale}): ${[...BENCH_SEEN].sort().join(", ")}`);
 
   // pick up real numbers from /api/admin/summary — never assert hardcoded counts, only shape
   const totals = await page.evaluate(() => ({

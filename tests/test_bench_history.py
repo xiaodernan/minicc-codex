@@ -164,3 +164,142 @@ def test_parse_window_days_accepts_the_blueprint_spellings() -> None:
     assert bh.parse_window_days("") is None
     assert bh.parse_window_days("garbage") is None
     assert bh.parse_window_days(None) is None
+
+
+def test_a_window_spelling_outside_ascii_digits_degrades_instead_of_raising() -> None:
+    """`"²".isdigit()` is true and `int("²")` raises, and `?window=` is a query parameter."""
+    for raw in ("²", "³", "₁₂₃", "１２３", "٣", "①", "3 0", "-1", "3.0", "0x10", "  ", "٣٠"):
+        assert bh.parse_window_days(raw) is None, raw
+    assert bh.parse_window_days("0") == 0
+    assert bh.parse_window_days(" last-90d ") == 90
+    out = bh.read_history(Path("."), window_days=bh.parse_window_days("²"))
+    assert out["state"] in {"present", "absent", "empty", "unreadable", "filtered_empty", "capped"}
+    assert out["filters"]["window_days"] is None
+
+
+# --- M8-T1299: one value was doing five jobs -------------------------------
+#
+# `read_history` used to answer `present: bool(window)`. That single boolean
+# merged five different facts — the file is not there, the file could not be
+# read, the file is there but empty, the file has rows and the filter kept none
+# of them, and the file has rows and the cap kept none — so a caller that only
+# reads `present` cannot tell "run the suite" from "widen the window", and the
+# two absent/unreadable branches did not even return the same keys as `present`.
+
+
+def _three_rows(workspace: Path) -> None:
+    stamps = ("2026-11-17T10:00:00Z", "2026-11-17T11:00:00Z", "2026-11-17T12:00:00Z")
+    for offset, stamp in enumerate(stamps):
+        bh.append_entry(workspace, _selftest_entry(stamp, 0.5 + offset / 10, 900 + offset),
+                        allow_changes=True)
+
+
+def _history_file(workspace: Path) -> Path:
+    target = workspace / ".minicc" / "bench_history.jsonl"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def test_a_missing_file_says_absent(tmp_path: Path) -> None:
+    out = bh.read_history(tmp_path)
+    assert out["state"] == "absent"
+    assert out["present"] is False
+    assert out["total_lines"] == 0
+    assert out["reason"].strip()
+
+
+def test_an_empty_file_is_not_called_absent(tmp_path: Path) -> None:
+    _history_file(tmp_path).write_text("", encoding="utf-8")
+    out = bh.read_history(tmp_path)
+    assert out["state"] == "empty"
+    assert out["present"] is False
+    assert out["total_lines"] == 0
+    assert out["reason"].strip()
+
+
+def test_a_filter_that_kept_nothing_still_reports_the_rows_the_file_has(tmp_path: Path) -> None:
+    _three_rows(tmp_path)
+    out = bh.read_history(tmp_path, kind="never_recorded")
+    assert out["state"] == "filtered_empty"
+    assert out["present"] is False
+    assert out["count"] == 0
+    # the fact the panel needs, and the one `present` used to destroy:
+    assert out["total_lines"] == 3
+    assert out["filters"] == {"suite": None, "kind": "never_recorded", "window_days": None}
+    assert out["reason"].strip()
+
+
+def test_a_cap_of_zero_rows_is_not_a_present_history(tmp_path: Path) -> None:
+    _three_rows(tmp_path)
+    out = bh.read_history(tmp_path, limit=0)
+    assert out["state"] == "capped"
+    assert out["present"] is False
+    assert out["count"] == 0
+    assert out["total_lines"] == 3
+    assert out["total_lines_matched"] == 3
+    assert out["reason"].strip()
+
+
+def test_a_file_that_cannot_be_read_says_so_instead_of_saying_it_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _three_rows(tmp_path)
+    real = Path.read_text
+
+    def refuse(self, *args, **kwargs):  # noqa: ANN002, ANN003 - stand-in for a disk fault
+        raise OSError("simulated disk fault")
+
+    monkeypatch.setattr(Path, "read_text", refuse)
+    try:
+        out = bh.read_history(tmp_path)
+    finally:
+        monkeypatch.setattr(Path, "read_text", real)
+    assert out["state"] == "unreadable"
+    assert out["present"] is False
+    # an unreadable file is not an empty one: the row count stays unknown, never 0-by-accident
+    assert out["total_lines"] is None
+    assert "simulated disk fault" in out["reason"]
+
+
+def test_a_window_of_real_rows_is_present_and_carries_no_reason(tmp_path: Path) -> None:
+    _three_rows(tmp_path)
+    out = bh.read_history(tmp_path)
+    assert out["state"] == "present"
+    assert out["present"] is True
+    assert out["count"] == 3
+    assert out["total_lines"] == 3
+    assert out["reason"] == ""
+
+
+def test_all_five_states_answer_with_the_same_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers: dict[str, dict] = {"absent": bh.read_history(tmp_path)}
+    _history_file(tmp_path).write_text("", encoding="utf-8")
+    answers["empty"] = bh.read_history(tmp_path)
+    _three_rows(tmp_path)
+    answers["present"] = bh.read_history(tmp_path)
+    answers["filtered_empty"] = bh.read_history(tmp_path, kind="never_recorded")
+    answers["capped"] = bh.read_history(tmp_path, limit=0)
+    real = Path.read_text
+    monkeypatch.setattr(Path, "read_text",
+                        lambda self, *a, **k: (_ for _ in ()).throw(OSError("simulated disk fault")))
+    try:
+        answers["unreadable"] = bh.read_history(tmp_path)
+    finally:
+        monkeypatch.setattr(Path, "read_text", real)
+
+    shape = frozenset(answers["present"])
+    drift = {name: sorted(shape ^ frozenset(answer)) for name, answer in answers.items()
+             if frozenset(answer) != shape}
+    assert not drift, f"states that answer with a different key set: {drift}"
+    for name in ("absent", "empty", "filtered_empty", "capped", "unreadable"):
+        assert answers[name]["state"] == name
+        assert answers[name]["present"] is False
+        assert answers[name]["entries"] == []
+        assert answers[name]["mean_score"] is None
+        assert answers[name]["mean_elapsed_ms"] is None
+        assert answers[name]["window_from"] is None
+        assert answers[name]["window_to"] is None
+        assert answers[name]["reason"].strip(), f"{name} must say why"
+

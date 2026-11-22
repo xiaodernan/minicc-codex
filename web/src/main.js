@@ -541,10 +541,30 @@ if (typeof location !== "undefined" && new URLSearchParams(location.search).get(
 // text carries no letters/digits/CJK (pure emoji) stay untouched: honest silence
 // beats an echo. Buttons the app itself titles (game loop, almanac rails, …) are
 // never retouched.
+//
+// M8-T1299 follow-up: the tooltip is joined from the button's leaf text runs, not
+// from `textContent`. A change-list button renders path / status / counts / time in
+// adjacent spans with no whitespace between them, so `textContent` welded them into
+// "web/src/panels/admin.jsModified · +31 -5now" — a tooltip that is not a sentence,
+// and one that hides a file name inside a word so a reader (or a checker) cannot
+// tell where the path ends. Joining the runs puts a separator back.
+function tooltipTextRuns(element) {
+  const runs = [];
+  for (const node of element.childNodes) {
+    if (node.nodeType === 3) {
+      const text = (node.nodeValue || "").replace(/\s+/g, " ").trim();
+      if (text) runs.push(text);
+    } else if (node.nodeType === 1) {
+      runs.push(...tooltipTextRuns(node));
+    }
+  }
+  return runs;
+}
+
 function decorateButtons() {
   document.querySelectorAll("button").forEach((button) => {
     if (button.hasAttribute("title") || button.hasAttribute("aria-label")) return;
-    const raw = (button.textContent || "").replace(/\s+/g, " ").trim();
+    const raw = tooltipTextRuns(button).join(" · ");
     // peel leading navigation bullets/decorations the sidebar renders ("•说明书" etc.)
     const text = raw.replace(/^[\u2022\u00b7\u25b8\u25b6\u203a\u2039>\-\u2013\u2014]+\s*/, "").trim();
     if (!text || !/[A-Za-z0-9\u4e00-\u9fff\u3400-\u4dbf]/.test(text)) return;

@@ -873,19 +873,45 @@ export async function openAdmin() {
         });
       });
     }
+    // M8-T1299: the reader now names which of its six states this is, so the tile
+    // can stop guessing "there is no history" from "this slice has no samples".
+    // `unreachable` is the panel's own state — a request that never answered is
+    // not a workspace that was never measured.
+    const BENCH_STATE_SENTENCES = {
+      absent: "admin.benchHistoryAbsent",
+      empty: "admin.benchHistoryEmpty",
+      filtered_empty: "admin.benchHistoryEmptyFilter",
+      capped: "admin.benchHistoryNoSamples",
+      error: "admin.benchHistoryNoSamples",
+      unreadable: "admin.benchHistoryUnreachable",
+      unreachable: "admin.benchHistoryUnreachable",
+    };
     function renderBenchHistory(data) {
       const bodyEl = $("#adminBenchBody");
       const usageEl = $("#adminBenchUsage");
       const byEl = $("#adminBenchModel");
       if (byEl) byEl.textContent = zh() ? "真实 bench 读数" : "real bench readout";
       if (!data || data.present === false) {
-        const filtered = data && data.filters && (data.filters.kind || data.filters.window_days != null || data.filters.suite);
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(filtered ? t("admin.benchHistoryEmptyFilter") : t("admin.benchHistoryAbsent"))}</p>`;
-        if (usageEl) usageEl.textContent = data?.reason
-          ? (zh() ? "原因：" : "reason: ") + String(data.reason).slice(0, 140)
-          : "";
+        const known = data && typeof data.state === "string" ? data.state : "";
+        const state = known || (data ? "absent" : "unreachable");
+        const reason = data?.reason
+          || (zh() ? "请求没有回来（超时或被拒）" : "the request did not come back (timeout or refusal)");
+        if (bodyEl) {
+          bodyEl.dataset.benchState = state;
+          const sentence = BENCH_STATE_SENTENCES[state] || "admin.benchHistoryNoSamples";
+          bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t(sentence))}</p>`;
+        }
+        if (usageEl) {
+          // An empty slice of a non-empty file has to say how full the file is.
+          const held = Number(data?.total_lines);
+          const heldLine = Number.isFinite(held) && held > 0
+            ? (zh() ? ` · 文件里还有 ${held} 条` : ` · the file still holds ${held} entries`)
+            : "";
+          usageEl.textContent = (zh() ? "原因：" : "reason: ") + String(reason).slice(0, 140) + heldLine;
+        }
         return;
       }
+      if (bodyEl) bodyEl.dataset.benchState = "present";
       const items = zh()
         ? [
             { label: "样本数", value: String(data.count) },

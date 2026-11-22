@@ -1363,6 +1363,9 @@
       "admin.benchHistoryPending": "\u6B63\u5728\u8BFB\u53D6 bench_history.jsonl\u2026",
       "admin.benchHistoryAbsent": "\u6682\u65E0 bench_history.jsonl\u2014\u2014\u5148\u8DD1\u4E00\u904D v2 \u8BC4\u4F30\uFF08python -m minicc.bench_tasks --suite v2\uFF09",
       "admin.benchHistoryEmptyFilter": "\u5F53\u524D\u7B5B\u9009\u4E0B\u6CA1\u6709\u6837\u672C\u2014\u2014\u653E\u5BBD\u65F6\u95F4\u6216\u7C7B\u578B\u518D\u770B",
+      "admin.benchHistoryEmpty": "bench_history.jsonl \u5728\uFF0C\u4F46\u4E00\u6761\u8BC4\u4F30\u8BB0\u5F55\u90FD\u8FD8\u6CA1\u6709\u2014\u2014\u5148\u8DD1\u4E00\u904D v2 \u8BC4\u4F30",
+      "admin.benchHistoryNoSamples": "\u8FD9\u4E00\u6B21\u8BFB\u6570\u6CA1\u6709\u6837\u672C\u2014\u2014\u628A\u884C\u6570\u4E0A\u9650\u6216\u7B5B\u9009\u653E\u5BBD",
+      "admin.benchHistoryUnreachable": "\u53D6\u4E0D\u5230\u8FD9\u5757\u8BFB\u6570\u2014\u2014\u8BF7\u6C42\u5931\u8D25\u6216\u8BFB\u4E0D\u5230\u5386\u53F2\u6587\u4EF6",
       "admin.channelKicker": "\u901A\u9053\u5206\u8D26 \xB7 \u771F\u82B1\u7684\u6BCF\u4E00\u5206 token",
       "admin.channelPending": "\u6B63\u5728\u8BFB\u53D6 metrics \u901A\u9053\u6570\u636E\u2026",
       "admin.evidenceKicker": "\u8BC1\u636E\u95E8 \xB7 \u771F\u5B9E CI",
@@ -2346,6 +2349,9 @@
       "admin.benchHistoryPending": "Reading bench_history.jsonl\u2026",
       "admin.benchHistoryAbsent": "No bench history yet \u2014 run the v2 suite once to draw the first line",
       "admin.benchHistoryEmptyFilter": "No samples under this filter \u2014 widen the window or the kind",
+      "admin.benchHistoryEmpty": "bench_history.jsonl is there but holds no entries yet \u2014 run the v2 suite once",
+      "admin.benchHistoryNoSamples": "This read came back with no sample \u2014 raise the row cap or widen the filter",
+      "admin.benchHistoryUnreachable": "This tile could not be read \u2014 the request failed or the history file is unreadable",
       "admin.channelKicker": "Model channels \xB7 where the tokens went",
       "admin.channelPending": "Reading metrics \u2026",
       "admin.evidenceKicker": "Evidence gate \xB7 real CI",
@@ -10018,17 +10024,37 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           });
         });
       }
+      const BENCH_STATE_SENTENCES = {
+        absent: "admin.benchHistoryAbsent",
+        empty: "admin.benchHistoryEmpty",
+        filtered_empty: "admin.benchHistoryEmptyFilter",
+        capped: "admin.benchHistoryNoSamples",
+        error: "admin.benchHistoryNoSamples",
+        unreadable: "admin.benchHistoryUnreachable",
+        unreachable: "admin.benchHistoryUnreachable"
+      };
       function renderBenchHistory(data2) {
         const bodyEl = $("#adminBenchBody");
         const usageEl = $("#adminBenchUsage");
         const byEl = $("#adminBenchModel");
         if (byEl) byEl.textContent = zh8() ? "\u771F\u5B9E bench \u8BFB\u6570" : "real bench readout";
         if (!data2 || data2.present === false) {
-          const filtered2 = data2 && data2.filters && (data2.filters.kind || data2.filters.window_days != null || data2.filters.suite);
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(filtered2 ? t("admin.benchHistoryEmptyFilter") : t("admin.benchHistoryAbsent"))}</p>`;
-          if (usageEl) usageEl.textContent = data2?.reason ? (zh8() ? "\u539F\u56E0\uFF1A" : "reason: ") + String(data2.reason).slice(0, 140) : "";
+          const known = data2 && typeof data2.state === "string" ? data2.state : "";
+          const state2 = known || (data2 ? "absent" : "unreachable");
+          const reason = data2?.reason || (zh8() ? "\u8BF7\u6C42\u6CA1\u6709\u56DE\u6765\uFF08\u8D85\u65F6\u6216\u88AB\u62D2\uFF09" : "the request did not come back (timeout or refusal)");
+          if (bodyEl) {
+            bodyEl.dataset.benchState = state2;
+            const sentence = BENCH_STATE_SENTENCES[state2] || "admin.benchHistoryNoSamples";
+            bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t(sentence))}</p>`;
+          }
+          if (usageEl) {
+            const held = Number(data2?.total_lines);
+            const heldLine = Number.isFinite(held) && held > 0 ? zh8() ? ` \xB7 \u6587\u4EF6\u91CC\u8FD8\u6709 ${held} \u6761` : ` \xB7 the file still holds ${held} entries` : "";
+            usageEl.textContent = (zh8() ? "\u539F\u56E0\uFF1A" : "reason: ") + String(reason).slice(0, 140) + heldLine;
+          }
           return;
         }
+        if (bodyEl) bodyEl.dataset.benchState = "present";
         const items = zh8() ? [
           { label: "\u6837\u672C\u6570", value: String(data2.count) },
           { label: "\u5747\u5206\uFF08\u8D8A\u9AD8\u8D8A\u597D\uFF09", value: data2.mean_score != null ? String(data2.mean_score) : "\u2014" },
@@ -16578,10 +16604,22 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
   if (typeof location !== "undefined" && new URLSearchParams(location.search).get("arcade") === "1") {
     document.documentElement.dataset.arcade = "1";
   }
+  function tooltipTextRuns(element) {
+    const runs = [];
+    for (const node of element.childNodes) {
+      if (node.nodeType === 3) {
+        const text = (node.nodeValue || "").replace(/\s+/g, " ").trim();
+        if (text) runs.push(text);
+      } else if (node.nodeType === 1) {
+        runs.push(...tooltipTextRuns(node));
+      }
+    }
+    return runs;
+  }
   function decorateButtons() {
     document.querySelectorAll("button").forEach((button) => {
       if (button.hasAttribute("title") || button.hasAttribute("aria-label")) return;
-      const raw = (button.textContent || "").replace(/\s+/g, " ").trim();
+      const raw = tooltipTextRuns(button).join(" \xB7 ");
       const text = raw.replace(/^[\u2022\u00b7\u25b8\u25b6\u203a\u2039>\-\u2013\u2014]+\s*/, "").trim();
       if (!text || !/[A-Za-z0-9\u4e00-\u9fff\u3400-\u4dbf]/.test(text)) return;
       const tooltip = text.length > 80 ? `${text.slice(0, 77)}\u2026` : text;

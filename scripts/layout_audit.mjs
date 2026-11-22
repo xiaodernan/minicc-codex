@@ -128,6 +128,12 @@ async function auditPage(page, locale, viewport) {
     // File names in advice copy (web/src/panels/admin.js) are legitimate;
     // only dictionary-style keys count as unresolved UI strings.
     const unresolved = /\b(admin|manual|nav|tooltips|session|monitor|oracle)\.(?!js\b|mjs\b|css\b)[a-zA-Z][\w.]*\b/;
+    // 2b. A file name welded into the next word — "web/src/panels/admin.jsModified"
+    // — is not a sentence. The exemption above only knows six basenames, so it
+    // reports such a tooltip by luck of which file happens to be dirty; this rule
+    // asks a shape question instead: no extension may run straight into a capital
+    // letter or a CJK glyph without a separator between them.
+    const welded = /\.(js|mjs|cjs|css|json|jsonl|md|py|rb|ts|tsx|jsx|yml|yaml|html|txt|sh|go|rs|java)(?=[A-Z\u4e00-\u9fff])/;
     for (const el of document.querySelectorAll("body *")) {
       if (!visible(el)) continue;
       if (el.matches(SCROLL_EXEMPT) || el.closest(SCROLL_EXEMPT)) continue;
@@ -137,11 +143,14 @@ async function auditPage(page, locale, viewport) {
         if (!text) continue;
         if (garbage.test(text)) bad("garbage-literal", describe(el), text);
         if (unresolved.test(text)) bad("unresolved-i18n", describe(el), text);
+        if (welded.test(text)) bad("welded-filename-label", describe(el), text);
       }
       for (const attr of ["placeholder", "title", "aria-label", "alt"]) {
         const value = el.getAttribute(attr);
-        if (value && garbage.test(value)) bad("garbage-attribute", `${describe(el)}[${attr}]`, value);
-        if (value && unresolved.test(value)) bad("unresolved-i18n-attribute", `${describe(el)}[${attr}]`, value);
+        if (!value) continue;
+        if (garbage.test(value)) bad("garbage-attribute", `${describe(el)}[${attr}]`, value);
+        if (unresolved.test(value)) bad("unresolved-i18n-attribute", `${describe(el)}[${attr}]`, value);
+        if (welded.test(value)) bad("welded-filename-label", `${describe(el)}[${attr}]`, value);
       }
     }
 

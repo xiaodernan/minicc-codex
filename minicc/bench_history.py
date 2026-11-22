@@ -77,7 +77,11 @@ def _parse_ts(raw: Any) -> datetime | None:
 
 
 def parse_window_days(raw: Any) -> int | None:
-    """``last-30d`` / ``30d`` / ``30`` → 30; anything else → None (unfiltered, never a 500)."""
+    """``last-30d`` / ``30d`` / ``30`` → 30; anything else → None (unfiltered, never a 500).
+
+    ASCII digits only: ``"²".isdigit()`` is true and ``int("²")`` raises, and a
+    query parameter is not allowed to reach an exception.
+    """
     if raw is None:
         return None
     text = str(raw).strip().lower()
@@ -87,7 +91,47 @@ def parse_window_days(raw: Any) -> int | None:
         text = text[5:]
     if text.endswith("d"):
         text = text[:-1]
-    return int(text) if text.isdigit() else None
+    return int(text) if text.isascii() and text.isdigit() else None
+
+
+def _answer(
+    *,
+    state: str,
+    reason: str,
+    filters: dict[str, Any],
+    total_lines: int | None,
+    total_lines_matched: int | None,
+    skipped_lines: int | None,
+    window: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """One shape for every state, so a caller cannot read a missing key as a zero.
+
+    `total_lines` counts the rows in the file and never moves with the filters;
+    `total_lines_matched` is what survived them; `count` is what fits the cap.
+    An unreadable file leaves all three `None` — "we could not count" is not "zero".
+    """
+    def _avg(items: list[float]) -> float | None:
+        if not items:
+            return None
+        return round(sum(items) / len(items), 3)
+
+    scores = [float(item["score"]) for item in window if isinstance(item.get("score"), (int, float))]
+    elapsed = [float(item["elapsed_ms"]) for item in window if isinstance(item.get("elapsed_ms"), (int, float))]
+    return {
+        "present": state == "present",
+        "state": state,
+        "reason": reason,
+        "count": len(window),
+        "total_lines": total_lines,
+        "total_lines_matched": total_lines_matched,
+        "skipped_lines": skipped_lines,
+        "mean_score": _avg(scores),
+        "mean_elapsed_ms": _avg(elapsed),
+        "window_from": (window[-1]["ts"] if window else None),
+        "window_to": (window[0]["ts"] if window else None),
+        "filters": filters,
+        "entries": window,
+    }
 
 
 def read_history(
@@ -99,24 +143,30 @@ def read_history(
     window_days: int | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Read up to `limit` newest entries; honest absent state three-states: absent / empty / present."""
+    """Read up to `limit` newest entries and say which of five states this is.
+
+    `state` is the honest answer; `present` only ever means "there are rows to
+    draw". The five are not interchangeable: the file is not there (absent), it
+    is there but could not be read (unreadable), it is readable but holds no
+    entries (empty), it has entries and the filter kept none (filtered_empty),
+    it has entries and the cap kept none (capped), or there is a window (present).
+    """
     path = _history_path(workspace)
+    filters = {"suite": suite, "kind": kind, "window_days": window_days}
     if not path.is_file():
-        return {
-            "present": False,
-            "reason": "no bench history yet — run the v2 suite (python -m minicc.bench_tasks --suite v2 --record)",
-            "count": 0,
-            "entries": [],
-        }
+        return _answer(
+            state="absent",
+            reason="no bench history yet — run the v2 suite (python -m minicc.bench_tasks --suite v2 --record)",
+            filters=filters, total_lines=0, total_lines_matched=0, skipped_lines=0, window=[],
+        )
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return {
-            "present": False,
-            "reason": f"could not read {path}",
-            "count": 0,
-            "entries": [],
-        }
+    except OSError as exc:
+        return _answer(
+            state="unreadable",
+            reason=f"could not read {path}: {exc}",
+            filters=filters, total_lines=None, total_lines_matched=None, skipped_lines=None, window=[],
+        )
 
     parsed: list[dict[str, Any]] = []
     bad_lines = 0
@@ -133,6 +183,15 @@ def read_history(
         except json.JSONDecodeError:
             bad_lines += 1
 
+    total_lines = len(parsed)
+    if not parsed:
+        return _answer(
+            state="empty",
+            reason=f"{path} holds no entries yet"
+            + (f" ({bad_lines} line(s) could not be parsed)" if bad_lines else ""),
+            filters=filters, total_lines=0, total_lines_matched=0, skipped_lines=bad_lines, window=[],
+        )
+
     if suite is not None:
         parsed = [item for item in parsed if item.get("suite") == suite]
     if kind is not None:
@@ -144,32 +203,32 @@ def read_history(
             if (stamp := _parse_ts(item.get("ts"))) is not None and stamp >= cutoff
         ]
 
+    if not parsed:
+        wanted = ", ".join(
+            f"{name}={value}" for name, value in filters.items() if value is not None
+        )
+        return _answer(
+            state="filtered_empty",
+            reason=f"the file has {total_lines} entries; none match {wanted or 'this filter'}",
+            filters=filters, total_lines=total_lines, total_lines_matched=0,
+            skipped_lines=bad_lines, window=[],
+        )
+
     if limit < 0:
         limit = 0
     window = parsed[-limit:][::-1] if limit else []
+    if not window:
+        return _answer(
+            state="capped",
+            reason=f"the file has {total_lines} entries and {len(parsed)} match, but limit={limit} asks for none",
+            filters=filters, total_lines=total_lines, total_lines_matched=len(parsed),
+            skipped_lines=bad_lines, window=[],
+        )
 
-    def _avg(items: list[float]) -> float | None:
-        if not items:
-            return None
-        return round(sum(items) / len(items), 3)
-
-    scores = [float(item["score"]) for item in window if isinstance(item.get("score"), (int, float))]
-    elapsed = [float(item["elapsed_ms"]) for item in window if isinstance(item.get("elapsed_ms"), (int, float))]
-    mean_score = _avg(scores)
-    mean_elapsed_ms = _avg(elapsed)
-
-    return {
-        "present": bool(window),
-        "count": len(window),
-        "total_lines_matched": len(parsed),
-        "skipped_lines": bad_lines,
-        "mean_score": mean_score,
-        "mean_elapsed_ms": mean_elapsed_ms,
-        "window_from": (window[-1]["ts"] if window else None),
-        "window_to": (window[0]["ts"] if window else None),
-        "filters": {"suite": suite, "kind": kind, "window_days": window_days},
-        "entries": window,
-    }
+    return _answer(
+        state="present", reason="", filters=filters, total_lines=total_lines,
+        total_lines_matched=len(parsed), skipped_lines=bad_lines, window=window,
+    )
 
 
 def ingest_report(workspace: Path, evaluation_json: Path, *, allow_changes: bool) -> dict[str, Any]:

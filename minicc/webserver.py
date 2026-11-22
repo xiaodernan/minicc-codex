@@ -765,9 +765,15 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                     ),
                 ))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
-                self._json({"present": False,
+                # Same key set as every read_history state: a failed read that
+                # answers with a different shape is read as "the file is gone"
+                # by any caller that only looks at the keys it happens to get.
+                self._json({"present": False, "state": "error",
                             "reason": f"{type(exc).__name__}: {exc}",
-                            "count": 0,
+                            "count": 0, "total_lines": None, "total_lines_matched": None,
+                            "skipped_lines": None, "mean_score": None, "mean_elapsed_ms": None,
+                            "window_from": None, "window_to": None,
+                            "filters": {"suite": suite, "kind": kind, "window_days": window_days},
                             "entries": []}, 200)
             return
         if path == "/api/evidence":

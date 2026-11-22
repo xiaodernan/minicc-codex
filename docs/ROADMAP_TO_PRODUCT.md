@@ -56487,3 +56487,114 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 ### 边界
 - 本批没有改 admin 面板的取数 URL（tile 仍吃全量）；过滤能力先以只读 API 提供，等有真实窗口需求再接 UI。
 - 没有执行真实 `--suite v2 --run`，不声称任何新评测分数。
+
+## 批次 1202 · M8-T1297: 评估时序面板接上后端筛选 —— 窗口与类型两组芯片真的改变读数
+
+> 本条是回填：`M8-T1297`（提交 `536517c7`）落地时没有写账本，条目在 `M8-T1299` 这一批补记，
+> 数字为 2026-11-23 在 `plane1300` 工作树（含 T1297/T1298 代码）重测所得。
+
+### 缺什么
+- 批次 1201 把 `?suite=&kind=&window=` 三条过滤做进了 `/api/bench-history`，但 admin 的「评估时序」卡片仍然只请求全量：后端能筛，前端没有入口，用户问「只看 v2 的 suite_run」「只看最近 7 天」时只能自己数。
+- 卡片也没有把当前过滤说出来：读数变了，屏幕上一个字都没变，无法判断「这是全量还是我筛过的」。
+
+### 做了什么
+- `web/src/panels/admin.js`（+64）：新增 `#adminBenchFilters` 两组芯片 —— `window`（不限/7/30/90）与 `kind`（`suite_run`/`file_contract`/`command_contract`/`ungraded`）——点击后把选中值拼进 `/api/bench-history` 的请求 URL，并在 `aria-pressed` 上留痕；`#adminBenchUsage` 一行同步报出当前过滤。
+- `web/index.html`（+1）与 `web/styles.css`（+7）：卡片挂载筛选行容器与芯片版式。
+- `web/src/core/i18n.js`（6 行）：中英各补芯片与用量行的键；重新构建 `web/app.js` 与样式产物。
+- `tests/admin_smoke.mjs`（+23）：断言两组芯片都在、恰好一枚 kind 芯片处于 pressed、用量行必须报出当前过滤或空态、筛后读数不得出现 `NaN`。
+
+### 证据与门
+- 走查实测（fake provider 本机服务，zh + en 两轮）：`npm run test:admin` → passed；其中本批的两条断言 `bench filters must offer window and kind groups`（`.group` 计数 = 2）与 `exactly one kind chip may stay pressed` 均通过。
+- 零模型调用：本批只有取数与渲染，不产生任何评测分数或命中率声称。
+
+### 边界
+- 芯片接上了，但卡片对「为什么是空」仍然只有 `present` 一个布尔可看：筛空、文件不存在、文件读不出来、限窗为 0 四种事实共用一句话 —— 由 `M8-T1299` 处理。
+- 筛选状态没有进地址栏：刷新或分享就回到全量 —— 由 `M8-T1298` 处理。
+
+## 批次 1203 · M8-T1298: bench 筛选写进地址栏 —— 刷新与分享回到同一读数
+
+> 本条是回填：`M8-T1298`（提交 `85454d93`）落地时没有写账本，条目在 `M8-T1299` 这一批补记，
+> 数字为 2026-11-23 在 `plane1300` 工作树重测所得。
+
+### 缺什么
+- 批次 1202 之后，筛选只活在内存里：刷新页面、把链接发给别人、从别的面板切回来，卡片都回到全量。用户看到的「最近 30 天 v2」是不可寻址的一次性状态。
+- 面板也没有约束「什么样的 URL 值算合法筛选」：地址栏一旦成为入口，任何拼错的值都会直接打到后端。
+
+### 做了什么
+- `web/src/panels/admin.js`（+22）：`readBenchFromUrl()` 在打开卡片时解析 `?bench=<window>:<kind>`，只接受白名单里的窗口天数与已知 kind，非法值一律丢弃而不是发给后端；`writeBenchToUrl()` 在每次点芯片后用 `history.replaceState` 回写当前状态，清空筛选时删掉整个 `bench` 参数（不留下 `?bench=` 这种假状态）。
+- `tests/admin_smoke.mjs`（+3）：断言点 kind 芯片后地址栏出现 `?bench=:suite_run`，清空芯片后 `bench` 参数为 `null`；重新构建 `web/app.js` 与 `web/asset-manifest.json`。
+
+### 证据与门
+- 走查实测（zh + en 两轮）：`npm run test:admin` → passed；本批两条断言 `bench filter must land in the URL (?bench=:suite_run)` 与 `clearing the filter must clear the URL state` 均通过。
+- 产物一致性：`npm run check:web` → `web/app.js + web/game.js are up to date (1806682 chars)`、`web/assets is clean (3 referenced bundle(s))`。
+- 零模型调用；URL 只携带过滤意图，不携带数据。
+
+### 边界
+- 地址栏能回到「筛过」，但回到的是哪一种空/非空仍只有 `present` 一个布尔在说话 —— 由 `M8-T1299` 处理。
+- `?bench=` 的编码形状（`window:kind`，窗口为空时以 `:` 开头）是面板私有约定，后端仍认 `window=`/`kind=`；两侧各有口径，尚未收敛成一个。
+
+## 批次 1204 · M8-T1299: 一个布尔被当成五种事实 —— bench 读数现在会说自己处在哪一态
+
+### 缺什么
+- `read_history()` 的返回里 `present` 就是 `bool(window)`。于是五种完全不同的事实压成同一个 `false`：文件根本不存在、文件在但读不出来、文件在且是空的、文件有 N 条而过滤后为 0、文件有 N 条而 `limit=0` 一条都不给。前端在 `present=false` 时统一印「暂无 bench_history.jsonl，去跑 v2 套件」——筛空了也被叫去重跑评测。
+- 更硬的一条：非 present 的两个分支（absent / unreadable）只回 4 个键（`present/reason/count/entries`），present 分支回 11 个键。调用方按 `total_lines`、`mean_score` 取值时会拿到 `undefined`，或者更糟：拿到 `0`。
+- 本机对 HEAD（`85454d93`）直接打了三枪，拿到的就是这三种谎：
+  - `?kind=ungraded`（文件里确实有 2 条）→ `{"present": false, "count": 0, "total_lines_matched": 0, ...}`，没有任何一句话说明「文件还有 2 条」，也没有 `total_lines` 这个键。
+  - 同一请求打到没有历史文件的工作区 → `{"present": false, "reason": "no bench history yet — run the v2 suite ...", "count": 0, "entries": []}`。两件事，两种键集，同一句人话。
+  - `?window=%C2%B2`（上标²，`"²".isdigit()` 为真而 `int("²")` 抛异常）→ `{"present": false, "reason": "ValueError: invalid literal for int() with base 10: '²'", "count": 0, "entries": []}`。一个查询参数把真实的 2 条历史变成「没有数据」，还把 Python 异常文本端到了面板上。
+- `tests/test_bench_history.py` 在 HEAD 是 12 passed，但没有一条覆盖上面这些状态。
+
+### 做了什么
+- `minicc/bench_history.py`：新增 `_answer()` 单一出口 —— 六态 `absent / unreadable / empty / filtered_empty / capped / present` 全部从这里出，键集完全一致；`total_lines` 只数文件里的行、不随过滤移动，`total_lines_matched` 是过滤后的条数，`count` 是限窗后交给面板的条数；读不出来的文件三个计数一律 `None`（「数不清」不是 0）；除 present 外每一态都带非空 `reason`。
+- `parse_window_days()` 加 ASCII 护栏：`text.isascii() and text.isdigit()` 才 `int()`，`² ₁₂₃ １２３ ٣ ① 3.0 0x10 -1` 一律退化为「不过滤」，异常不再可能从查询参数走到路由。
+- `minicc/webserver.py` 的 `/api/bench-history` except 分支：兜底载荷补齐与 `read_history` 同样的键集，并回显 `filters`；`state="error"` 让面板知道这是路由自己失败，不是工作区没数据。
+- `web/src/panels/admin.js`：删掉「`filtered ? EmptyFilter : Absent`」的二分猜测，改 `BENCH_STATE_SENTENCES` 状态→句子映射（含路由的 `error` 与前端 fetch 失败的 `unreachable`）；读数卡片写入 `dataset.benchState`，空态用量行改成「原因：<后端原话> · 文件里还有 N 条」。
+- `web/src/core/i18n.js`：中英各补 `admin.benchHistoryEmpty` / `admin.benchHistoryNoSamples` / `admin.benchHistoryUnreachable` 三键。
+- 测试：`tests/test_bench_history.py` 加 8 条（逐态 + 「五态同键集」对称差断言 + 非 ASCII 窗口拼写）；`tests/test_http_surface.py` 加 2 条（`?window=²` 不 500 且不谎报；故障兜底与真实读数键集相等）；`tests/admin_smoke.mjs` 加状态白名单、条件钉（`filtered_empty`/`capped` 不得被说成「从来没有过」且必须报「文件里还有 N 条」；只有 `absent` 允许叫用户去跑套件）与一条「掐断 `/api/bench-history`」的确定性故障走查。
+- `.github/workflows/ci.yml`：web-smoke 任务在服务启动前播种两份 kind（`suite_run`、`command_contract`，故意不含 `ungraded`）的 `bench_history.jsonl`，让 `present` 与 `filtered_empty` 两支在 CI 里真的被走到；`.minicc/` 已被 gitignore，不产生新跟踪文件。
+
+### 证据与门
+- 红→绿：`pytest tests/test_bench_history.py -q` 在 HEAD 是 `12 passed in 1.41s`（无覆盖），加测后先 `7 failed, 12 passed in 1.20s`，实现改完 `20 passed in 1.11s`。
+- `pytest tests/test_http_surface.py -k bench_history -q` → `4 passed, 106 deselected in 3.64s`。
+- 本机三枪复打（fake provider 服务，播种 2 条同一份文件）：
+  - `?kind=ungraded` → `state=filtered_empty`、`count=0`、`total_lines=2`、`reason="the file has 2 entries; none match kind=ungraded"`。
+  - 无参 → `state=present`、`count=2`、`mean_score=0.875`、`mean_elapsed_ms=550.0`、窗口 `2026-11-21T10:00:00Z → 2026-11-22T10:00:00Z`。
+  - `?window=%C2%B2` → HTTP 200 且 `state=present, count=2`（退化为不过滤），不再出现异常文本，也不再把 2 条历史说成没有。
+- `npm run test:admin` → passed，并打印本轮真正走过的状态：`bench tile states exercised (zh): filtered_empty, present, unreachable` 与 `(en)` 同三项；`unreachable` 一支由 `page.route("**/api/bench-history**", abort)` 确定性制造，等待 `dataset.benchState === "unreachable"` 并断言句子非空、无 `NaN/undefined/[object`。
+- `npm run test:i18n` → `zh/en carry the same 984 keys; 293 literal t() references all resolve`。
+- `npm run build:web` → `built web/app.js (1645607 chars)`；`npm run check:web` → up to date、`web/assets is clean (3 referenced bundle(s))`。
+- `npm run test:layout` → PASS；`npm run test:web` → passed（timeline / product path / desktop / mobile）。
+- `python scripts/pre_push_gates.py` → `16/16 gates green in 108.0s; red: none`（含 doc pointers 8.5s、route coverage 54.0s、impact floor 4.8s）。
+- 全量 `pytest tests/ -q` 基线（49:05，与走查并行跑完）报 6 failed，逐条归因：4 条（chunked body、wrong bearer、probe heats、probe refuses）是与本机两个服务/Playwright 争抢端口所致，隔离重跑 `1 failed, 5 passed` 即转绿；`test_agent_service_search_history` 在 HEAD 与本树都红，因为它读到了共享历史库里别的会话留下的任务（断言 `results == []` 拿到 `D:\面试项目\minicc-codex` 的真实记录），属环境性红、与本批无关；`test_the_two_crlf_files_keep_their_endings` 在 HEAD 红（`i18n.js lost its CRLF endings (crlf=340, stray lf=2)`）、在本批绿（`crlf=348 lf=0`）——本批重写该文件时把两行游离 LF 归了档，`ci.yml` 仍是 CRLF（`crlf=503 lf=0`），其余源码保持 LF。
+
+### 边界
+- 面板现在能说出六态，但 `?bench=window:kind` 的编码约定仍只在前端，后端用 `window=`/`kind=`；两侧口径收敛留给下一批。
+- `unreachable`（前端 fetch 失败）与 `error`（路由兜底）是两条不同来源的状态，本批只保证它们各有一句话，没有把它们并成一个「读不出来」的家族。
+- 全程零模型调用；不声称任何真实命中率或评测分数。
+
+## 批次 1205 · M8-T1300: 按钮自带说明把文件名和单词焊死 —— 量具改问形状，不再只认六个名字
+
+### 缺什么
+- `M8-T1053` 让每个没有 title 的按钮用自己的渲染文本生成提示。它取的是 `button.textContent`，而变更列表按钮把「路径 / 状态 / 增删行数 / 时间」并排放在相邻 `<span>` 里，中间没有空白字符 —— 于是提示长成 `web/src/panels/admin.jsModified · +31 -5now`：不是一句话，而且文件名和后面的单词焊在一起，看不出路径在哪里结束。中文渲染同样中招（`…admin.js已修改`）。
+- 这条缺陷本可以更早暴露，但 `scripts/layout_audit.mjs` 的 `unresolved-i18n` 规则用一张六个 basename 的白名单来放行「建议文案里出现文件名」：`/\b(admin|manual|nav|tooltips|session|monitor|oracle)\.(?!js\b|mjs\b|css\b)…/`。`admin.js` 后面紧跟 `Modified` 时 `js\b` 不成立，负向断言落空，规则就把一个文件名当成了未解析的字典键报出来。也就是说：门只在「恰好改到了这六个文件之一」时才会响，既会误报，也会漏报。
+- 实测两枪（同一棵工作树，只是脏净不同）：干净检出 `npm run test:layout` → PASS；把本批改动留在工作树里 → `layout audit: 2 finding(s)`，两条都是上面那个 `unresolved-i18n-attribute`。门把「我改过代码」这件事误记成了「界面里有没解析的键」。
+
+### 做了什么
+- `web/src/main.js`（+22）：`decorateButtons()` 的提示文本改为 `tooltipTextRuns()` 递归取叶级文本段，再用 ` · ` 连接；纯图标、空文本的按钮仍然保持「诚实的沉默」；80 字截断、`data-auto-title` 的语言切换清洗纪律不变。产物现在是 `web/src/panels/admin.js · 已修改 · +31 · -5 · 现在`。
+- `scripts/layout_audit.mjs`（+13）：新增第 2b 条规则 `welded-filename-label`，不再依赖 basename 名单，改问形状 —— 任何扩展名（`js/mjs/cjs/css/json/jsonl/md/py/rb/ts/tsx/jsx/yml/yaml/html/txt/sh/go/rs/java`）后面紧接大写字母或汉字（`(?=[A-Z\u4e00-\u9fff])`，量具脚本保持在 ASCII 平面内书写）就是焊接；对文本节点与 `placeholder/title/aria-label/alt` 四种属性同时生效，命中即计入 finding。
+- 重新构建 `web/app.js`。
+
+### 证据与门
+- 形状判据的六种输入（node 直接跑正则）：`admin.jsModified` 命中、`admin.js已修改` 命中、`admin.js · Modified` 不命中、`foo.pyx` 不命中、哈希产物名 `app.ea48c9c30de17c19.js` 不命中、`bench_history.jsonl缺失` 命中 —— 中英两种焊接都抓，真实文件名不误伤。
+- 红→绿成对（新量具打在两种代码上，服务端各自只读）：
+  - 把 HEAD（`85454d93`，未含本批 main.js 改动）的工作树弄脏后跑新量具 → `layout audit: 8 finding(s)`，其中 `welded-filename-label button.change-item.change-item-button[title]: web/src/panels/admin.jsModified · +2 -0now`（finding 总数随可见变更行数在 6–8 之间浮动，焊接那条支支都在）。
+  - 本批代码 + 同一脏工作树 → `layout audit: zh/desktop, zh/laptop, zh/mobile, en/desktop, en/laptop, en/mobile` → PASS。
+  - 对照：旧量具打在干净 HEAD 也 PASS —— 说明它原来根本不检查这件事，只在六个名字上误报。
+- 同批回归：`npm run test:web` → passed；`npm run test:admin` → passed（zh + en）；`npm run check:web` → up to date（1806682 chars，3 referenced bundles）；`python scripts/pre_push_gates.py` → `16/16 gates green in 108.0s; red: none`。
+- 零模型调用；本批不改任何取数与写路径。
+
+### 边界
+- `welded-filename-label` 要真的响，屏幕上得先有一个变更列表按钮 —— 它取决于 `git status`，干净检出永远走不到这一支。下一批要给这条规则一个不依赖工作树脏净的夹具（合成一段变更行，或在走查里播种一条真的改过文件的任务），否则 CI 上它只是「不在场的证人」。
+- 六个 basename 的旧白名单还留在 `unresolved-i18n` 里；本批只加了一条不依赖它的规则，没有把它一并收掉。
+- 提示文本变长后（叶级用 ` · ` 连接），依赖 title 做截断可达性判断的规则组需要复跑，已在同批 `test:layout` 绿里覆盖。
+

@@ -1535,6 +1535,48 @@ def test_bench_history_query_filters_reach_read_history(live: _LiveServer, monke
     assert seen == {"suite": None, "kind": None, "window_days": None}
 
 
+def test_bench_history_accepts_a_non_ascii_window_without_500(live: _LiveServer) -> None:
+    """`?window=²` used to reach `int("²")` — a digit by Unicode's word, a crash by Python's.
+
+    The `kind` is a one-off string on purpose: the route memoizes by
+    `suite:kind:window` for 10s, and a shared key would hand this cell another
+    cell's cached body instead of a read of its own.
+    """
+    status, _, body = _request(
+        f"{live.url}/api/bench-history?window=%C2%B2&kind=non-ascii-window-probe", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["filters"]["window_days"] is None
+    assert payload["filters"]["kind"] == "non-ascii-window-probe"
+    assert payload["state"] in {
+        "present", "absent", "empty", "unreadable", "filtered_empty", "capped", "error",
+    }
+
+
+def test_bench_history_failure_answer_has_the_shape_of_a_real_answer(
+    live: _LiveServer, monkeypatch, tmp_path
+) -> None:
+    """The route's defensive branch must not answer with a smaller shape than the reader."""
+    import minicc.bench_history as bh_mod
+
+    expected = set(bh_mod.read_history(tmp_path))
+    assert "state" in expected and "total_lines" in expected
+
+    def explode(workspace, **kwargs):
+        raise RuntimeError("simulated reader fault")
+
+    monkeypatch.setattr(bh_mod, "read_history", explode)
+    status, _, body = _request(f"{live.url}/api/bench-history?kind=failure-shape-probe", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert set(payload) == expected, sorted(expected ^ set(payload))
+    assert payload["state"] == "error"
+    assert payload["present"] is False
+    assert payload["total_lines"] is None
+    assert "simulated reader fault" in payload["reason"]
+    assert payload["filters"] == {"suite": None, "kind": "failure-shape-probe", "window_days": None}
+
+
 def test_get_evidence_never_500s(live: _LiveServer, monkeypatch) -> None:
     import minicc.evidence as ev_mod
 
