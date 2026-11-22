@@ -1362,6 +1362,7 @@
       "admin.benchHistoryKicker": "\u8BC4\u4F30\u65F6\u5E8F \xB7 bench v2",
       "admin.benchHistoryPending": "\u6B63\u5728\u8BFB\u53D6 bench_history.jsonl\u2026",
       "admin.benchHistoryAbsent": "\u6682\u65E0 bench_history.jsonl\u2014\u2014\u5148\u8DD1\u4E00\u904D v2 \u8BC4\u4F30\uFF08python -m minicc.bench_tasks --suite v2\uFF09",
+      "admin.benchHistoryEmptyFilter": "\u5F53\u524D\u7B5B\u9009\u4E0B\u6CA1\u6709\u6837\u672C\u2014\u2014\u653E\u5BBD\u65F6\u95F4\u6216\u7C7B\u578B\u518D\u770B",
       "admin.channelKicker": "\u901A\u9053\u5206\u8D26 \xB7 \u771F\u82B1\u7684\u6BCF\u4E00\u5206 token",
       "admin.channelPending": "\u6B63\u5728\u8BFB\u53D6 metrics \u901A\u9053\u6570\u636E\u2026",
       "admin.evidenceKicker": "\u8BC1\u636E\u95E8 \xB7 \u771F\u5B9E CI",
@@ -2344,6 +2345,7 @@
       "admin.benchHistoryKicker": "Bench history \xB7 v2",
       "admin.benchHistoryPending": "Reading bench_history.jsonl\u2026",
       "admin.benchHistoryAbsent": "No bench history yet \u2014 run the v2 suite once to draw the first line",
+      "admin.benchHistoryEmptyFilter": "No samples under this filter \u2014 widen the window or the kind",
       "admin.channelKicker": "Model channels \xB7 where the tokens went",
       "admin.channelPending": "Reading metrics \u2026",
       "admin.evidenceKicker": "Evidence gate \xB7 real CI",
@@ -9960,13 +9962,50 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       }
       const recPromise = requestJson("/api/oracle-recommendations", {}, 3e4).catch(() => null);
       recPromise.then((recs2) => renderRecommendations(recs2, false));
+      const benchFilter = { window: "", kind: "" };
+      const BENCH_WINDOWS = [
+        { value: "", zh: "\u5168\u90E8", en: "all" },
+        { value: "7", zh: "\u8FD1 7 \u5929", en: "7d" },
+        { value: "30", zh: "\u8FD1 30 \u5929", en: "30d" },
+        { value: "90", zh: "\u8FD1 90 \u5929", en: "90d" }
+      ];
+      const BENCH_KINDS = [
+        { value: "", zh: "\u5168\u90E8", en: "all" },
+        { value: "suite_run", zh: "\u5168\u5957", en: "suite" },
+        { value: "ungraded", zh: "\u672A\u8BC4\u5206", en: "ungraded" },
+        { value: "command_contract", zh: "\u547D\u4EE4\u5951\u7EA6", en: "command" },
+        { value: "file_contract", zh: "\u6587\u4EF6\u5951\u7EA6", en: "file" }
+      ];
+      function benchQuery() {
+        const q = [];
+        if (benchFilter.window) q.push("window=" + encodeURIComponent(benchFilter.window));
+        if (benchFilter.kind) q.push("kind=" + encodeURIComponent(benchFilter.kind));
+        return q.length ? "/api/bench-history?" + q.join("&") : "/api/bench-history";
+      }
+      function renderBenchFilters() {
+        const host = $("#adminBenchFilters");
+        if (!host) return;
+        const group = (label2, options, key) => `<div class="group"><span class="group-label">${esc2(label2)}</span>${options.map((opt) => `<button type="button" data-bench-key="${key}" data-bench-value="${esc2(opt.value)}" aria-pressed="${benchFilter[key] === opt.value}">${esc2(zh8() ? opt.zh : opt.en)}</button>`).join("")}</div>`;
+        host.innerHTML = group(zh8() ? "\u65F6\u95F4" : "window", BENCH_WINDOWS, "window") + group(zh8() ? "\u7C7B\u578B" : "kind", BENCH_KINDS, "kind");
+        host.querySelectorAll("button[data-bench-key]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const key = btn.dataset.benchKey;
+            const value = btn.dataset.benchValue || "";
+            if (benchFilter[key] === value) return;
+            benchFilter[key] = value;
+            renderBenchFilters();
+            loadBenchHistory(true);
+          });
+        });
+      }
       function renderBenchHistory(data2) {
         const bodyEl = $("#adminBenchBody");
         const usageEl = $("#adminBenchUsage");
         const byEl = $("#adminBenchModel");
         if (byEl) byEl.textContent = zh8() ? "\u771F\u5B9E bench \u8BFB\u6570" : "real bench readout";
         if (!data2 || data2.present === false) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.benchHistoryAbsent"))}</p>`;
+          const filtered2 = data2 && data2.filters && (data2.filters.kind || data2.filters.window_days != null || data2.filters.suite);
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(filtered2 ? t("admin.benchHistoryEmptyFilter") : t("admin.benchHistoryAbsent"))}</p>`;
           if (usageEl) usageEl.textContent = data2?.reason ? (zh8() ? "\u539F\u56E0\uFF1A" : "reason: ") + String(data2.reason).slice(0, 140) : "";
           return;
         }
@@ -9982,10 +10021,22 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           { label: "skipped lines", value: String(data2.skipped_lines ?? 0) }
         ];
         if (bodyEl) bodyEl.innerHTML = `<ul class="admin-ratelimit-list">${items.map((item) => `<li><strong>${esc2(item.label)}</strong><span>${esc2(item.value)}</span></li>`).join("")}</ul>`;
-        if (usageEl) usageEl.textContent = zh8() ? `\u7A97\u53E3 ${data2.window_from ?? "\u2014"} \u81F3 ${data2.window_to ?? "\u2014"}` : `window ${data2.window_from ?? "\u2014"} through ${data2.window_to ?? "\u2014"}`;
+        const scope = [];
+        if (data2.filters?.window_days != null) scope.push(zh8() ? `\u8FD1 ${data2.filters.window_days} \u5929` : `last ${data2.filters.window_days}d`);
+        if (data2.filters?.kind) scope.push(zh8() ? `\u7C7B\u578B ${data2.filters.kind}` : `kind ${data2.filters.kind}`);
+        if (data2.filters?.suite) scope.push(zh8() ? `\u5957\u4EF6 ${data2.filters.suite}` : `suite ${data2.filters.suite}`);
+        const range = zh8() ? `\u7A97\u53E3 ${data2.window_from ?? "\u2014"} \u81F3 ${data2.window_to ?? "\u2014"}` : `window ${data2.window_from ?? "\u2014"} through ${data2.window_to ?? "\u2014"}`;
+        if (usageEl) usageEl.textContent = range + (scope.length ? (zh8() ? " \xB7 \u5DF2\u7B5B\u9009\uFF1A" : " \xB7 filtered: ") + scope.join(" / ") : "");
       }
-      const benchHistoryPromise = requestJson("/api/bench-history", {}, 1e4).catch(() => null);
-      benchHistoryPromise.then((data2) => renderBenchHistory(data2));
+      function loadBenchHistory(showPending) {
+        if (showPending) {
+          const bodyEl = $("#adminBenchBody");
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.benchHistoryPending"))}</p>`;
+        }
+        requestJson(benchQuery(), {}, 1e4).catch(() => null).then((data2) => renderBenchHistory(data2));
+      }
+      renderBenchFilters();
+      loadBenchHistory(false);
       function renderReview(review, refreshed) {
         const bodyEl = $("#adminReviewBody");
         const usageEl = $("#adminReviewUsage");

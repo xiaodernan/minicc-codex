@@ -810,13 +810,56 @@ export async function openAdmin() {
     const recPromise = requestJson("/api/oracle-recommendations", {}, 30000).catch(() => null);
     recPromise.then((recs) => renderRecommendations(recs, false));
     // Bench history — read-only rollup, zero model tokens.
+    // M8-T1297: window / kind chips narrow the same JSONL; the backend memo key
+    // already follows the filter, so a filtered read never poisons the tile.
+    const benchFilter = { window: "", kind: "" };
+    const BENCH_WINDOWS = [
+      { value: "", zh: "全部", en: "all" },
+      { value: "7", zh: "近 7 天", en: "7d" },
+      { value: "30", zh: "近 30 天", en: "30d" },
+      { value: "90", zh: "近 90 天", en: "90d" },
+    ];
+    const BENCH_KINDS = [
+      { value: "", zh: "全部", en: "all" },
+      { value: "suite_run", zh: "全套", en: "suite" },
+      { value: "ungraded", zh: "未评分", en: "ungraded" },
+      { value: "command_contract", zh: "命令契约", en: "command" },
+      { value: "file_contract", zh: "文件契约", en: "file" },
+    ];
+    function benchQuery() {
+      const q = [];
+      if (benchFilter.window) q.push("window=" + encodeURIComponent(benchFilter.window));
+      if (benchFilter.kind) q.push("kind=" + encodeURIComponent(benchFilter.kind));
+      return q.length ? "/api/bench-history?" + q.join("&") : "/api/bench-history";
+    }
+    function renderBenchFilters() {
+      const host = $("#adminBenchFilters");
+      if (!host) return;
+      const group = (label, options, key) => `<div class="group"><span class="group-label">${esc(label)}</span>${options
+        .map((opt) => `<button type="button" data-bench-key="${key}" data-bench-value="${esc(opt.value)}" aria-pressed="${benchFilter[key] === opt.value}">${esc(zh() ? opt.zh : opt.en)}</button>`)
+        .join("")}</div>`;
+      host.innerHTML =
+        group(zh() ? "时间" : "window", BENCH_WINDOWS, "window") +
+        group(zh() ? "类型" : "kind", BENCH_KINDS, "kind");
+      host.querySelectorAll("button[data-bench-key]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const key = btn.dataset.benchKey;
+          const value = btn.dataset.benchValue || "";
+          if (benchFilter[key] === value) return;
+          benchFilter[key] = value;
+          renderBenchFilters();
+          loadBenchHistory(true);
+        });
+      });
+    }
     function renderBenchHistory(data) {
       const bodyEl = $("#adminBenchBody");
       const usageEl = $("#adminBenchUsage");
       const byEl = $("#adminBenchModel");
       if (byEl) byEl.textContent = zh() ? "真实 bench 读数" : "real bench readout";
       if (!data || data.present === false) {
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.benchHistoryAbsent"))}</p>`;
+        const filtered = data && data.filters && (data.filters.kind || data.filters.window_days != null || data.filters.suite);
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(filtered ? t("admin.benchHistoryEmptyFilter") : t("admin.benchHistoryAbsent"))}</p>`;
         if (usageEl) usageEl.textContent = data?.reason
           ? (zh() ? "原因：" : "reason: ") + String(data.reason).slice(0, 140)
           : "";
@@ -836,12 +879,25 @@ export async function openAdmin() {
             { label: "skipped lines", value: String(data.skipped_lines ?? 0) },
           ];
       if (bodyEl) bodyEl.innerHTML = `<ul class="admin-ratelimit-list">${items.map((item) => `<li><strong>${esc(item.label)}</strong><span>${esc(item.value)}</span></li>`).join("")}</ul>`;
-      if (usageEl) usageEl.textContent = zh()
+      const scope = [];
+      if (data.filters?.window_days != null) scope.push(zh() ? `近 ${data.filters.window_days} 天` : `last ${data.filters.window_days}d`);
+      if (data.filters?.kind) scope.push(zh() ? `类型 ${data.filters.kind}` : `kind ${data.filters.kind}`);
+      if (data.filters?.suite) scope.push(zh() ? `套件 ${data.filters.suite}` : `suite ${data.filters.suite}`);
+      const range = zh()
         ? `窗口 ${data.window_from ?? "—"} 至 ${data.window_to ?? "—"}`
         : `window ${data.window_from ?? "—"} through ${data.window_to ?? "—"}`;
+      if (usageEl) usageEl.textContent = range + (scope.length ? (zh() ? " · 已筛选：" : " · filtered: ") + scope.join(" / ") : "");
     }
-    const benchHistoryPromise = requestJson("/api/bench-history", {}, 10000).catch(() => null);
-    benchHistoryPromise.then((data) => renderBenchHistory(data));
+    function loadBenchHistory(showPending) {
+      if (showPending) {
+        const bodyEl = $("#adminBenchBody");
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.benchHistoryPending"))}</p>`;
+      }
+      requestJson(benchQuery(), {}, 10000).catch(() => null).then((data) => renderBenchHistory(data));
+    }
+    renderBenchFilters();
+    loadBenchHistory(false);
+
 
 
 

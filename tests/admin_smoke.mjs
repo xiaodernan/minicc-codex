@@ -62,6 +62,29 @@ async function checkMode(locale, expectCjk) {
     "re-read must restore the source list",
   );
 
+  // M8-T1297: bench-history filter chips — two groups, and a kind filter must
+  // narrow the read (the usage line names the active filter, never a fake count).
+  await page.waitForSelector("#adminBenchFilters button[data-bench-key]", { timeout: 30000 });
+  assert.equal(await page.locator("#adminBenchFilters .group").count(), 2, "bench filters must offer window and kind groups");
+  await page.click('#adminBenchFilters button[data-bench-key="kind"][data-bench-value="suite_run"]');
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminBenchUsage");
+    return el && /suite_run/.test(el.innerText || "");
+  }, null, { timeout: 20000 });
+  const benchFiltered = await page.evaluate(() => ({
+    usage: (document.querySelector("#adminBenchUsage")?.innerText || "").replace(/\s+/g, " ").trim(),
+    body: (document.querySelector("#adminBenchBody")?.innerText || "").replace(/\s+/g, " ").trim(),
+    pressed: document.querySelectorAll('#adminBenchFilters button[data-bench-key="kind"][aria-pressed="true"]').length,
+  }));
+  assert.equal(benchFiltered.pressed, 1, "exactly one kind chip may stay pressed");
+  assert.ok(!/NaN/.test(benchFiltered.body), "filtered bench tile must never print NaN");
+  assert.match(benchFiltered.usage, /suite_run|无样本|No samples|已筛选|filtered/, "usage line must name the active filter or the empty state");
+  await page.click('#adminBenchFilters button[data-bench-key="kind"][data-bench-value=""]');
+  await page.waitForFunction(() => {
+    const el = document.querySelector("#adminBenchUsage");
+    return el && !/suite_run/.test(el.innerText || "");
+  }, null, { timeout: 20000 });
+
   // pick up real numbers from /api/admin/summary — never assert hardcoded counts, only shape
   const totals = await page.evaluate(() => ({
     tasks: document.querySelector("#adminTotalTasks")?.innerText,
