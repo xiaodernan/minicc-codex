@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T08:34:28.793Z",
+  "generated_at": "2026-11-22T08:38:11.678Z",
   "branch": "main",
-  "head": "4a5c1d8",
-  "total_commits": 2112,
+  "head": "1ffe891",
+  "total_commits": 2114,
   "recent_commits": [
+    {
+      "short": "1ffe8915",
+      "at": "2026-11-22T16:37:41+08:00",
+      "subject": "M8-T1292b: put the model-free advice endpoint in the 240-way concurrency matrix"
+    },
+    {
+      "short": "d73fd098",
+      "at": "2026-11-22T08:34:29Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "4a5c1d86",
       "at": "2026-11-22T16:33:49+08:00",
@@ -19,22 +29,12 @@
       "short": "c543d787",
       "at": "2026-11-22T08:15:06Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9f0bcac4",
-      "at": "2026-11-22T16:14:31+08:00",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a28450e0",
-      "at": "2026-11-22T16:12:37+08:00",
-      "subject": "M8-T1291: Prefix Vault — third arcade game with real LRU and session-affinity rules, bilingual guide and browser smoke"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 523,
+  "roadmap_batches": 524,
   "changelog_entries": 26,
-  "roadmap_lines": 56385,
+  "roadmap_lines": 56404,
   "tracked_files": 1180,
   "test_files": 758,
   "almanac_chapters": 81,
