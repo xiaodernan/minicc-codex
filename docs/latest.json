@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T10:50:48.706Z",
+  "generated_at": "2026-11-22T10:52:10.266Z",
   "branch": "main",
-  "head": "1bb6238",
-  "total_commits": 2117,
+  "head": "22097a8",
+  "total_commits": 2119,
   "recent_commits": [
+    {
+      "short": "22097a8d",
+      "at": "2026-11-22T18:51:45+08:00",
+      "subject": "M8-T1295: make the Java test log carry its own test counts"
+    },
+    {
+      "short": "c5e4c4e7",
+      "at": "2026-11-22T10:50:48Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "1bb62388",
       "at": "2026-11-22T18:50:09+08:00",
@@ -19,22 +29,12 @@
       "short": "cded8a05",
       "at": "2026-11-22T08:38:12Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "1ffe8915",
-      "at": "2026-11-22T16:37:41+08:00",
-      "subject": "M8-T1292b: put the model-free advice endpoint in the 240-way concurrency matrix"
-    },
-    {
-      "short": "d73fd098",
-      "at": "2026-11-22T08:34:29Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 526,
+  "roadmap_batches": 527,
   "changelog_entries": 26,
-  "roadmap_lines": 56449,
+  "roadmap_lines": 56468,
   "tracked_files": 1182,
   "test_files": 759,
   "almanac_chapters": 81,
