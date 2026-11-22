@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T06:04:23.344Z",
+  "generated_at": "2026-11-22T06:57:56.647Z",
   "branch": "main",
-  "head": "c396aee",
-  "total_commits": 2100,
+  "head": "e677f7d",
+  "total_commits": 2102,
   "recent_commits": [
+    {
+      "short": "e677f7d1",
+      "at": "2026-11-22T14:57:31+08:00",
+      "subject": "M8-T1289c: visitor walks — from 'how many bounced' to 'where they went'"
+    },
+    {
+      "short": "b65cae44",
+      "at": "2026-11-22T06:04:23Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c396aeee",
       "at": "2026-11-22T14:03:59+08:00",
@@ -19,22 +29,12 @@
       "short": "474c35d6",
       "at": "2026-11-22T13:44:45+08:00",
       "subject": "M8-T1289: synthetic visitors — req #9's 'simulate real user behaviour' finally runs for real"
-    },
-    {
-      "short": "d04a40aa",
-      "at": "2026-11-21T15:59:22Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "cf00e33d",
-      "at": "2026-11-21T23:58:45+08:00",
-      "subject": "M8-T1288: Orbit Beacon — a real second arcade game, req #6 first literal hit"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 517,
+  "roadmap_batches": 518,
   "changelog_entries": 26,
-  "roadmap_lines": 56245,
+  "roadmap_lines": 56268,
   "tracked_files": 1174,
   "test_files": 756,
   "almanac_chapters": 81,
