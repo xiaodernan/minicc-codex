@@ -75,8 +75,10 @@ async function checkMode(locale, expectCjk) {
     usage: (document.querySelector("#adminBenchUsage")?.innerText || "").replace(/\s+/g, " ").trim(),
     body: (document.querySelector("#adminBenchBody")?.innerText || "").replace(/\s+/g, " ").trim(),
     pressed: document.querySelectorAll('#adminBenchFilters button[data-bench-key="kind"][aria-pressed="true"]').length,
+    urlBench: new URL(location.href).searchParams.get("bench"),
   }));
   assert.equal(benchFiltered.pressed, 1, "exactly one kind chip may stay pressed");
+  assert.equal(benchFiltered.urlBench, ":suite_run", "bench filter must land in the URL (?bench=:suite_run)");
   assert.ok(!/NaN/.test(benchFiltered.body), "filtered bench tile must never print NaN");
   assert.match(benchFiltered.usage, /suite_run|无样本|No samples|已筛选|filtered/, "usage line must name the active filter or the empty state");
   await page.click('#adminBenchFilters button[data-bench-key="kind"][data-bench-value=""]');
@@ -84,6 +86,7 @@ async function checkMode(locale, expectCjk) {
     const el = document.querySelector("#adminBenchUsage");
     return el && !/suite_run/.test(el.innerText || "");
   }, null, { timeout: 20000 });
+  assert.equal(await page.evaluate(() => new URL(location.href).searchParams.get("bench")), null, "clearing the filter must clear the URL state");
 
   // pick up real numbers from /api/admin/summary — never assert hardcoded counts, only shape
   const totals = await page.evaluate(() => ({

@@ -832,6 +832,26 @@ export async function openAdmin() {
       if (benchFilter.kind) q.push("kind=" + encodeURIComponent(benchFilter.kind));
       return q.length ? "/api/bench-history?" + q.join("&") : "/api/bench-history";
     }
+    // M8-T1298: keep the two bench filters in the URL (?bench=window:kind) so a
+    // reload or a shared link lands on the same read — history.replaceState only,
+    // never a navigation, never a server write.
+    function readBenchFromUrl() {
+      try {
+        const raw = new URLSearchParams(location.search).get("bench") || "";
+        const parts = raw.split(":");
+        if (BENCH_WINDOWS.some((opt) => opt.value === parts[0])) benchFilter.window = parts[0];
+        if (BENCH_KINDS.some((opt) => opt.value === parts[1])) benchFilter.kind = parts[1];
+      } catch (e) { /* URL state is a convenience, never a requirement */ }
+    }
+    function writeBenchToUrl() {
+      try {
+        const url = new URL(location.href);
+        const raw = benchFilter.window || benchFilter.kind ? benchFilter.window + ":" + benchFilter.kind : "";
+        if (raw) url.searchParams.set("bench", raw);
+        else url.searchParams.delete("bench");
+        history.replaceState(null, "", url.toString());
+      } catch (e) { /* noop */ }
+    }
     function renderBenchFilters() {
       const host = $("#adminBenchFilters");
       if (!host) return;
@@ -847,6 +867,7 @@ export async function openAdmin() {
           const value = btn.dataset.benchValue || "";
           if (benchFilter[key] === value) return;
           benchFilter[key] = value;
+          writeBenchToUrl();
           renderBenchFilters();
           loadBenchHistory(true);
         });
@@ -895,6 +916,7 @@ export async function openAdmin() {
       }
       requestJson(benchQuery(), {}, 10000).catch(() => null).then((data) => renderBenchHistory(data));
     }
+    readBenchFromUrl();
     renderBenchFilters();
     loadBenchHistory(false);
 

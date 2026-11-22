@@ -9982,6 +9982,25 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (benchFilter.kind) q.push("kind=" + encodeURIComponent(benchFilter.kind));
         return q.length ? "/api/bench-history?" + q.join("&") : "/api/bench-history";
       }
+      function readBenchFromUrl() {
+        try {
+          const raw = new URLSearchParams(location.search).get("bench") || "";
+          const parts = raw.split(":");
+          if (BENCH_WINDOWS.some((opt) => opt.value === parts[0])) benchFilter.window = parts[0];
+          if (BENCH_KINDS.some((opt) => opt.value === parts[1])) benchFilter.kind = parts[1];
+        } catch (e) {
+        }
+      }
+      function writeBenchToUrl() {
+        try {
+          const url = new URL(location.href);
+          const raw = benchFilter.window || benchFilter.kind ? benchFilter.window + ":" + benchFilter.kind : "";
+          if (raw) url.searchParams.set("bench", raw);
+          else url.searchParams.delete("bench");
+          history.replaceState(null, "", url.toString());
+        } catch (e) {
+        }
+      }
       function renderBenchFilters() {
         const host = $("#adminBenchFilters");
         if (!host) return;
@@ -9993,6 +10012,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
             const value = btn.dataset.benchValue || "";
             if (benchFilter[key] === value) return;
             benchFilter[key] = value;
+            writeBenchToUrl();
             renderBenchFilters();
             loadBenchHistory(true);
           });
@@ -10035,6 +10055,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         }
         requestJson(benchQuery(), {}, 1e4).catch(() => null).then((data2) => renderBenchHistory(data2));
       }
+      readBenchFromUrl();
       renderBenchFilters();
       loadBenchHistory(false);
       function renderReview(review, refreshed) {
@@ -14631,20 +14652,20 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const area = $("#chatArea");
     const chatPosition = captureChatPosition(area);
     if (chatPosition && options.followLatest === true) chatPosition.followLatest = true;
-    const history = taskHistoryBySession.get(sessionId);
+    const history2 = taskHistoryBySession.get(sessionId);
     const historyItems = taskHistoryListBySession.get(sessionId);
     const defaultTitle = state.locale === "zh" ? "\u65B0\u4EFB\u52A1" : "New task";
     const defaultSubtitle = state.locale === "zh" ? "\u4E3A\u4E0B\u4E00\u6B21\u4FEE\u6539\u51C6\u5907\u4E00\u4E2A\u5E72\u51C0\u4E0A\u4E0B\u6587\u3002" : "A clean context for the next change.";
-    $("#sessionTitle").textContent = history ? String(history.preview || history.prompt || defaultTitle).slice(0, 72) : defaultTitle;
-    $("#sessionSubtitle").textContent = history ? phaseLabel(history) : defaultSubtitle;
-    const markup = history && !history.summary_only ? taskHistoryListMarkup(historyItems?.length ? historyItems : [history]) : cachedSessionView(sessionId) || emptySessionMarkup();
+    $("#sessionTitle").textContent = history2 ? String(history2.preview || history2.prompt || defaultTitle).slice(0, 72) : defaultTitle;
+    $("#sessionSubtitle").textContent = history2 ? phaseLabel(history2) : defaultSubtitle;
+    const markup = history2 && !history2.summary_only ? taskHistoryListMarkup(historyItems?.length ? historyItems : [history2]) : cachedSessionView(sessionId) || emptySessionMarkup();
     if (markup) $("#messageList").innerHTML = markup;
     decorateUserRewindButtons();
-    updateSessionStatus(history);
-    renderVerification(history || null);
-    if (history) renderedHistoryKeys.set(sessionId, taskHistoryKey(historyItems?.length ? historyItems : history));
+    updateSessionStatus(history2);
+    renderVerification(history2 || null);
+    if (history2) renderedHistoryKeys.set(sessionId, taskHistoryKey(historyItems?.length ? historyItems : history2));
     else renderedHistoryKeys.delete(sessionId);
-    const todoSource = historyItems?.length ? [...historyItems].reverse() : history ? [history] : [];
+    const todoSource = historyItems?.length ? [...historyItems].reverse() : history2 ? [history2] : [];
     runtime.latestTodos = latestTodosFromEvents(todoSource.flatMap((item) => Array.isArray(item?.events) ? item.events : []));
     renderTodoPanel();
     refreshIcons();
