@@ -56285,3 +56285,26 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 - 只改展示文案 + 守护测试，不碰任何逻辑、状态流转、模型调用、缓存；零 token。
 - 历史年鉴卷里的仪表数字是刻意的历史快照，本批不动（只改当前悬停提示与 onboarding/i18n 的「现在时」文案）。
 - 同批补 `minicc/prompt.py`：功能清单「116 个 Canvas 坐标」、deploy 行「Atlas 116 / 78 卷」、实测行「59,070 请求 / 78 卷 / 116 坐标 / 2,030+ 提交 / 747 测试 / 55,786 行」全是会漂移的静态假话——坐标/卷数改为真值并加第 10 门守护，其余易漂数字改为「以 docs/latest.json 与 /api/admin/summary 实时快照为准」的指引，不再伪造一个必然过时的快照。prompt 相关 28 测试全绿。
+
+
+## 批次 1193 · M8-T1290a: 前端布局与文案自动审计 —— 让浏览器替人找出裁字与挤压
+
+### 缺什么
+- req #5 要「系统性修复字体变形、重叠、挤压、遮盖、错别字」，但此前只有功能烟测：字典 922 键、DOM id 齐全、英文零 CJK。这些门证明不了 1280px 笔记本上面包屑被切掉 26px、也证明不了中英两种语言在 390px 手机上是否把顶栏挤出横向滚动。用户看到的是像素，不是字典。
+- 没有可重复的布局回归门：修一次靠肉眼截图，下次锻造又漂回去。
+
+### 做了什么
+- 新增 `scripts/layout_audit.mjs`：自带一次性假 provider 服务（或复用 `MINICC_WEB_URL`），真 Chromium 在 zh/en × desktop 1440 / laptop 1280 / mobile 390 六种组合下实测五类事实：文档横向溢出、chrome 文本被自身容器裁掉、NaN/undefined/[object Object]/未解析 i18n 键、头像徽标内的字形越界、可见 JS 异常。支持 `--json` 机器读数，npm 门 `test:layout`。
+- 审计刻意不把「旋转光晕的伪元素溢出」误判成头像裁切（用 Range 量真实字形矩形），也不把有 `title` 兜底的省略号误判成信息丢失——省略号本身是设计，信息不可达才是缺陷。
+- 实测抓到真缺陷并修：`#topSession` 在英文 1280px 被切 26px 且没有 title；`web/src/panels/index.js` 现在给面包屑补完整会话 id 的原生提示，航行灯的分支缩写提示也带上完整 `main @ <sha>` 而不再只报提交数。`web/app.js` 由 build:web 从源码重建。
+- 光晕徽标曾因 `::after` 的 `inset:-50%` 被旧版探针误报 16–22px 裁切；改成量字形后确认头像/品牌字标在六种组合下都完整居中，无需改动 CSS。
+
+### 证据与门
+- 修复前：`layout audit: 11 finding(s)`（含 5 处 running-light 缩写、5 处品牌光晕误报、1 处 topSession 真裁切）；收窄误报后 `1 finding`，修完 `layout audit: PASS`（六视口全绿，零 pageerror）。
+- `npm run build:web` + `check:web` 绿（bundle 1,627,114 字符 / 资产清单一致）；`test:parity` 绿（英文 12 视图 + 6 舞台 + 10 步 Wayfinder 零 CJK）；`test:admin` 绿（123 解锁、实时数字、趋势 canvas、零 pageerror）；`node --check scripts/layout_audit.mjs` 绿。
+- 本批零模型调用、零 token，完全绕开当前上游额度耗尽的阻塞。
+
+### 边界
+- 审计只读 DOM，不改页面状态、不触发模型调用；假 provider 保证离线可跑，不把上游 outage 记成前端缺陷。
+- 用户自己写的内容（消息体、年鉴正文、会话标题）有合法滚动容器，不纳入裁字判定；只对用户无法滚动摆脱的 chrome 严格。
+- 探针不做像素截图比对：字体版本或 DPI 变动不应让门随机红，量的是「信息是否可达」。

@@ -150,7 +150,11 @@ export function setSession(sessionId) {
       : taskBySession.get(taskSessionKey(sessionId)) || null;
   }
   localStorage.setItem("minicc-session", sessionId);
-  $("#topSession").textContent = sessionId;
+  const topSession = $("#topSession");
+  topSession.textContent = sessionId;
+  // The breadcrumb truncates on narrow laptops; keep the full id reachable
+  // with a native tooltip so no visitor loses information to an ellipsis.
+  topSession.title = sessionId;
   $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === sessionId));
   renderSession(sessionId, { followLatest: sessionChanged });
   runtime.sessionViewReady = true;
@@ -1265,8 +1269,11 @@ export async function updateRunningLightDigest() {
   try {
     const digest = await requestJson("/api/digest");
     const isGit = digest?.is_git === true;
-    branch.textContent = isGit && digest.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "—";
-    branch.title = isGit && digest.total_commits != null ? `${digest.total_commits} commits · ${digest.roadmap_batches ?? "—"} batches` : "";
+    const digestLabel = isGit && digest.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "—";
+    branch.textContent = digestLabel;
+    branch.title = isGit && digest.total_commits != null
+      ? `${digestLabel} · ${digest.total_commits} commits · ${digest.roadmap_batches ?? "—"} batches`
+      : digestLabel;
   } catch {
     branch.textContent = "—";
   }

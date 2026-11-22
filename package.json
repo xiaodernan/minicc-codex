@@ -35,6 +35,7 @@
     "test:parity": "node tests/en_cjk_smoke.mjs",
     "test:stategraph": "node tests/stategraph_smoke.mjs",
     "test:admin": "node tests/admin_smoke.mjs",
+    "test:layout": "node scripts/layout_audit.mjs",
     "test:dazzle": "node tests/dazzle_smoke.mjs",
     "test:orbit": "node tests/orbit_smoke.mjs",
     "test:manual": "node tests/manual_smoke.mjs",

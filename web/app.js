@@ -12369,7 +12369,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       state.activeTaskId = bindings.length ? bindings[bindings.length - 1].taskId : taskBySession.get(taskSessionKey(sessionId)) || null;
     }
     localStorage.setItem("minicc-session", sessionId);
-    $("#topSession").textContent = sessionId;
+    const topSession = $("#topSession");
+    topSession.textContent = sessionId;
+    topSession.title = sessionId;
     $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === sessionId));
     renderSession(sessionId, { followLatest: sessionChanged });
     runtime.sessionViewReady = true;
@@ -13329,8 +13331,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     try {
       const digest = await requestJson("/api/digest");
       const isGit = digest?.is_git === true;
-      branch.textContent = isGit && digest.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "\u2014";
-      branch.title = isGit && digest.total_commits != null ? `${digest.total_commits} commits \xB7 ${digest.roadmap_batches ?? "\u2014"} batches` : "";
+      const digestLabel = isGit && digest.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "\u2014";
+      branch.textContent = digestLabel;
+      branch.title = isGit && digest.total_commits != null ? `${digestLabel} \xB7 ${digest.total_commits} commits \xB7 ${digest.roadmap_batches ?? "\u2014"} batches` : digestLabel;
     } catch {
       branch.textContent = "\u2014";
     }
