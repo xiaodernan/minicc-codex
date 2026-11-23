@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T09:08:19.524Z",
+  "generated_at": "2026-11-23T17:14:54.449Z",
   "branch": "main",
-  "head": "0995b2a",
-  "total_commits": 2169,
+  "head": "b337141",
+  "total_commits": 2171,
   "recent_commits": [
+    {
+      "short": "b3371417",
+      "at": "2026-11-24T01:10:06+08:00",
+      "subject": "M8-T1321: 跑到一半服务器死了，冒烟套件把部分覆盖说成产品判决"
+    },
+    {
+      "short": "ad04e08e",
+      "at": "2026-11-23T09:08:19Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0995b2a7",
       "at": "2026-11-23T17:07:48+08:00",
@@ -19,24 +29,14 @@
       "short": "d8150803",
       "at": "2026-11-23T17:03:58+08:00",
       "subject": "M8-T1319: First Light's fetch clock now tells its age - stale cache can no longer pose as a live reading"
-    },
-    {
-      "short": "0521d269",
-      "at": "2026-11-23T08:52:03Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "fb0ba6fb",
-      "at": "2026-11-23T16:51:52+08:00",
-      "subject": "chore(latest): refresh showcase fact pack after T1318"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 552,
+  "roadmap_batches": 553,
   "changelog_entries": 26,
-  "roadmap_lines": 57088,
-  "tracked_files": 1192,
-  "test_files": 767,
+  "roadmap_lines": 57134,
+  "tracked_files": 1193,
+  "test_files": 768,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
