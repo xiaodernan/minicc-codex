@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T08:46:19.765Z",
+  "generated_at": "2026-11-23T08:51:52.412Z",
   "branch": "main",
-  "head": "384dd72",
-  "total_commits": 2162,
+  "head": "0ec62e7",
+  "total_commits": 2164,
   "recent_commits": [
+    {
+      "short": "0ec62e74",
+      "at": "2026-11-23T16:51:25+08:00",
+      "subject": "M8-T1318: price the deep-context answer with the ledger's own table - honest upper-bound USD estimate, never an invented number"
+    },
+    {
+      "short": "12863717",
+      "at": "2026-11-23T08:46:20Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "384dd724",
       "at": "2026-11-23T16:45:41+08:00",
@@ -19,24 +29,14 @@
       "short": "583e73c4",
       "at": "2026-11-23T16:38:20+08:00",
       "subject": "M8-T1316: wide-context budget reaches Ask-the-Repo - 8000-token assembly with real line anchors and evidence, zero model token"
-    },
-    {
-      "short": "37dcb568",
-      "at": "2026-11-23T08:29:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "6bb91f7c",
-      "at": "2026-11-23T16:29:21+08:00",
-      "subject": "M8-T1315: a 5xx, a rejection, a timeout and a dead endpoint are four different failures - transport tags them all"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 549,
+  "roadmap_batches": 550,
   "changelog_entries": 26,
-  "roadmap_lines": 57031,
-  "tracked_files": 1190,
-  "test_files": 765,
+  "roadmap_lines": 57053,
+  "tracked_files": 1191,
+  "test_files": 766,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
