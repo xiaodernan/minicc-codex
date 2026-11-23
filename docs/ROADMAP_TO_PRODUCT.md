@@ -57223,3 +57223,28 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 2. `HARNESS_BROWSER_MISSING` 只说浏览器断言没有跑，不说整条 focused 链零断言：首次失败即停时，排在前面的静态套件可能已经跑过。因此它与 absent 的「零 suite」和 lost 的「部分覆盖」必须保持不同措辞。
 3. 本批修的是 CI 汇报面，不负责把 Chromium 装好，也不证明二进制能启动。系统库、架构、沙箱与损坏二进制仍要真实 launch 探针。
 4. 未重复上一批 90 分钟级全量 Python 回归；本批只改 CI/ verdict 与一个测试夹具，82 项相关回归和 16 道门覆盖其变更面。上一批留下的 6 个 missing-count 浏览器夹具红仍未修，留给下一批，不能把这次定向绿灯说成全库全绿。
+
+## 批次 1230 · M8-T1325: shipped bundle 多了一个依赖，夹具却没把它请上台
+
+### 缺什么
+
+`tests/test_the_panel_does_not_print_a_missing_count_as_zero.py` 把 shipped `web/app.js` 里的函数切出来拼成 Node 夹具，逐个检查 `null`、缺键与真实 `0` 的文案。M8-T1308 给 `renderChanges` 增加了 `changePartialReasons(data)` 调用，但 `RUN_NAMES` 没有同步这个依赖；六个行为格都在 Node 执行到 `renderChanges` 时抛 `ReferenceError: changePartialReasons is not defined`，根本没有跑到计数断言。上一批全量回归留下的 6 个红格就是这个缺口，不是产品把缺失计数印成了零。
+
+### 做了什么
+
+1. `tests/test_the_panel_does_not_print_a_missing_count_as_zero.py:42` 把 `changePartialReasons` 加入从 shipped bundle 提取的名单，位置在 `renderChanges` 之前。夹具仍然执行发出去的字节，不改成源码替身，也不绕过真实 Node 进程。
+2. 保留原有 `null` / `0` / 键缺失三组输入与七项控制格；本批只补依赖，不改产品实现、bundle、i18n 或断言阈值。
+
+### 证据与门
+
+- 修复前隔离复跑：`6 failed, 7 passed`，六格均为同一 `ReferenceError`（`scratch/missing-count-before1325.log`）。
+- 修复后同文件：`13 passed in 7.19s`。把上一轮 summary 解码红与本批 missing-count 红放在一起重跑：`47 passed in 300.37s`，三组基线全部恢复。
+- 反向控制 `scratch/arms1325.py`：删掉 `changePartialReasons` 后精确回到 `6 failed, 7 passed`（rc=1），不是任意报错；恢复后测试文件 sha256 与基线一致，`1/1 red`。
+- 16 道 pre-push 门：16/16 green（406.9s，red: none），`scratch/gates1325.log`。
+- 凭据扫描：本批测试与账本 2 个改动文件，GitHub token、模型 API key、私钥三种模式均 0 命中。
+
+### 边界
+
+1. 本批修的是测试夹具装配，产品字节没有变化；13 项绿灯证明原有缺失计数合同重新被执行，不构成新的产品功能证据。
+2. `RUN_NAMES` 仍是显式依赖名单。以后 `renderChanges` 再调用新的 bundle 内函数，名单仍需同步；本次没有引入自动调用图解析，也没有把 Node 夹具换成另一套运行时。
+3. 未重新跑 90 分钟级全量 Python 回归。上一批记下的 7 个基线红已全部有定向绿灯，但「定向全绿」不能冒充新的全库计数；共享机器上另有无关 pytest 进程，本批 47 项相关回归耗时 300.37 秒，16 道门耗时 406.9 秒，读数已按实际竞争环境记录。

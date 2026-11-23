@@ -39,6 +39,7 @@ RUN_NAMES = [
     "changeStatusLabel",
     "compactNumber",
     "changeFileRow",
+    "changePartialReasons",
     "renderChanges",
     HELPER,
 ]
