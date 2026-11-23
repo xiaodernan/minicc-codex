@@ -66,6 +66,7 @@ assert.match(panel, /source\.start_line/, "sources must show real line anchors")
 for (const key of ["askdocs.depth", "askdocs.depthPrecise", "askdocs.depthWide", "askdocs.depthDeep",
                    "askdocs.contextEvidence", "askdocs.contextStat", "askdocs.contextPacked",
                    "askdocs.contextChunks", "askdocs.contextFp", "askdocs.contextFanout",
+                   "askdocs.contextCost", "askdocs.costUnpriced", "askdocs.costBasis",
                    "askdocs.deepHint", "askdocs.deepWarning"]) {
   assert.equal(occurrences(`"${key}":`), 2, `${key} must exist in both locales`);
 }

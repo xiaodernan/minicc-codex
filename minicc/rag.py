@@ -167,6 +167,32 @@ def reload_index() -> int:
     return len(_LazyIndex.get().docs)
 
 
+def estimate_context_cost_usd(model: str, context_meta: dict[str, Any],
+                              max_output_tokens: int) -> dict[str, Any]:
+    """Honest pre-call cost estimate for a large-context answer.
+
+    Uses the SAME price table the task ledger bills with (``pricing.cost_usd``),
+    fed a synthetic usage of the prompt we are about to send plus the maximum
+    output we allow. This is an UPPER estimate (it assumes full output and no
+    cache hits), never a real billed number. An unpriced model returns null with
+    a plain reason — we never invent a price for the closed upstream gateway.
+    """
+    from .pricing import cost_usd
+
+    prompt_tokens = int(context_meta.get("estimated_tokens") or 0)
+    usage = {"prompt_tokens": prompt_tokens,
+             "completion_tokens": int(max_output_tokens),
+             "prompt_cache_hit_tokens": 0}
+    value = cost_usd(model, usage)
+    return {
+        "usd": value,
+        "prompt_tokens": prompt_tokens,
+        "max_output_tokens": int(max_output_tokens),
+        "basis": "upper estimate: full output, no cache hits, same price table as the task ledger"
+                 if value is not None else "model unpriced - no honest number available",
+    }
+
+
 def answer(query: str, limit: int = 5, *, config: Any | None = None,
            max_output_tokens: int = 700, budget_tokens: int | None = None,
            fanout: int | None = None, per_variant: int | None = None) -> dict[str, Any]:
@@ -240,6 +266,11 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None,
     api_key = str(getattr(config, "api_key", "") or "")
     explicit_key = str(getattr(config, "prompt_cache_key", "") or "")
     cache_key = _prompt_cache_key(base_url, model_name, explicit_key)
+    # M8-T1318: price the context we are about to send with the SAME table the
+    # ledger bills at, so the "this will cost ~$X" warning is not a guess.
+    if context_meta is not None:
+        context_meta["cost_estimate"] = estimate_context_cost_usd(
+            model_name, context_meta, max_output_tokens)
 
     # The large-context path renders numbered, line-anchored evidence so every
     # [n] citation is auditable against a real file range. The legacy path keeps

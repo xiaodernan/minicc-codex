@@ -58,11 +58,17 @@ function contextEvidence(context, sources) {
     rows.push([t("askdocs.contextFanout"), `${context.fanout} / ${context.candidates}`]);
   }
   rows.push([t("askdocs.contextFp"), String(context.prefix_fingerprint || "—")]);
+  const cost = context.cost_estimate;
+  const costText = cost && Number.isFinite(cost.usd)
+    ? `$${Number(cost.usd).toFixed(4)}`
+    : t("askdocs.costUnpriced");
+  rows.push([t("askdocs.contextCost"), costText]);
   const deep = context.budget_tokens >= 20000;
   return `<details class="askdocs-context-evidence">
     <summary>${icon("layers-3")}<span>${escapeHtml(t("askdocs.contextEvidence"))}</span></summary>
     <div class="askdocs-context-grid">${rows.map(([k, v]) =>
       `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("")}</div>
+    <p class="askdocs-context-hint">${escapeHtml(t("askdocs.costBasis"))}</p>
     ${deep ? `<p class="askdocs-context-warning">${icon("alert-triangle")}<span>${escapeHtml(t("askdocs.deepWarning"))}</span></p>` : ""}
     <p class="askdocs-context-hint">${escapeHtml(t("askdocs.deepHint"))}</p>
   </details>`;

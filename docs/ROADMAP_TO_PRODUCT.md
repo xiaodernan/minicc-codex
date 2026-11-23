@@ -57028,3 +57028,25 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 深档 48×20 的 BM25 检索在多主题查询上约 272 候选；单主题长查询可能召回更少，装不满 5 万——界面显示真实 `estimated_tokens`，不假装装满。针对低召回查询自适应放大 fanout，是下一批。
 2. 5 万词元深档在真实网关恢复后会显著增加单次费用；当前只做了文案警示，没有按模型单价给出金额预估。接入 `llm/usage.py` 的定价表做「本次约 ¥X」实时预估，是下一批。
 3. fanout/per 由前端自由提交，后端只 clamp 上限（48/20）；恶意超大值会被 clamp，但会白跑很多次 BM25 检索。给 `/api/rag/query` 的召回旋钮也套滑动窗口限流，是下一批。
+
+
+## 批次 1223 · M8-T1318: 深上下文要花钱——把价目表和任务账本接成同一个数字
+
+### 缺什么
+- M8-T1317 边界 2 挂着：深档会把近 5 万词元塞进单次请求，但界面只有一句「花费更高」的文案警示，没有数字。req #4 要「珍惜 token」，req #9 要管理员与用户看到真实统计——不能一边让用户开 5 万上下文、一边不告诉他会花多少钱。
+- 项目已有唯一的价目表 `minicc/pricing.py`（任务账本就用它计费），但 RAG 路径一直没接；另造一张表就会出现两种价格，正是记账大忌。
+
+### 做了什么
+- `rag.estimate_context_cost_usd(model, context_meta, max_output_tokens)`：复用 `pricing.cost_usd`（与 `TaskRecord.snapshot` 同一函数、同一张表），喂一个合成 usage（装入的 prompt tokens + 允许的最大输出、缓存命中记 0）。这是**上限估计**——假设满额输出、无缓存命中，永远不低估；未知模型返回 None 与「未定价」理由，绝不编价。
+- `rag.answer` 在大上下文路径把 `cost_estimate` 放进 `context` 块（含 usd / prompt_tokens / max_output_tokens / basis），legacy 路径完全不动。
+- 「问仓库」装配证据加「本次预估费用」一行：有价显示 `$0.1325` 这类数字并说明「上限估计、非实际账单、同一张价目表」；无价显示「模型未定价 · 无诚实数字」。说明书第十章中英两版同步。
+- 新增 `tests/test_context_cost_estimate.py`：未定价不返回 0、已定价模型按 shipped 表精算、费用随 prompt 线性增长、answer 深上下文路径确实带 cost_estimate。浏览器烟测的桩载荷带 cost_estimate 并断言费用数字渲染。
+
+### 证据与门
+- Python 4 passed（新建成本预估套件）；端点与装配器 13 passed 仍绿。
+- 真浏览器 `test:askdocs:depth` 绿（zh/en 双语、费用显示、零 pageerror）；`test:askdocs`、`test:i18n`（+3 键双语）、`test:transport`、`test:manual`、`test:parity`、`test:layout`、`build:web` + `check:web` 全绿。零模型 token。
+
+### 边界
+1. 上限估计没有把 prompt cache 的折扣计入（缓存命中记 0），因此连续提问的真实花费会低于显示值——这是刻意的「不低估」取舍；要把命中率纳入预估需网关回传历史命中，是下一批。
+2. 费用是美元，界面没换算成人民币；req #10 要求默认 ¥ 符号。要不要按用户区域显示 ¥ 估算（需汇率来源），是下一批。
+3. API 关闭期间 `cost_estimate` 仍照常算出（基于装入 token 与价目表），但没有任何真实调用发生；文案已明说「只装配」，不冒充已消费。

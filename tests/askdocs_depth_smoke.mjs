@@ -27,6 +27,7 @@ const PAYLOAD = {
     chunks: 8,
     prefix_fingerprint: "abc123def4567890",
     truncated: true,
+    cost_estimate: { usd: 0.1325, prompt_tokens: 1114, max_output_tokens: 700, basis: "upper estimate" },
   },
   sources: [
     { source: "ROADMAP_TO_PRODUCT.md", score: 9.12, chunk: "prefix cache stays byte-stable", start_line: 12, end_line: 30 },
@@ -77,6 +78,7 @@ for (const locale of ["zh", "en"]) {
   assert.ok(grid.includes("8000"), "budget shown in evidence");
   assert.ok(grid.includes("1114"), "packed tokens shown in evidence");
   assert.ok(grid.includes("abc123def4567890"), "prefix fingerprint shown in evidence");
+  assert.ok(grid.includes("$0.1325"), "cost estimate shown from the shared price table");
   assert.ok(!/NaN|undefined/.test(grid), "evidence must carry no NaN/undefined");
 
   const meta = await page.locator(".askdocs-meta").innerText();
