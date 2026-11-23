@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T04:50:01.996Z",
+  "generated_at": "2026-11-23T05:00:55.370Z",
   "branch": "main",
-  "head": "aadd321",
-  "total_commits": 2144,
+  "head": "33a5794",
+  "total_commits": 2146,
   "recent_commits": [
+    {
+      "short": "33a57949",
+      "at": "2026-11-23T13:00:02+08:00",
+      "subject": "M8-T1309: partial reads no longer pose as complete - renderChanges surfaces status_read_error/audit_read_error/audit_bytes_unread/audit_records_split as a disti"
+    },
+    {
+      "short": "a422d421",
+      "at": "2026-11-23T04:50:02Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "aadd3215",
       "at": "2026-11-23T12:49:28+08:00",
@@ -19,22 +29,12 @@
       "short": "0baa1e9b",
       "at": "2026-11-23T12:41:23+08:00",
       "subject": "M8-T1307: a failed /api/changes read now fails honestly in BOTH surfaces - #fileList (Files tab) repaints the same role/status-marked unavailable cell as #chang"
-    },
-    {
-      "short": "22382943",
-      "at": "2026-11-23T04:30:16Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "2d31ec3b",
-      "at": "2026-11-23T12:29:20+08:00",
-      "subject": "M8-T1306: surface 'no harness - zero tests ran' on the CI job summary via an if:always() reporter that reuses the verdict detector; both web-smoke jobs persist "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 540,
+  "roadmap_batches": 541,
   "changelog_entries": 26,
-  "roadmap_lines": 56834,
+  "roadmap_lines": 56855,
   "tracked_files": 1188,
   "test_files": 763,
   "almanac_chapters": 81,
