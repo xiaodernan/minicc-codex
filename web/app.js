@@ -2383,8 +2383,11 @@
       "admin.driftRefresh": "re-verify the drift sentinel"
     }
   };
-  function t(key) {
-    return I18N[state.locale]?.[key] || I18N.en[key] || key;
+  var PLACEHOLDER = /\{([A-Za-z0-9_.-]+)\}/g;
+  function t(key, params) {
+    const value = I18N[state.locale]?.[key] || I18N.en[key] || key;
+    if (!params) return value;
+    return value.replace(PLACEHOLDER, (match, name) => Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match);
   }
 
   // web/src/icons.js
@@ -11458,7 +11461,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     }
     const truncated = Boolean(data?.truncated) || totalIsReal && total > files.length;
     if (truncated) {
-      const msg = t("changes.listTruncated").replace("{shown}", String(files.length)).replace("{total}", String(totalIsReal ? total : files.length));
+      const msg = t("changes.listTruncated", { shown: files.length, total: totalIsReal ? total : files.length });
       const warn = `<div class="change-partial-warn" role="status" data-change-status="truncated" data-change-error="shown=${escapeHtml(String(files.length))} total=${escapeHtml(String(totalIsReal ? total : files.length))}"><span>${escapeHtml(msg)}</span></div>`;
       if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
       if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);

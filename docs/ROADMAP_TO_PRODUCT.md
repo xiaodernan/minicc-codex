@@ -56872,3 +56872,25 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. `{shown}`/`{total}` 这种手工占位符替换只此一处（`changes.listTruncated`）；若第 N 个文案也要插值，值得抽一个通用的 `t(key, params)`，否则每处都手写 replace。要不要现在就抽，是下一批。
 2. 徽标改读 `total_files` 后，`changeSummary` 的 +/- 数字仍来自 `additions`/`deletions`——这两个后端已经按全部文件算（`changes.py:1136-1156`），与徽标一致；但若后端某天只按切片算，三者会再度分叉。要不要给「徽标数 / 汇总数 / 列表行数」三者加一条一致性门，是下一批。
 3. 失败态与部分读/截断态的 `data-change-error` 属性语义仍共用（M8-T1309 边界 2 未解）；本批的 truncated 警告也带这属性（shown/total），走查器要靠 `data-change-status` 区分。
+
+
+## 批次 1216 · M8-T1311: 两处文案两处手写 replace，字典插值该有统一的家
+
+### 缺什么
+- M8-T1310 边界 1：`{shown}`/`{total}` 的占位符替换是 `renderChanges` 里手写的两次 `.replace()`，只此一处。字典里句子带占位符、代码里散着手写替换，第三处文案要插值时就得抄第三遍——文案的单一事实源被拆成两半。
+
+### 做了什么
+- `web/src/core/i18n.js` 的 `t()` 加可选第二参数 `params`：`t(key)` 路径保留原来的单行语义、逐字不变（所有现存调用点零行为变化）；`t(key, params)` 用一条 `{name}` 正则替换，`hasOwnProperty` 判定，参数缺失时占位符原样留下而不是变成 `undefined`（拼写错误保持可见）。`t()` 只替换字符串、不转义——转义仍是调用方 `escapeHtml` 的责任，注释里写明。
+- `web/src/chat/stream.js` 的截断文案改用 `t("changes.listTruncated", { shown, total })`，删掉手写 replace。
+- `tests/frontend_i18n_dict_one_home_smoke.mjs` 的引用正则扩成同时认 `t("key")` 与 `t("key", {...})`——两参数调用点不能因为文本变了就逃过「键在两种语言都存在」的门。
+- 新增 `tests/i18n_interpolation_smoke.mjs`（DOM-free，先桩 localStorage 再 import 真模块）：无参路径两语言逐字等于字典、两语言插值结果精确、缺参留占位符且不出现 undefined、0 与 falsy 值照样替换、未知键回退原样、t 不转义的契约、截断调用点确实用了 t(key, params) 且没有残留手写 replace、字典门的正则确实匹配两参调用。挂进 `test:i18n`（CI 现有步骤无需改 workflow）。
+
+### 证据与门
+- `npm run test:i18n` 绿：字典门 992 键 / 301 引用全解析；插值烟测全绿。
+- `npm run build:web` + `check:web` 绿（产物 1811611 字符、asset-manifest 同步）；`test:parity` 绿（en 零 CJK）；`test:layout` 绿（10 个 pass）；`change_failure_smoke` 绿（四种成因 × 双语仍全过，证明插值替换没改坏截断文案）。
+- 过程中字典门一度报 `key` 无翻译：原因是 i18n.js 新注释里写了字面 `t("key")`，而门读原文（含注释）；把注释改成「no-argument call」后恢复——这正说明门连注释里的调用形状都在盯。
+
+### 边界
+1. 占位符正则只认一次替换（`{name}`），不支持 `{name!}` 之类的格式后缀、也不支持嵌套；若将来要数字千分位/日期格式，得再定口径。
+2. `t()` 明确不转义，调用方必须各自 `escapeHtml`；当前两处插值调用都做了，但没有门检查「带 params 的 t() 结果一定被转义」。要不要加这条静态门，是下一批。
+3. M8-T1310 边界 2（徽标数 / 汇总数 / 列表行数三者一致性门）仍未做，与本批无关，继续挂着。

@@ -62,7 +62,10 @@ async function walk(dir) {
     }
     if (!entry.name.endsWith(".js")) continue;
     const content = await readFile(full, "utf8");
-    for (const match of content.matchAll(/\bt\(\s*"([A-Za-z0-9_.-]+)"\s*\)/g)) {
+    // M8-T1311: t() now takes an optional params object. Interpolated call
+    // sites must still be checked for a real key in both dictionaries — a
+    // two-arg call must not slip past the gate just because its text changed.
+    for (const match of content.matchAll(/\bt\(\s*"([A-Za-z0-9_.-]+)"\s*(?:,\s*\{[^}]*\})?\s*\)/g)) {
       if (!referenced.has(match[1])) referenced.set(match[1], full);
     }
   }

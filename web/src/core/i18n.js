@@ -343,6 +343,17 @@ export const I18N = {
   },
 };
 
-export function t(key) {
-  return I18N[state.locale]?.[key] || I18N.en[key] || key;
+// M8-T1311: optional {placeholder} interpolation. The no-params path is the
+// old one-liner verbatim, so every existing no-argument call is byte-identical.
+// A placeholder with no matching param is left intact rather than turned into
+// "undefined" — a typo stays visible instead of becoming plausible prose.
+// Callers that embed user-controlled values must still escapeHtml the result;
+// t() substitutes strings only, it does not escape.
+const PLACEHOLDER = /\{([A-Za-z0-9_.-]+)\}/g;
+
+export function t(key, params) {
+  const value = I18N[state.locale]?.[key] || I18N.en[key] || key;
+  if (!params) return value;
+  return value.replace(PLACEHOLDER, (match, name) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match);
 }

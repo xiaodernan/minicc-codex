@@ -997,9 +997,7 @@ export function renderChanges(data) {
   // stay in the dictionary; only numbers are substituted locally.
   const truncated = Boolean(data?.truncated) || (totalIsReal && total > files.length);
   if (truncated) {
-    const msg = t("changes.listTruncated")
-      .replace("{shown}", String(files.length))
-      .replace("{total}", String(totalIsReal ? total : files.length));
+    const msg = t("changes.listTruncated", { shown: files.length, total: totalIsReal ? total : files.length });
     const warn = `<div class="change-partial-warn" role="status" data-change-status="truncated" data-change-error="shown=${escapeHtml(String(files.length))} total=${escapeHtml(String(totalIsReal ? total : files.length))}"><span>${escapeHtml(msg)}</span></div>`;
     if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
     if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
