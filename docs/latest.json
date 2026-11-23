@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T05:49:57.026Z",
+  "generated_at": "2026-11-23T08:24:03.979Z",
   "branch": "main",
-  "head": "72facfa",
-  "total_commits": 2154,
+  "head": "5bf7cd8",
+  "total_commits": 2156,
   "recent_commits": [
+    {
+      "short": "5bf7cd80",
+      "at": "2026-11-23T16:23:41+08:00",
+      "subject": "M8-T1314: timeout is not an outage - context tile tells four honest states, dict gate now resolves dynamic *_KEYS"
+    },
+    {
+      "short": "70a74679",
+      "at": "2026-11-23T05:49:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "72facfad",
       "at": "2026-11-23T13:49:12+08:00",
@@ -19,22 +29,12 @@
       "short": "7cc7a252",
       "at": "2026-11-23T13:34:16+08:00",
       "subject": "M8-T1312: the failure smoke now also guards the normal path - badge=total_files, both row lists match the slice, summary shows real totals (or honest 'not count"
-    },
-    {
-      "short": "60dc40c9",
-      "at": "2026-11-23T05:28:02Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "66f5ea44",
-      "at": "2026-11-23T13:27:27+08:00",
-      "subject": "M8-T1311: t(key, params) now fills {placeholders} with the dictionary as the only source of words - no-arg path byte-identical, missing params stay visible, no "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 545,
+  "roadmap_batches": 546,
   "changelog_entries": 26,
-  "roadmap_lines": 56934,
+  "roadmap_lines": 56961,
   "tracked_files": 1189,
   "test_files": 764,
   "almanac_chapters": 81,
