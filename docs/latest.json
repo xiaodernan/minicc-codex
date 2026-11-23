@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T19:44:44.074Z",
+  "generated_at": "2026-11-23T20:03:58.126Z",
   "branch": "main",
-  "head": "6471666",
-  "total_commits": 2176,
+  "head": "1885584",
+  "total_commits": 2178,
   "recent_commits": [
+    {
+      "short": "18855844",
+      "at": "2026-11-24T04:03:28+08:00",
+      "subject": "M8-T1324: CI 摘要分清零覆盖、部分覆盖与浏览器缺席"
+    },
+    {
+      "short": "dd5faf86",
+      "at": "2026-11-23T19:44:44Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "6471666b",
       "at": "2026-11-24T03:43:50+08:00",
@@ -19,22 +29,12 @@
       "short": "fa8ed661",
       "at": "2026-11-24T01:26:43+08:00",
       "subject": "M8-T1322: 记录最终 16/16 门读数"
-    },
-    {
-      "short": "d6b7adbd",
-      "at": "2026-11-24T01:26:43+08:00",
-      "subject": "M8-T1322: 浏览器没装，四个 frontend 套件只留一句 Playwright 栈"
-    },
-    {
-      "short": "c77e5199",
-      "at": "2026-11-23T17:14:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 555,
+  "roadmap_batches": 556,
   "changelog_entries": 26,
-  "roadmap_lines": 57198,
+  "roadmap_lines": 57226,
   "tracked_files": 1197,
   "test_files": 771,
   "almanac_chapters": 81,
