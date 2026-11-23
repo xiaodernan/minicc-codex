@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T04:42:01.111Z",
+  "generated_at": "2026-11-23T04:50:01.996Z",
   "branch": "main",
-  "head": "0baa1e9",
-  "total_commits": 2142,
+  "head": "aadd321",
+  "total_commits": 2144,
   "recent_commits": [
+    {
+      "short": "aadd3215",
+      "at": "2026-11-23T12:49:28+08:00",
+      "subject": "M8-T1308: a 200 response carrying status:error (permission deny) no longer renders as 'Waiting for changes' - renderChanges now fails honestly on both #changeLi"
+    },
+    {
+      "short": "bc641980",
+      "at": "2026-11-23T04:42:01Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "0baa1e9b",
       "at": "2026-11-23T12:41:23+08:00",
@@ -19,22 +29,12 @@
       "short": "2d31ec3b",
       "at": "2026-11-23T12:29:20+08:00",
       "subject": "M8-T1306: surface 'no harness - zero tests ran' on the CI job summary via an if:always() reporter that reuses the verdict detector; both web-smoke jobs persist "
-    },
-    {
-      "short": "4d22d714",
-      "at": "2026-11-23T12:18:42+08:00",
-      "subject": "chore(latest): refresh showcase fact pack to head dc8c78b (81 chapters, 2137 commits)"
-    },
-    {
-      "short": "21110617",
-      "at": "2026-11-23T04:15:12Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 539,
+  "roadmap_batches": 540,
   "changelog_entries": 26,
-  "roadmap_lines": 56813,
+  "roadmap_lines": 56834,
   "tracked_files": 1188,
   "test_files": 763,
   "almanac_chapters": 81,
