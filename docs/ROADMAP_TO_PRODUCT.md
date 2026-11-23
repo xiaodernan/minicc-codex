@@ -56831,3 +56831,24 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 后端还认真算了一组「部分读不出来」的字段——`summary()` 里的 `status_read_error`、`audit_read_error`、`audit_bytes_unread`、`audit_records_split`、`truncated`、`audit_window_truncated`（`minicc/changes.py:1157-1194`）——前端 `renderChanges` 一个都不读。它们说的是「统计窗口没读全 / 计数被截断」，当前却照旧显示成完整数字。把这些部分失败诚实地端上屏（且 en 零 CJK）是下一批。
 2. 权限拒绝这次的文案是字典里那句通用的「被访问规则拒绝」，没有把服务器 summary 里具体哪条 deny 规则说给用户；en 模式下这是必要的（原文中文），zh 模式其实可以显示具体规则。要不要在 zh 模式把 raw summary 也拼进可见文案，得先定中英是否要对称。
 3. `data-change-error` 里放的是服务器原文，未做长度上限；一个畸长的 deny summary 会撑大属性。要不要截断，是下一批。
+
+
+## 批次 1214 · M8-T1309: 后端说「没读全」，前端照旧报完整数字
+
+### 缺什么
+- M8-T1308 边界 1 记下的：`ChangeInspector.summary()` 认真算了一组诚实字段——`status_read_error`、`audit_read_error`、`audit_bytes_unread`、`audit_records_split`（`minicc/changes.py:1190-1207`）——前端 `renderChanges` 一个都不读。git 状态读失败、审计日志没读全、记录被切断，用户看到的仍是「看起来完整」的改动行数；这跟计数为 null 时 `countLabel` 会说「数不出」是两回事，这里是「读到了一部分却当成全部」。
+- 与失败态不同，部分读是有答案的（行和数字都真实），不能再走 `data-change-status="unavailable|denied"` 那张失败格——那样页签/汇总会被判成「不许带数字」（`scripts/layout_audit.mjs:386` 的规则 6b 认的就是 `.file-tree-status`）。它需要自己的形状。
+
+### 做了什么
+- `web/src/chat/stream.js` 新增 `changePartialReasons(data)`：把四个字段收成原因列表（两个错误串原文 + 未读字节数 / 切断记录数）；`renderChanges` 在两处列表头部插入 `.change-partial-warn`（`role="status"`、`data-change-status="partial"`）——刻意不用 `.file-tree-status`，免得触发失败读那套「不许带数字」的门。行、数字、页签计数一律照旧显示，只额外声明「可能不完整」。
+- 可见文案进字典 `changes.partial` / `changes.partialHint`（zh「改动统计可能不完整。/ 部分记录无法读取，下方只统计已读到的部分。」；en「The change totals may be incomplete. / Some records could not be read; the counts below cover only what was read.」）；后端原始原因（可能中文）只进 `data-change-error`，不进可见文本，en 零 CJK 不破。
+- `tests/change_failure_smoke.mjs` 再加一种成因 × 双语：`page.route` 回放一份带 `status_read_error: "git 状态读取失败"` 的正常答复，断言两页签都有 `partial` 标记、原始中文原因进属性、可见文案本地化且 en 零 CJK、真实行数（1）仍在屏上、零 pageerror。
+
+### 证据与门
+- 真跑（`MINICC_WEB_URL=http://127.0.0.1:8769 node tests/change_failure_smoke.mjs`）：`change-failure smoke passed: transport failure + 200/status:error denial fail on both surfaces; partial reads warn on both without hiding real counts; raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror`。
+- `npm run build:web` + `check:web` 绿（产物 1809649 字符、asset-manifest 同步）；`test:i18n` 绿（988→990 键、297→299 引用，正是新增两键×双语与两处 t()）；`test:parity` 绿（en 零 CJK）；`test:layout` 绿（10 个 pass，`.change-partial-warn` 未被失败读规则误认）。
+
+### 边界
+1. 警告只覆盖了这四字段；`truncated`（列表被截到 120 行）和 `audit_window_truncated`（审计窗口截断）同样没上屏，但它们更接近「展示范围」而非「读失败」。要不要也算部分读、用什么措辞，是下一批。
+2. `data-change-error` 对部分读与失败态共用同一属性名但语义略不同（前者是「没读全的原因」，后者是「读失败的原因」）；走查器若想分开得看 `data-change-status`。要不要改属性名以彻底区分，是下一批。
+3. 四个字段中两个是计数（bytes/records），用英文拼进属性（`10 audit bytes unread`）；zh 模式下属性里也有英文。属性不显示给用户，暂不影响零 CJK，但若将来上屏需本地化这些短语。

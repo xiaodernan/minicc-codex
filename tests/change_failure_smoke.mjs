@@ -100,13 +100,63 @@ async function checkDenied(locale) {
   await page.close();
 }
 
+// A read that answered but saw only part of the data is still an answer — the
+// rows and counts are real — but must not pose as complete. The backend reasons
+// can be Chinese, so they travel in data-change-error while the visible copy
+// comes from the dictionary. Counts remain on screen for a partial read.
+const PARTIAL_REASON = "git 状态读取失败";
+
+async function checkPartial(locale) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+  page.on("pageerror", (e) => errors.push(`${locale}/partial: ${e.message}`));
+  await page.addInitScript((l) => {
+    try { localStorage.clear(); localStorage.setItem("minicc-locale", l); } catch {}
+  }, locale);
+  await page.route("**/api/changes", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      files: [{ path: "web/src/chat/stream.js", status: "modified", additions: 10, deletions: 2 }],
+      additions: 10, deletions: 2,
+      status_read_error: PARTIAL_REASON,
+    }),
+  }));
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForFunction(
+    () => document.querySelector("#startupSplash")?.dataset.state === "ready",
+    { timeout: 60000 },
+  );
+  await page.waitForFunction(
+    () => !!document.querySelector('#changeList [data-change-status="partial"]'),
+    { timeout: 20000 },
+  );
+
+  for (const selector of ["#changeList", "#fileList"]) {
+    const warn = page.locator(`${selector} .change-partial-warn[data-change-status="partial"]`);
+    assert.equal(await warn.count(), 1, `${locale}/partial: ${selector} must carry the partial marker`);
+    assert.equal(await warn.getAttribute("data-change-error"), PARTIAL_REASON,
+      `${locale}/partial: ${selector} must keep the raw Chinese reason machine-readable`);
+    const text = (await warn.innerText()).trim();
+    if (locale === "en") {
+      assert.ok(!CJK.test(text), `${locale}/partial: ${selector} visible copy leaked CJK: ${text}`);
+      assert.ok(/totals may be incomplete/i.test(text), `${locale}/partial: expected localized partial copy, saw: ${text}`);
+    }
+  }
+  // A partial read still shows its real numbers (unlike a failed read).
+  const badge = (await page.locator("#changeTabCount").innerText()).trim();
+  assert.equal(badge, "1", `${locale}/partial: real row count must remain on screen`);
+  await page.close();
+}
+
 try {
   await checkMode("zh");
   await checkMode("en");
   await checkDenied("zh");
   await checkDenied("en");
+  await checkPartial("zh");
+  await checkPartial("en");
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`);
-  console.log("change-failure smoke passed: transport failure + 200/status:error denial both fail on both surfaces in zh/en, raw reason kept machine-readable, visible copy CJK-free in EN, no stale counts, zero pageerror");
+  console.log("change-failure smoke passed: transport failure + 200/status:error denial fail on both surfaces; partial reads warn on both without hiding real counts; raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror");
 } finally {
   await browser.close();
 }

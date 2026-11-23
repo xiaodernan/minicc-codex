@@ -905,6 +905,8 @@
       "changes.unavailableHint": "\u53EF\u5728\u66F4\u591A\u9009\u9879\u4E2D\u5237\u65B0\u5DE5\u4F5C\u533A\u3002",
       "changes.denied": "\u6B64\u5DEE\u5F02\u89C6\u56FE\u88AB\u8BBF\u95EE\u89C4\u5219\u62D2\u7EDD\u3002",
       "changes.deniedHint": "\u8BF7\u8C03\u6574\u6743\u9650\u89C4\u5219\u540E\u91CD\u8BD5\u3002",
+      "changes.partial": "\u6539\u52A8\u7EDF\u8BA1\u53EF\u80FD\u4E0D\u5B8C\u6574\u3002",
+      "changes.partialHint": "\u90E8\u5206\u8BB0\u5F55\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u4E0B\u65B9\u53EA\u7EDF\u8BA1\u5DF2\u8BFB\u5230\u7684\u90E8\u5206\u3002",
       "changes.modified": "\u5DF2\u4FEE\u6539",
       "changes.added": "\u5DF2\u65B0\u589E",
       "changes.deleted": "\u5DF2\u5220\u9664",
@@ -1895,6 +1897,8 @@
       "changes.unavailableHint": "Refresh the workspace from More options.",
       "changes.denied": "This diff view was refused by an access rule.",
       "changes.deniedHint": "Adjust the access rule and try again.",
+      "changes.partial": "The change totals may be incomplete.",
+      "changes.partialHint": "Some records could not be read; the counts below cover only what was read.",
       "changes.modified": "Modified",
       "changes.added": "Added",
       "changes.deleted": "Deleted",
@@ -11410,6 +11414,16 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const tabCount = $("#changeTabCount");
     if (tabCount) tabCount.textContent = "--";
   }
+  function changePartialReasons(data) {
+    const reasons = [];
+    if (data?.status_read_error) reasons.push(String(data.status_read_error));
+    if (data?.audit_read_error) reasons.push(String(data.audit_read_error));
+    const bytes = Number(data?.audit_bytes_unread || 0);
+    if (bytes > 0) reasons.push(`${bytes} audit bytes unread`);
+    const split = Number(data?.audit_records_split || 0);
+    if (split > 0) reasons.push(`${split} split audit records`);
+    return reasons;
+  }
   function renderChanges(data) {
     if (String(data?.status || "") === "error") {
       renderChangeFailure(data?.summary, true);
@@ -11429,6 +11443,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const changeList = $("#changeList");
     if (changeList) {
       changeList.innerHTML = files.length ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path).replace(/\//g, "/<wbr>")}</strong><small>${escapeHtml(changeStatusLabel(item.status))} \xB7 <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("") : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
+    }
+    const partial = changePartialReasons(data);
+    if (partial.length) {
+      const warn = `<div class="change-partial-warn" role="status" data-change-status="partial" data-change-error="${escapeHtml(partial.join(" | "))}"><span>${escapeHtml(t("changes.partial"))}</span><small>${escapeHtml(t("changes.partialHint"))}</small></div>`;
+      if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
+      if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
     }
     refreshIcons();
   }

@@ -913,6 +913,23 @@ function renderChangeFailure(reason, denied = false) {
 }
 
 
+// M8-T1309: the backend ships honesty fields the old UI never read —
+// status_read_error / audit_read_error / audit_bytes_unread / audit_records_split.
+// A read that answered but could not see everything is not a clean full answer.
+// Collect the raw reasons for a machine-readable attribute; visible copy stays
+// in the dictionary so EN never inherits a Chinese backend reason.
+function changePartialReasons(data) {
+  const reasons = [];
+  if (data?.status_read_error) reasons.push(String(data.status_read_error));
+  if (data?.audit_read_error) reasons.push(String(data.audit_read_error));
+  const bytes = Number(data?.audit_bytes_unread || 0);
+  if (bytes > 0) reasons.push(`${bytes} audit bytes unread`);
+  const split = Number(data?.audit_records_split || 0);
+  if (split > 0) reasons.push(`${split} split audit records`);
+  return reasons;
+}
+
+
 export function renderChanges(data) {
 
   // M8-T1308: a 200 answer can still be an error. The permission gate returns
@@ -956,6 +973,17 @@ export function renderChanges(data) {
 
       : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
 
+  }
+
+  // M8-T1309: a partial read is still an answer (counts and rows are shown), but
+  // it must not masquerade as a complete one. Deliberately NOT .file-tree-status
+  // — the layout audit's failed-read detector keys off that class and a partial
+  // read legitimately carries numbers, so it needs its own shape and marker.
+  const partial = changePartialReasons(data);
+  if (partial.length) {
+    const warn = `<div class="change-partial-warn" role="status" data-change-status="partial" data-change-error="${escapeHtml(partial.join(" | "))}"><span>${escapeHtml(t("changes.partial"))}</span><small>${escapeHtml(t("changes.partialHint"))}</small></div>`;
+    if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
+    if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
   }
 
   refreshIcons();
