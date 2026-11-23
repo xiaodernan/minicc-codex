@@ -9522,8 +9522,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           const dir = forecast.direction === "down" ? t("admin.forecastFading") : forecast.direction === "up" ? t("admin.forecastRising") : t("admin.forecastFlat");
           const headline = $("#adminForecastHeadline");
           const note = $("#adminForecastNote");
-          if (headline) headline.textContent = `${t("admin.forecastLine").replace("{n}", String(forecast.last_2_avg ?? "\u2014")).replace("{slope}", String(forecast.slope_per_day >= 0 ? `+${forecast.slope_per_day}` : forecast.slope_per_day))} \xB7 ${dir}`;
-          if (note) note.textContent = t("admin.forecastNote").replace("{lines}", String(totals.audit_lines ?? "\u2014"));
+          const slope = forecast.slope_per_day >= 0 ? `+${forecast.slope_per_day}` : forecast.slope_per_day;
+          if (headline) headline.textContent = `${t("admin.forecastLine", { n: forecast.last_2_avg ?? "\u2014", slope })} \xB7 ${dir}`;
+          if (note) note.textContent = t("admin.forecastNote", { lines: totals.audit_lines ?? "\u2014" });
         } else {
           fcWrap.setAttribute("hidden", "");
         }
@@ -10542,7 +10543,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
   function milestoneText(index) {
     const total = ALL_NODES.length;
     const target = Math.ceil(total * MILESTONE_THRESHOLDS[index]);
-    return t(MILESTONE_KEYS[index]).replace("{n}", String(target)).replace("{total}", String(total));
+    return t(MILESTONE_KEYS[index], { n: target, total });
   }
   function checkStardustMilestones() {
     const total = ALL_NODES.length;
@@ -10889,7 +10890,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     let charted = 0;
     for (const node of ALL_NODES) if (visited.has(node.visitedKey ?? node.id)) charted += 1;
     const el = $("#atlasCharted");
-    if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_TOTAL));
+    if (el) el.textContent = t("atlas.charted", { n: charted, total: ATLAS_TOTAL });
   }
   function wireAtlas(canvas) {
     const tooltip = $("#atlasTooltip");

@@ -56912,3 +56912,22 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 一致性断言目前钉死「2 行 / +10 / -3」这几个常量，是按样例写死的；若后端某天改了 totals 的语义（例如把 truncate 后的切片数也写进 total_files），这条门会红但定位要靠人读。把它改成从回放载荷派生期望（像 atlas/world-map 那些门一样从真值源派生），是下一批。
 2. 「无警告标记」这条断言会把将来新增的第 6 种诚实标记也当成失败——加新标记时得同步放宽这里。要不要改成白名单式（只禁已知的五种、不认识的不管），是下一批。
 3. 仍未覆盖「服务器根本没有 workspacePath」时 `loadChanges` 提前 return 的分支（`web/src/chat/stream.js` 开头 `if (!state.workspacePath) return`），那是一种「连尝试都没尝试」的静默态，与失败/部分读都不同。要不要把它也变成可测的诚实态，是下一批。
+
+
+## 批次 1218 · M8-T1313: 统一了插值，却有四处还在手写 replace
+
+### 缺什么
+- M8-T1311 给 `t()` 加了 `t(key, params)`，但只迁了截断那一处。全仓 `web/src` 里还有四处 `t(...).replace("{...}")`：`web/src/panels/admin.js:252/253`（预测头两行）与 `web/src/panels/atlas.js:189/571`（里程碑文案与已标注坐标行）。同一件事两种做法，字典插值这个「唯一的家」就名不副实——第五个人看到旧写法会照抄。
+
+### 做了什么
+- 四处全部改用 `t(key, params)`：admin 预测 `{n}/{slope}/{lines}`，atlas `{n}/{total}`（含 `MILESTONE_KEYS[index]` 的动态键，参数照传）。`slope` 这个带符号的数先在代码里算好再作为参数交给字典，措辞仍只属于字典。
+- `tests/i18n_interpolation_smoke.mjs` 扩两道：①四个迁移后的键（admin.forecastLine / forecastNote / atlas.charted / atlas.milestone25）zh/en 双语都断言占位符全消、替换值都在；②递归扫 `web/src` 全部 `.js`，只要还出现 `.replace("{` 就点名文件——手写替换从此是零容忍，而不是靠人记得。
+
+### 证据与门
+- `npm run test:i18n` 绿：字典 992 键 / 301 引用全解析 + 插值烟测全绿（新增双语插值与全仓零手写替换断言）。
+- `npm run build:web` + `check:web` 绿（产物 1811504 字符、asset-manifest 同步）；`test:atlas` 绿（119 坐标行与里程碑文案仍渲染）、`test:admin` 复跑绿（首跑因并发瞬时失败，按 AGENTS.md 复跑后过）、`test:parity` 绿（en 零 CJK）；`node --check` 改过的三个文件绿。
+
+### 边界
+1. `MILESTONE_KEYS` 是字符串数组，`t(MILESTONE_KEYS[index], params)` 的动态键进不了字典门那条只认字面 `t("key")` 的正则——这四个里程碑键的「两种语言都存在」其实没被门盯着（只是本批双语插值断言间接覆盖了它们）。让字典门认常量数组里的键，是下一批。
+2. `t()` 不转义、参数由调用方负责，仍没有静态门强制「带 params 的 t() 结果一定 escapeHtml」（T1311 边界 2 未解）。
+3. admin 上下文面板把 20 秒超时与「接口不可达」写成同一句（`web/src/panels/admin.js:417-418`，`.catch(() => null)`），并发下慢响应被报成不可达（T1304 已记）。本批未碰，下一批接手。

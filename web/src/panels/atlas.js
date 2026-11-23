@@ -186,7 +186,7 @@ function stardustCount() {
 function milestoneText(index) {
   const total = ALL_NODES.length;
   const target = Math.ceil(total * MILESTONE_THRESHOLDS[index]);
-  return t(MILESTONE_KEYS[index]).replace("{n}", String(target)).replace("{total}", String(total));
+  return t(MILESTONE_KEYS[index], { n: target, total });
 }
 
 function checkStardustMilestones() {
@@ -568,7 +568,7 @@ function updateHUD() {
   let charted = 0;
   for (const node of ALL_NODES) if (visited.has(node.visitedKey ?? node.id)) charted += 1;
   const el = $("#atlasCharted");
-  if (el) el.textContent = t("atlas.charted").replace("{n}", String(charted)).replace("{total}", String(ATLAS_TOTAL));
+  if (el) el.textContent = t("atlas.charted", { n: charted, total: ATLAS_TOTAL });
 }
 
 function wireAtlas(canvas) {

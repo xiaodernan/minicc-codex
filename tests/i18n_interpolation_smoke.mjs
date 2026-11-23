@@ -5,7 +5,8 @@
 // DOM-free: state.js reads localStorage at import time, so stub it first.
 
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
 
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 const { t, I18N } = await import("../web/src/core/i18n.js");
@@ -49,8 +50,43 @@ assert.equal(t("changes.listTruncated", { shown: "<b>", total: 5 }).includes("<b
 // the dictionary gate's regex still sees two-arg calls as references.
 const stream = await readFile("web/src/chat/stream.js", "utf8");
 assert.ok(/t\(\s*"changes\.listTruncated"\s*,\s*\{/.test(stream), "truncation copy must use t(key, params)");
-assert.ok(!/\.replace\("\{shown\}"/.test(stream), "no hand-rolled placeholder substitution left");
+
+// M8-T1313: every placeholder-carrying key must be filled by the one helper,
+// in both locales, with no brace left behind. Covers the four stragglers that
+// still hand-rolled replace() after T1311 (admin forecast x2, atlas x2).
+const parametric = [
+  ["admin.forecastLine", { n: "12.5", slope: "+0.4" }, ["12.5", "+0.4"]],
+  ["admin.forecastNote", { lines: "800" }, ["800"]],
+  ["atlas.charted", { n: 4, total: 119 }, ["4", "119"]],
+  ["atlas.milestone25", { n: 30, total: 119 }, ["30", "119"]],
+];
+for (const locale of ["zh", "en"]) {
+  state.locale = locale;
+  for (const [key, params, values] of parametric) {
+    const filled = t(key, params);
+    assert.ok(!/\{[A-Za-z0-9_.-]+\}/.test(filled), `${locale}/${key}: placeholder left unfilled: ${filled}`);
+    for (const value of values) assert.ok(filled.includes(value), `${locale}/${key}: missing value ${value}: ${filled}`);
+  }
+}
+
+// No hand-rolled placeholder substitution anywhere in web/src — the helper is
+// the single home. Reading the sources, not the DOM.
+async function scanSources(dir) {
+  const found = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...await scanSources(full));
+    else if (entry.name.endsWith(".js")) {
+      const content = await readFile(full, "utf8");
+      if (/\.replace\(\s*"\{/.test(content)) found.push(full.replace(/\\/g, "/"));
+    }
+  }
+  return found;
+}
+const handRolled = await scanSources("web/src");
+assert.deepEqual(handRolled, [], `hand-rolled placeholder replace() left in: ${handRolled.join(", ")}`);
+
 const gate = await readFile("tests/frontend_i18n_dict_one_home_smoke.mjs", "utf8");
 assert.ok(gate.includes('(?:,\\s*\\{[^}]*\\})?'), "the dict gate must still match two-arg t() calls");
 
-console.log("i18n interpolation smoke passed: no-arg path unchanged, both locales interpolate, missing params stay visible, fallback intact, dict gate sees two-arg calls");
+console.log("i18n interpolation smoke passed: no-arg path unchanged, all parametric keys fill in both locales, missing params stay visible, fallback intact, no hand-rolled replace left in web/src, dict gate sees two-arg calls");

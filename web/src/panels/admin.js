@@ -249,8 +249,11 @@ export async function openAdmin() {
         const dir = forecast.direction === "down" ? t("admin.forecastFading") : forecast.direction === "up" ? t("admin.forecastRising") : t("admin.forecastFlat");
         const headline = $("#adminForecastHeadline");
         const note = $("#adminForecastNote");
-        if (headline) headline.textContent = `${t("admin.forecastLine").replace("{n}", String(forecast.last_2_avg ?? "—")).replace("{slope}", String(forecast.slope_per_day >= 0 ? `+${forecast.slope_per_day}` : forecast.slope_per_day))} · ${dir}`;
-        if (note) note.textContent = t("admin.forecastNote").replace("{lines}", String(totals.audit_lines ?? "—"));
+        // M8-T1313: placeholders filled by t(key, params) — one home for the
+        // prose, no hand-rolled replace() on a translated string.
+        const slope = forecast.slope_per_day >= 0 ? `+${forecast.slope_per_day}` : forecast.slope_per_day;
+        if (headline) headline.textContent = `${t("admin.forecastLine", { n: forecast.last_2_avg ?? "—", slope })} · ${dir}`;
+        if (note) note.textContent = t("admin.forecastNote", { lines: totals.audit_lines ?? "—" });
       } else {
         fcWrap.setAttribute("hidden", "");
       }
