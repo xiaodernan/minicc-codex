@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T17:14:54.449Z",
+  "generated_at": "2026-11-23T17:29:10.818Z",
   "branch": "main",
-  "head": "b337141",
-  "total_commits": 2171,
+  "head": "fa8ed66",
+  "total_commits": 2174,
   "recent_commits": [
+    {
+      "short": "fa8ed661",
+      "at": "2026-11-24T01:26:43+08:00",
+      "subject": "M8-T1322: 记录最终 16/16 门读数"
+    },
+    {
+      "short": "d6b7adbd",
+      "at": "2026-11-24T01:26:43+08:00",
+      "subject": "M8-T1322: 浏览器没装，四个 frontend 套件只留一句 Playwright 栈"
+    },
+    {
+      "short": "c77e5199",
+      "at": "2026-11-23T17:14:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b3371417",
       "at": "2026-11-24T01:10:06+08:00",
@@ -14,29 +29,14 @@
       "short": "ad04e08e",
       "at": "2026-11-23T09:08:19Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0995b2a7",
-      "at": "2026-11-23T17:07:48+08:00",
-      "subject": "M8-T1320: ratchet the inline-bilingual debt at 847 - new copy must go in the dictionary, the count may only fall"
-    },
-    {
-      "short": "9457a784",
-      "at": "2026-11-23T09:04:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d8150803",
-      "at": "2026-11-23T17:03:58+08:00",
-      "subject": "M8-T1319: First Light's fetch clock now tells its age - stale cache can no longer pose as a live reading"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 553,
+  "roadmap_batches": 554,
   "changelog_entries": 26,
-  "roadmap_lines": 57134,
-  "tracked_files": 1193,
-  "test_files": 768,
+  "roadmap_lines": 57166,
+  "tracked_files": 1195,
+  "test_files": 770,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
