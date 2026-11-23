@@ -57195,3 +57195,31 @@ M8-T1314/T1315 已经把 transport 的 `timeout`、`network`、`server-error`、
 3. 样本只在当前标签页的 `sessionStorage` 里，最多 20 个；刷新浏览器、换标签页或换工作区都会重新取基线。没有引入新的服务器环境变量或配置面；样本写入失败只会放弃自适应，不会把已经返回的真实读数改成不可达。
 4. 真实超时门按当前实测时限等待，本次每个 locale 多花约 5–8 秒；它证明的是 transport 定时器与 DOM 状态接线，不证明任意后端都一定在该时限内返回。
 5. 全量回归仍有 7 个基线红：`tests/test_web_smoke_step_summary.py` 的子进程解码只 pin 了父端，`tests/test_the_panel_does_not_print_a_missing_count_as_zero.py` 的 bundle 夹具漏掉 `changePartialReasons`。两者已在干净 HEAD 复现；本批没有把它们混成上下文超时修复。
+
+## 批次 1229 · M8-T1324: CI 摘要不再把「跑到一半」和「浏览器没装」都写成「零测试」
+
+### 缺什么
+
+M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict 识别 `HARNESS_LOST`，但 reporter 没有消费它；M8-T1322 已让四个 frontend 套件明确退出 `HARNESS_BROWSER_MISSING`，focused frontend job 却仍直接红且没有摘要。三种基础设施失败若共用「zero tests ran」，会把部分覆盖说成全没跑，或把浏览器缺席说成产品坏。同文件子进程测试只 pin 了父端 UTF-8，中文 Windows 上仍留着一条基线解码红。
+
+### 做了什么
+
+1. `scripts/web_smoke_verdict.py:42` 把 `HARNESS_BROWSER_MISSING` 升为一等码，`scripts/web_smoke_verdict.py:97` 增加对应检测句；主判定按 absent → lost → browser-missing 取基础设施平面并统一退出 3。检测读的是完整码集合，产品失败码无论写在基础设施码前面还是后面都不能盖住它。
+2. `scripts/web_smoke_step_summary.py:39` 把标题、码名与建议参数化，三种失败分别写「zero tests ran」「partial coverage」「no browser assertions ran」。摘要复用 verdict 的三个检测器，不另长一套识别规则；日志不存在时 reporter 仍安静退出 0，不把已经失败的基础设施 job 再推倒一次。
+3. `.github/workflows/ci.yml:157` 为 focused frontend 配置 Python；`.github/workflows/ci.yml:193` 用内层 `set -e` 子 shell 保留首次失败即停，外层只负责合并日志、保留原 rc、打印并重新退出。`if: always()` 的 reporter 只在 rc 文件存在时运行，因此 run step 没来得及留证据时不会伪造覆盖结论。原有 web-smoke 与 mutation 两个 reporter 也自动获得 lost/browser 分类。
+4. `tests/test_web_smoke_step_summary.py:53` 与 `tests/test_web_smoke_step_summary.py:75` 同时给父进程 capture 和子进程钉住 `PYTHONIOENCODING=utf-8`，清掉上一批记下的基线红。规格现在覆盖三种覆盖语义、产品码前后夹击、检测器复用、三个 CI job 的接线、focused job 的 fail-fast，以及 verdict 仍把浏览器缺席放在退出码 3。
+
+### 证据与门
+
+- 相关回归族：82 passed（132.32s），覆盖 verdict、summary、CI 接线、真实缺失浏览器路径与上一批的 transport/context 合同。
+- 真实负路径：把 `PLAYWRIGHT_BROWSERS_PATH` 指向空目录后运行 `npm run test:optimization`，进程退出 3，日志含 `HARNESS_BROWSER_MISSING`；同一日志交给 reporter 后生成 `Focused frontend: browser missing - no browser assertions ran`，并明确「no browser assertions ran」与安装 Chromium 的建议（`scratch/frontend1324.log`、`scratch/summary1324.md`）。
+- 反向控制 `scratch/arms1324.py`：7/7 红，还原后 sha256 全对。七条分别把 lost 改回 absent、把 browser 改回 absent、混用覆盖措辞、让产品码盖住 browser、让 browser 落回普通失败平面、拆掉 focused rc 留存、拔掉子进程 codec pin。
+- 16 道 pre-push 门：16/16 green（220.5s，red: none），`scratch/gates1324-final.log`。
+- 凭据扫描：本批 5 个改动文件，GitHub token、模型 API key、私钥三种模式均 0 命中。
+
+### 边界
+
+1. focused job 的 reporter 只在 `frontend-contracts.rc` 存在时开口；setup、磁盘写失败或更早的基础设施崩溃仍可能没有摘要。这个守卫防止假结论，但不等于所有崩溃都已有分类。
+2. `HARNESS_BROWSER_MISSING` 只说浏览器断言没有跑，不说整条 focused 链零断言：首次失败即停时，排在前面的静态套件可能已经跑过。因此它与 absent 的「零 suite」和 lost 的「部分覆盖」必须保持不同措辞。
+3. 本批修的是 CI 汇报面，不负责把 Chromium 装好，也不证明二进制能启动。系统库、架构、沙箱与损坏二进制仍要真实 launch 探针。
+4. 未重复上一批 90 分钟级全量 Python 回归；本批只改 CI/ verdict 与一个测试夹具，82 项相关回归和 16 道门覆盖其变更面。上一批留下的 6 个 missing-count 浏览器夹具红仍未修，留给下一批，不能把这次定向绿灯说成全库全绿。

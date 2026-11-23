@@ -114,6 +114,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -154,30 +157,45 @@ jobs:
         run: npx playwright install chromium --with-deps
       - name: Verify responsive UI and task protocol
         run: |
-          npm run test:optimization
-          npm run test:transport
-          npm run test:admincontext
-          npm run test:lifecycle
-          npm run test:phase
-          npm run test:trace
-          npm run test:effort
-          npm run test:i18n
-          npm run test:tracephase
-          npm run test:tracedetail
-          npm run test:inspector
-          npm run test:kinds
-          npm run test:entrycaps
-          npm run test:registry
-          npm run test:perm
-          npm run test:sessionid
-          npm run test:context
-          npm run test:eventretention
-          npm run test:cacheseries
-          npm run test:helpshortcuts
-          npm run test:askdocs
-          npm run test:timeline
-          npm run test:prefixstrip
-          npm run test:scale
+          set +e
+          (
+            set -e
+            npm run test:optimization
+            npm run test:transport
+            npm run test:admincontext
+            npm run test:lifecycle
+            npm run test:phase
+            npm run test:trace
+            npm run test:effort
+            npm run test:i18n
+            npm run test:tracephase
+            npm run test:tracedetail
+            npm run test:inspector
+            npm run test:kinds
+            npm run test:entrycaps
+            npm run test:registry
+            npm run test:perm
+            npm run test:sessionid
+            npm run test:context
+            npm run test:eventretention
+            npm run test:cacheseries
+            npm run test:helpshortcuts
+            npm run test:askdocs
+            npm run test:timeline
+            npm run test:prefixstrip
+            npm run test:scale
+          ) > frontend-contracts.log 2>&1
+          rc=$?
+          set -e
+          cat frontend-contracts.log
+          echo "$rc" > frontend-contracts.rc
+          exit "$rc"
+      - name: Report focused frontend harness status
+        if: always()
+        run: |
+          if [ -f frontend-contracts.rc ]; then
+            python scripts/web_smoke_step_summary.py --exit-code "$(cat frontend-contracts.rc)" --log frontend-contracts.log --summary "$GITHUB_STEP_SUMMARY" --step-name "Focused frontend"
+          fi
 
   web-smoke:
     name: Playwright web smoke

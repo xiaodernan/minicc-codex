@@ -39,6 +39,7 @@ CODE_PREFIX = "SMOKE_FAILURE_CODE="
 EXPECTED_CODE = "PRODUCT_PATH_NO_COMPLETION_VERDICT"
 HARNESS_CODE = "HARNESS_UNREACHABLE"
 HARNESS_LOST_CODE = "HARNESS_LOST"
+HARNESS_BROWSER_MISSING_CODE = "HARNESS_BROWSER_MISSING"
 HARNESS_EXIT = 3
 _CODE_LINE = re.compile(r"^" + re.escape(CODE_PREFIX) + r"([A-Z0-9_]+)\s*$", re.MULTILINE)
 
@@ -93,6 +94,17 @@ def harness_lost(exit_code: int, log: str) -> str | None:
     )
 
 
+def harness_browser_missing(exit_code: int, log: str) -> str | None:
+    """The sentence for a step that could not launch its required browser."""
+    if HARNESS_BROWSER_MISSING_CODE not in codes(log):
+        return None
+    return (
+        f"browser missing: the focused frontend step named {HARNESS_BROWSER_MISSING_CODE} "
+        f"before launching Chromium (the step exited {exit_code}); no browser assertions ran, "
+        "so this step cannot report a product verdict - install Chromium and re-run"
+    )
+
+
 def decide(exit_code: int, log: str) -> tuple[bool, str]:
     """Whether this run caught the injected mutation, and the reason either way."""
     if exit_code == 0:
@@ -127,6 +139,10 @@ def main(argv: list[str] | None = None) -> int:
     lost = harness_lost(args.exit_code, log)
     if lost is not None:
         print(lost)
+        return HARNESS_EXIT
+    browser_missing = harness_browser_missing(args.exit_code, log)
+    if browser_missing is not None:
+        print(browser_missing)
         return HARNESS_EXIT
     caught, verdict = decide(args.exit_code, log)
     print(verdict)
