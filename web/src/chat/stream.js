@@ -949,9 +949,16 @@ export async function loadChanges() {
 
     // A read that failed is not a workspace with nothing in it. The list says which of
     // the two it is, and the summary and tab badge stop advertising the numbers from the
-    // last read that did answer.
+    // last read that did answer. M8-T1307: both surfaces of the SAME fact must say it —
+    // the Files tab (#fileList) used to keep the last successful rows (or stay blank on a
+    // first-read failure) while #changeList said "unavailable", putting two contradictory
+    // answers on one screen. Both now carry the same role/status marker so a ruler can
+    // tell a failed read from an empty workspace in either tab.
     const uncounted = escapeHtml(t("changes.uncounted"));
-    $("#changeList").innerHTML = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
+    const unavailable = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
+    $("#changeList").innerHTML = unavailable;
+    const fileList = $("#fileList");
+    if (fileList) fileList.innerHTML = unavailable;
     const summary = $("#changeSummary");
     if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
     const tabCount = $("#changeTabCount");

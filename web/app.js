@@ -11423,7 +11423,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     } catch {
       if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
       const uncounted = escapeHtml(t("changes.uncounted"));
-      $("#changeList").innerHTML = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
+      const unavailable = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
+      $("#changeList").innerHTML = unavailable;
+      const fileList = $("#fileList");
+      if (fileList) fileList.innerHTML = unavailable;
       const summary = $("#changeSummary");
       if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
       const tabCount = $("#changeTabCount");

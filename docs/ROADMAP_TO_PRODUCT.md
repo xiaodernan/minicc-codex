@@ -56790,3 +56790,23 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 两个汇报器只认 HARNESS_UNREACHABLE 这一个码。中途服务器死掉（T1304 边界 5）套件报的是裸 `page.waitForFunction` 超时，不带这个码，job 页面照样只显示红 step。下一步把中途判据也并进 verdict 的词汇表。
 2. summary block 用的是纯 ASCII 标题（`no harness - zero tests ran`）。中英 UI 是产品自己的事，CI 页面走 GitHub 界面语言，这里不掺 i18n；若将来要求 job summary 也双语，得再定口径。
 3. rc 落盘依赖 `Run web smoke` 这段 bash 至少走到 `echo "$rc"`。若 shell 在 `npm run` 之前就被杀（机器掉线），rc 文件不存在，汇报器读 `cat` 会报错但仍不影响 job 原有的红。要不要让汇报器把「rc 文件都没有」也写成一句话，是下一批。
+
+
+## 批次 1212 · M8-T1307: 一次读不出的变更，文件页签还在替它撒谎
+
+### 缺什么
+- T1303 把「/api/changes 读失败」在 `#changeList` 说清楚了（列表改口 unavailable、页签 `--`、汇总数不出），但同一份事实的另一个落点没管：`renderChanges` 往 `#fileList`（侧栏「文件」页签）写行，catch 却只重写 `#changeList`。实测后果——首次读就失败时 `#fileList` 空着，而 `#changeList` 说「暂时无法读取」；读成功过再失败时 `#fileList` 还留着上一次的行。同一时刻两个页签对「这工作区改了什么」给出相反答案，而且两处的失败态都没有机器可读标记，走查器只能在 `#changeList` 看见它。这就是 T1303 边界 1 的那一半。
+
+### 做了什么
+- `web/src/chat/stream.js` 的 `loadChanges` catch 现在把同一句 `data-change-status="unavailable"` + `role="status"` 的失败格同时写进 `#changeList` 与 `#fileList`（共享一段字符串，不是两份抄写）；页签与汇总的无数字口径不动。两处都带标记，走查器在任一页签都能把「读失败」和「空工作区」分开。
+- 新增 `tests/change_failure_smoke.mjs`：真浏览器里 `page.route` 把 `/api/changes` abort 成网络失败，zh/en 两种模式都断言两个页签各有且仅有一个带标记的失败格、格子有字、en 模式零 CJK、页签与汇总都不再带数字、零 pageerror。挂进 `test:arcade`（CI 的 web-smoke job 有真服务器）。
+- 本批不碰字典：失败文案沿用 `changes.unavailable` / `changes.unavailableHint`，不新增键、不把服务器原始原因上屏（见边界）。
+
+### 证据与门
+- 真跑（`MINICC_WEB_URL=http://127.0.0.1:8769 node tests/change_failure_smoke.mjs`）：`change-failure smoke passed: both surfaces name the failed read in zh/en, no stale counts, zero pageerror`。
+- `npm run build:web` + `check:web` 绿（产物 1807408 字符、asset-manifest 同步、无陈旧资产）；`test:i18n` 绿（986 键、295 引用全解析）；`test:parity` 绿（en 零 CJK）；`test:layout` 绿（10 个 pass 全过，`fixture: 4 change row(s)`）。
+
+### 边界
+1. 失败格还是只说「读不出来 / 刷新工作区」，没把服务器给的原因端上屏——`minicc/web.py:3350` 的 `changes()` 在权限拒绝时返回的是 200 + `{"status":"error","summary":"permissions.json deny 规则拒绝了此差异视图"}`，前端只读 `data.files`，会把它画成「等待变更」的空卡。这是比 catch 更隐蔽的一种「失败答成没有」，下一批单独处理（原因上屏 + 200 错误态识别，且要守住 en 零 CJK——服务器原因可能是中文）。
+2. 两个页签的失败格共用一段字符串，所以改文案必须两处一起变，靠的是同一份字面量而非字典键；若要把 `--` 或失败格文案也随语言切换，得先决定它们算不算需要本地化的句子（承接 T1303 边界 3）。
+3. 新冒烟只验网络失败（abort）这一种成因；超时、500、非 JSON 各有不同文案，但都走同一 catch 同一段字符串，故不逐一验。要不要为每种成因给机器可读的子类标记，是下一批。
