@@ -19,6 +19,9 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import { requireBrowserOrExit } from "./frontend_browser_guard.mjs";
+
+await requireBrowserOrExit();
 
 // The phases the backend emits.  Read from **every** module under minicc/
 // so this list cannot drift away from it either - and so a phase that only

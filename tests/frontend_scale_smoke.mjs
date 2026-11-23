@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
+import { requireBrowserOrExit } from "./frontend_browser_guard.mjs";
 
+await requireBrowserOrExit();
 const browser = await chromium.launch({ headless: true });
 const errors = [];
 try {

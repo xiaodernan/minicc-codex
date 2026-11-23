@@ -57128,6 +57128,38 @@ M8-T1304 那批让套件在启动浏览器之前先问一次「我的服务器�
 
 1. 退出 3 目前只有 verdict 分得出来。M8-T1306 已经把 `HARNESS_UNREACHABLE` 抬进两个 web-smoke job 的 step summary，但那个汇报器只认 absent，不认本批新增的 `HARNESS_LOST`；CI step 也仍按非零一律红。下一步把 lost 的「部分覆盖」也并进同一个汇报器，并决定要不要让 step 结论本身区分环境失败与产品失败。
 2. 钩子只在失败真的发生时才问第二遍。若服务器死掉而 Playwright 只是继续等（导航/`waitForFunction` 的超时窗口还没走完），这一步既不抛也不退，钩子就没有说话的机会——需要的是套件级 deadline 到点也去问一次服务器，那是另一件事。
-3. `orbit_smoke.mjs:92` 的 wave 递进断言用 300ms 窗口赌一次 `interWave` 翻转，`admin_smoke.mjs:75` 用固定 20 秒 `waitForFunction`——本批在负对照里各撞到一次红，重跑与 HEAD 对照都没复现。前者要有确定性的推进探针，后者已经单独立账（下一批候选：一次 20 秒超时被管理面板写成「接口不可达」）。
+3. `orbit_smoke.mjs:92` 的 wave 递进断言用 300ms 窗口赌一次 `interWave` 翻转，`admin_smoke.mjs:82` 用固定 20 秒 `waitForFunction`——本批在负对照里各撞到一次红，重跑与 HEAD 对照都没复现。前者要有确定性的推进探针，后者已经单独立账（下一批候选：一次 20 秒超时被管理面板写成「接口不可达」）。
 4. 守卫只活在 node 套件里。M8-T1305 已给 `scripts/behavior_sim.mjs` 补了开头探针，`scripts/stress_credential_probe.mjs` 本来就有；但两者都只守开头，服务器在驱动器跑起来之后死掉仍会记成超时或访客行为。运行中丢失的同一平面还没人管。
 5. `.github/workflows/ci.yml` 的 `Verify responsive UI and task protocol` 步骤里，真有 `chromium.launch` 的 frontend 套件是本平面的下一个缺口：浏览器没装时它们不报名字就退 1。量法沿用本批——分母从那一步的 `npm run` 列表里按 `chromium.launch` 筛出来，不写死。
+
+
+## 批次 1227 · M8-T1322: 浏览器没装，四个 frontend 套件只留一句 Playwright 栈
+
+### 缺什么
+
+M8-T1321 让 node 冒烟套件在服务器缺席或中途丢失时退 3、报自己的名字。focused frontend job 有同一个平面，只是缺的不是服务器，而是 Chromium：CI 虽然先执行 `npx playwright install chromium --with-deps`，本机或安装步骤出问题时，套件仍把「浏览器二进制不存在」交给 Playwright 抛栈。
+
+实测口径从 CI 本身派生：`.github/workflows/ci.yml` 的 `Verify responsive UI and task protocol` 步骤有 23 条 `npm run`，沿 `package.json` 展开成 26 个 `.mjs`，其中只有 4 个源码里真有 `chromium.launch`——`frontend_scale_smoke`、`frontend_optimization_smoke`、`frontend_lifecycle_smoke`、`frontend_phase_classes_smoke`。把 `PLAYWRIGHT_BROWSERS_PATH` 指到空目录后（`scratch/measure1322/summary.tsv`），四个都退 1、都没有 `SMOKE_FAILURE_CODE`，只留下 `browserType.launch: Executable doesn't exist`。另外 22 个是静态或 DOM-free 契约，它们失败时不带名字是「产品契约失败没有分类码」的另一件事，本批不把两者混成一个分母。
+
+### 做了什么
+
+1. 新增共享守卫 `tests/frontend_browser_guard.mjs`：`requireBrowserOrExit()` 问 Playwright 要 `chromium.executablePath()`，用 `node:fs` 的存在性检查回答「二进制在不在」。不在就报 `SMOKE_FAILURE_CODE=HARNESS_BROWSER_MISSING`、退 3，句子点名缺失路径、给出 `npx playwright install chromium` 的修复命令，并明说没有起浏览器、没有跑浏览器断言。
+2. 四个真起浏览器的套件都在首条断言之前调用共享守卫。默认失败路径先安排 `deferredExit(3)`，再返回一个永不落地的 Promise：这样重定向到文件的 stderr 有机会排出去，调用方也没有机会在退出前继续走到 `chromium.launch`。注入 `exitImpl` 的单元子进程仍能直接读到决定，不需要真卸浏览器。
+3. 新增规格 `tests/test_frontend_browser_guard.py`。名单不是手抄的：它从上述 CI 步骤读 `npm run`，沿 `package.json` 找 `.mjs`，再按 `chromium.launch` 筛出分母；每个派生套件都必须在 launch 与首条断言之前导入并调用同一个守卫。以后往这一步加真浏览器套件而忘了守卫，规格会红。
+4. 规格既走注入 seam，也走真实空浏览器目录：前者固定码、退出码、路径与修复句子，后者直接向 node 子进程要 `rc=3`，并断言调用方没有打印「已继续」、日志里没有 Playwright launch 栈。四个派生套件还各跑一次真实缺失路径。
+
+### 证据与门
+
+- 改前同驱动（`scratch/measure1322/summary.tsv`）：4/4 `rc=1`，失败码全为 none，首错均为 `browserType.launch: Executable doesn't exist`。
+- 改后同驱动（`scratch/measure1322-after/summary.tsv`）：4/4 `rc=3`，全部且只报 `SMOKE_FAILURE_CODE=HARNESS_BROWSER_MISSING`。
+- 规格 `tests/test_frontend_browser_guard.py`：5 项全绿（3.31 秒）；其中真实空目录子进程与四个套件的集成都要求退出 3，不用注入替身冒充。
+- 反向控制 `scratch/arms1322.py`：`ARMS=7 FAILURES=0`。七条分别拆掉一个套件的守卫、让缺失路径放行、把退出码改回 1、改坏码名、把守卫挪到 launch 之后、让 deferred exit 的调用方继续、以及完全不报名；每条都让对应规格变红，还原后 sha256 全对。
+- 负对照（浏览器在时不许误报）：`npm run test:optimization`、`test:lifecycle`、`test:phase`、`test:scale` 四条依次 `rc=0`，日志没有 `HARNESS_BROWSER_MISSING`。
+- 16 道门（`scratch/gates1322.log`）：待跑。
+
+### 边界
+
+1. 守卫只回答「默认 Chromium 可执行文件在不在」，不回答「它能不能启动」。系统库缺失、架构不符、沙箱禁止或二进制损坏都会通过存在性检查，再在 launch 时抛栈；那需要一次真实 launch 探针，不能靠 `existsSync` 假装已覆盖。
+2. 22 个静态/DOM-free 套件仍然没有 `SMOKE_FAILURE_CODE`。它们不经过浏览器，失败是产品契约本身；要不要给所有 frontend 契约统一加产品失败码，是另一批的命名工作。
+3. focused frontend job 目前仍把退出 3 当普通红 step，没有 M8-T1306 那种 step summary。下一步可把 `HARNESS_BROWSER_MISSING` 接到同一个基础设施汇报面。
+4. 名单只覆盖 CI 这一步显式列出的 `npm run`。别的 worktree、手工命令或将来另一条 job 里新增的浏览器套件，不会自动进入这把尺子；要扩大覆盖面得先把那些入口也变成可派生清单。

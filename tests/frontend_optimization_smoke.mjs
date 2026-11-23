@@ -3,6 +3,9 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
+import { requireBrowserOrExit } from "./frontend_browser_guard.mjs";
+
+await requireBrowserOrExit();
 const importSource = async (path) => import(pathToFileURL(resolve(path)).href);
 const { reduceTaskEvent } = await importSource("web/src/core/task-reducer.js");
 const original = { data: { stream_text: "", events: [] }, cursor: 0, seenEventIds: new Set(), seenSequences: new Set() };

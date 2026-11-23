@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
+import { requireBrowserOrExit } from "./frontend_browser_guard.mjs";
+
+await requireBrowserOrExit();
 const cacheSource = await readFile("web/src/core/bounded-cache.js", "utf8");
 const { BoundedMap, BoundedSet } = await import(`data:text/javascript;base64,${Buffer.from(cacheSource).toString("base64")}`);
 const sessions = new BoundedMap(24);
