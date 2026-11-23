@@ -1053,6 +1053,22 @@ function firstlightMarkup() {
   const issues = live && typeof gh.open_issues === "number" ? String(gh.open_issues) : "—";
   const pushed = live && gh.pushed_at ? String(gh.pushed_at).slice(0, 10) : "—";
   const branch = live ? escapeHtml(String(gh.default_branch || "main")) : "—";
+  // M8-T1319: a "Fetched at" clock means nothing without its age. When the
+  // network is down the shared cache can still answer a live=true pack for up
+  // to 5 minutes; show how old it really is so a stale reading is never
+  // mistaken for a live one. The interval is recomputed on each render.
+  let fetchedLabel = "—";
+  if (live && wp.fetched_at) {
+    const ageSec = Math.max(0, Math.floor(Date.now() / 1000 - Number(wp.fetched_at)));
+    const ageText = ageSec < 60
+      ? (zh() ? `${ageSec} 秒前` : `${ageSec}s ago`)
+      : ageSec < 3600
+        ? (zh() ? `${Math.floor(ageSec / 60)} 分钟前` : `${Math.floor(ageSec / 60)}m ago`)
+        : (zh() ? `${Math.floor(ageSec / 3600)} 小时前` : `${Math.floor(ageSec / 3600)}h ago`);
+    const stale = ageSec > 300;
+    const clock = new Date(wp.fetched_at * 1000).toISOString().slice(11, 19);
+    fetchedLabel = `${clock} · ${ageText}${stale ? (zh() ? " · 已过期" : " · stale") : ""}`;
+  }
   return `
     <div class="almanac-canvas almanac-firstlight">
       <div class="almanac-kicker">${zh() ? "卷十五 · 曦" : "Chapter XV · First Light"}</div>
@@ -1088,7 +1104,7 @@ function firstlightMarkup() {
         <div><div class="almanac-instrument-label">${zh() ? "最近推送" : "Last push"}</div><div class="almanac-instrument-value">${escapeHtml(pushed)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "默认分支" : "Default branch"}</div><div class="almanac-instrument-value">${branch}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "提交总数" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "真实获取时间" : "Fetched at (UTC)"}</div><div class="almanac-instrument-value">${live && wp.fetched_at ? new Date(wp.fetched_at * 1000).toISOString().slice(11, 19) : "—"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "真实获取时间 · 距今" : "Fetched at (UTC) · age"}</div><div class="almanac-instrument-value">${escapeHtml(fetchedLabel)}</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
         ["1 star", "不是营销数字，是真的那一盏灯。我决定留它。"],

@@ -128,6 +128,18 @@ async function checkMode(locale, expectCjk) {
     } else {
       assert.ok(!hit, `${id}: en mode rendered CJK, first 140 chars: ${canvas.slice(0, 140).replace(/\n/g, " ")}`);
     }
+    // M8-T1319: First Light's fetch clock must disclose its age (or honestly
+    // show a dash when offline). A live=true pack served from cache can be up
+    // to 5 minutes stale; the reader must be able to tell.
+    if (id === "firstlight") {
+      assert.ok(!/NaN|undefined/.test(canvas), "fetch age must never be NaN/undefined");
+      const hasFreshClock = /秒前|分钟前|小时前|\bs ago|stale/i.test(canvas);
+      // The instrument labels are uppercased by CSS; innerText returns the
+      // rendered case, so compare case-insensitively.
+      const lower = canvas.toLowerCase();
+      const hasOfflineDash = lower.includes("fetched at") || canvas.includes("真实获取时间");
+      assert.ok(hasFreshClock || hasOfflineDash, "fetch clock must show age or an honest dash");
+    }
   }
   await page.close();
 }

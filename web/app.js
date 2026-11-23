@@ -4401,6 +4401,14 @@
     const issues = live && typeof gh.open_issues === "number" ? String(gh.open_issues) : "\u2014";
     const pushed = live && gh.pushed_at ? String(gh.pushed_at).slice(0, 10) : "\u2014";
     const branch = live ? escapeHtml(String(gh.default_branch || "main")) : "\u2014";
+    let fetchedLabel = "\u2014";
+    if (live && wp.fetched_at) {
+      const ageSec = Math.max(0, Math.floor(Date.now() / 1e3 - Number(wp.fetched_at)));
+      const ageText = ageSec < 60 ? zh() ? `${ageSec} \u79D2\u524D` : `${ageSec}s ago` : ageSec < 3600 ? zh() ? `${Math.floor(ageSec / 60)} \u5206\u949F\u524D` : `${Math.floor(ageSec / 60)}m ago` : zh() ? `${Math.floor(ageSec / 3600)} \u5C0F\u65F6\u524D` : `${Math.floor(ageSec / 3600)}h ago`;
+      const stale = ageSec > 300;
+      const clock = new Date(wp.fetched_at * 1e3).toISOString().slice(11, 19);
+      fetchedLabel = `${clock} \xB7 ${ageText}${stale ? zh() ? " \xB7 \u5DF2\u8FC7\u671F" : " \xB7 stale" : ""}`;
+    }
     return `
     <div class="almanac-canvas almanac-firstlight">
       <div class="almanac-kicker">${zh() ? "\u5377\u5341\u4E94 \xB7 \u66E6" : "Chapter XV \xB7 First Light"}</div>
@@ -4434,7 +4442,7 @@
         <div><div class="almanac-instrument-label">${zh() ? "\u6700\u8FD1\u63A8\u9001" : "Last push"}</div><div class="almanac-instrument-value">${escapeHtml(pushed)}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u9ED8\u8BA4\u5206\u652F" : "Default branch"}</div><div class="almanac-instrument-value">${branch}</div></div>
         <div><div class="almanac-instrument-label">${zh() ? "\u63D0\u4EA4\u603B\u6570" : "Commits"}</div><div class="almanac-instrument-value">${escapeHtml(commits)}</div></div>
-        <div><div class="almanac-instrument-label">${zh() ? "\u771F\u5B9E\u83B7\u53D6\u65F6\u95F4" : "Fetched at (UTC)"}</div><div class="almanac-instrument-value">${live && wp.fetched_at ? new Date(wp.fetched_at * 1e3).toISOString().slice(11, 19) : "\u2014"}</div></div>
+        <div><div class="almanac-instrument-label">${zh() ? "\u771F\u5B9E\u83B7\u53D6\u65F6\u95F4 \xB7 \u8DDD\u4ECA" : "Fetched at (UTC) \xB7 age"}</div><div class="almanac-instrument-value">${escapeHtml(fetchedLabel)}</div></div>
       </div>
       <ul class="almanac-gate-list">${(zh() ? [
       ["1 star", "\u4E0D\u662F\u8425\u9500\u6570\u5B57\uFF0C\u662F\u771F\u7684\u90A3\u4E00\u76CF\u706F\u3002\u6211\u51B3\u5B9A\u7559\u5B83\u3002"],
