@@ -19,6 +19,13 @@ answers. That step ran zero suites, which used to be explained with the same
 sentence as a step that ran the wrong suite; it now says the harness was missing
 and exits ``HARNESS_EXIT`` so a run that tested nothing cannot be read as either
 a caught mutation or a misattributed one.
+
+M8-T1321 adds the case that probe cannot see: the server was there when the run
+started and went away while it ran. The smoke re-probes at the moment it fails
+and, when the server no longer answers, exits 3 naming ``HARNESS_LOST``. That
+step did execute assertions, so it gets its own sentence - partial coverage, no
+product verdict - rather than the "tested nothing" one it would otherwise share
+with a run that never reached a browser.
 """
 
 from __future__ import annotations
@@ -31,6 +38,7 @@ from pathlib import Path
 CODE_PREFIX = "SMOKE_FAILURE_CODE="
 EXPECTED_CODE = "PRODUCT_PATH_NO_COMPLETION_VERDICT"
 HARNESS_CODE = "HARNESS_UNREACHABLE"
+HARNESS_LOST_CODE = "HARNESS_LOST"
 HARNESS_EXIT = 3
 _CODE_LINE = re.compile(r"^" + re.escape(CODE_PREFIX) + r"([A-Z0-9_]+)\s*$", re.MULTILINE)
 
@@ -64,6 +72,27 @@ def harness_absent(exit_code: int, log: str) -> str | None:
     )
 
 
+def harness_lost(exit_code: int, log: str) -> str | None:
+    """The sentence for a suite that lost its server partway, or None when it kept it.
+
+    M8-T1321: the start-of-run probe cannot see a server that dies later, so the
+    smoke asks again at the moment of failure. When the answer is "nothing is
+    listening now", the assertions that did run have no product to report on -
+    measured here, the same killed server produced a connection error in one
+    suite, "Failed to fetch" in another, a panel assertion in a third and a real
+    PRODUCT_PATH_* code in the fourth. This step gets its own sentence, which
+    says partial coverage rather than tested nothing.
+    """
+    if HARNESS_LOST_CODE not in codes(log):
+        return None
+    return (
+        f"harness lost mid-suite: the smoke reached its web server at the start and named "
+        f"{HARNESS_LOST_CODE} when the server stopped answering (the smoke exited {exit_code}); "
+        "the suite ran partway, so this step has partial coverage and reports neither a caught "
+        "mutation nor a missed one - restart the server and re-run for the answer"
+    )
+
+
 def decide(exit_code: int, log: str) -> tuple[bool, str]:
     """Whether this run caught the injected mutation, and the reason either way."""
     if exit_code == 0:
@@ -94,6 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     absent = harness_absent(args.exit_code, log)
     if absent is not None:
         print(absent)
+        return HARNESS_EXIT
+    lost = harness_lost(args.exit_code, log)
+    if lost is not None:
+        print(lost)
         return HARNESS_EXIT
     caught, verdict = decide(args.exit_code, log)
     print(verdict)

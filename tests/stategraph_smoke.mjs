@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
+import { exitIfHarnessLost, requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
 
@@ -71,6 +71,7 @@ await checkMode("en");
 if (errors.length) {
   console.error("stategraph smoke FAILED:");
   for (const e of errors) console.error(" ", e);
+  await exitIfHarnessLost(baseUrl);
   process.exit(1);
 }
 console.log("stategraph smoke passed: palette opens panel, live badge flips, guards 32/16/4/64 from the runtime, routing strip lists five stages, seven nodes render bilingual, zero pageerror");

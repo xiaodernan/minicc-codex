@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
+import { exitIfHarnessLost, requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
 
@@ -399,6 +399,7 @@ await checkMode("en", false);
 if (errors.length) {
   console.error("admin smoke FAILED:");
   for (const e of errors) console.error(" ", e);
+  await exitIfHarnessLost(baseUrl);
   process.exit(1);
 }
 console.log("admin smoke passed: 123 unlocked, totals live, tool-usage bars, recs, canvas trend, apply-one and apply-all dispatch, close restores hidden state, zero pageerror");

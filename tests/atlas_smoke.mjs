@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
-import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
+import { exitIfHarnessLost, requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
 
@@ -66,6 +66,7 @@ await checkMode("en", false);
 if (errors.length) {
   console.error("atlas smoke FAILED:");
   for (const e of errors) console.error(" ", e);
+  await exitIfHarnessLost(baseUrl);
   process.exit(1);
 }
 console.log(`atlas smoke passed: nav button bilingual, panel opens, ${TOTAL}-coordinate charted line renders, islands ledger lists 13 real islands, close restores hidden state, zero pageerror`);

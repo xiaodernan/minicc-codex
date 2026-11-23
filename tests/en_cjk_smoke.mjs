@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
+import { exitIfHarnessLost, requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8899";
 
@@ -215,6 +215,7 @@ await browser.close();
 if (errors.length) {
   console.error("en-CJK parity FAILED:");
   for (const e of errors) console.error("  " + e);
+  await exitIfHarnessLost(baseUrl);
   process.exit(1);
 }
 console.log("parity smoke passed: en mode renders zero CJK across workbench, all 12 nav views, 6 stage overlays, the 10-step Wayfinder tour, and boot-time custom strings; zh mode toggles correctly");

@@ -56748,7 +56748,6 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 4. 退出码 3 目前只有 verdict 分得出来，CI 那一步非零一律红：把「这一步什么都没测」抬到 step 结论/artifact 名字上，人才不必翻日志才知道该去看服务器。
 5. 探针只在套件开头探一次，服务器中途死了它一句话都不说。实测（`scratch/arm1304-middeath/summary.txt`）：`admin_smoke` 起跑 4 秒后 8866 那台被 `taskkill` 收走，套件退 1、`HARNESS_UNREACHABLE` 出现 0 次、日志里一个 `SMOKE_FAILURE_CODE` 都没有，只剩一句裸的 `page.waitForFunction: Timeout 45000ms exceeded`（`tests/admin_smoke.mjs:35`）——正是这一批在开头补掉的那个形状，只是搬到了中途。下一步要么让套件里的每次读都过同一个判据，要么让 `page.on("requestfailed")` 把「连不上了」也写成自己的名字。
 
-
 ## 批次 1210 · M8-T1305: 访客驱动器连不上服务器，却把账记在访客头上
 
 ### 缺什么
@@ -57085,3 +57084,50 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 基线 847 里 `web/src/panels/almanac.js` 独占 650——老年鉴正文的历史债。要真正清零需要一次专门的大迁移（把 650 处内联搬进字典），那是独立工程，不是这批能验收的。
 2. 正则用 `[\s\S]{0,12}` 容忍换行，属启发式：极个别跨多行的三元可能漏数，但那只让门偏松，不会误红；降低基线时以门自己的计数为准。
 3. 棘轮只挡「新增内联」，不挡「已有内联文案内容变了」（比如把某句英文改错）——那仍由 parity / manual 双语门负责。
+
+## 批次 1226 · M8-T1321: 跑到一半服务器死了，套件只留一句裸的 Playwright 超时
+
+### 缺什么
+
+M8-T1304 那批让套件在启动浏览器之前先问一次「我的服务器在吗」。那一次问句管不到这一件事：服务器在套件跑起来之后才没的。这时候套件已经执行了若干断言，可它交出的是 Playwright 恰好抛出来的那句话——而这句话长什么样，取决于死在哪一步，不取决于「服务器没了」这个事实。
+
+线上当场量过（`scratch/measure1305/summary.tsv`，同一台机器、同一个驱动器，只是把端口在开跑 3～8 秒后用 `taskkill` 打死）：
+
+| 套件 | 退出码 | 日志里的失败码 | 最后一句话 |
+| --- | --- | --- | --- |
+| `stategraph` | 1 | 没有 | `page.evaluate: TypeError: Failed to fetch` |
+| `orbit` | 1 | 没有 | 一句 `net::ERR_` 连接错误 |
+| `admin` | 1 | 没有 | `AssertionError [ERR_ASSERTION]: context tile must state the requested token budget` |
+| `web` | 1 | `PRODUCT_PATH_NO_COMPLETION_VERDICT` | `const error = new Error(message);` |
+
+四步全红，但没有一步说出「我的服务器没了」。最坏的是第四行：`web` 那一步在服务器已经不存在的情况下，报名字报了变异门唯一认可的那个产品码——门要是读到这一行，就会把一次什么都没测到的运行当成「变异被抓到了」。另外 `admin` 那一行更阴：产品断言被服务器的死逼出来，红的确实是产品话，可它红的原因不在产品。
+
+还有一处只在写这一批的过程中才露出来：判「服务器还在不在」的探针，自己就是用 `globalThis.fetch` 问的。
+
+### 做了什么
+
+1. 失败的那一刻再问一次服务器，由服务器自己回答（`tests/web_smoke_suites.mjs`）。`exitIfHarnessLost()` 是唯一做这个判断、也是唯一说这句话的地方：服务器还答，返回 `false`，套件的红留给套件自己判；服务器不答，报 `SMOKE_FAILURE_CODE=HARNESS_LOST`、退出 3，并把「这一步只跑了一半，所以既不能说抓到变异、也不能说漏掉」写进句子，末尾附上套件自己的最后一句话（服务器如果被产品搞死，那句话仍是证据）。
+2. 判据不是失败的形状。`HARNESS_LOSS_SHAPES` 那 13 条（`net::ERR_CONNECTION_REFUSED`、`ECONNRESET`、`socket hang up`、`Target page, context or browser has been closed` 等）只用来在句子里加一句「失败里也点了连接错误」，不参与判断。理由是量出来的：同一个被打死的服务器，四个套件报的分别是连接错误、`Failed to fetch`、一条产品断言、和一个真的 `PRODUCT_PATH_*` 码——照形状判会把产品判死，而卡住的套件会把死掉的服务器判活。
+3. 进程级挂钩（`watchHarnessLoss`），由 M8-T1304 那句 `await requireHarnessOrExit(baseUrl)` 在探针通过之后自动装上，一个进程只装一次。探针通过时才装，是为了不让「一开始就没连上」那一步（M8-T1304 已经报 `HARNESS_UNREACHABLE`）再发第二个声音。
+4. 六个自己吞错误的套件（`admin`、`atlas`、`en_cjk`、`orbit`、`stategraph`、`vault`）在 `if (errors.length)` 出口里、`process.exit(1)` 之前加一句 `await exitIfHarnessLost(baseUrl);`——这些套件把失败收进数组，永远不会触发进程级钩子。
+5. verdict 多一个独立答案（`scripts/web_smoke_verdict.py`）：`harness_lost()` 说「harness lost mid-suite … 部分覆盖」并退 `HARNESS_EXIT`，跟 M8-T1304 那句「tested nothing」分开；判断顺序仍是 absent 优先于 lost，两者都优先于任何产品码（不论码出现的先后）。`decide()` 一个字没动，产品线还是那条线。
+6. 探针换成自己收尾的传输。`closedSocketHealthCall()` 是一次 `node:http` 单发 GET：不带 agent、`connection: close`，只在套接字真的 `close` 之后才回答，另配一个 guard 定时器，让「永远不关的套接字」也成为一个答案（`never saw its socket close`）而不是一个挂死。`deferredExit()` 先立 `process.exitCode`、下一轮再取，为的是重定向到文件的 stderr 有机会把那句话排出去。
+
+### 证据与门
+
+- 改后同驱动重量（`scratch/measure1305-after/summary.tsv`）：四步全变 `rc=3`，全部报名 `HARNESS_LOST`；`web` 那一步日志里先 `TIMELINE_SUITE_FAILED`、后 `HARNESS_LOST`，两码都在，门读的是后面那个平面。
+- 门对这四份真实日志的回答（`scripts/web_smoke_verdict.py --exit-code 3 --log <每份>`）：四条全是 `harness lost mid-suite … the suite ran partway, so this step has partial coverage`，退出 3——既不是 0（抓到变异），也不是 1（未归因）。
+- 规格 `tests/test_the_harness_goes_away_mid_run_says_so.py`：15 项。其中 4 项起真的 node 子进程（两项完全不改写退出路径，直接向子进程要 `rc=3` / `rc=1`，因此 libuv 崩溃号 0xC0000409 一出现就红）；两项量探针本身的账（答完之后事件循环被占住的秒数、以及没人在听时要把 `ECONNREFUSED` 说出口）；名单全部派生：`_live_url_suites()` 从 `tests/*_smoke.mjs` 里读 `process.env.MINICC_WEB_URL`，收 13 个套件都装得上守卫、且没有一个自己偷装 `process.on`；钩子只装一次用 listener 计数 0→2→2 证明。
+- 反向控制 `scratch/arms1305.py`：`ARMS=9 FAILURES=0`。8 条咬住（把形状当判据 / 逢失败就判丢失 / 永不判丢失 / 钩子重复装 / 收错误的套件不再问 / 两个平面在码上不一致 / 把「中途丢」说成「从来没到」/ 探针换回连接池传输——最后这条一次让 3 项红），1 条按声明是瞎的：把「等套接字关闭才回答」拆掉后没有任何测试变红，所以崩溃跟的是连接池传输而不是这一等；账本因此不把它记成防护。
+- 探针传输的实测数字：一次健康问答之后，`globalThis.fetch` 把事件循环占住 4.17 秒（套接字还在池里），新的单发 GET 是 0.91 秒；带着这个还开着的句柄调 `process.exit`，三次里三次不是退出而是 libuv 断言（`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src\win\async.c`，0xC0000409）。这条属于本批开出的第二类缺陷：防护自己把步骤搞成无法归因的崩。
+- 负对照 A（真变异仍要被抓，`scratch/arm1305neg/web-smoke-mutation.log`）：provider 指向 `127.0.0.1:9` 的服务器活着跑 `npm run test:web`，套件 `rc=1`，日志里只有 `PRODUCT_PATH_NO_COMPLETION_VERDICT`，verdict 答 `mutation caught`、退出 0——挂钩没有把产品线抢走。
+- 负对照 B（服务器不死时不许变红）：一次连跑四套件的首轮里 `orbit`（`clearing a wave must escalate to the next one`，10 秒）与 `admin`（`page.waitForFunction: Timeout 20000ms exceeded`，36 秒）各红一次，两步都没有报任何 `HARNESS_*` 码；同一序列重跑 4/4 `rc=0`。再用 HEAD 版的 `orbit_smoke.mjs` + HEAD 版共享模块（尚未装钩子）与本树版本交错各跑两轮（`scratch/arm1305attr`）：8/8 全绿。因此这两次红不归因于本批机制，但也没被解释掉，照原样进下方边界第 3 条。
+- 16 道门（`scratch/gates1305-final.log`，helper 服务器全停、保留 `NO_PROXY` 里的 `127.0.0.1` 回环旁路）：16/16 绿，113.2 秒，无红。此前错把 `env -u NO_PROXY` 用到全套门上，`route coverage` 里的本机 urllib 回环请求被 Clash 回成 502（`scratch/gate_route_only.log`：`test_get_rag_search_returns_bm25_results`）；单独保留 `NO_PROXY` 后同一道门 1/1 绿（`scratch/gate_route_proxykeep.log`，81.4 秒），再串行跑全套才是上面这次。其中 `doc pointers` 绿的是上面每一条引用都落在真实存在的文件与行号上（`tests/orbit_smoke.mjs:92`、`tests/admin_smoke.mjs:82` 逐条核过），`tracked evidence census` 绿的前提是新规格已经 `git add`——此前撞过的那条，这一批先加再跑。
+
+### 边界
+
+1. 退出 3 目前只有 verdict 分得出来。M8-T1306 已经把 `HARNESS_UNREACHABLE` 抬进两个 web-smoke job 的 step summary，但那个汇报器只认 absent，不认本批新增的 `HARNESS_LOST`；CI step 也仍按非零一律红。下一步把 lost 的「部分覆盖」也并进同一个汇报器，并决定要不要让 step 结论本身区分环境失败与产品失败。
+2. 钩子只在失败真的发生时才问第二遍。若服务器死掉而 Playwright 只是继续等（导航/`waitForFunction` 的超时窗口还没走完），这一步既不抛也不退，钩子就没有说话的机会——需要的是套件级 deadline 到点也去问一次服务器，那是另一件事。
+3. `orbit_smoke.mjs:92` 的 wave 递进断言用 300ms 窗口赌一次 `interWave` 翻转，`admin_smoke.mjs:75` 用固定 20 秒 `waitForFunction`——本批在负对照里各撞到一次红，重跑与 HEAD 对照都没复现。前者要有确定性的推进探针，后者已经单独立账（下一批候选：一次 20 秒超时被管理面板写成「接口不可达」）。
+4. 守卫只活在 node 套件里。M8-T1305 已给 `scripts/behavior_sim.mjs` 补了开头探针，`scripts/stress_credential_probe.mjs` 本来就有；但两者都只守开头，服务器在驱动器跑起来之后死掉仍会记成超时或访客行为。运行中丢失的同一平面还没人管。
+5. `.github/workflows/ci.yml` 的 `Verify responsive UI and task protocol` 步骤里，真有 `chromium.launch` 的 frontend 套件是本平面的下一个缺口：浏览器没装时它们不报名字就退 1。量法沿用本批——分母从那一步的 `npm run` 列表里按 `chromium.launch` 筛出来，不写死。

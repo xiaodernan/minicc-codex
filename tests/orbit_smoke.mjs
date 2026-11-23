@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
+import { exitIfHarnessLost, requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
 
@@ -127,6 +127,7 @@ await checkMode("en", false);
 if (errors.length) {
   console.error("orbit smoke FAILED:");
   for (const e of errors) console.error(" ", e);
+  await exitIfHarnessLost(baseUrl);
   process.exit(1);
 }
 console.log("orbit smoke passed: picker → orbit, 6-step guide, fire/score, wave escalation, game-over + local best, restart, bilingual zero-CJK, zero pageerror");

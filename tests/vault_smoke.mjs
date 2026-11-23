@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { requireHarnessOrExit } from "./web_smoke_suites.mjs";
+import { exitIfHarnessLost, requireHarnessOrExit } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
 
@@ -125,6 +125,7 @@ await checkMode("en", false);
 if (errors.length) {
   console.error("vault smoke FAILED:");
   for (const e of errors) console.error(" ", e);
+  await exitIfHarnessLost(baseUrl);
   process.exit(1);
 }
 console.log("vault smoke passed: picker → vault, 5-step guide, cache/hit/evict economy, last-life game over + local best, restart, bilingual zero-CJK, zero pageerror");
