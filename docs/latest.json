@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-22T19:35:38.930Z",
+  "generated_at": "2026-11-23T04:15:11.873Z",
   "branch": "main",
-  "head": "176c8af",
-  "total_commits": 2135,
+  "head": "dc8c78b",
+  "total_commits": 2137,
   "recent_commits": [
+    {
+      "short": "dc8c78b7",
+      "at": "2026-11-23T12:14:38+08:00",
+      "subject": "M8-T1305: behavior-journey driver now fails fast with its own name (BEHAVIOR_HARNESS_UNREACHABLE, exit 3) before launching Chromium when no workbench is listeni"
+    },
+    {
+      "short": "2346fec3",
+      "at": "2026-11-22T19:35:39Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "176c8af8",
       "at": "2026-11-23T03:35:14+08:00",
@@ -19,24 +29,14 @@
       "short": "44284739",
       "at": "2026-11-23T02:21:43+08:00",
       "subject": "M8-T1303: 一次读不出的变更，在面板上留下三个答案"
-    },
-    {
-      "short": "60272746",
-      "at": "2026-11-22T17:49:18Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "df47a788",
-      "at": "2026-11-23T01:48:34+08:00",
-      "subject": "M8-T1302: 未解析键的门只认六个命名空间，而字典有七十一个"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 536,
+  "roadmap_batches": 537,
   "changelog_entries": 26,
-  "roadmap_lines": 56750,
-  "tracked_files": 1183,
-  "test_files": 760,
+  "roadmap_lines": 56773,
+  "tracked_files": 1185,
+  "test_files": 761,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
