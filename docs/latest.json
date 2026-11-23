@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T08:52:03.683Z",
-  "branch": "HEAD",
-  "head": "fb0ba6f",
-  "total_commits": 2165,
+  "generated_at": "2026-11-23T09:04:28.029Z",
+  "branch": "main",
+  "head": "d815080",
+  "total_commits": 2167,
   "recent_commits": [
+    {
+      "short": "d8150803",
+      "at": "2026-11-23T17:03:58+08:00",
+      "subject": "M8-T1319: First Light's fetch clock now tells its age - stale cache can no longer pose as a live reading"
+    },
+    {
+      "short": "0521d269",
+      "at": "2026-11-23T08:52:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "fb0ba6fb",
       "at": "2026-11-23T16:51:52+08:00",
@@ -19,23 +29,13 @@
       "short": "12863717",
       "at": "2026-11-23T08:46:20Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "384dd724",
-      "at": "2026-11-23T16:45:41+08:00",
-      "subject": "M8-T1317: recall is the bottleneck, not budget - deep Ask-the-Repo mode raises fanout to 48x20 and packs 50k tokens honestly"
-    },
-    {
-      "short": "aaccc7a6",
-      "at": "2026-11-23T08:39:00Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 550,
+  "roadmap_batches": 551,
   "changelog_entries": 26,
-  "roadmap_lines": 57053,
-  "tracked_files": 1193,
+  "roadmap_lines": 57068,
+  "tracked_files": 1191,
   "test_files": 766,
   "almanac_chapters": 81,
   "module_count": 14,
