@@ -199,7 +199,65 @@ async function checkTruncated(locale) {
   await page.close();
 }
 
+// M8-T1312: the honest-failure work must not let the normal path drift. Pin
+// the three readings of one fact together: badge = total_files, the two rows
+// lists = the delivered slice, summary +/- = the backend totals. A second
+// variant has unreadable totals, where the summary must say "not counted"
+// rather than inventing a zero, while the real row count stays on screen.
+async function checkConsistent(locale, uncounted) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+  page.on("pageerror", (e) => errors.push(`${locale}/consistent: ${e.message}`));
+  await page.addInitScript((l) => {
+    try { localStorage.clear(); localStorage.setItem("minicc-locale", l); } catch {}
+  }, locale);
+  await page.route("**/api/changes", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      files: [
+        { path: "a.js", status: "modified", additions: 6, deletions: 1 },
+        { path: "b.js", status: "added", additions: 4, deletions: 2 },
+      ],
+      total_files: 2,
+      truncated: false,
+      additions: uncounted ? null : 10,
+      deletions: uncounted ? null : 3,
+    }),
+  }));
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForFunction(
+    () => document.querySelector("#startupSplash")?.dataset.state === "ready",
+    { timeout: 60000 },
+  );
+  await page.waitForFunction(
+    () => document.querySelectorAll("#changeList .change-item-button").length === 2,
+    { timeout: 20000 },
+  );
+
+  const badge = (await page.locator("#changeTabCount").innerText()).trim();
+  assert.equal(badge, "2", `${locale}/consistent: badge must equal total_files=2`);
+  assert.equal(await page.locator("#changeList .change-item-button").count(), 2, "change list row count");
+  assert.equal(await page.locator("#fileList .file-row").count(), 2, "files tab row count");
+  const summary = (await page.locator("#changeSummary").innerText()).trim();
+  if (uncounted) {
+    assert.ok(!/[+\-]\s*\d/.test(summary), `${locale}/consistent: unreadable totals must not become a count: ${summary}`);
+    if (locale === "en") assert.ok(/not counted/i.test(summary), `${locale}/consistent: expected localized uncounted: ${summary}`);
+  } else {
+    assert.ok(/[+]\s*10/.test(summary) && /-\s*3/.test(summary), `${locale}/consistent: summary must show the real totals: ${summary}`);
+  }
+  // A complete, countable read carries none of the warning markers.
+  for (const marker of ["unavailable", "denied", "partial", "truncated", "audit-truncated"]) {
+    assert.equal(await page.locator(`[data-change-status="${marker}"]`).count(), 0,
+      `${locale}/consistent: no ${marker} marker on a clean read`);
+  }
+  await page.close();
+}
+
 try {
+  await checkConsistent("zh", false);
+  await checkConsistent("en", false);
+  await checkConsistent("zh", true);
+  await checkConsistent("en", true);
   await checkMode("zh");
   await checkMode("en");
   await checkDenied("zh");
@@ -209,7 +267,7 @@ try {
   await checkTruncated("zh");
   await checkTruncated("en");
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`);
-  console.log("change-failure smoke passed: transport failure + denial fail on both surfaces; partial reads and truncation warn without hiding real counts (badge shows total_files); raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror");
+  console.log("change-failure smoke passed: normal reads keep badge/rows/summary in agreement (uncounted stays uncounted); transport failure + denial fail on both surfaces; partial reads and truncation warn without hiding real counts; raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror");
 } finally {
   await browser.close();
 }

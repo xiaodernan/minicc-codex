@@ -56894,3 +56894,21 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 占位符正则只认一次替换（`{name}`），不支持 `{name!}` 之类的格式后缀、也不支持嵌套；若将来要数字千分位/日期格式，得再定口径。
 2. `t()` 明确不转义，调用方必须各自 `escapeHtml`；当前两处插值调用都做了，但没有门检查「带 params 的 t() 结果一定被转义」。要不要加这条静态门，是下一批。
 3. M8-T1310 边界 2（徽标数 / 汇总数 / 列表行数三者一致性门）仍未做，与本批无关，继续挂着。
+
+
+## 批次 1217 · M8-T1312: 专门验失败的烟测，反而没验「正常时别乱报」
+
+### 缺什么
+- M8-T1310 边界 2 挂着：这批连续七批都在修 `renderChanges` 的诚实度——失败态、拒绝态、部分读、截断、徽标真值、插值——但 `tests/change_failure_smoke.mjs` 从头到尾只回放「出错」的响应。`renderChanges` 的正常路径（有行、有真实总数、汇总有 +/-）若哪天被改坏，或者某个警告标记被误加到干净读数上，这套烟测一点都不会红。专门盯失败的门，对「正常」是盲的。
+
+### 做了什么
+- `tests/change_failure_smoke.mjs` 加 `checkConsistent(locale, uncounted)` × zh/en × 两种读数：回放一份完整可读的 200（2 行、`total_files:2`、`truncated:false`、`additions:10`/`deletions:3`），断言三处读数一致——页签徽标 = `total_files`=2、`#changeList` 与 `#fileList` 各 2 行、汇总显示真实 `+10 / -3`；另一种把两个总数置 `null`，断言汇总说「数不出 / not counted」而不是编出 0，行数和徽标仍是真的 2。两种都断言五种警告标记（unavailable/denied/partial/truncated/audit-truncated）一个都不出现。
+
+### 证据与门
+- 真跑（`MINICC_WEB_URL=http://127.0.0.1:8769 node tests/change_failure_smoke.mjs`）：`change-failure smoke passed: normal reads keep badge/rows/summary in agreement (uncounted stays uncounted); transport failure + denial fail on both surfaces; partial reads and truncation warn without hiding real counts; raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror`。
+- 本批只动烟测、未动产品源码：`npm run build:web` 产物字符数不变（1811611），`npm run check:web` 绿（产物与源码一致、无陈旧资产）；`node --check` 绿。全部门禁在下一段重跑。
+
+### 边界
+1. 一致性断言目前钉死「2 行 / +10 / -3」这几个常量，是按样例写死的；若后端某天改了 totals 的语义（例如把 truncate 后的切片数也写进 total_files），这条门会红但定位要靠人读。把它改成从回放载荷派生期望（像 atlas/world-map 那些门一样从真值源派生），是下一批。
+2. 「无警告标记」这条断言会把将来新增的第 6 种诚实标记也当成失败——加新标记时得同步放宽这里。要不要改成白名单式（只禁已知的五种、不认识的不管），是下一批。
+3. 仍未覆盖「服务器根本没有 workspacePath」时 `loadChanges` 提前 return 的分支（`web/src/chat/stream.js` 开头 `if (!state.workspacePath) return`），那是一种「连尝试都没尝试」的静默态，与失败/部分读都不同。要不要把它也变成可测的诚实态，是下一批。
