@@ -56770,3 +56770,23 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 探针证明的是「有一台 minicc 在听这个端口」，不是「它就是这批旅程该驱动的那份工作区」。把 `--url` 指到另一台在跑的实例，探针放行、访客走到的是别人的界面；与 T1304 边界 1 是同一个缺口。下一步让探针读出工作区身份（root path）再比对。
 2. 只守住了开头。旅程中途服务器死了，各段照旧记成 could-not-drive / timed-out；T1304 边界 5 的同款问题。下一步让每段读都过同一个判据，或让 `page.on("requestfailed")` 把「连不上了」写成自己的名字。
 3. 退出码 3 只有 verdict 分得出来，手工驱动器压根没有 verdict；人跑的时候得自己在日志里找 `BEHAVIOR_HARNESS_UNREACHABLE` 这句话。要不要让管理员面板的访客日志读这段错误，是另一批。
+
+
+## 批次 1211 · M8-T1306: 「这一步什么都没测」只活在日志里，CI 页面上看不见
+
+### 缺什么
+- T1304 让冒烟套件在服务器缺席时退 3 报 `HARNESS_UNREACHABLE`，`scripts/web_smoke_verdict.py:49` 也能把它和「抓到变异 / 没抓到」分开。但 CI 两个 web-smoke job 只显示一个红 step：人得点开日志才看得出「零条断言跑过、连产品路径都没碰到」。这正是 T1304 边界 4 挂下的账——把「这一步什么都没测」抬到 step 结论 / artifact 名字上，别让人翻日志。
+
+### 做了什么
+- 新增 `scripts/web_smoke_step_summary.py`：`if: always()` 的汇报器，读 verdict 同一个 `harness_absent()` 判据（不复制第二份），命中就往 `$GITHUB_STEP_SUMMARY` 追加一个带标题的 block（写明 HARNESS_UNREACHABLE、零套件、去查 web server）；日志不在或不是 harness 缺席就一个字不写，而且永远退 0——汇报器不许改 job 的成败。
+- `.github/workflows/ci.yml` 两个 job 都接上：`web-smoke` 的「Run web smoke」改为把日志落 `web-smoke.log`、退出码落 `web-smoke.rc` 再 `exit "$rc"`（保留原成败语义），后接 `if: always()` 的「Report web smoke harness status」；`web-smoke-mutation` 在 verdict 前同样落 `web-smoke-mutation.rc`，后接「Report mutation harness status」。
+
+### 证据与门
+- `python -m pytest tests/test_web_smoke_step_summary.py -q` 6/6 绿（2.32 秒）：缺席日志→summary 追加带标记 block 且不覆盖原文；真失败日志→summary 一字不动；日志缺失→不抛错、退 0；汇报器复用 verdict 的 `harness_absent`；两个 job 都各接一次、都用 `if: always()`、都写 `$GITHUB_STEP_SUMMARY`、rc 都先落盘。
+- 与 T1304 的 suite 门合跑 `tests/test_a_smoke_without_its_harness_says_so.py tests/test_web_smoke_step_summary.py` 14/14 绿（4.67 秒）——verdict 两元契约与三条旧句子一字未动。
+- 未触及 `web/src/` 与任何产品代码，只动 CI YAML + 一个汇报脚本 + 一个测试。
+
+### 边界
+1. 两个汇报器只认 HARNESS_UNREACHABLE 这一个码。中途服务器死掉（T1304 边界 5）套件报的是裸 `page.waitForFunction` 超时，不带这个码，job 页面照样只显示红 step。下一步把中途判据也并进 verdict 的词汇表。
+2. summary block 用的是纯 ASCII 标题（`no harness - zero tests ran`）。中英 UI 是产品自己的事，CI 页面走 GitHub 界面语言，这里不掺 i18n；若将来要求 job summary 也双语，得再定口径。
+3. rc 落盘依赖 `Run web smoke` 这段 bash 至少走到 `echo "$rc"`。若 shell 在 `npm run` 之前就被杀（机器掉线），rc 文件不存在，汇报器读 `cat` 会报错但仍不影响 job 原有的红。要不要让汇报器把「rc 文件都没有」也写成一句话，是下一批。

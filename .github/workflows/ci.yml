@@ -234,7 +234,19 @@ jobs:
       - name: Run web smoke
         env:
           MINICC_WEB_URL: http://127.0.0.1:8765
-        run: npm run test:web
+        run: |
+          set +e
+          npm run test:web > web-smoke.log 2>&1
+          rc=$?
+          set -e
+          cat web-smoke.log
+          echo "$rc" > web-smoke.rc
+          exit "$rc"
+      # M8-T1306: a smoke that never reached its own server ran zero assertions.
+      # Put that on the job page instead of hiding it in a red step's log.
+      - name: Report web smoke harness status
+        if: always()
+        run: python scripts/web_smoke_step_summary.py --exit-code "$(cat web-smoke.rc)" --log web-smoke.log --summary "$GITHUB_STEP_SUMMARY" --step-name "Web smoke"
       # M4-T8: the arcade Playwright suites (game/codex/zombie/almanac) were checked in
       # but never executed in CI — codex_smoke.mjs had no runner at all. They
       # are frontend-only and reuse the fake-provider server already up here.
@@ -303,7 +315,12 @@ jobs:
           # infrastructure failure (chromium missing, server never bound, syntax error):
           # the smoke names its own failure code, and the verdict accepts only the
           # product-path completion code. Anything else is reported as unattributed.
+          echo "$rc" > web-smoke-mutation.rc
           python scripts/web_smoke_verdict.py --exit-code "$rc" --log web-smoke-mutation.log
+      # M8-T1306: same honest "zero tests ran" line on the mutation job page.
+      - name: Report mutation harness status
+        if: always()
+        run: python scripts/web_smoke_step_summary.py --exit-code "$(cat web-smoke-mutation.rc)" --log web-smoke-mutation.log --summary "$GITHUB_STEP_SUMMARY" --step-name "Web smoke mutation"
       - name: Upload mutation logs
         if: always()
         uses: actions/upload-artifact@v4
