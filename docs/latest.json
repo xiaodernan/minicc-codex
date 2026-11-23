@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T08:24:03.979Z",
+  "generated_at": "2026-11-23T08:29:57.315Z",
   "branch": "main",
-  "head": "5bf7cd8",
-  "total_commits": 2156,
+  "head": "6bb91f7",
+  "total_commits": 2158,
   "recent_commits": [
+    {
+      "short": "6bb91f7c",
+      "at": "2026-11-23T16:29:21+08:00",
+      "subject": "M8-T1315: a 5xx, a rejection, a timeout and a dead endpoint are four different failures - transport tags them all"
+    },
+    {
+      "short": "1aec1262",
+      "at": "2026-11-23T08:24:04Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5bf7cd80",
       "at": "2026-11-23T16:23:41+08:00",
@@ -19,22 +29,12 @@
       "short": "72facfad",
       "at": "2026-11-23T13:49:12+08:00",
       "subject": "M8-T1313: finish the interpolation migration - the four remaining hand-rolled .replace() calls (admin forecast x2, atlas charted + milestone) now use t(key, par"
-    },
-    {
-      "short": "6fdcb406",
-      "at": "2026-11-23T05:34:50Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "7cc7a252",
-      "at": "2026-11-23T13:34:16+08:00",
-      "subject": "M8-T1312: the failure smoke now also guards the normal path - badge=total_files, both row lists match the slice, summary shows real totals (or honest 'not count"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 546,
+  "roadmap_batches": 547,
   "changelog_entries": 26,
-  "roadmap_lines": 56961,
+  "roadmap_lines": 56983,
   "tracked_files": 1189,
   "test_files": 764,
   "almanac_chapters": 81,
