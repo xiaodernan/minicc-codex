@@ -88,5 +88,30 @@ assert.deepEqual(handRolled, [], `hand-rolled placeholder replace() left in: ${h
 
 const gate = await readFile("tests/frontend_i18n_dict_one_home_smoke.mjs", "utf8");
 assert.ok(gate.includes('(?:,\\s*\\{[^}]*\\})?'), "the dict gate must still match two-arg t() calls");
+assert.ok(gate.includes("_KEYS"), "the dict gate must also resolve keys referenced from *_KEYS arrays");
+
+// M8-T1314: every milestone key reached only through MILESTONE_KEYS[index]
+// must interpolate in both locales with no brace left behind.
+for (const locale of ["zh", "en"]) {
+  state.locale = locale;
+  for (const key of ["atlas.milestone25", "atlas.milestone50", "atlas.milestone75", "atlas.milestone100"]) {
+    const filled = t(key, { n: 30, total: 119 });
+    assert.ok(!/\{[A-Za-z0-9_.-]+\}/.test(filled), `${locale}/${key}: placeholder left: ${filled}`);
+    assert.ok(filled.includes("30") && filled.includes("119"), `${locale}/${key}: values missing: ${filled}`);
+  }
+  // The context panel's honest four states all exist as real localized copy.
+  for (const key of ["admin.contextTimeout", "admin.contextSlow", "admin.contextOutage",
+                     "admin.contextEmpty", "admin.contextTruncated", "admin.contextBudget",
+                     "admin.contextPacked", "admin.contextChunksCandidates", "admin.contextFingerprint"]) {
+    assert.ok(typeof t(key) === "string" && t(key) !== key, `${locale}/${key}: missing translation`);
+  }
+}
+
+// transport tags timeouts with a machine-readable code; panels use it to tell
+// "slow" apart from "unreachable" instead of reporting every delay as a outage.
+const transport = await readFile("web/src/core/transport.js", "utf8");
+assert.ok(/timeoutError\.code\s*=\s*"timeout"/.test(transport), "timeout errors must carry code=timeout");
+const adminSrc = await readFile("web/src/panels/admin.js", "utf8");
+assert.ok(/error\.code\s*===\s*"timeout"/.test(adminSrc), "admin context tile must branch on the timeout code");
 
 console.log("i18n interpolation smoke passed: no-arg path unchanged, all parametric keys fill in both locales, missing params stay visible, fallback intact, no hand-rolled replace left in web/src, dict gate sees two-arg calls");

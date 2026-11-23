@@ -413,31 +413,44 @@ export async function openAdmin() {
     // of what the large-context path would put in front of the model. The
     // endpoint is read-only and never 500s; this tile only renders real fields.
     const contextQuestion = () => (zh() ? "缓存 命中率 优化" : "cache hit rate context");
+    function contextPending(text) {
+      const factsEl = $("#adminContextFacts");
+      const srcEl = $("#adminContextSources");
+      if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(text)}</p>`;
+      if (srcEl) srcEl.innerHTML = "";
+    }
     function renderContext(pack) {
       const factsEl = $("#adminContextFacts");
       const srcEl = $("#adminContextSources");
       if (!factsEl || !srcEl) return;
-      if (!pack || pack.ok === false) {
-        factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextOutage"))}</p>`;
-        srcEl.innerHTML = "";
+      // M8-T1314: the assembler endpoint never 500s, so an error here is a
+      // transport outcome, not a server verdict. Distinguish the three real
+      // causes instead of calling all of them an outage.
+      if (!pack) {
+        contextPending(t("admin.contextOutage"));
+        return;
+      }
+      if (pack.ok === false) {
+        // The endpoint answered but reported its own failure — surface the
+        // real reason (machine field), never a fabricated reading.
+        const reason = typeof pack.error === "string" && pack.error.trim()
+          ? pack.error : t("admin.contextSlow");
+        contextPending(`${t("admin.contextSlow")} ${esc(reason)}`);
         return;
       }
       const chunks = Array.isArray(pack.chunks) ? pack.chunks : [];
       if (!chunks.length) {
-        factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextEmpty"))}</p>`;
-        srcEl.innerHTML = "";
+        contextPending(t("admin.contextEmpty"));
         return;
       }
       const rows = [
-        [zh() ? "预算" : "budget", `${pack.budget_tokens}`],
-        [zh() ? "装入" : "packed", `${pack.estimated_tokens} tokens`],
-        [zh() ? "片段 / 候选" : "chunks / candidates", `${chunks.length} / ${pack.candidates}`],
-        [zh() ? "前缀指纹" : "prefix fingerprint", String(pack.prefix_fingerprint || "—")],
+        [t("admin.contextBudget"), `${pack.budget_tokens}`],
+        [t("admin.contextPacked"), `${pack.estimated_tokens} tokens`],
+        [t("admin.contextChunksCandidates"), `${chunks.length} / ${pack.candidates}`],
+        [t("admin.contextFingerprint"), String(pack.prefix_fingerprint || "—")],
       ];
       const note = pack.truncated
-        ? `<p class="admin-context-note">${esc(zh()
-            ? "预算截断：尾部候选未装入；头部顺序不变，缓存前缀仍可命中。"
-            : "Budget truncated: tail candidates left out; head order unchanged, so the cached prefix still hits.")}</p>`
+        ? `<p class="admin-context-note">${esc(t("admin.contextTruncated"))}</p>`
         : "";
       factsEl.innerHTML = `<div class="admin-context-facts-grid">${rows.map(([k, v]) =>
         `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>${note}`;
@@ -450,8 +463,15 @@ export async function openAdmin() {
       const factsEl = $("#adminContextFacts");
       if (refreshed && factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextPending"))}</p>`;
       requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 20000)
-        .catch(() => null)
-        .then((pack) => renderContext(pack));
+        .then((pack) => renderContext(pack))
+        .catch((error) => {
+          // M8-T1314: timeout is not an outage. requestJson now tags the
+          // timeout with code="timeout"; a slow colleague must not be accused
+          // of being a dead service just because we lost patience waiting.
+          contextPending(error && error.code === "timeout"
+            ? t("admin.contextTimeout")
+            : t("admin.contextOutage"));
+        });
     }
     const contextRefresh = $("#adminContextRefresh");
     if (contextRefresh) contextRefresh.addEventListener("click", () => readContext(true));

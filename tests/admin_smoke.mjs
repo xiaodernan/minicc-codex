@@ -47,9 +47,13 @@ async function checkMode(locale, expectCjk) {
     const el = document.querySelector("#adminContextFacts");
     if (!el) return false;
     const text = (el.innerText || "").trim();
+    // M8-T1314: four honest terminal states. A timeout is not an outage;
+    // accept every real state so a slow-but-alive service isn't read as "stuck".
     return Boolean(el.querySelector(".admin-context-facts-grid")) ||
       text.includes("没有命中") || text.includes("No corpus hit") ||
-      text.includes("不可达") || text.includes("unreachable");
+      text.includes("不可达") || text.includes("unreachable") ||
+      text.includes("超时") || text.includes("timed out") ||
+      text.includes("未在时限") || text.includes("no real reading");
   }, null, { timeout: 45000 });
   const contextFacts = await page.evaluate(() => {
     const el = document.querySelector("#adminContextFacts");

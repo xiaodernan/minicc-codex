@@ -30,7 +30,16 @@ export async function requestJson(url, options = {}, timeoutMs = 15000) {
     }
     return data;
   } catch (error) {
-    if (timedOut) throw new Error(state.locale === "zh" ? "请求超时，可刷新工作区重试；运行中的任务仍会继续。" : "Request timed out. Refresh to retry; running tasks continue.");
+    if (timedOut) {
+      // M8-T1314: keep the localized message byte-identical (every caller
+      // already shows it), but add a machine-readable code so a panel can
+      // tell "the request timed out" apart from "the server is unreachable".
+      // Previously callers did .catch(() => null) and reported both as an
+      // outage — a slow response was accused of being a dead service.
+      const timeoutError = new Error(state.locale === "zh" ? "请求超时，可刷新工作区重试；运行中的任务仍会继续。" : "Request timed out. Refresh to retry; running tasks continue.");
+      timeoutError.code = "timeout";
+      throw timeoutError;
+    }
     throw error;
   } finally {
     window.clearTimeout(timer);

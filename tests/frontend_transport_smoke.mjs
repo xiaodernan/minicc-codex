@@ -25,7 +25,13 @@ const request = requestJson('/cancelled', { signal: controller.signal });
 controller.abort();
 await assert.rejects(request, { name: 'AbortError' });
 await assert.rejects(requestJson('/already-cancelled', { signal: controller.signal }), { name: 'AbortError' });
-await assert.rejects(requestJson('/timeout', {}, 5), /Request timed out/);
+// M8-T1314: a timeout carries a machine-readable code so panels can tell
+// "slow" from "unreachable". The localized message stays byte-identical.
+await assert.rejects(
+  requestJson('/timeout', {}, 5),
+  (error) => error instanceof Error && error.code === 'timeout' && /Request timed out/.test(error.message),
+);
+await assert.rejects(requestJson('/timeout-msg', {}, 5), /Request timed out/);
 globalThis.fetch = async () => ({ ok: true, json: async () => { throw new SyntaxError('invalid JSON'); } });
 await assert.rejects(requestJson('/invalid-json'), /invalid data/);
 globalThis.fetch = async () => ({ ok: true, status: 204 });
@@ -34,5 +40,9 @@ globalThis.fetch = async (_url, { signal }) => ({
   ok: true,
   json: () => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })),
 });
-await assert.rejects(requestJson('/slow-body', {}, 5), /Request timed out/);
-console.log('transport passed: Headers, cancellation, already-aborted requests, timeout, invalid JSON, empty response, body timeout');
+// Body-read timeouts must carry the code too — same helper, same contract.
+await assert.rejects(
+  requestJson('/slow-body', {}, 5),
+  (error) => error instanceof Error && error.code === 'timeout',
+);
+console.log('transport passed: Headers, cancellation, already-aborted requests, timeout (code=timeout), invalid JSON, empty response, body timeout');

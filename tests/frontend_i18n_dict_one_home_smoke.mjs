@@ -53,6 +53,12 @@ assert.deepEqual([...new Set(dupEn)], [], `the en dictionary repeats keys: ${[..
 
 // Every literal t("key") reference must exist in both dictionaries.
 const referenced = new Map();
+// M8-T1314: atlas (and future callers) pass a DYNAMIC key to t() from a
+// *_KEYS constant array, e.g. t(MILESTONE_KEYS[index], params). The literal
+// regex cannot see those keys, so four milestone sentences could vanish from
+// one locale unnoticed. Any string literal inside a `const NAME_KEYS=[...]`
+// array is a declared i18n key and must exist in both dictionaries too.
+const dynamicKeys = new Map();
 async function walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -68,9 +74,17 @@ async function walk(dir) {
     for (const match of content.matchAll(/\bt\(\s*"([A-Za-z0-9_.-]+)"\s*(?:,\s*\{[^}]*\})?\s*\)/g)) {
       if (!referenced.has(match[1])) referenced.set(match[1], full);
     }
+    for (const decl of content.matchAll(/\bconst\s+[A-Z][A-Z0-9_]*_KEYS\s*=\s*\[([\s\S]*?)\]/g)) {
+      for (const lit of decl[1].matchAll(/"([A-Za-z0-9_.-]+)"/g)) {
+        if (!dynamicKeys.has(lit[1])) dynamicKeys.set(lit[1], full);
+      }
+    }
   }
 }
 await walk(SRC);
+for (const [key, file] of dynamicKeys) {
+  if (!referenced.has(key)) referenced.set(key, `${file} (*_KEYS array)`);
+}
 
 const missing = [];
 for (const [key, file] of referenced) {
@@ -82,4 +96,4 @@ assert.deepEqual(
   `t() references keys that have no translation: ${missing.join(", ")}`,
 );
 
-console.log(`M8-T564 ok: zh/en carry the same ${zhSet.size} keys; ${referenced.size} literal t() references all resolve`);
+console.log(`M8-T564 ok: zh/en carry the same ${zhSet.size} keys; ${referenced.size} t() references (${dynamicKeys.size} from *_KEYS arrays) all resolve`);

@@ -56931,3 +56931,30 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. `MILESTONE_KEYS` 是字符串数组，`t(MILESTONE_KEYS[index], params)` 的动态键进不了字典门那条只认字面 `t("key")` 的正则——这四个里程碑键的「两种语言都存在」其实没被门盯着（只是本批双语插值断言间接覆盖了它们）。让字典门认常量数组里的键，是下一批。
 2. `t()` 不转义、参数由调用方负责，仍没有静态门强制「带 params 的 t() 结果一定 escapeHtml」（T1311 边界 2 未解）。
 3. admin 上下文面板把 20 秒超时与「接口不可达」写成同一句（`web/src/panels/admin.js:417-418`，`.catch(() => null)`），并发下慢响应被报成不可达（T1304 已记）。本批未碰，下一批接手。
+
+
+## 批次 1219 · M8-T1314: 超时被当成服务死了，动态键在字典门里是隐形的
+
+### 缺什么
+- M8-T1313 边界 3 挂着：`/api/rag/context` 这张上下文装配卡把「请求超时」和「接口不可达」都写成同一句 outage。根因在 `web/src/core/transport.js` 的 catch——超时抛的是一条本地化字符串，没有任何机器可读标记；面板只能 `.catch(() => null)`，于是「服务慢、我们没耐心等」被记成「服务死了」。req #9 要管理员诚实观测，这条恰恰不诚实。
+- M8-T1313 边界 1 挂着：`MILESTONE_KEYS` 是字符串数组，`t(MILESTONE_KEYS[index], params)` 是动态键，字典门那条正则只认字面 `t("key")`。四个里程碑句子在两种语言里是否都存在，门其实没盯着——只是被插值烟测间接覆盖。字典可以静默丢一个键而不红门。
+- 上下文卡的四个行标题（预算/装入/片段·候选/前缀指纹）和截断说明还是内联 `zh() ? "…" : "…"`，绕过了字典这个唯一事实源。
+
+### 做了什么
+- `requestJson` 的超时分支保留逐字相同的本地化 message（所有现存调用点零行为变化），只给 Error 加 `code = "timeout"`；正文读取超时走同一分支，契约一致。
+- 上下文卡拆成四种诚实态：真读数显示预算/装入/片段数/缓存前缀指纹与行号锚点；`chunks=[]` 说「语料没命中」；后端 `ok:false` 显示真实 `error` 字段（缺失时才用兜底句）；传输异常按 `error.code` 分流——超时说超时、其它才说不可达。四个行标题与截断句全部搬进字典用 `t(key)`。
+- 字典门加一段：扫描 `const NAME_KEYS = ["a.b", …]`，把数组里的字符串字面量登记为「声明的 i18n 键」，同样要求两种语言都存在。本批起 4 个里程碑键进入门的视野（引用数 308→312）。
+- 插值烟测加契约门：`error.code="timeout"` 存在于 transport、admin 按 code 分流、四个里程碑键双语插值无残留占位符、九个上下文诚实态键双语都非裸键。transport 烟测断言超时 Error 同时满足 `instanceof Error`、`code==="timeout"`、message 正则不变；正文超时同样带 code。
+- 说明书中英两版管理员条目各补一句，讲清这张卡读什么、三种状态分别说什么（req #7：说明书在应用内，不是项目文档）。
+
+### 证据与门
+- `test:i18n` 绿：字典 999 键 / 312 引用全解析，其中 4 来自 `*_KEYS` 数组（此前盲区）；插值烟测全绿（新契约断言全过）。
+- `test:transport` 绿：Headers、取消、已取消请求、超时（code=timeout 且 message 不变）、非法 JSON、空响应、正文超时（同样带 code）。
+- 真浏览器：`test:admin` 绿（123 解锁、上下文卡真实预算/来源、刷新保留、零 pageerror）；`test:layout` 绿（zh/en × 3 视口 + 4 个 fixture 共 10 组合）；`test:manual` 与 `test:parity` 绿（说明书 20 章双语完整、英文零 CJK）。
+- Python 定向：`test_context_assembly.py` + `/api/rag/context` 端点 + `test_rag_citations.py` = 18 passed。端点真读数 `chunks=8 / tokens=1114 / budget=8000`。
+- 全流程零模型 token：API 已关闭，本批纯 transport / DOM / 字典工程，不碰真实额度。
+
+### 边界
+1. 全仓还有约 670 处 `locale === "zh" ? "中文" : "English"` 的内联文案（chat/stream、game、locale 等），它们同样绕过字典门；本批只把上下文卡这一处迁走，全仓迁移是长期工程，不宜一批做完，否则难以验收。
+2. `error.code="timeout"` 只标了超时，未标「服务端 5xx」与「网络不可达」的细分；上下文卡把后者合并成一句 outage，够诚实但不精确。要细分需 transport 再带 `error.status`，是下一批。
+3. 字典门的 `*_KEYS` 扫描只认 `const NAME_KEYS = [...]` 这个形状；若将来用 `export const`、函数内 `let` 或跨文件拼接键，又会漏。把门改成 AST 级解析是下一批。
