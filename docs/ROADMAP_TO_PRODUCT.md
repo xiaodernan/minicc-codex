@@ -56852,3 +56852,23 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 警告只覆盖了这四字段；`truncated`（列表被截到 120 行）和 `audit_window_truncated`（审计窗口截断）同样没上屏，但它们更接近「展示范围」而非「读失败」。要不要也算部分读、用什么措辞，是下一批。
 2. `data-change-error` 对部分读与失败态共用同一属性名但语义略不同（前者是「没读全的原因」，后者是「读失败的原因」）；走查器若想分开得看 `data-change-status`。要不要改属性名以彻底区分，是下一批。
 3. 四个字段中两个是计数（bytes/records），用英文拼进属性（`10 audit bytes unread`）；zh 模式下属性里也有英文。属性不显示给用户，暂不影响零 CJK，但若将来上屏需本地化这些短语。
+
+
+## 批次 1215 · M8-T1310: 列表截到 120 行，页签却把这 120 当成全部
+
+### 缺什么
+- M8-T1309 边界 1 记下的另两个字段：`ChangeInspector.summary()` 的 `truncated`（列表被截到 120 行）与 `audit_window_truncated`（审计窗口只覆盖部分历史），前端都不读。更要紧的是一个真 bug：`renderChanges` 里 `tabCount = String(files.length)`，而 `files` 是后端切过的那 120 行——一个 121+ 改动的真实工作区，页签徽标会说「120」，比 `total_files` 少。列表是切片，徽标却冒充全部。
+
+### 做了什么
+- `web/src/chat/stream.js`：页签徽标改读 `total_files`（只在它是有限且不小于切片长度时才信，否则回退 `files.length`）。新增两种展示范围披露，沿用 `.change-partial-warn` 但各带自己的 `data-change-status`——`truncated`（含 shown/total 数字，进 `data-change-error`，可见文案含 `{shown}`/`{total}` 占位符由字典保管、本地只替换数字）与 `audit-truncated`。两处列表头部都插。
+- `t()` 没有插值，所以整句留在字典 `changes.listTruncated` / `changes.auditTruncated`（zh/en），代码只做 `{shown}` / `{total}` 的数字替换——文案单一事实源不破。
+- `tests/change_failure_smoke.mjs` 加 `checkTruncated`（zh/en）：2 行 + `total_files:5` + `truncated` + `audit_window_truncated`，断言徽标是 5（真值，不是 2）、两页签各有 truncated 与 audit-truncated 标记、文案含 2 与 5、en 零 CJK 且插值是 "Showing the first 2 of 5"、零 pageerror。
+
+### 证据与门
+- 真跑（`MINICC_WEB_URL=http://127.0.0.1:8769 node tests/change_failure_smoke.mjs`）：`change-failure smoke passed: transport failure + denial fail on both surfaces; partial reads and truncation warn without hiding real counts (badge shows total_files); raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror`。
+- `npm run build:web` + `check:web` 绿（产物 1811416 字符、asset-manifest 同步）；`test:i18n` 绿（990→992 键、299→301 引用，正是新增两键×双语与两处 t()）；`test:parity` 绿（en 零 CJK）；`test:layout` 绿（10 个 pass）。
+
+### 边界
+1. `{shown}`/`{total}` 这种手工占位符替换只此一处（`changes.listTruncated`）；若第 N 个文案也要插值，值得抽一个通用的 `t(key, params)`，否则每处都手写 replace。要不要现在就抽，是下一批。
+2. 徽标改读 `total_files` 后，`changeSummary` 的 +/- 数字仍来自 `additions`/`deletions`——这两个后端已经按全部文件算（`changes.py:1136-1156`），与徽标一致；但若后端某天只按切片算，三者会再度分叉。要不要给「徽标数 / 汇总数 / 列表行数」三者加一条一致性门，是下一批。
+3. 失败态与部分读/截断态的 `data-change-error` 属性语义仍共用（M8-T1309 边界 2 未解）；本批的 truncated 警告也带这属性（shown/total），走查器要靠 `data-change-status` 区分。

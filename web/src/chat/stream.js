@@ -943,6 +943,12 @@ export function renderChanges(data) {
 
   const files = Array.isArray(data?.files) ? data.files : [];
 
+  // M8-T1310: the backend caps the row list at 120 but ships the real count in
+  // total_files. The tab badge used files.length, so a workspace with 121+
+  // changes advertised "120" — the displayed slice, not the truth.
+  const total = Number(data?.total_files);
+  const totalIsReal = Number.isFinite(total) && total >= files.length;
+
   const changed = new Map(files.map((item) => [String(item.path), item]));
 
   const paths = files.map((item) => String(item.path));
@@ -961,7 +967,7 @@ export function renderChanges(data) {
 
   const tabCount = $("#changeTabCount");
 
-  if (tabCount) tabCount.textContent = String(files.length);
+  if (tabCount) tabCount.textContent = String(totalIsReal ? total : files.length);
 
   const changeList = $("#changeList");
 
@@ -982,6 +988,24 @@ export function renderChanges(data) {
   const partial = changePartialReasons(data);
   if (partial.length) {
     const warn = `<div class="change-partial-warn" role="status" data-change-status="partial" data-change-error="${escapeHtml(partial.join(" | "))}"><span>${escapeHtml(t("changes.partial"))}</span><small>${escapeHtml(t("changes.partialHint"))}</small></div>`;
+    if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
+    if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
+  }
+
+  // M8-T1310: display-scope truncation is not a read failure — every changed
+  // file was counted — but the user must know the list is a slice. Placeholders
+  // stay in the dictionary; only numbers are substituted locally.
+  const truncated = Boolean(data?.truncated) || (totalIsReal && total > files.length);
+  if (truncated) {
+    const msg = t("changes.listTruncated")
+      .replace("{shown}", String(files.length))
+      .replace("{total}", String(totalIsReal ? total : files.length));
+    const warn = `<div class="change-partial-warn" role="status" data-change-status="truncated" data-change-error="shown=${escapeHtml(String(files.length))} total=${escapeHtml(String(totalIsReal ? total : files.length))}"><span>${escapeHtml(msg)}</span></div>`;
+    if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
+    if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
+  }
+  if (data?.audit_window_truncated) {
+    const warn = `<div class="change-partial-warn" role="status" data-change-status="audit-truncated"><span>${escapeHtml(t("changes.auditTruncated"))}</span></div>`;
     if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
     if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
   }

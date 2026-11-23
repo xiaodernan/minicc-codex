@@ -148,6 +148,57 @@ async function checkPartial(locale) {
   await page.close();
 }
 
+// The backend caps the row list at 120 but ships the real count in total_files.
+// With 2 rows and total_files=5, the tab badge must say 5 (the truth), not 2
+// (the displayed slice), and both surfaces must disclose the truncation.
+async function checkTruncated(locale) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+  page.on("pageerror", (e) => errors.push(`${locale}/truncated: ${e.message}`));
+  await page.addInitScript((l) => {
+    try { localStorage.clear(); localStorage.setItem("minicc-locale", l); } catch {}
+  }, locale);
+  await page.route("**/api/changes", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      files: [
+        { path: "a.js", status: "modified", additions: 6, deletions: 1 },
+        { path: "b.js", status: "added", additions: 4, deletions: 1 },
+      ],
+      total_files: 5,
+      truncated: true,
+      audit_window_truncated: true,
+      additions: 10, deletions: 2,
+    }),
+  }));
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForFunction(
+    () => document.querySelector("#startupSplash")?.dataset.state === "ready",
+    { timeout: 60000 },
+  );
+  await page.waitForFunction(
+    () => !!document.querySelector('#changeList [data-change-status="truncated"]'),
+    { timeout: 20000 },
+  );
+
+  const badge = (await page.locator("#changeTabCount").innerText()).trim();
+  assert.equal(badge, "5", `${locale}/truncated: badge must show the real total_files=5, not the 2 displayed rows`);
+
+  for (const selector of ["#changeList", "#fileList"]) {
+    const warn = page.locator(`${selector} .change-partial-warn[data-change-status="truncated"]`);
+    assert.equal(await warn.count(), 1, `${locale}/truncated: ${selector} must disclose list truncation`);
+    const text = (await warn.innerText()).trim();
+    assert.ok(text.includes("2") && text.includes("5"), `${locale}/truncated: ${selector} must name shown/total: ${text}`);
+    if (locale === "en") {
+      assert.ok(!CJK.test(text), `${locale}/truncated: ${selector} visible copy leaked CJK: ${text}`);
+      assert.ok(/Showing the first 2 of 5/.test(text), `${locale}/truncated: expected interpolated copy: ${text}`);
+    }
+    assert.equal(await page.locator(`${selector} .change-partial-warn[data-change-status="audit-truncated"]`).count(), 1,
+      `${locale}/truncated: ${selector} must disclose audit-window truncation`);
+  }
+  await page.close();
+}
+
 try {
   await checkMode("zh");
   await checkMode("en");
@@ -155,8 +206,10 @@ try {
   await checkDenied("en");
   await checkPartial("zh");
   await checkPartial("en");
+  await checkTruncated("zh");
+  await checkTruncated("en");
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`);
-  console.log("change-failure smoke passed: transport failure + 200/status:error denial fail on both surfaces; partial reads warn on both without hiding real counts; raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror");
+  console.log("change-failure smoke passed: transport failure + denial fail on both surfaces; partial reads and truncation warn without hiding real counts (badge shows total_files); raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror");
 } finally {
   await browser.close();
 }

@@ -907,6 +907,8 @@
       "changes.deniedHint": "\u8BF7\u8C03\u6574\u6743\u9650\u89C4\u5219\u540E\u91CD\u8BD5\u3002",
       "changes.partial": "\u6539\u52A8\u7EDF\u8BA1\u53EF\u80FD\u4E0D\u5B8C\u6574\u3002",
       "changes.partialHint": "\u90E8\u5206\u8BB0\u5F55\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u4E0B\u65B9\u53EA\u7EDF\u8BA1\u5DF2\u8BFB\u5230\u7684\u90E8\u5206\u3002",
+      "changes.listTruncated": "\u6539\u52A8\u8F83\u591A\uFF0C\u4EC5\u663E\u793A\u524D {shown} \u6761\uFF0C\u5171 {total} \u6761\uFF08\u603B\u6570\u5DF2\u8BA1\u5165\u7EDF\u8BA1\uFF09\u3002",
+      "changes.auditTruncated": "\u5BA1\u8BA1\u7A97\u53E3\u53EA\u8986\u76D6\u4E86\u90E8\u5206\u5386\u53F2\uFF0C\u66F4\u65E9\u7684\u8BB0\u5F55\u4E0D\u5728\u7EDF\u8BA1\u5185\u3002",
       "changes.modified": "\u5DF2\u4FEE\u6539",
       "changes.added": "\u5DF2\u65B0\u589E",
       "changes.deleted": "\u5DF2\u5220\u9664",
@@ -1899,6 +1901,8 @@
       "changes.deniedHint": "Adjust the access rule and try again.",
       "changes.partial": "The change totals may be incomplete.",
       "changes.partialHint": "Some records could not be read; the counts below cover only what was read.",
+      "changes.listTruncated": "Showing the first {shown} of {total} changes (all are counted in the totals).",
+      "changes.auditTruncated": "The audit window covers only part of the history; earlier records are not counted.",
       "changes.modified": "Modified",
       "changes.added": "Added",
       "changes.deleted": "Deleted",
@@ -11430,6 +11434,8 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       return;
     }
     const files = Array.isArray(data?.files) ? data.files : [];
+    const total = Number(data?.total_files);
+    const totalIsReal = Number.isFinite(total) && total >= files.length;
     const changed = new Map(files.map((item) => [String(item.path), item]));
     const paths = files.map((item) => String(item.path));
     const fileList = $("#fileList");
@@ -11439,7 +11445,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const summary = $("#changeSummary");
     if (summary) summary.innerHTML = `<span class="diff-add">+ ${countLabel(data?.additions, true)}</span><span class="diff-del">- ${countLabel(data?.deletions, true)}</span>`;
     const tabCount = $("#changeTabCount");
-    if (tabCount) tabCount.textContent = String(files.length);
+    if (tabCount) tabCount.textContent = String(totalIsReal ? total : files.length);
     const changeList = $("#changeList");
     if (changeList) {
       changeList.innerHTML = files.length ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path).replace(/\//g, "/<wbr>")}</strong><small>${escapeHtml(changeStatusLabel(item.status))} \xB7 <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("") : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
@@ -11447,6 +11453,18 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const partial = changePartialReasons(data);
     if (partial.length) {
       const warn = `<div class="change-partial-warn" role="status" data-change-status="partial" data-change-error="${escapeHtml(partial.join(" | "))}"><span>${escapeHtml(t("changes.partial"))}</span><small>${escapeHtml(t("changes.partialHint"))}</small></div>`;
+      if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
+      if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
+    }
+    const truncated = Boolean(data?.truncated) || totalIsReal && total > files.length;
+    if (truncated) {
+      const msg = t("changes.listTruncated").replace("{shown}", String(files.length)).replace("{total}", String(totalIsReal ? total : files.length));
+      const warn = `<div class="change-partial-warn" role="status" data-change-status="truncated" data-change-error="shown=${escapeHtml(String(files.length))} total=${escapeHtml(String(totalIsReal ? total : files.length))}"><span>${escapeHtml(msg)}</span></div>`;
+      if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
+      if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
+    }
+    if (data?.audit_window_truncated) {
+      const warn = `<div class="change-partial-warn" role="status" data-change-status="audit-truncated"><span>${escapeHtml(t("changes.auditTruncated"))}</span></div>`;
       if (changeList) changeList.insertAdjacentHTML("afterbegin", warn);
       if (fileList) fileList.insertAdjacentHTML("afterbegin", warn);
     }
