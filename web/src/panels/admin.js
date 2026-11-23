@@ -465,12 +465,15 @@ export async function openAdmin() {
       requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 20000)
         .then((pack) => renderContext(pack))
         .catch((error) => {
-          // M8-T1314: timeout is not an outage. requestJson now tags the
-          // timeout with code="timeout"; a slow colleague must not be accused
-          // of being a dead service just because we lost patience waiting.
-          contextPending(error && error.code === "timeout"
-            ? t("admin.contextTimeout")
-            : t("admin.contextOutage"));
+          // M8-T1315: transport tags each failure class; report the real one
+          // rather than calling every failed read an outage. A slow service,
+          // a 5xx, a rejected request and a dead endpoint are four different
+          // truths, and the admin panel is where honesty matters most.
+          const code = error && error.code;
+          if (code === "timeout") contextPending(t("admin.contextTimeout"));
+          else if (code === "server-error") contextPending(t("admin.contextServerError"));
+          else if (code === "http-error" || code === "auth-required") contextPending(t("admin.contextRejected"));
+          else contextPending(t("admin.contextOutage"));
         });
     }
     const contextRefresh = $("#adminContextRefresh");

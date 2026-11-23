@@ -56958,3 +56958,25 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 全仓还有约 670 处 `locale === "zh" ? "中文" : "English"` 的内联文案（chat/stream、game、locale 等），它们同样绕过字典门；本批只把上下文卡这一处迁走，全仓迁移是长期工程，不宜一批做完，否则难以验收。
 2. `error.code="timeout"` 只标了超时，未标「服务端 5xx」与「网络不可达」的细分；上下文卡把后者合并成一句 outage，够诚实但不精确。要细分需 transport 再带 `error.status`，是下一批。
 3. 字典门的 `*_KEYS` 扫描只认 `const NAME_KEYS = [...]` 这个形状；若将来用 `export const`、函数内 `let` 或跨文件拼接键，又会漏。把门改成 AST 级解析是下一批。
+
+
+## 批次 1220 · M8-T1315: 服务端报错、请求被拒、网络断了——三种失败不该长得一样
+
+### 缺什么
+- M8-T1314 边界 2 挂着：`error.code` 只标了超时，5xx、4xx、fetch 网络失败仍混成一句「不可达」。管理员上下文卡只能说二分法（超时 / 其他），而 req #9 要的是真实观测——「服务返回 503」和「网线拔了」是完全不同的两件事，前者说明服务活着只是这次读不出，后者说明它不在。
+- 关键约束：transport 抛出的 message 被所有调用点显示或吞掉，改一个字就是全站回归。
+
+### 做了什么
+- 新增 `taggedError(message, code, extra)`：挂 code 与 status，message 逐字照旧。四处失败各归其位：401 auth_required→`auth-required`；5xx→`server-error`（带 `status`）；其他 4xx→`http-error`（带 `status`）；裸 fetch rejection（TypeError: Failed to fetch）→`network`；超时仍是 `timeout`。主动取消的 AbortError 不碰——DOMException 自带的数字 code 不是字符串 `network`，测试专门钉住这条。
+- 上下文卡的 catch 按 code 五路分流：超时 / 5xx / 4xx·auth / 网络不可达 / 兜底，各说各的真话；新增 `admin.contextServerError` 与 `admin.contextRejected` 中英词条，刻意不写「不可达」以免把活着的服务说死。
+- transport 烟测补 503 / 403 / TypeError / 取消四桩，断言 code、status、message 三样；插值烟测加门：transport 必须含 5xx→server-error 与 network 标记，admin 必须分支四类 code，两条新文案双语都非裸键。
+
+### 证据与门
+- `test:transport` 绿：Headers、取消、已取消请求、超时（code=timeout）、**5xx（code=server-error/status=503/message 原样）、4xx（code=http-error/status=403）、网络（code=network）、取消不被误标 network**、非法 JSON、空响应、正文超时。
+- `test:i18n` 绿：字典 1001 键 / 314 引用全解析；插值烟测全绿（新五态断言过）。`build:web` + `check:web` 绿（产物 1816199 字符）。
+- `node --check` 两个源文件绿。真浏览器：`test:admin` 绿（123 解锁、上下文卡、零 pageerror）、`test:layout` 绿（zh/en × 3 视口 + 4 fixture 共 10 组合、零裁字）。全程零模型 token。
+
+### 边界
+1. `network` 只认 TypeError 裸 rejection；某些浏览器把 DNS/证书失败包成别的类型，会落到兜底的「不可达」——结论仍诚实，只是少一个细分标签。要覆盖需按浏览器分别适配，是下一批。
+2. `http-error` 的 `status` 已挂在 Error 上，但上下文卡只显示「请求被拒」一句，没把具体 4xx 数字显示出来（数字在 message 里、只用于 console）。要不要在卡上显示状态码，是下一批。
+3. 全仓 670 处内联双语仍未迁（T1314 边界 1），本批未碰。

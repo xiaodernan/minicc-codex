@@ -111,7 +111,15 @@ for (const locale of ["zh", "en"]) {
 // "slow" apart from "unreachable" instead of reporting every delay as a outage.
 const transport = await readFile("web/src/core/transport.js", "utf8");
 assert.ok(/timeoutError\.code\s*=\s*"timeout"/.test(transport), "timeout errors must carry code=timeout");
+assert.ok(/response\.status\s*>=\s*500\s*\?\s*"server-error"/.test(transport), "5xx must be tagged server-error");
+assert.ok(/error\.code\s*=\s*"network"/.test(transport), "bare fetch rejection must be tagged network");
 const adminSrc = await readFile("web/src/panels/admin.js", "utf8");
-assert.ok(/error\.code\s*===\s*"timeout"/.test(adminSrc), "admin context tile must branch on the timeout code");
+assert.ok(/code\s*===\s*"timeout"/.test(adminSrc), "admin context tile must branch on the timeout code");
+for (const code of ["server-error", "http-error", "auth-required"]) {
+  assert.ok(adminSrc.includes(`"${code}"`), `admin context tile must distinguish ${code} from a dead service`);
+}
+for (const key of ["admin.contextServerError", "admin.contextRejected"]) {
+  assert.ok(t(key) !== key, `${key} must be localized in both locales`);
+}
 
 console.log("i18n interpolation smoke passed: no-arg path unchanged, all parametric keys fill in both locales, missing params stay visible, fallback intact, no hand-rolled replace left in web/src, dict gate sees two-arg calls");

@@ -32,6 +32,30 @@ await assert.rejects(
   (error) => error instanceof Error && error.code === 'timeout' && /Request timed out/.test(error.message),
 );
 await assert.rejects(requestJson('/timeout-msg', {}, 5), /Request timed out/);
+// M8-T1315: HTTP failures carry a class code while keeping the exact message.
+globalThis.fetch = async () => ({ ok: false, status: 503, statusText: 'Unavailable', json: async () => ({ error: 'backend down' }) });
+await assert.rejects(
+  requestJson('/server-error'),
+  (error) => error instanceof Error && error.code === 'server-error' && error.status === 503 && error.message === 'backend down',
+);
+globalThis.fetch = async () => ({ ok: false, status: 403, statusText: 'Forbidden', json: async () => ({}) });
+await assert.rejects(
+  requestJson('/http-error'),
+  (error) => error instanceof Error && error.code === 'http-error' && error.status === 403 && error.message === '403 Forbidden',
+);
+// A bare fetch rejection (TypeError) is a real network outage. An AbortError
+// cancellation must NOT be relabeled as one — it already carries a name.
+globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
+await assert.rejects(requestJson('/network'), (error) => error.code === 'network');
+globalThis.fetch = (_url, { signal }) => new Promise((_resolve, reject) => {
+  const cancel = () => reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+  if (signal.aborted) cancel(); else signal.addEventListener('abort', cancel, { once: true });
+});
+const abortCtrl = new AbortController();
+const aborting = requestJson('/cancel-not-network', { signal: abortCtrl.signal });
+abortCtrl.abort();
+await assert.rejects(aborting, (error) => error.name === 'AbortError' && error.code !== 'network');
+
 globalThis.fetch = async () => ({ ok: true, json: async () => { throw new SyntaxError('invalid JSON'); } });
 await assert.rejects(requestJson('/invalid-json'), /invalid data/);
 globalThis.fetch = async () => ({ ok: true, status: 204 });

@@ -187,6 +187,12 @@
   var renderedHistoryKeys = new BoundedMap(48);
 
   // web/src/core/transport.js
+  function taggedError(message, code, extra) {
+    const error = new Error(message);
+    error.code = code;
+    if (extra) Object.assign(error, extra);
+    return error;
+  }
   async function requestJson(url, options = {}, timeoutMs = 15e3) {
     const controller = new AbortController();
     let timedOut = false;
@@ -213,9 +219,13 @@
       if (!response.ok) {
         if (response.status === 401 && data.auth_required) {
           window.dispatchEvent(new CustomEvent("minicc-auth-required"));
-          throw new Error(state.locale === "zh" ? "\u9700\u8981\u8BBF\u95EE token\uFF0C\u8BF7\u5728\u5F39\u7A97\u4E2D\u7C98\u8D34\u540E\u91CD\u8BD5\u3002" : "Access token required. Paste it in the dialog and retry.");
+          throw taggedError(state.locale === "zh" ? "\u9700\u8981\u8BBF\u95EE token\uFF0C\u8BF7\u5728\u5F39\u7A97\u4E2D\u7C98\u8D34\u540E\u91CD\u8BD5\u3002" : "Access token required. Paste it in the dialog and retry.", "auth-required");
         }
-        throw new Error(data.error || `${response.status} ${response.statusText}`);
+        throw taggedError(
+          data.error || `${response.status} ${response.statusText}`,
+          response.status >= 500 ? "server-error" : "http-error",
+          { status: response.status }
+        );
       }
       return data;
     } catch (error) {
@@ -223,6 +233,9 @@
         const timeoutError = new Error(state.locale === "zh" ? "\u8BF7\u6C42\u8D85\u65F6\uFF0C\u53EF\u5237\u65B0\u5DE5\u4F5C\u533A\u91CD\u8BD5\uFF1B\u8FD0\u884C\u4E2D\u7684\u4EFB\u52A1\u4ECD\u4F1A\u7EE7\u7EED\u3002" : "Request timed out. Refresh to retry; running tasks continue.");
         timeoutError.code = "timeout";
         throw timeoutError;
+      }
+      if (error && !error.code && error instanceof TypeError) {
+        error.code = "network";
       }
       throw error;
     } finally {
@@ -1056,6 +1069,8 @@
       "admin.contextOutage": "\u88C5\u914D\u63A5\u53E3\u4E0D\u53EF\u8FBE\u2014\u2014\u8FD9\u4E00\u683C\u7559\u7A7A\uFF0C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
       "admin.contextTimeout": "\u8BF7\u6C42\u8D85\u65F6\u2014\u2014\u4E0D\u662F\u63A5\u53E3\u4E0D\u53EF\u8FBE\u3002\u53EF\u5237\u65B0\u91CD\u8BD5\uFF1B\u8FD0\u884C\u4E2D\u7684\u4EFB\u52A1\u4ECD\u4F1A\u7EE7\u7EED\u3002",
       "admin.contextSlow": "\u670D\u52A1\u6162\uFF0C\u672A\u5728\u65F6\u9650\u5185\u8FD4\u56DE\u771F\u5B9E\u8BFB\u6570\uFF1B\u8FD9\u4E00\u683C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
+      "admin.contextServerError": "\u670D\u52A1\u8FD4\u56DE\u4E86\u9519\u8BEF\uFF085xx\uFF09\u2014\u2014\u5B83\u6D3B\u7740\uFF0C\u4F46\u8FD9\u6B21\u6CA1\u7ED9\u51FA\u771F\u5B9E\u8BFB\u6570\u3002",
+      "admin.contextRejected": "\u8BF7\u6C42\u88AB\u62D2\u7EDD\uFF084xx\uFF09\u2014\u2014\u4E0D\u662F\u4E0D\u53EF\u7528\uFF0C\u8FD9\u4E00\u683C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
       "admin.contextBudget": "\u9884\u7B97",
       "admin.contextPacked": "\u88C5\u5165",
       "admin.contextChunksCandidates": "\u7247\u6BB5 / \u5019\u9009",
@@ -2057,6 +2072,8 @@
       "admin.contextOutage": "Assembler unreachable \u2014 this tile stays empty rather than invent numbers.",
       "admin.contextTimeout": "Request timed out \u2014 the service is not unreachable. Refresh to retry; running tasks continue.",
       "admin.contextSlow": "The service was slow and returned no real reading in time; this tile stays empty rather than invent numbers.",
+      "admin.contextServerError": "The service answered with an error (5xx) - it is alive, but gave no real reading this time.",
+      "admin.contextRejected": "The request was rejected (4xx) - not unavailable; this tile stays empty rather than invent numbers.",
       "admin.contextBudget": "Budget",
       "admin.contextPacked": "Packed",
       "admin.contextChunksCandidates": "Chunks / candidates",
@@ -9715,7 +9732,11 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const factsEl = $("#adminContextFacts");
         if (refreshed && factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.contextPending"))}</p>`;
         requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 2e4).then((pack) => renderContext(pack)).catch((error) => {
-          contextPending(error && error.code === "timeout" ? t("admin.contextTimeout") : t("admin.contextOutage"));
+          const code = error && error.code;
+          if (code === "timeout") contextPending(t("admin.contextTimeout"));
+          else if (code === "server-error") contextPending(t("admin.contextServerError"));
+          else if (code === "http-error" || code === "auth-required") contextPending(t("admin.contextRejected"));
+          else contextPending(t("admin.contextOutage"));
         });
       }
       const contextRefresh = $("#adminContextRefresh");
