@@ -53,11 +53,60 @@ async function checkMode(locale) {
   await page.close();
 }
 
+// A well-formed 200 can still be an error: the permission gate answers
+// {"status":"error","summary":...} with no files. The raw summary is Chinese;
+// it must travel in data-change-error (not a visible text node) so EN stays
+// CJK-free, while the on-screen copy comes from the dictionary.
+const DENIED_SUMMARY = "permissions.json deny 规则拒绝了此差异视图";
+
+async function checkDenied(locale) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+  page.on("pageerror", (e) => errors.push(`${locale}/denied: ${e.message}`));
+  await page.addInitScript((l) => {
+    try { localStorage.clear(); localStorage.setItem("minicc-locale", l); } catch {}
+  }, locale);
+  await page.route("**/api/changes", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ status: "error", summary: DENIED_SUMMARY, files: [] }),
+  }));
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForFunction(
+    () => document.querySelector("#startupSplash")?.dataset.state === "ready",
+    { timeout: 60000 },
+  );
+  await page.waitForFunction(
+    () => !!document.querySelector('#changeList [data-change-status="denied"]'),
+    { timeout: 20000 },
+  );
+
+  for (const selector of ["#changeList", "#fileList"]) {
+    const cell = page.locator(`${selector} .file-tree-status[data-change-status="denied"]`);
+    assert.equal(await cell.count(), 1, `${locale}/denied: ${selector} must carry the denied status`);
+    assert.equal(await cell.getAttribute("data-change-error"), DENIED_SUMMARY,
+      `${locale}/denied: ${selector} must keep the raw reason machine-readable`);
+    const text = (await cell.innerText()).trim();
+    assert.ok(text.length > 0, `${locale}/denied: ${selector} must have localized words`);
+    if (locale === "en") {
+      assert.ok(!CJK.test(text), `${locale}/denied: ${selector} visible copy leaked CJK: ${text}`);
+      assert.ok(/refused by an access rule/i.test(text), `${locale}/denied: expected localized denial copy, saw: ${text}`);
+    }
+  }
+
+  const badge = (await page.locator("#changeTabCount").innerText()).trim();
+  const summary = (await page.locator("#changeSummary").innerText()).trim();
+  assert.ok(!/\d/.test(badge), `${locale}/denied: tab badge still advertises a count: ${badge}`);
+  assert.ok(!/[+\-]\s*\d/.test(summary), `${locale}/denied: summary still advertises a count: ${summary}`);
+  await page.close();
+}
+
 try {
   await checkMode("zh");
   await checkMode("en");
+  await checkDenied("zh");
+  await checkDenied("en");
   assert.deepEqual(errors, [], `no page errors: ${errors.join(" | ")}`);
-  console.log("change-failure smoke passed: both surfaces name the failed read in zh/en, no stale counts, zero pageerror");
+  console.log("change-failure smoke passed: transport failure + 200/status:error denial both fail on both surfaces in zh/en, raw reason kept machine-readable, visible copy CJK-free in EN, no stale counts, zero pageerror");
 } finally {
   await browser.close();
 }

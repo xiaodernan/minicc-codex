@@ -56810,3 +56810,24 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. 失败格还是只说「读不出来 / 刷新工作区」，没把服务器给的原因端上屏——`minicc/web.py:3350` 的 `changes()` 在权限拒绝时返回的是 200 + `{"status":"error","summary":"permissions.json deny 规则拒绝了此差异视图"}`，前端只读 `data.files`，会把它画成「等待变更」的空卡。这是比 catch 更隐蔽的一种「失败答成没有」，下一批单独处理（原因上屏 + 200 错误态识别，且要守住 en 零 CJK——服务器原因可能是中文）。
 2. 两个页签的失败格共用一段字符串，所以改文案必须两处一起变，靠的是同一份字面量而非字典键；若要把 `--` 或失败格文案也随语言切换，得先决定它们算不算需要本地化的句子（承接 T1303 边界 3）。
 3. 新冒烟只验网络失败（abort）这一种成因；超时、500、非 JSON 各有不同文案，但都走同一 catch 同一段字符串，故不逐一验。要不要为每种成因给机器可读的子类标记，是下一批。
+
+
+## 批次 1213 · M8-T1308: 权限拒绝答 200，前端把它画成「等待变更」
+
+### 缺什么
+- M8-T1307 边界 1 记下的那一种：`minicc/web.py:3350` 的 `changes()` 在 `permissions.json` 的 deny 规则覆盖 git_diff 时返回 **HTTP 200** + `{"status":"error","summary":"permissions.json deny 规则拒绝了此差异视图","files":[]}`。`renderChanges` 只读 `data.files`，空数组就走 `changes.clean` 那张「等待变更 / Waiting for changes」卡。一次被规则拒绝的读取，被画成了「工作区很干净、跑个任务就会有变更」——比 catch 的失败更隐蔽，因为连失败态都没进。
+- 服务器给的 `summary` 是中文，直接上屏会破 en 零 CJK 铁律（`tests/en_cjk_smoke.mjs` 只查可见文本节点与 placeholder/aria-label/title/alt，不查 data-*）。
+
+### 做了什么
+- `web/src/chat/stream.js`：抽出 `renderChangeFailure(reason, denied)` 作为失败格的唯一构造处（`#changeList` 与 `#fileList` 两处同时写，页签 `--`、汇总数不出），transport catch 与 200/status:error 都走它。前者标 `data-change-status="unavailable"`，后者标 `data-change-status="denied"`——走查器能分开「网络读失败」和「规则拒绝」。
+- `renderChanges` 先认 `data.status === "error"`：用字典文案 `changes.denied` / `changes.deniedHint`（zh「此差异视图被访问规则拒绝。/ 请调整权限规则后重试。」；en「This diff view was refused by an access rule. / Adjust the access rule and try again.」）渲染上屏；服务器原始 `summary` 放进 `data-change-error` 属性（机器可读、非可见文本节点），因而不破 en 零 CJK。
+- `tests/change_failure_smoke.mjs` 扩成两种成因 × 双语：在原来 abort 网络失败之外，`page.route` 用 200 + status:error + 中文 summary 回放权限拒绝，断言两页签都带 `denied` 标记、`data-change-error` 原样保留中文 summary、可见文案本地化且 en 零 CJK、页签与汇总无数字、零 pageerror。
+
+### 证据与门
+- 真跑（`MINICC_WEB_URL=http://127.0.0.1:8769 node tests/change_failure_smoke.mjs`）：`change-failure smoke passed: transport failure + 200/status:error denial both fail on both surfaces in zh/en, raw reason kept machine-readable, visible copy CJK-free in EN, no stale counts, zero pageerror`。
+- `npm run build:web` + `check:web` 绿（产物 1808257 字符、asset-manifest 同步）；`test:i18n` 绿（986→988 键、295→297 引用，正是新增两键×双语与两处 t()）；`test:parity` 绿（en 零 CJK）；`test:layout` 绿（10 个 pass）。
+
+### 边界
+1. 后端还认真算了一组「部分读不出来」的字段——`summary()` 里的 `status_read_error`、`audit_read_error`、`audit_bytes_unread`、`audit_records_split`、`truncated`、`audit_window_truncated`（`minicc/changes.py:1157-1194`）——前端 `renderChanges` 一个都不读。它们说的是「统计窗口没读全 / 计数被截断」，当前却照旧显示成完整数字。把这些部分失败诚实地端上屏（且 en 零 CJK）是下一批。
+2. 权限拒绝这次的文案是字典里那句通用的「被访问规则拒绝」，没有把服务器 summary 里具体哪条 deny 规则说给用户；en 模式下这是必要的（原文中文），zh 模式其实可以显示具体规则。要不要在 zh 模式把 raw summary 也拼进可见文案，得先定中英是否要对称。
+3. `data-change-error` 里放的是服务器原文，未做长度上限；一个畸长的 deny summary 会撑大属性。要不要截断，是下一批。

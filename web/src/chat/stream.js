@@ -879,7 +879,50 @@ export function changeFileRow(item) {
 
 
 
+// M8-T1308: one failure cell, two surfaces. Both the transport catch and a
+// well-formed 200 carrying {"status":"error"} land here, so the Files tab and
+// the Changes section can never disagree about whether the read answered.
+// The raw reason is kept in a data-* attribute (machine-readable, and not a
+// visible text node), because server reasons may be Chinese and EN mode must
+// stay CJK-free on screen; the visible copy always comes from the dictionary.
+function renderChangeFailure(reason, denied = false) {
+
+  const uncounted = escapeHtml(t("changes.uncounted"));
+
+  const kind = denied ? "denied" : "unavailable";
+
+  const title = denied ? t("changes.denied") : t("changes.unavailable");
+
+  const hint = denied ? t("changes.deniedHint") : t("changes.unavailableHint");
+
+  const reasonAttr = reason ? ` data-change-error="${escapeHtml(String(reason))}"` : "";
+
+  const cell = `<div class="file-tree-status file-tree-error" role="status" data-change-status="${kind}"${reasonAttr}><span>${escapeHtml(title)}</span><small>${escapeHtml(hint)}</small></div>`;
+
+  $("#changeList").innerHTML = cell;
+
+  const fileList = $("#fileList");
+  if (fileList) fileList.innerHTML = cell;
+
+  const summary = $("#changeSummary");
+  if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
+
+  const tabCount = $("#changeTabCount");
+  if (tabCount) tabCount.textContent = "--";
+
+}
+
+
 export function renderChanges(data) {
+
+  // M8-T1308: a 200 answer can still be an error. The permission gate returns
+  // {"status":"error","summary":...} with an empty file list; reading only
+  // data.files painted that denial as "Waiting for changes". Fail honestly in
+  // both surfaces instead.
+  if (String(data?.status || "") === "error") {
+    renderChangeFailure(data?.summary, true);
+    return;
+  }
 
   const files = Array.isArray(data?.files) ? data.files : [];
 
@@ -943,26 +986,14 @@ export async function loadChanges() {
 
     renderChanges(data);
 
-  } catch {
+  } catch (error) {
 
     if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
 
-    // A read that failed is not a workspace with nothing in it. The list says which of
-    // the two it is, and the summary and tab badge stop advertising the numbers from the
-    // last read that did answer. M8-T1307: both surfaces of the SAME fact must say it —
-    // the Files tab (#fileList) used to keep the last successful rows (or stay blank on a
-    // first-read failure) while #changeList said "unavailable", putting two contradictory
-    // answers on one screen. Both now carry the same role/status marker so a ruler can
-    // tell a failed read from an empty workspace in either tab.
-    const uncounted = escapeHtml(t("changes.uncounted"));
-    const unavailable = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
-    $("#changeList").innerHTML = unavailable;
-    const fileList = $("#fileList");
-    if (fileList) fileList.innerHTML = unavailable;
-    const summary = $("#changeSummary");
-    if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
-    const tabCount = $("#changeTabCount");
-    if (tabCount) tabCount.textContent = "--";
+    // A read that failed is not a workspace with nothing in it. M8-T1307 made
+    // both surfaces fail together; M8-T1308 routes them through the same cell
+    // builder the 200/status:error case uses, carrying the transport reason.
+    renderChangeFailure(error instanceof Error ? error.message : String(error || ""));
 
   } finally {
 

@@ -903,6 +903,8 @@
       "changes.cleanHint": "\u8FD0\u884C\u4EFB\u52A1\u540E\u4F1A\u5728\u8FD9\u91CC\u540C\u6B65",
       "changes.unavailable": "\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\u53D8\u66F4\u3002",
       "changes.unavailableHint": "\u53EF\u5728\u66F4\u591A\u9009\u9879\u4E2D\u5237\u65B0\u5DE5\u4F5C\u533A\u3002",
+      "changes.denied": "\u6B64\u5DEE\u5F02\u89C6\u56FE\u88AB\u8BBF\u95EE\u89C4\u5219\u62D2\u7EDD\u3002",
+      "changes.deniedHint": "\u8BF7\u8C03\u6574\u6743\u9650\u89C4\u5219\u540E\u91CD\u8BD5\u3002",
       "changes.modified": "\u5DF2\u4FEE\u6539",
       "changes.added": "\u5DF2\u65B0\u589E",
       "changes.deleted": "\u5DF2\u5220\u9664",
@@ -1891,6 +1893,8 @@
       "changes.cleanHint": "Changes will sync here after a task runs",
       "changes.unavailable": "Changes are unavailable.",
       "changes.unavailableHint": "Refresh the workspace from More options.",
+      "changes.denied": "This diff view was refused by an access rule.",
+      "changes.deniedHint": "Adjust the access rule and try again.",
       "changes.modified": "Modified",
       "changes.added": "Added",
       "changes.deleted": "Deleted",
@@ -11391,7 +11395,26 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const softPath = (value) => escapeHtml(value).replace(/\//g, "/<wbr>");
     return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${softPath(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} \xB7 <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
   }
+  function renderChangeFailure(reason, denied = false) {
+    const uncounted = escapeHtml(t("changes.uncounted"));
+    const kind = denied ? "denied" : "unavailable";
+    const title = denied ? t("changes.denied") : t("changes.unavailable");
+    const hint = denied ? t("changes.deniedHint") : t("changes.unavailableHint");
+    const reasonAttr = reason ? ` data-change-error="${escapeHtml(String(reason))}"` : "";
+    const cell = `<div class="file-tree-status file-tree-error" role="status" data-change-status="${kind}"${reasonAttr}><span>${escapeHtml(title)}</span><small>${escapeHtml(hint)}</small></div>`;
+    $("#changeList").innerHTML = cell;
+    const fileList = $("#fileList");
+    if (fileList) fileList.innerHTML = cell;
+    const summary = $("#changeSummary");
+    if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
+    const tabCount = $("#changeTabCount");
+    if (tabCount) tabCount.textContent = "--";
+  }
   function renderChanges(data) {
+    if (String(data?.status || "") === "error") {
+      renderChangeFailure(data?.summary, true);
+      return;
+    }
     const files = Array.isArray(data?.files) ? data.files : [];
     const changed = new Map(files.map((item) => [String(item.path), item]));
     const paths = files.map((item) => String(item.path));
@@ -11420,17 +11443,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
       state.changes = data;
       renderChanges(data);
-    } catch {
+    } catch (error) {
       if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
-      const uncounted = escapeHtml(t("changes.uncounted"));
-      const unavailable = `<div class="file-tree-status file-tree-error" role="status" data-change-status="unavailable"><span>${escapeHtml(t("changes.unavailable"))}</span><small>${escapeHtml(t("changes.unavailableHint"))}</small></div>`;
-      $("#changeList").innerHTML = unavailable;
-      const fileList = $("#fileList");
-      if (fileList) fileList.innerHTML = unavailable;
-      const summary = $("#changeSummary");
-      if (summary) summary.innerHTML = `<span class="diff-add">+ ${uncounted}</span><span class="diff-del">- ${uncounted}</span>`;
-      const tabCount = $("#changeTabCount");
-      if (tabCount) tabCount.textContent = "--";
+      renderChangeFailure(error instanceof Error ? error.message : String(error || ""));
     } finally {
       if (path === state.workspacePath && version === runtime.workspaceVersion && request === runtime.changesRequest) $("#changesSection")?.setAttribute("aria-busy", "false");
     }
