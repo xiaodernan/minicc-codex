@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T04:30:16.454Z",
+  "generated_at": "2026-11-23T04:42:01.111Z",
   "branch": "main",
-  "head": "2d31ec3",
-  "total_commits": 2140,
+  "head": "0baa1e9",
+  "total_commits": 2142,
   "recent_commits": [
+    {
+      "short": "0baa1e9b",
+      "at": "2026-11-23T12:41:23+08:00",
+      "subject": "M8-T1307: a failed /api/changes read now fails honestly in BOTH surfaces - #fileList (Files tab) repaints the same role/status-marked unavailable cell as #chang"
+    },
+    {
+      "short": "22382943",
+      "at": "2026-11-23T04:30:16Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "2d31ec3b",
       "at": "2026-11-23T12:29:20+08:00",
@@ -19,24 +29,14 @@
       "short": "21110617",
       "at": "2026-11-23T04:15:12Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "dc8c78b7",
-      "at": "2026-11-23T12:14:38+08:00",
-      "subject": "M8-T1305: behavior-journey driver now fails fast with its own name (BEHAVIOR_HARNESS_UNREACHABLE, exit 3) before launching Chromium when no workbench is listeni"
-    },
-    {
-      "short": "2346fec3",
-      "at": "2026-11-22T19:35:39Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 538,
+  "roadmap_batches": 539,
   "changelog_entries": 26,
-  "roadmap_lines": 56793,
-  "tracked_files": 1187,
-  "test_files": 762,
+  "roadmap_lines": 56813,
+  "tracked_files": 1188,
+  "test_files": 763,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
