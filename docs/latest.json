@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T05:00:55.370Z",
+  "generated_at": "2026-11-23T05:14:19.035Z",
   "branch": "main",
-  "head": "33a5794",
-  "total_commits": 2146,
+  "head": "5a17b1f",
+  "total_commits": 2148,
   "recent_commits": [
+    {
+      "short": "5a17b1f8",
+      "at": "2026-11-23T13:13:35+08:00",
+      "subject": "M8-T1310: tab badge now shows total_files (not the 120-row displayed slice) so a 121+ change workspace no longer advertises 120; list truncation and audit-windo"
+    },
+    {
+      "short": "c2a0dfb5",
+      "at": "2026-11-23T05:00:55Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "33a57949",
       "at": "2026-11-23T13:00:02+08:00",
@@ -19,22 +29,12 @@
       "short": "aadd3215",
       "at": "2026-11-23T12:49:28+08:00",
       "subject": "M8-T1308: a 200 response carrying status:error (permission deny) no longer renders as 'Waiting for changes' - renderChanges now fails honestly on both #changeLi"
-    },
-    {
-      "short": "bc641980",
-      "at": "2026-11-23T04:42:01Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "0baa1e9b",
-      "at": "2026-11-23T12:41:23+08:00",
-      "subject": "M8-T1307: a failed /api/changes read now fails honestly in BOTH surfaces - #fileList (Files tab) repaints the same role/status-marked unavailable cell as #chang"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 541,
+  "roadmap_batches": 542,
   "changelog_entries": 26,
-  "roadmap_lines": 56855,
+  "roadmap_lines": 56875,
   "tracked_files": 1188,
   "test_files": 763,
   "almanac_chapters": 81,
