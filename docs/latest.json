@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T04:16:17.952Z",
-  "branch": "HEAD",
-  "head": "2111061",
-  "total_commits": 2138,
+  "generated_at": "2026-11-23T04:30:16.454Z",
+  "branch": "main",
+  "head": "2d31ec3",
+  "total_commits": 2140,
   "recent_commits": [
+    {
+      "short": "2d31ec3b",
+      "at": "2026-11-23T12:29:20+08:00",
+      "subject": "M8-T1306: surface 'no harness - zero tests ran' on the CI job summary via an if:always() reporter that reuses the verdict detector; both web-smoke jobs persist "
+    },
+    {
+      "short": "4d22d714",
+      "at": "2026-11-23T12:18:42+08:00",
+      "subject": "chore(latest): refresh showcase fact pack to head dc8c78b (81 chapters, 2137 commits)"
+    },
     {
       "short": "21110617",
       "at": "2026-11-23T04:15:12Z",
@@ -19,24 +29,14 @@
       "short": "2346fec3",
       "at": "2026-11-22T19:35:39Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "176c8af8",
-      "at": "2026-11-23T03:35:14+08:00",
-      "subject": "M8-T1304: 冒烟套件连不上自己的服务器，却把账记在产品头上"
-    },
-    {
-      "short": "40e68139",
-      "at": "2026-11-22T18:22:28Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 537,
+  "roadmap_batches": 538,
   "changelog_entries": 26,
-  "roadmap_lines": 56773,
+  "roadmap_lines": 56793,
   "tracked_files": 1187,
-  "test_files": 761,
+  "test_files": 762,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
