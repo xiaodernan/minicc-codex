@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T05:34:50.523Z",
+  "generated_at": "2026-11-23T05:49:57.026Z",
   "branch": "main",
-  "head": "7cc7a25",
-  "total_commits": 2152,
+  "head": "72facfa",
+  "total_commits": 2154,
   "recent_commits": [
+    {
+      "short": "72facfad",
+      "at": "2026-11-23T13:49:12+08:00",
+      "subject": "M8-T1313: finish the interpolation migration - the four remaining hand-rolled .replace() calls (admin forecast x2, atlas charted + milestone) now use t(key, par"
+    },
+    {
+      "short": "6fdcb406",
+      "at": "2026-11-23T05:34:50Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "7cc7a252",
       "at": "2026-11-23T13:34:16+08:00",
@@ -19,22 +29,12 @@
       "short": "66f5ea44",
       "at": "2026-11-23T13:27:27+08:00",
       "subject": "M8-T1311: t(key, params) now fills {placeholders} with the dictionary as the only source of words - no-arg path byte-identical, missing params stay visible, no "
-    },
-    {
-      "short": "f5ae1371",
-      "at": "2026-11-23T05:14:19Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5a17b1f8",
-      "at": "2026-11-23T13:13:35+08:00",
-      "subject": "M8-T1310: tab badge now shows total_files (not the 120-row displayed slice) so a 121+ change workspace no longer advertises 120; list truncation and audit-windo"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 544,
+  "roadmap_batches": 545,
   "changelog_entries": 26,
-  "roadmap_lines": 56915,
+  "roadmap_lines": 56934,
   "tracked_files": 1189,
   "test_files": 764,
   "almanac_chapters": 81,
