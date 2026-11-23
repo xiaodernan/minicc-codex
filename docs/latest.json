@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T05:14:19.035Z",
+  "generated_at": "2026-11-23T05:28:02.232Z",
   "branch": "main",
-  "head": "5a17b1f",
-  "total_commits": 2148,
+  "head": "66f5ea4",
+  "total_commits": 2150,
   "recent_commits": [
+    {
+      "short": "66f5ea44",
+      "at": "2026-11-23T13:27:27+08:00",
+      "subject": "M8-T1311: t(key, params) now fills {placeholders} with the dictionary as the only source of words - no-arg path byte-identical, missing params stay visible, no "
+    },
+    {
+      "short": "f5ae1371",
+      "at": "2026-11-23T05:14:19Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5a17b1f8",
       "at": "2026-11-23T13:13:35+08:00",
@@ -19,24 +29,14 @@
       "short": "33a57949",
       "at": "2026-11-23T13:00:02+08:00",
       "subject": "M8-T1309: partial reads no longer pose as complete - renderChanges surfaces status_read_error/audit_read_error/audit_bytes_unread/audit_records_split as a disti"
-    },
-    {
-      "short": "a422d421",
-      "at": "2026-11-23T04:50:02Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "aadd3215",
-      "at": "2026-11-23T12:49:28+08:00",
-      "subject": "M8-T1308: a 200 response carrying status:error (permission deny) no longer renders as 'Waiting for changes' - renderChanges now fails honestly on both #changeLi"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 542,
+  "roadmap_batches": 543,
   "changelog_entries": 26,
-  "roadmap_lines": 56875,
-  "tracked_files": 1188,
-  "test_files": 763,
+  "roadmap_lines": 56897,
+  "tracked_files": 1189,
+  "test_files": 764,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
