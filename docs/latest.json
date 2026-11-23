@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T08:29:57.315Z",
+  "generated_at": "2026-11-23T08:39:00.091Z",
   "branch": "main",
-  "head": "6bb91f7",
-  "total_commits": 2158,
+  "head": "583e73c",
+  "total_commits": 2160,
   "recent_commits": [
+    {
+      "short": "583e73c4",
+      "at": "2026-11-23T16:38:20+08:00",
+      "subject": "M8-T1316: wide-context budget reaches Ask-the-Repo - 8000-token assembly with real line anchors and evidence, zero model token"
+    },
+    {
+      "short": "37dcb568",
+      "at": "2026-11-23T08:29:57Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "6bb91f7c",
       "at": "2026-11-23T16:29:21+08:00",
@@ -19,24 +29,14 @@
       "short": "5bf7cd80",
       "at": "2026-11-23T16:23:41+08:00",
       "subject": "M8-T1314: timeout is not an outage - context tile tells four honest states, dict gate now resolves dynamic *_KEYS"
-    },
-    {
-      "short": "70a74679",
-      "at": "2026-11-23T05:49:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "72facfad",
-      "at": "2026-11-23T13:49:12+08:00",
-      "subject": "M8-T1313: finish the interpolation migration - the four remaining hand-rolled .replace() calls (admin forecast x2, atlas charted + milestone) now use t(key, par"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 547,
+  "roadmap_batches": 548,
   "changelog_entries": 26,
-  "roadmap_lines": 56983,
-  "tracked_files": 1189,
-  "test_files": 764,
+  "roadmap_lines": 57007,
+  "tracked_files": 1190,
+  "test_files": 765,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
