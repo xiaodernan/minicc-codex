@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T09:04:28.029Z",
+  "generated_at": "2026-11-23T09:08:19.524Z",
   "branch": "main",
-  "head": "d815080",
-  "total_commits": 2167,
+  "head": "0995b2a",
+  "total_commits": 2169,
   "recent_commits": [
+    {
+      "short": "0995b2a7",
+      "at": "2026-11-23T17:07:48+08:00",
+      "subject": "M8-T1320: ratchet the inline-bilingual debt at 847 - new copy must go in the dictionary, the count may only fall"
+    },
+    {
+      "short": "9457a784",
+      "at": "2026-11-23T09:04:28Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "d8150803",
       "at": "2026-11-23T17:03:58+08:00",
@@ -19,24 +29,14 @@
       "short": "fb0ba6fb",
       "at": "2026-11-23T16:51:52+08:00",
       "subject": "chore(latest): refresh showcase fact pack after T1318"
-    },
-    {
-      "short": "0ec62e74",
-      "at": "2026-11-23T16:51:25+08:00",
-      "subject": "M8-T1318: price the deep-context answer with the ledger's own table - honest upper-bound USD estimate, never an invented number"
-    },
-    {
-      "short": "12863717",
-      "at": "2026-11-23T08:46:20Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 551,
+  "roadmap_batches": 552,
   "changelog_entries": 26,
-  "roadmap_lines": 57068,
-  "tracked_files": 1191,
-  "test_files": 766,
+  "roadmap_lines": 57088,
+  "tracked_files": 1192,
+  "test_files": 767,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
