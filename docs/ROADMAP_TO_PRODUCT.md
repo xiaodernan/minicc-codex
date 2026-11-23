@@ -57163,3 +57163,35 @@ M8-T1321 让 node 冒烟套件在服务器缺席或中途丢失时退 3、报自
 2. 22 个静态/DOM-free 套件仍然没有 `SMOKE_FAILURE_CODE`。它们不经过浏览器，失败是产品契约本身；要不要给所有 frontend 契约统一加产品失败码，是另一批的命名工作。
 3. focused frontend job 目前仍把退出 3 当普通红 step，没有 M8-T1306 那种 step summary。下一步可把 `HARNESS_BROWSER_MISSING` 接到同一个基础设施汇报面。
 4. 名单只覆盖 CI 这一步显式列出的 `npm run`。别的 worktree、手工命令或将来另一条 job 里新增的浏览器套件，不会自动进入这把尺子；要扩大覆盖面得先把那些入口也变成可派生清单。
+
+## 批次 1228 · M8-T1323: 上下文装配的 20 秒超时有了实测时限，三种答案不再共用一句「不可达」
+
+### 缺什么
+
+M8-T1314/T1315 已经把 transport 的 `timeout`、`network`、`server-error`、`http-error` 分开，但管理面板仍把 `/api/rag/context` 的时限写死为 20000 ms，而且没有把状态写到 DOM 上；现有 `admin_smoke` 只接受真实服务恰好返回成功，无法证明「一直不回答」会走到超时分支。刷新后的断言还固定等 300 ms，本次真实页面第一次跑就在这里红过：请求没有在 300 ms 内回来，测试误判成源列表没有恢复。
+
+### 做了什么
+
+1. 把上下文装配 tile 收进 `web/src/panels/admin-context.js:46` 的 `createContextInspector()`：请求、状态机、渲染、刷新竞态和时限样本只有一个家。`web/src/panels/admin.js:419` 只负责挂载，不再手写 `/api/rag/context` 或 20000 ms。
+2. `web/src/panels/admin-context.js:35` 把失败映射为机器状态：`timeout`、`unreachable`、`server-error`、`rejected`；`web/src/panels/admin-context.js:39` 把成功响应映射为 `present`、`empty`、`backend-error`。状态同时写到 `#adminContextFacts` 与 `#adminContextSources` 的 `data-context-state`，时限与本次耗时写到 `data-context-timeout-ms`、`data-context-elapsed-ms`。
+3. `web/src/panels/admin-context.js:15` 用最近至多 20 次成功往返的 p95 计算下次时限：`ceil((p95 * 3 + 1000) / 1000) * 1000`，夹在 5–120 秒。首个请求用 30 秒冷启动基线；本机 25 次真实 `/api/rag/context` 调用全部 `ok=true` 且片段非空，p95 为 2303.8 ms、最大 2348.853 ms，30 秒保留十倍以上余量。样本按工作区写入 `sessionStorage`，关闭再开管理面板不会退回盲猜的 20 秒。
+4. 成功读数新增双语实测行 `admin.contextTiming`（本次耗时、下次时限、样本数）。`tests/frontend_admin_context_smoke.mjs:41` 直接驱动真实组件，覆盖 p95、上下限、三种核心状态、服务端错误、实测预算、样本回写与重挂载复用；`npm run test:admincontext` 已进入 focused frontend CI（`.github/workflows/ci.yml:159`）。
+5. `tests/admin_smoke.mjs:64` 现在要求成功态带机器状态，刷新改为等真实 `present` 与源列表，不再固定睡 300 ms；随后用 Playwright route 让 `/api/rag/context` 一直不回答，真实 transport 定时器必须把 DOM 落到 `timeout`，句子必须含「超时 / timed out」且不能冒充空语料。
+
+### 证据与门
+
+- 实测：`scratch/measure1323.json`，25/25 成功、25/25 非空，min 1566.001 ms、median 1931.814 ms、p95 2303.8 ms、max 2348.853 ms。
+- `npm run test:admincontext`：通过；`npm run test:transport`：通过（包含 5 ms 真实定时器与 body-read 超时）；`npm run test:i18n`：三项全绿，zh/en 各 1018 键，行内双语棘锁 847 不增长。
+- `npm run build:web` + `npm run check:web`：通过，bundle 与 asset manifest 同步。
+- `MINICC_WEB_URL=http://127.0.0.1:8899 npm run test:admin`：zh/en 双语通过，包含真实页面成功、刷新、从不返回到 `timeout` 的完整路径，零 pageerror。
+- 反向控制 `scratch/arms1323.py`：9/9 红，还原后三个被测文件 sha256 全对。九条分别把超时改成不可达、把断网改成超时、把空语料改成不可达、把实测预算改回固定值、把请求时限改回 20000、抹掉机器状态、拆掉管理面板挂载、让样本缓存异常吞掉真实读数、删掉英文实测文案。
+- 全量 Python 回归：6034 passed / 12 skipped / 11 failed（5633.98s）。其中 4 个代理或并发打包干扰导致的失败在清空 `NO_PROXY` 后隔离重跑通过；余下 7 个在干净 HEAD `fa8ed661` 上原样复现（summary 子进程解码 pin 1 个、missing-count 浏览器夹具漏 `changePartialReasons` 6 个），不是本批引入，列入下一批修复。
+- 16 道 pre-push 门：16/16 green（293.7s，red: none）。
+
+### 边界
+
+1. 30 秒只是一台机器、一个时间点的冷启动基线，不是跨机器 SLO；首请求仍可能在新环境超时，之后的时限才由当前浏览器与当前工作区的实测样本接管。
+2. 超时样本不进入 p95，避免一次网络瘫痪把上限一路推高；因此持续变慢需要多次「成功但更慢」才会抬高预算，这是有意的保守选择。
+3. 样本只在当前标签页的 `sessionStorage` 里，最多 20 个；刷新浏览器、换标签页或换工作区都会重新取基线。没有引入新的服务器环境变量或配置面；样本写入失败只会放弃自适应，不会把已经返回的真实读数改成不可达。
+4. 真实超时门按当前实测时限等待，本次每个 locale 多花约 5–8 秒；它证明的是 transport 定时器与 DOM 状态接线，不证明任意后端都一定在该时限内返回。
+5. 全量回归仍有 7 个基线红：`tests/test_web_smoke_step_summary.py` 的子进程解码只 pin 了父端，`tests/test_the_panel_does_not_print_a_missing_count_as_zero.py` 的 bundle 夹具漏掉 `changePartialReasons`。两者已在干净 HEAD 复现；本批没有把它们混成上下文超时修复。

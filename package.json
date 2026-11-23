@@ -7,6 +7,7 @@
     "test:zombie": "node tests/zombie_spawn_smoke.mjs",
     "test:optimization": "node tests/frontend_optimization_smoke.mjs",
     "test:transport": "node tests/frontend_transport_smoke.mjs",
+    "test:admincontext": "node tests/frontend_admin_context_smoke.mjs",
     "test:lifecycle": "node tests/frontend_lifecycle_smoke.mjs",
     "test:phase": "node tests/frontend_phase_classes_smoke.mjs && node tests/frontend_phase_one_home_smoke.mjs",
     "test:trace": "node tests/frontend_trace_code_one_home_smoke.mjs",

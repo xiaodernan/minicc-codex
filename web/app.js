@@ -1067,7 +1067,7 @@
       "admin.contextPending": "\u6B63\u5728\u88C5\u914D\u4EE3\u8868\u6027\u63D0\u95EE\u7684\u4E0A\u4E0B\u6587\u2026",
       "admin.contextEmpty": "\u8BED\u6599\u91CC\u6CA1\u6709\u547D\u4E2D\u2014\u2014\u88C5\u914D\u5668\u4E0D\u4F1A\u7F16\u9020\u8BC1\u636E\u3002",
       "admin.contextOutage": "\u88C5\u914D\u63A5\u53E3\u4E0D\u53EF\u8FBE\u2014\u2014\u8FD9\u4E00\u683C\u7559\u7A7A\uFF0C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
-      "admin.contextTimeout": "\u8BF7\u6C42\u8D85\u65F6\u2014\u2014\u4E0D\u662F\u63A5\u53E3\u4E0D\u53EF\u8FBE\u3002\u53EF\u5237\u65B0\u91CD\u8BD5\uFF1B\u8FD0\u884C\u4E2D\u7684\u4EFB\u52A1\u4ECD\u4F1A\u7EE7\u7EED\u3002",
+      "admin.contextTimeout": "\u8BF7\u6C42\u8D85\u65F6\u2014\u2014\u672A\u80FD\u786E\u8BA4\u63A5\u53E3\u72B6\u6001\u3002\u53EF\u5237\u65B0\u91CD\u8BD5\uFF1B\u8FD0\u884C\u4E2D\u7684\u4EFB\u52A1\u4ECD\u4F1A\u7EE7\u7EED\u3002",
       "admin.contextSlow": "\u670D\u52A1\u6162\uFF0C\u672A\u5728\u65F6\u9650\u5185\u8FD4\u56DE\u771F\u5B9E\u8BFB\u6570\uFF1B\u8FD9\u4E00\u683C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
       "admin.contextServerError": "\u670D\u52A1\u8FD4\u56DE\u4E86\u9519\u8BEF\uFF085xx\uFF09\u2014\u2014\u5B83\u6D3B\u7740\uFF0C\u4F46\u8FD9\u6B21\u6CA1\u7ED9\u51FA\u771F\u5B9E\u8BFB\u6570\u3002",
       "admin.contextRejected": "\u8BF7\u6C42\u88AB\u62D2\u7EDD\uFF084xx\uFF09\u2014\u2014\u4E0D\u662F\u4E0D\u53EF\u7528\uFF0C\u8FD9\u4E00\u683C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
@@ -1091,6 +1091,7 @@
       "admin.contextPacked": "\u88C5\u5165",
       "admin.contextChunksCandidates": "\u7247\u6BB5 / \u5019\u9009",
       "admin.contextFingerprint": "\u524D\u7F00\u6307\u7EB9",
+      "admin.contextTiming": "\u672C\u6B21 {elapsed} ms \xB7 \u4E0B\u6B21\u65F6\u9650 {timeout} ms\uFF08\u8FD1 {samples} \u6B21\u5B9E\u6D4B\uFF09",
       "admin.contextTruncated": "\u9884\u7B97\u622A\u65AD\uFF1A\u5C3E\u90E8\u5019\u9009\u672A\u88C5\u5165\uFF1B\u5934\u90E8\u987A\u5E8F\u4E0D\u53D8\uFF0C\u7F13\u5B58\u524D\u7F00\u4ECD\u53EF\u547D\u4E2D\u3002",
       "admin.briefOutage": "\u6A21\u578B\u4E0D\u53EF\u8FBE\u2014\u2014\u9762\u677F\u5199\u4E0D\u4E86\u7B80\u62A5\uFF0C\u53EA\u8BF4\u8FD9\u4E00\u53E5\u771F\u8BDD\u3002",
       "admin.diagnosisKicker": "\u8BCA\u65AD \xB7 \u503C\u5B88\u8BCA\u65AD\u5E08",
@@ -2086,7 +2087,7 @@
       "admin.contextPending": "Assembling context for a representative question\u2026",
       "admin.contextEmpty": "No corpus hit \u2014 the assembler does not invent evidence.",
       "admin.contextOutage": "Assembler unreachable \u2014 this tile stays empty rather than invent numbers.",
-      "admin.contextTimeout": "Request timed out \u2014 the service is not unreachable. Refresh to retry; running tasks continue.",
+      "admin.contextTimeout": "Request timed out \u2014 the service state is unknown. Refresh to retry; running tasks continue.",
       "admin.contextSlow": "The service was slow and returned no real reading in time; this tile stays empty rather than invent numbers.",
       "admin.contextServerError": "The service answered with an error (5xx) - it is alive, but gave no real reading this time.",
       "admin.contextRejected": "The request was rejected (4xx) - not unavailable; this tile stays empty rather than invent numbers.",
@@ -2110,6 +2111,7 @@
       "admin.contextPacked": "Packed",
       "admin.contextChunksCandidates": "Chunks / candidates",
       "admin.contextFingerprint": "Prefix fingerprint",
+      "admin.contextTiming": "This read {elapsed} ms \xB7 next timeout {timeout} ms (from {samples} recent reads)",
       "admin.contextTruncated": "Budget truncated: tail candidates left out; head order unchanged, so the cached prefix still hits.",
       "admin.briefOutage": "The model is unreachable \u2014 the panel cannot write the brief. That is the only honest sentence.",
       "admin.diagnosisKicker": "Diagnosis \xB7 on-duty analyst",
@@ -9410,8 +9412,117 @@
     refreshIcons();
   }
 
-  // web/src/panels/admin.js
+  // web/src/panels/admin-context.js
+  var CONTEXT_TIMEOUT_FALLBACK_MS = 3e4;
+  var CONTEXT_TIMEOUT_FLOOR_MS = 5e3;
+  var CONTEXT_TIMEOUT_CEILING_MS = 12e4;
+  var CONTEXT_SAMPLE_LIMIT = 20;
   var esc2 = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  function deriveContextTimeout(samples) {
+    const values = samples.map(Number).filter((value) => Number.isFinite(value) && value >= 0).sort((a, b) => a - b);
+    if (!values.length) return CONTEXT_TIMEOUT_FALLBACK_MS;
+    const p95Index = Math.ceil(values.length * 0.95) - 1;
+    const p95 = values[p95Index];
+    const budget = Math.ceil((p95 * 3 + 1e3) / 1e3) * 1e3;
+    return Math.min(CONTEXT_TIMEOUT_CEILING_MS, Math.max(CONTEXT_TIMEOUT_FLOOR_MS, budget));
+  }
+  var FAILURE_COPY = {
+    timeout: ["timeout", "admin.contextTimeout"],
+    "network": ["unreachable", "admin.contextOutage"],
+    "server-error": ["server-error", "admin.contextServerError"],
+    "http-error": ["rejected", "admin.contextRejected"],
+    "auth-required": ["rejected", "admin.contextRejected"]
+  };
+  function contextFailure(error) {
+    return FAILURE_COPY[error?.code] || FAILURE_COPY.network;
+  }
+  function contextPackState(pack) {
+    if (!pack) return ["unreachable", "admin.contextOutage"];
+    if (pack.ok === false) return ["backend-error", "admin.contextSlow"];
+    if (!Array.isArray(pack.chunks) || !pack.chunks.length) return ["empty", "admin.contextEmpty"];
+    return ["present", ""];
+  }
+  function createContextInspector({
+    factsEl,
+    sourcesEl,
+    refreshEl,
+    request,
+    t: t2,
+    question,
+    now = () => performance.now(),
+    initialSamples = [],
+    onSamples,
+    autostart = true
+  }) {
+    const samples = initialSamples.slice(-CONTEXT_SAMPLE_LIMIT);
+    let timeoutMs = deriveContextTimeout(samples);
+    let latestRequest = 0;
+    function pending3(state2, text) {
+      if (!factsEl || !sourcesEl) return;
+      factsEl.dataset.contextState = state2;
+      factsEl.dataset.contextTimeoutMs = String(timeoutMs);
+      delete factsEl.dataset.contextElapsedMs;
+      sourcesEl.dataset.contextState = state2;
+      factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(text)}</p>`;
+      sourcesEl.innerHTML = "";
+    }
+    function render5(pack, elapsed) {
+      if (!factsEl || !sourcesEl) return;
+      const [state2, copyKey] = contextPackState(pack);
+      factsEl.dataset.contextState = state2;
+      factsEl.dataset.contextElapsedMs = String(Math.round(elapsed));
+      factsEl.dataset.contextTimeoutMs = String(timeoutMs);
+      sourcesEl.dataset.contextState = state2;
+      if (state2 !== "present") {
+        const reason = state2 === "backend-error" && typeof pack.error === "string" && pack.error.trim() ? ` ${pack.error}` : "";
+        pending3(state2, `${t2(copyKey)}${reason}`);
+        return;
+      }
+      const chunks = pack.chunks;
+      const rows = [
+        [t2("admin.contextBudget"), `${pack.budget_tokens}`],
+        [t2("admin.contextPacked"), `${pack.estimated_tokens} tokens`],
+        [t2("admin.contextChunksCandidates"), `${chunks.length} / ${pack.candidates}`],
+        [t2("admin.contextFingerprint"), String(pack.prefix_fingerprint || "\u2014")]
+      ];
+      const notes = [
+        pack.truncated ? t2("admin.contextTruncated") : "",
+        t2("admin.contextTiming", { elapsed: Math.round(elapsed), timeout: timeoutMs, samples: samples.length })
+      ].filter(Boolean);
+      factsEl.innerHTML = `<div class="admin-context-facts-grid">${rows.map(([key, value]) => `<div><span>${esc2(key)}</span><b>${esc2(value)}</b></div>`).join("")}</div>` + notes.map((note) => `<p class="admin-context-note">${esc2(note)}</p>`).join("");
+      sourcesEl.innerHTML = chunks.slice(0, 6).map((chunk, index) => `<div class="admin-context-source"><span class="n">[${index + 1}]</span><code>${esc2(chunk.source)}:${chunk.start_line}\u2013${chunk.end_line}</code><span class="tok">${chunk.tokens} tok</span></div>`).join("");
+    }
+    async function read() {
+      const requestNumber = ++latestRequest;
+      const started = now();
+      pending3("pending", t2("admin.contextPending"));
+      try {
+        const pack = await request(`/api/rag/context?q=${encodeURIComponent(question())}&budget=8000`, {}, timeoutMs);
+        if (requestNumber !== latestRequest) return;
+        const elapsed = Math.max(0, now() - started);
+        samples.push(elapsed);
+        if (samples.length > CONTEXT_SAMPLE_LIMIT) samples.shift();
+        timeoutMs = deriveContextTimeout(samples);
+        try {
+          onSamples?.(samples.slice());
+        } catch {
+        }
+        render5(pack, elapsed);
+      } catch (error) {
+        if (requestNumber !== latestRequest) return;
+        const [state2, copyKey] = contextFailure(error);
+        pending3(state2, t2(copyKey));
+      }
+    }
+    refreshEl?.addEventListener("click", () => {
+      void read();
+    });
+    if (autostart) void read();
+    return { read, timeoutMs: () => timeoutMs };
+  }
+
+  // web/src/panels/admin.js
+  var esc3 = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   var zh8 = () => state.locale === "zh";
   var compactCount2 = (value) => {
     const n = Number(value || 0);
@@ -9507,7 +9618,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "admin-apply-all";
-    btn.innerHTML = `<i data-lucide="wand-sparkles" aria-hidden="true"></i><span>${esc2(label2)}</span>`;
+    btn.innerHTML = `<i data-lucide="wand-sparkles" aria-hidden="true"></i><span>${esc3(label2)}</span>`;
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       btn.setAttribute("aria-busy", "true");
@@ -9649,10 +9760,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       const recList = $("#adminRecommendations");
       if (recList) {
         recList.innerHTML = recs.length ? recs.map((rec) => `
-          <li class="admin-rec admin-rec-${esc2(rec.priority || "low")}">
-            <strong>${esc2(zh8() ? rec.title_zh : rec.title_en)}</strong>
-            <span>${esc2(zh8() ? rec.why_zh : rec.why_en)}</span>
-          </li>`).join("") : `<li class="admin-rec admin-rec-good">${esc2(zh8() ? "\u6682\u65E0\u5EFA\u8BAE \u2014\u2014 \u6570\u636E\u770B\u8D77\u6765\u4E0D\u9519\u3002" : "No outstanding calls to make on this data \u2014 it looks healthy.")}</li>`;
+          <li class="admin-rec admin-rec-${esc3(rec.priority || "low")}">
+            <strong>${esc3(zh8() ? rec.title_zh : rec.title_en)}</strong>
+            <span>${esc3(zh8() ? rec.why_zh : rec.why_en)}</span>
+          </li>`).join("") : `<li class="admin-rec admin-rec-good">${esc3(zh8() ? "\u6682\u65E0\u5EFA\u8BAE \u2014\u2014 \u6570\u636E\u770B\u8D77\u6765\u4E0D\u9519\u3002" : "No outstanding calls to make on this data \u2014 it looks healthy.")}</li>`;
       }
       const ciPromise = requestJson("/api/ci_status", {}, 2e4).catch(() => null);
       ciPromise.then((ci) => {
@@ -9683,10 +9794,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
               return "admin-ci-dot-unknown";
             };
             dotsEl.innerHTML = recent.length ? recent.slice(0, 3).map((r) => `
-          <li class="admin-ci-dot ${dotOf(r?.conclusion)}" title="${esc2(String(r?.workflow ?? "") + " \xB7 " + String(r?.created_at ?? "") + " \xB7 " + String(r?.head_sha ?? ""))}">
-            <small>${esc2(String(r?.created_at ?? "").slice(0, 16))}</small>
-            <strong>${esc2(String(r?.conclusion || r?.status || "unknown"))} \xB7 ${esc2(String(r?.head_sha ?? ""))}</strong>
-          </li>`).join("") : `<li class="admin-ci-dot admin-ci-dot-unknown" title="${esc2(String(t("admin.ciUnavailable")))}"><small>\u2014</small><strong>${esc2(String(t("admin.ciUnavailable")))}</strong></li>`;
+          <li class="admin-ci-dot ${dotOf(r?.conclusion)}" title="${esc3(String(r?.workflow ?? "") + " \xB7 " + String(r?.created_at ?? "") + " \xB7 " + String(r?.head_sha ?? ""))}">
+            <small>${esc3(String(r?.created_at ?? "").slice(0, 16))}</small>
+            <strong>${esc3(String(r?.conclusion || r?.status || "unknown"))} \xB7 ${esc3(String(r?.head_sha ?? ""))}</strong>
+          </li>`).join("") : `<li class="admin-ci-dot admin-ci-dot-unknown" title="${esc3(String(t("admin.ciUnavailable")))}"><small>\u2014</small><strong>${esc3(String(t("admin.ciUnavailable")))}</strong></li>`;
           }
         } catch {
         }
@@ -9751,12 +9862,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && brief && brief.model) byEl.textContent = brief.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
         if (!brief || !brief.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.briefOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.briefOutage"))}</p>`;
           if (usageEl) usageEl.textContent = brief?.error ? `error: ${String(brief.error).slice(0, 140)}` : "";
           return;
         }
         const text = zh8() ? brief.zh : brief.en;
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? brief.en : brief.zh))}</p>`;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(text || (zh8() ? brief.en : brief.zh))}</p>`;
         if (usageEl) {
           const u = brief.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -9768,62 +9879,30 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         briefRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminBriefBody");
           const usageEl = $("#adminBriefUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.briefPending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.briefPending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-brief?fresh=1", {}, 3e4).catch(() => null).then((brief) => renderBrief(brief, true));
         });
       }
       const briefPromise = requestJson("/api/oracle-brief", {}, 3e4).catch(() => null);
       briefPromise.then((brief) => renderBrief(brief, false));
-      const contextQuestion = () => zh8() ? "\u7F13\u5B58 \u547D\u4E2D\u7387 \u4F18\u5316" : "cache hit rate context";
-      function contextPending(text) {
-        const factsEl = $("#adminContextFacts");
-        const srcEl = $("#adminContextSources");
-        if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(text)}</p>`;
-        if (srcEl) srcEl.innerHTML = "";
+      const contextSampleKey = `minicc-admin-context-latencies:${state.workspacePath || ""}`;
+      let contextSamples = [];
+      try {
+        const stored = JSON.parse(sessionStorage.getItem(contextSampleKey) || "[]");
+        if (Array.isArray(stored)) contextSamples = stored.filter(Number.isFinite);
+      } catch {
       }
-      function renderContext(pack) {
-        const factsEl = $("#adminContextFacts");
-        const srcEl = $("#adminContextSources");
-        if (!factsEl || !srcEl) return;
-        if (!pack) {
-          contextPending(t("admin.contextOutage"));
-          return;
-        }
-        if (pack.ok === false) {
-          const reason = typeof pack.error === "string" && pack.error.trim() ? pack.error : t("admin.contextSlow");
-          contextPending(`${t("admin.contextSlow")} ${esc2(reason)}`);
-          return;
-        }
-        const chunks = Array.isArray(pack.chunks) ? pack.chunks : [];
-        if (!chunks.length) {
-          contextPending(t("admin.contextEmpty"));
-          return;
-        }
-        const rows = [
-          [t("admin.contextBudget"), `${pack.budget_tokens}`],
-          [t("admin.contextPacked"), `${pack.estimated_tokens} tokens`],
-          [t("admin.contextChunksCandidates"), `${chunks.length} / ${pack.candidates}`],
-          [t("admin.contextFingerprint"), String(pack.prefix_fingerprint || "\u2014")]
-        ];
-        const note = pack.truncated ? `<p class="admin-context-note">${esc2(t("admin.contextTruncated"))}</p>` : "";
-        factsEl.innerHTML = `<div class="admin-context-facts-grid">${rows.map(([k, v]) => `<div><span>${esc2(k)}</span><b>${esc2(v)}</b></div>`).join("")}</div>${note}`;
-        srcEl.innerHTML = chunks.slice(0, 6).map((chunk, index) => `<div class="admin-context-source"><span class="n">[${index + 1}]</span><code>${esc2(chunk.source)}:${chunk.start_line}\u2013${chunk.end_line}</code><span class="tok">${chunk.tokens} tok</span></div>`).join("");
-      }
-      function readContext(refreshed) {
-        const factsEl = $("#adminContextFacts");
-        if (refreshed && factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.contextPending"))}</p>`;
-        requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 2e4).then((pack) => renderContext(pack)).catch((error) => {
-          const code = error && error.code;
-          if (code === "timeout") contextPending(t("admin.contextTimeout"));
-          else if (code === "server-error") contextPending(t("admin.contextServerError"));
-          else if (code === "http-error" || code === "auth-required") contextPending(t("admin.contextRejected"));
-          else contextPending(t("admin.contextOutage"));
-        });
-      }
-      const contextRefresh = $("#adminContextRefresh");
-      if (contextRefresh) contextRefresh.addEventListener("click", () => readContext(true));
-      readContext(false);
+      createContextInspector({
+        factsEl: $("#adminContextFacts"),
+        sourcesEl: $("#adminContextSources"),
+        refreshEl: $("#adminContextRefresh"),
+        request: requestJson,
+        t,
+        question: () => zh8() ? "\u7F13\u5B58 \u547D\u4E2D\u7387 \u4F18\u5316" : "cache hit rate context",
+        initialSamples: contextSamples,
+        onSamples: (samples) => sessionStorage.setItem(contextSampleKey, JSON.stringify(samples))
+      });
       function renderTrendOracle(reading, refreshed) {
         const bodyEl = $("#adminTrendOracleBody");
         const movesEl = $("#adminTrendOracleMoves");
@@ -9832,7 +9911,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && reading && reading.model) byEl.textContent = reading.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u5224" : "read live by the model";
         if (!reading || !reading.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.trendOracleOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.trendOracleOutage"))}</p>`;
           if (movesEl) movesEl.innerHTML = "";
           if (usageEl) usageEl.textContent = reading?.error ? `error: ${String(reading.error).slice(0, 140)}` : "";
           return;
@@ -9844,10 +9923,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           steady: "admin.trendOracleDirSteady",
           unknown: "admin.trendOracleDirUnknown"
         }[reading.direction] || "admin.trendOracleDirUnknown";
-        const base = reading.baseline_direction ? ` \xB7 ${esc2(t("admin.trendOracleBaseline"))}: ${esc2(String(reading.baseline_direction))}` : "";
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text"><strong>[${esc2(t(dirKey))}]</strong> ${esc2(side.narrative || "")}${base}</p>`;
+        const base = reading.baseline_direction ? ` \xB7 ${esc3(t("admin.trendOracleBaseline"))}: ${esc3(String(reading.baseline_direction))}` : "";
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text"><strong>[${esc3(t(dirKey))}]</strong> ${esc3(side.narrative || "")}${base}</p>`;
         const moves = Array.isArray(side.moves) ? side.moves : [];
-        if (movesEl) movesEl.innerHTML = moves.length ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc2(t("admin.trendOracleMoves"))}</em></li>` + moves.map((m, i) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${i + 1}</strong><span>${esc2(String(m))}</span></li>`).join("") : "";
+        if (movesEl) movesEl.innerHTML = moves.length ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc3(t("admin.trendOracleMoves"))}</em></li>` + moves.map((m, i) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${i + 1}</strong><span>${esc3(String(m))}</span></li>`).join("") : "";
         if (usageEl) {
           const u = reading.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -9860,7 +9939,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         trendOracleRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminTrendOracleBody");
           const usageEl = $("#adminTrendOracleUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.trendOraclePending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.trendOraclePending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-trend?fresh=1", {}, 3e4).catch(() => null).then((reading) => renderTrendOracle(reading, true));
         });
@@ -9874,7 +9953,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const pathsEl = $("#adminJourneysPaths");
         const howEl = $("#adminJourneysHow");
         if (!report || report.error) {
-          if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.journeysOutage"))}</p>`;
+          if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.journeysOutage"))}</p>`;
           if (personasEl) personasEl.innerHTML = "";
           if (exitsEl) exitsEl.innerHTML = "";
           if (pathsEl) pathsEl.innerHTML = "";
@@ -9888,11 +9967,11 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const ms = (value) => value == null ? "\u2014" : `${Math.round(value)} ms`;
         const pct3 = (value) => value == null ? "\u2014" : `${Math.round(value * 100)}%`;
         if (!report.live) {
-          if (factsEl) factsEl.innerHTML = `<p class="admin-journey-empty">${esc2(t("admin.journeysEmpty"))}</p>`;
+          if (factsEl) factsEl.innerHTML = `<p class="admin-journey-empty">${esc3(t("admin.journeysEmpty"))}</p>`;
           if (personasEl) personasEl.innerHTML = "";
           if (exitsEl) exitsEl.innerHTML = "";
           if (pathsEl) pathsEl.innerHTML = "";
-          if (howEl) howEl.innerHTML = `${esc2(t("admin.journeysHow"))} <code>${esc2(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
+          if (howEl) howEl.innerHTML = `${esc3(t("admin.journeysHow"))} <code>${esc3(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
           const oracleEl2 = $("#adminJourneysOracle");
           if (oracleEl2) oracleEl2.hidden = true;
           return;
@@ -9913,23 +9992,23 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
             [t("admin.journeysRage"), String(report.rage_journeys ?? 0)],
             [t("admin.journeysErrors"), String(report.page_errors ?? 0)]
           ];
-          factsEl.innerHTML = facts.map(([label2, value]) => `<div class="admin-fact"><span>${esc2(label2)}</span><strong>${esc2(value)}</strong></div>`).join("") + `<p class="admin-journey-band">${esc2(t(bandKey))}</p>`;
+          factsEl.innerHTML = facts.map(([label2, value]) => `<div class="admin-fact"><span>${esc3(label2)}</span><strong>${esc3(value)}</strong></div>`).join("") + `<p class="admin-journey-band">${esc3(t(bandKey))}</p>`;
         }
         if (personasEl) {
           personasEl.innerHTML = (report.personas || []).map(
-            (row) => `<div class="admin-journey-persona"><strong>${esc2(personaName(row.id))}</strong><span>${esc2(String(row.runs))} ${esc2(t("admin.journeysRuns"))}</span><span>${esc2(t("admin.journeysBounce"))} ${esc2(pct3(row.bounce_rate))}</span><span>${esc2(t("admin.journeysDwell"))} ${esc2(ms(row.median_dwell_ms))}</span><span>${esc2(t("admin.journeysClicks"))} ${esc2(String(row.mean_clicks ?? "\u2014"))}</span></div>`
+            (row) => `<div class="admin-journey-persona"><strong>${esc3(personaName(row.id))}</strong><span>${esc3(String(row.runs))} ${esc3(t("admin.journeysRuns"))}</span><span>${esc3(t("admin.journeysBounce"))} ${esc3(pct3(row.bounce_rate))}</span><span>${esc3(t("admin.journeysDwell"))} ${esc3(ms(row.median_dwell_ms))}</span><span>${esc3(t("admin.journeysClicks"))} ${esc3(String(row.mean_clicks ?? "\u2014"))}</span></div>`
           ).join("");
         }
         const exits = Array.isArray(report.last_views) ? report.last_views : [];
         if (exitsEl) {
-          exitsEl.innerHTML = exits.length ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc2(t("admin.journeysExits"))}</em></li>` + exits.map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc2(String(row.count))}</strong><span>${esc2(String(row.view))} \xB7 ${esc2(pct3(row.share))}</span></li>`).join("") : "";
+          exitsEl.innerHTML = exits.length ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc3(t("admin.journeysExits"))}</em></li>` + exits.map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc3(String(row.count))}</strong><span>${esc3(String(row.view))} \xB7 ${esc3(pct3(row.share))}</span></li>`).join("") : "";
         }
         const paths = Array.isArray(report.transitions) ? report.transitions : [];
         if (pathsEl) {
-          pathsEl.innerHTML = paths.length ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc2(t("admin.journeysPaths"))}</em></li>` + paths.map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc2(String(row.count))}</strong><span>${esc2(String(row.from))} \u2192 ${esc2(String(row.to))} \xB7 ${esc2(pct3(row.share))}</span></li>`).join("") : "";
+          pathsEl.innerHTML = paths.length ? `<li class="admin-plan-empty" style="list-style:none;padding:0 0 4px"><em class="admin-brief-pending">${esc3(t("admin.journeysPaths"))}</em></li>` + paths.map((row) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${esc3(String(row.count))}</strong><span>${esc3(String(row.from))} \u2192 ${esc3(String(row.to))} \xB7 ${esc3(pct3(row.share))}</span></li>`).join("") : "";
         }
         if (howEl) {
-          howEl.innerHTML = `${esc2(t("admin.journeysHow"))} <code>${esc2(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
+          howEl.innerHTML = `${esc3(t("admin.journeysHow"))} <code>${esc3(report.how_to || "node scripts/behavior_sim.mjs")}</code>`;
         }
       }
       function renderAdvice(advice) {
@@ -9944,9 +10023,9 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const bodyEl = $("#adminJourneysAdviceBody");
         const movesEl = $("#adminJourneysAdviceMoves");
         const focus = t(`admin.adviceFocus.${advice.focus}`);
-        if (bodyEl) bodyEl.innerHTML = `<strong>${esc2(focus)}</strong> ${esc2(text.narrative)}`;
+        if (bodyEl) bodyEl.innerHTML = `<strong>${esc3(focus)}</strong> ${esc3(text.narrative)}`;
         if (movesEl) {
-          movesEl.innerHTML = text.moves.map((move2, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span><em class="admin-brief-pending">${esc2(t("admin.adviceEvidence"))} ${esc2(move2.evidence || "")}</em><br/>${esc2(t("admin.adviceAction"))}\uFF1A${esc2(move2.action || "")}<br/>${esc2(t("admin.adviceAccept"))}\uFF1A${esc2(move2.accept || "")}</span></li>`).join("");
+          movesEl.innerHTML = text.moves.map((move2, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span><em class="admin-brief-pending">${esc3(t("admin.adviceEvidence"))} ${esc3(move2.evidence || "")}</em><br/>${esc3(t("admin.adviceAction"))}\uFF1A${esc3(move2.action || "")}<br/>${esc3(t("admin.adviceAccept"))}\uFF1A${esc3(move2.accept || "")}</span></li>`).join("");
         }
       }
       function loadAdvice() {
@@ -9956,7 +10035,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       if (journeysRefresh) {
         journeysRefresh.addEventListener("click", () => {
           const factsEl = $("#adminJourneysFacts");
-          if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.journeysPending"))}</p>`;
+          if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.journeysPending"))}</p>`;
           requestJson("/api/behavior/journeys", {}, 2e4).catch(() => null).then((report) => {
             renderJourneys(report, true);
             loadAdvice();
@@ -9975,13 +10054,13 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const btn = $("#adminJourneysOracleBtn");
         if (btn) btn.textContent = t(journeyOracleRead ? "admin.journeyOracleReread" : "admin.journeyOracleRun");
         if (!reading || reading.live === false) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.journeyOracleOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.journeyOracleOutage"))}</p>`;
           if (movesEl) movesEl.innerHTML = "";
           if (usageEl) usageEl.textContent = reading?.error ? `error: ${String(reading.error).slice(0, 140)}` : "";
           return;
         }
         if (reading.verdict === "no-signal") {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.journeyOracleNoSignal"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.journeyOracleNoSignal"))}</p>`;
           if (movesEl) movesEl.innerHTML = "";
           if (usageEl) usageEl.textContent = zh8() ? "\u96F6\u4FE1\u53F7 \xB7 \u6A21\u578B\u672A\u88AB\u8C03\u7528" : "zero-signal \xB7 model not called";
           return;
@@ -9991,11 +10070,11 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const focusLabel = typeof rawFocus === "string" && rawFocus && !rawFocus.startsWith("admin.") ? rawFocus : t("admin.journeyOracleFocus.unknown");
         const sample = reading.sample || {};
         if (bodyEl) {
-          bodyEl.innerHTML = `<p class="admin-journey-oracle-badge">${esc2(focusLabel)}</p><p class="admin-brief-text">${esc2(side.narrative || "")}</p><p class="admin-journey-band">${esc2(t("admin.journeyOracleSample"))} n=${esc2(String(sample.total ?? "\u2014"))} \xB7 ${esc2(String(sample.confidence || "\u2014"))}</p>`;
+          bodyEl.innerHTML = `<p class="admin-journey-oracle-badge">${esc3(focusLabel)}</p><p class="admin-brief-text">${esc3(side.narrative || "")}</p><p class="admin-journey-band">${esc3(t("admin.journeyOracleSample"))} n=${esc3(String(sample.total ?? "\u2014"))} \xB7 ${esc3(String(sample.confidence || "\u2014"))}</p>`;
         }
         const moves = Array.isArray(side.moves) ? side.moves : [];
         if (movesEl) {
-          movesEl.innerHTML = moves.map((move2, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(move2))}</span></li>`).join("");
+          movesEl.innerHTML = moves.map((move2, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc3(String(move2))}</span></li>`).join("");
         }
         if (usageEl) {
           const u = reading.usage || {};
@@ -10009,7 +10088,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           const bodyEl = $("#adminJourneysOracleBody");
           const movesEl = $("#adminJourneysOracleMoves");
           const usageEl = $("#adminJourneysOracleUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.journeyOraclePending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.journeyOraclePending"))}</p>`;
           if (movesEl) movesEl.innerHTML = "";
           if (usageEl) usageEl.textContent = "";
           const suffix = journeyOracleRead ? "?fresh=1" : "";
@@ -10026,12 +10105,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && diagnosis && diagnosis.model) byEl.textContent = diagnosis.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
         if (!diagnosis || !diagnosis.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.diagnosisOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.diagnosisOutage"))}</p>`;
           if (usageEl) usageEl.textContent = diagnosis?.error ? `error: ${String(diagnosis.error).slice(0, 140)}` : "";
           return;
         }
         const text = zh8() ? diagnosis.zh : diagnosis.en;
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? diagnosis.en : diagnosis.zh))}</p>`;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(text || (zh8() ? diagnosis.en : diagnosis.zh))}</p>`;
         if (usageEl) {
           const u = diagnosis.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -10043,7 +10122,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         diagnosisRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminDiagnosisBody");
           const usageEl = $("#adminDiagnosisUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.diagnosisPending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.diagnosisPending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-diagnosis?fresh=1", {}, 3e4).catch(() => null).then((diagnosis) => renderDiagnosis(diagnosis, true));
         });
@@ -10057,13 +10136,13 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && plan && plan.model) byEl.textContent = plan.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
         if (!plan || !plan.live) {
-          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.planOutage"))}</em></li>`;
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc3(t("admin.planOutage"))}</em></li>`;
           if (usageEl) usageEl.textContent = plan?.error ? `error: ${String(plan.error).slice(0, 140)}` : "";
           return;
         }
         const items = zh8() ? plan.zh || [] : plan.en || [];
         const list2 = items.length ? items : (zh8() ? plan.en : plan.zh) || [];
-        if (listEl) listEl.innerHTML = list2.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+        if (listEl) listEl.innerHTML = list2.slice(0, 3).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc3(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc3(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
         bindApplyButtons(listEl, "plan", list2.slice(0, 3));
         bindApplyAllButtons(listEl, "plan", list2.slice(0, 3));
         if (usageEl) {
@@ -10077,7 +10156,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         planRefresh.addEventListener("click", () => {
           const listEl = $("#adminPlanList");
           const usageEl = $("#adminPlanUsage");
-          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.planPending"))}</em></li>`;
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc3(t("admin.planPending"))}</em></li>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-plan?fresh=1", {}, 3e4).catch(() => null).then((plan) => renderPlan(plan, true));
         });
@@ -10092,13 +10171,13 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u5224" : "read live by the model";
         if (!recs2 || !recs2.live) {
           const line = zh8() ? recs2?.zh_error ?? recs2?.error : recs2?.en_error ?? recs2?.error;
-          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.recommendationsOutage"))}</em></li>`;
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc3(t("admin.recommendationsOutage"))}</em></li>`;
           if (usageEl) usageEl.textContent = line ? String(line).slice(0, 140) : "";
           return;
         }
         const items = zh8() ? recs2.zh || [] : recs2.en || [];
         const list2 = items.length ? items : (zh8() ? recs2.en : recs2.zh) || [];
-        if (listEl) listEl.innerHTML = list2.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc2(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc2(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
+        if (listEl) listEl.innerHTML = list2.slice(0, 4).map((item, index) => `<li class="admin-plan-item"><strong class="admin-plan-rank">${index + 1}</strong><span>${esc3(String(item))}</span><button type="button" class="admin-apply-one" data-apply-index="${index}" aria-label="${esc3(zh8() ? "\u6D3E\u7ED9\u6A21\u578B\u6267\u884C\u8FD9\u4E00\u6761" : "apply this move with the model")}"><i data-lucide="wand-sparkles" aria-hidden="true"></i></button></li>`).join("");
         bindApplyButtons(listEl, "rec", list2.slice(0, 4));
         bindApplyAllButtons(listEl, "rec", list2.slice(0, 4));
         if (usageEl) {
@@ -10113,7 +10192,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         recRefresh.addEventListener("click", () => {
           const listEl = $("#adminRecommendationsList");
           const usageEl = $("#adminRecommendationsUsage");
-          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc2(t("admin.recommendationsPending"))}</em></li>`;
+          if (listEl) listEl.innerHTML = `<li class="admin-plan-empty"><em class="admin-brief-pending">${esc3(t("admin.recommendationsPending"))}</em></li>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-recommendations?fresh=1", {}, 3e4).catch(() => null).then((recs2) => renderRecommendations(recs2, true));
         });
@@ -10162,7 +10241,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       function renderBenchFilters() {
         const host = $("#adminBenchFilters");
         if (!host) return;
-        const group = (label2, options, key) => `<div class="group"><span class="group-label">${esc2(label2)}</span>${options.map((opt) => `<button type="button" data-bench-key="${key}" data-bench-value="${esc2(opt.value)}" aria-pressed="${benchFilter[key] === opt.value}">${esc2(zh8() ? opt.zh : opt.en)}</button>`).join("")}</div>`;
+        const group = (label2, options, key) => `<div class="group"><span class="group-label">${esc3(label2)}</span>${options.map((opt) => `<button type="button" data-bench-key="${key}" data-bench-value="${esc3(opt.value)}" aria-pressed="${benchFilter[key] === opt.value}">${esc3(zh8() ? opt.zh : opt.en)}</button>`).join("")}</div>`;
         host.innerHTML = group(zh8() ? "\u65F6\u95F4" : "window", BENCH_WINDOWS, "window") + group(zh8() ? "\u7C7B\u578B" : "kind", BENCH_KINDS, "kind");
         host.querySelectorAll("button[data-bench-key]").forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -10197,7 +10276,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           if (bodyEl) {
             bodyEl.dataset.benchState = state2;
             const sentence = BENCH_STATE_SENTENCES[state2] || "admin.benchHistoryNoSamples";
-            bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t(sentence))}</p>`;
+            bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t(sentence))}</p>`;
           }
           if (usageEl) {
             const held = Number(data2?.total_lines);
@@ -10218,7 +10297,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           { label: "mean elapsed (ms)", value: data2.mean_elapsed_ms != null ? String(data2.mean_elapsed_ms) : "\u2014" },
           { label: "skipped lines", value: String(data2.skipped_lines ?? 0) }
         ];
-        if (bodyEl) bodyEl.innerHTML = `<ul class="admin-ratelimit-list">${items.map((item) => `<li><strong>${esc2(item.label)}</strong><span>${esc2(item.value)}</span></li>`).join("")}</ul>`;
+        if (bodyEl) bodyEl.innerHTML = `<ul class="admin-ratelimit-list">${items.map((item) => `<li><strong>${esc3(item.label)}</strong><span>${esc3(item.value)}</span></li>`).join("")}</ul>`;
         const scope = [];
         if (data2.filters?.window_days != null) scope.push(zh8() ? `\u8FD1 ${data2.filters.window_days} \u5929` : `last ${data2.filters.window_days}d`);
         if (data2.filters?.kind) scope.push(zh8() ? `\u7C7B\u578B ${data2.filters.kind}` : `kind ${data2.filters.kind}`);
@@ -10229,7 +10308,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       function loadBenchHistory(showPending) {
         if (showPending) {
           const bodyEl = $("#adminBenchBody");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.benchHistoryPending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.benchHistoryPending"))}</p>`;
         }
         requestJson(benchQuery(), {}, 1e4).catch(() => null).then((data2) => renderBenchHistory(data2));
       }
@@ -10243,12 +10322,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && review && review.model) byEl.textContent = review.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
         if (!review || !review.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.reviewOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.reviewOutage"))}</p>`;
           if (usageEl) usageEl.textContent = review?.error ? `error: ${String(review.error).slice(0, 140)}` : "";
           return;
         }
         const text = zh8() ? review.zh : review.en;
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? review.en : review.zh))}</p>`;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(text || (zh8() ? review.en : review.zh))}</p>`;
         if (usageEl) {
           const u = review.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -10260,7 +10339,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         reviewRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminReviewBody");
           const usageEl = $("#adminReviewUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.reviewPending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.reviewPending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-review?fresh=1", {}, 3e4).catch(() => null).then((review) => renderReview(review, true));
         });
@@ -10274,12 +10353,12 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && retrospective && retrospective.model) byEl.textContent = retrospective.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u626B" : "read live by the model";
         if (!retrospective || !retrospective.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.retrospectiveOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.retrospectiveOutage"))}</p>`;
           if (usageEl) usageEl.textContent = retrospective?.error ? `error: ${String(retrospective.error).slice(0, 140)}` : "";
           return;
         }
         const text = zh8() ? retrospective.zh : retrospective.en;
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? retrospective.en : retrospective.zh))}</p>`;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(text || (zh8() ? retrospective.en : retrospective.zh))}</p>`;
         if (usageEl) {
           const u = retrospective.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -10291,7 +10370,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         retrospectiveRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminRetrospectiveBody");
           const usageEl = $("#adminRetrospectiveUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.retrospectivePending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.retrospectivePending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-retrospective?fresh=1", {}, 3e4).catch(() => null).then((retrospective) => renderRetrospective(retrospective, true));
         });
@@ -10305,7 +10384,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && cidx && cidx.model) byEl.textContent = cidx.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u5224" : "read live by the model";
         if (!cidx || !cidx.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ciDxOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.ciDxOutage"))}</p>`;
           if (usageEl) {
             const line = zh8() ? cidx?.zh_error ?? cidx?.error : cidx?.en_error ?? cidx?.error;
             usageEl.textContent = line ? String(line).slice(0, 160) : "";
@@ -10313,7 +10392,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
           return;
         }
         const text = zh8() ? cidx.zh : cidx.en;
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? cidx.en : cidx.zh))}</p>`;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(text || (zh8() ? cidx.en : cidx.zh))}</p>`;
         if (usageEl) {
           if (cidx.verdict === "no-current-failure") {
             usageEl.textContent = zh8() ? "\u5F53\u524D main \u7EFF \xB7 0 tokens \xB7 \u6A21\u578B\u672A\u88AB\u8C03\u7528" : "main is green \xB7 0 tokens \xB7 model not called";
@@ -10329,7 +10408,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         ciDxRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminCiDxBody");
           const usageEl = $("#adminCiDxUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ciDxPending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.ciDxPending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-ci-diagnosis?fresh=1", {}, 3e4).catch(() => null).then((cidx) => renderCiDx(cidx, true));
         });
@@ -10343,17 +10422,17 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (byEl && story && story.model) byEl.textContent = story.model;
         else if (byEl) byEl.textContent = zh8() ? "\u7531\u6A21\u578B\u73B0\u8BFB" : "read live by the model";
         if (!story || !story.live) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.auditOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.auditOutage"))}</p>`;
           if (usageEl) usageEl.textContent = story?.error ? `error: ${String(story.error).slice(0, 140)}` : "";
           return;
         }
         if (story.verdict === "no-audit") {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(zh8() ? story.zh : story.en)}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(zh8() ? story.zh : story.en)}</p>`;
           if (usageEl) usageEl.textContent = zh8() ? "0 tokens \xB7 \u6A21\u578B\u672A\u88AB\u8C03\u7528" : "0 tokens \xB7 model not called";
           return;
         }
         const text = zh8() ? story.zh : story.en;
-        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc2(text || (zh8() ? story.en : story.zh))}</p>`;
+        if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-text">${esc3(text || (zh8() ? story.en : story.zh))}</p>`;
         if (usageEl) {
           const u = story.usage || {};
           const cached = u.cached_tokens != null ? zh8() ? ` \xB7 \u7F13\u5B58\u547D\u4E2D ${u.cached_tokens}` : ` \xB7 cached ${u.cached_tokens}` : "";
@@ -10366,7 +10445,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         auditRefresh.addEventListener("click", () => {
           const bodyEl = $("#adminAuditBody");
           const usageEl = $("#adminAuditUsage");
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.auditPending"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.auditPending"))}</p>`;
           if (usageEl) usageEl.textContent = "";
           requestJson("/api/oracle-audit-story?fresh=1", {}, 3e4).catch(() => null).then((story) => renderAudit(story, true));
         });
@@ -10376,7 +10455,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
       function renderKeeper(keeper) {
         if (!keeper || keeper.enabled === false) {
           const off = zh8() ? "\u672A\u542F\u7528\uFF08MINICC_CACHE_KEEPER=0 \u6216\u670D\u52A1\u672A\u8D77\uFF09" : "off (MINICC_CACHE_KEEPER=0 or not booted)";
-          return `<li><strong>${zh8() ? "prefix \u7F13\u5B58" : "prefix cache"}</strong><span>${esc2(off)}</span></li>`;
+          return `<li><strong>${zh8() ? "prefix \u7F13\u5B58" : "prefix cache"}</strong><span>${esc3(off)}</span></li>`;
         }
         const warms = Number(keeper.warms ?? 0);
         const fails = Number(keeper.failures ?? 0);
@@ -10388,7 +10467,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const ratio = pt > 0 ? `${Math.round(ct / pt * 100)}% \xB7 ${ct}/${pt}` : "\u2014";
         const ok = keeper.last_ok === true ? zh8() ? "\u70ED \u2713" : "warm \u2713" : keeper.last_ok === false ? zh8() ? "\u51C9 \u2717" : "cold \u2717" : "\u2014";
         const reason = keeper.last_error ? ` \xB7 ${String(keeper.last_error).slice(0, 60)}` : "";
-        return `<li><strong>${zh8() ? "\u7F13\u5B58\u4FDD\u6D3B" : "cache keeper"}</strong><span>${esc2(`${warms} warm \xB7 ${fails} fail \xB7 ${Math.round(interval)}s \xB7 ${zh8() ? "\u4E0A\u6B21" : "last"} ${ageTxt}${zh8() ? "\u524D" : " ago"}`)}</span></li><li><strong>${zh8() ? "prefix \u547D\u4E2D" : "prefix hit"}</strong><span>${esc2(ratio)}</span></li><li><strong>${zh8() ? "\u4E0A\u6B21 warm" : "last warm"}</strong><span>${esc2(ok + reason)}</span></li>`;
+        return `<li><strong>${zh8() ? "\u7F13\u5B58\u4FDD\u6D3B" : "cache keeper"}</strong><span>${esc3(`${warms} warm \xB7 ${fails} fail \xB7 ${Math.round(interval)}s \xB7 ${zh8() ? "\u4E0A\u6B21" : "last"} ${ageTxt}${zh8() ? "\u524D" : " ago"}`)}</span></li><li><strong>${zh8() ? "prefix \u547D\u4E2D" : "prefix hit"}</strong><span>${esc3(ratio)}</span></li><li><strong>${zh8() ? "\u4E0A\u6B21 warm" : "last warm"}</strong><span>${esc3(ok + reason)}</span></li>`;
       }
       function renderChannel(metrics, refreshed) {
         const bodyEl = $("#adminChannelList");
@@ -10396,7 +10475,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const byEl = $("#adminChannelModel");
         if (byEl && metrics) byEl.textContent = zh8() ? "\u771F\u5B9E\u901A\u9053" : "real channels";
         if (!metrics || typeof metrics !== "object") {
-          if (bodyEl) bodyEl.innerHTML = `<li class="admin-brief-pending">${esc2(t("admin.channelPending"))}</li>`;
+          if (bodyEl) bodyEl.innerHTML = `<li class="admin-brief-pending">${esc3(t("admin.channelPending"))}</li>`;
           if (usageEl) usageEl.textContent = "";
           return;
         }
@@ -10423,10 +10502,10 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         });
         rows.sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0));
         if (bodyEl) {
-          bodyEl.innerHTML = `<li><strong>${zh8() ? "\u8303\u56F4" : "scope"}</strong><span>${esc2(scoped)}</span></li>` + (rows.length ? rows.slice(0, 4).map((row) => {
+          bodyEl.innerHTML = `<li><strong>${zh8() ? "\u8303\u56F4" : "scope"}</strong><span>${esc3(scoped)}</span></li>` + (rows.length ? rows.slice(0, 4).map((row) => {
             const unit = zh8() ? "\u4E2A\u4EFB\u52A1" : row.tasks === 1 ? "task" : "tasks";
-            return `<li><strong>${esc2(row.name)}</strong><span>${esc2(`${row.prompt}/${row.completion}/${row.total} \xB7 ${row.tasks} ${unit}`)}</span></li>`;
-          }).join("") : `<li><strong>${zh8() ? "\u6761\u76EE" : "rows"}</strong><span>${esc2("none")}</span></li>`) + `<li><strong>${zh8() ? "\u5B9A\u4EF7\u8986\u76D6" : "Priced coverage"}</strong><span>${esc2(`${priced}/${unpriced} \xB7 ${partialStr}`)}</span></li><li><strong>${zh8() ? "\u603B\u6210\u672C" : "total spend"}</strong><span>${esc2(totalCost == null ? "\u2014" : `$${costStr}`)}</span></li>` + renderKeeper(metrics?.cache_keeper);
+            return `<li><strong>${esc3(row.name)}</strong><span>${esc3(`${row.prompt}/${row.completion}/${row.total} \xB7 ${row.tasks} ${unit}`)}</span></li>`;
+          }).join("") : `<li><strong>${zh8() ? "\u6761\u76EE" : "rows"}</strong><span>${esc3("none")}</span></li>`) + `<li><strong>${zh8() ? "\u5B9A\u4EF7\u8986\u76D6" : "Priced coverage"}</strong><span>${esc3(`${priced}/${unpriced} \xB7 ${partialStr}`)}</span></li><li><strong>${zh8() ? "\u603B\u6210\u672C" : "total spend"}</strong><span>${esc3(totalCost == null ? "\u2014" : `$${costStr}`)}</span></li>` + renderKeeper(metrics?.cache_keeper);
         }
         if (usageEl) {
           const prompt = usage?.prompt_tokens ?? "\u2014";
@@ -10445,14 +10524,14 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         if (!payload || payload.present !== true) {
           const reason = payload && payload.reason ? String(payload.reason).slice(0, 140) : zh8() ? "\u8BC1\u636E\u95E8\u672A\u8FBE\uFF088088 \u79BB\u7EBF\u6216\u4E3A\u7A7A\uFF09" : "evidence gate unavailable (8088 down or empty)";
           if (bodyEl) {
-            bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.evidenceOutage"))}</p><p class="admin-evidence-reason">${esc2(reason)}</p>`;
+            bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.evidenceOutage"))}</p><p class="admin-evidence-reason">${esc3(reason)}</p>`;
           }
           if (usageEl) usageEl.textContent = "";
           return;
         }
         const latest = payload.latest ?? (Array.isArray(payload.entries) ? payload.entries[payload.entries.length - 1] : null);
         if (!latest) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.evidenceOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.evidenceOutage"))}</p>`;
           return;
         }
         const verdictRaw = String(latest.conclusion ?? payload.conclusion ?? "").toLowerCase();
@@ -10461,15 +10540,15 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const badgeClass = running ? "open" : ok ? "ok" : "bad";
         const badgeText = running ? zh8() ? "\u8FDB\u884C\u4E2D" : "in progress" : ok ? zh8() ? "\u7EFF \u2713 \u901A\u8FC7" : "green \u2713 pass" : zh8() ? `\u7EA2 \u2717 ${verdictRaw}` : `red \u2717 ${verdictRaw}`;
         const sha = String(latest.head_sha ?? "").slice(0, 7);
-        const shaHtml = sha ? `<code>${esc2(sha)}</code>` : "\u2014";
-        const job = esc2(String(latest.job_name ?? "\u2014"));
-        const step = latest.step_name ? esc2(String(latest.step_name)) : null;
-        const wf = esc2(String(latest.workflow_name ?? "CI"));
-        const at = esc2(String(latest.started_at ?? latest.captured_at ?? ""));
-        const runId = esc2(String(latest.run_id ?? ""));
+        const shaHtml = sha ? `<code>${esc3(sha)}</code>` : "\u2014";
+        const job = esc3(String(latest.job_name ?? "\u2014"));
+        const step = latest.step_name ? esc3(String(latest.step_name)) : null;
+        const wf = esc3(String(latest.workflow_name ?? "CI"));
+        const at = esc3(String(latest.started_at ?? latest.captured_at ?? ""));
+        const runId = esc3(String(latest.run_id ?? ""));
         const tail = Array.isArray(latest.logs_tail) ? latest.logs_tail.slice(-6) : [];
         if (bodyEl) {
-          bodyEl.innerHTML = `<div class="admin-evidence-head"><span class="admin-evidence-badge ${badgeClass}">${esc2(badgeText)}</span><span class="admin-evidence-wf">${wf}</span></div><ul class="admin-evidence-facts"><li><strong>run</strong><span>${runId ? `<code>#${runId}</code> \xB7 ${shaHtml}` : "\u2014"}</span></li><li><strong>${zh8() ? "\u4EFB\u52A1" : "job"}</strong><span>${job}${step ? ` \xB7 ${step}` : ""}</span></li><li><strong>${zh8() ? "\u5F00\u59CB" : "started"}</strong><span>${at || "\u2014"}</span></li></ul>` + (tail.length ? `<pre class="admin-evidence-log">${esc2(tail.join("\n"))}</pre>` : `<p class="admin-evidence-reason">${zh8() ? "\u65E5\u5FD7\u672A\u6293\u53D6\uFF08\u4F5C\u4E1A\u7ED3\u8BBA = \u4E8B\u5B9E\uFF0C\u65E5\u5FD7\u884C\u6309\u9700\u56DE\u586B\uFF09" : "log not captured (the job verdict is the fact; log lines backfill on demand)"}</p>`);
+          bodyEl.innerHTML = `<div class="admin-evidence-head"><span class="admin-evidence-badge ${badgeClass}">${esc3(badgeText)}</span><span class="admin-evidence-wf">${wf}</span></div><ul class="admin-evidence-facts"><li><strong>run</strong><span>${runId ? `<code>#${runId}</code> \xB7 ${shaHtml}` : "\u2014"}</span></li><li><strong>${zh8() ? "\u4EFB\u52A1" : "job"}</strong><span>${job}${step ? ` \xB7 ${step}` : ""}</span></li><li><strong>${zh8() ? "\u5F00\u59CB" : "started"}</strong><span>${at || "\u2014"}</span></li></ul>` + (tail.length ? `<pre class="admin-evidence-log">${esc3(tail.join("\n"))}</pre>` : `<p class="admin-evidence-reason">${zh8() ? "\u65E5\u5FD7\u672A\u6293\u53D6\uFF08\u4F5C\u4E1A\u7ED3\u8BBA = \u4E8B\u5B9E\uFF0C\u65E5\u5FD7\u884C\u6309\u9700\u56DE\u586B\uFF09" : "log not captured (the job verdict is the fact; log lines backfill on demand)"}</p>`);
         }
         if (usageEl) {
           usageEl.textContent = zh8() ? `run #${runId} \xB7 ${sha || "\u2014"} \xB7 \u7EAF\u4E8B\u5B9E \xB7 \u96F6\u6A21\u578B${refreshed ? " \xB7 \u5DF2\u91CD\u8BFB" : ""}` : `run #${runId} \xB7 ${sha || "\u2014"} \xB7 pure facts \xB7 zero model${refreshed ? " \xB7 re-read" : ""}`;
@@ -10481,7 +10560,7 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const bodyEl = $("#adminRatelimitBody");
         const usageEl = $("#adminRatelimitUsage");
         if (!stats || stats.error) {
-          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc2(t("admin.ratelimitOutage"))}</p>`;
+          if (bodyEl) bodyEl.innerHTML = `<p class="admin-brief-pending">${esc3(t("admin.ratelimitOutage"))}</p>`;
           if (usageEl) usageEl.textContent = stats?.error ? `error: ${String(stats.error).slice(0, 140)}` : "";
           return;
         }
@@ -10494,11 +10573,11 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const windowS = Number(stats.window_seconds ?? 60);
         if (bodyEl) {
           bodyEl.innerHTML = `<ul class="admin-ratelimit-list">
-          <li><strong>${zh8() ? "\u6BCF\u5BA2\u6237\u7AEF\u6BCF\u7A97\u53E3" : "Per client, per window"}</strong><span>${esc2(`${limit} / ${windowS}s`)}</span></li>
-          <li><strong>${zh8() ? "\u653E\u884C" : "Allowed"}</strong><span>${esc2(`${allowed} (redis ${allowedRedis} \xB7 ${zh8() ? "\u672C\u5730" : "local"} ${allowedLocal})`)}</span></li>
-          <li><strong>${zh8() ? "\u62D2\u7EDD" : "Denied"}</strong><span>${esc2(String(denied))}</span></li>
-          <li><strong>${zh8() ? "\u964D\u7EA7\u653E\u884C\uFF08Redis \u65AD\u2192\u7167\u5E38\u670D\u52A1\u5E76\u8BA1\u6570\uFF09" : "Degraded-open (Redis down \u2192 serve anyway, counted)"}</strong><span>${esc2(String(degraded))}</span></li>
-          <li><strong>${zh8() ? "\u672C\u5730\u7A97\u53E3\u5360\u7528" : "Local windows held"}</strong><span>${esc2(String(stats.remaining_local_windows ?? 0))}</span></li>
+          <li><strong>${zh8() ? "\u6BCF\u5BA2\u6237\u7AEF\u6BCF\u7A97\u53E3" : "Per client, per window"}</strong><span>${esc3(`${limit} / ${windowS}s`)}</span></li>
+          <li><strong>${zh8() ? "\u653E\u884C" : "Allowed"}</strong><span>${esc3(`${allowed} (redis ${allowedRedis} \xB7 ${zh8() ? "\u672C\u5730" : "local"} ${allowedLocal})`)}</span></li>
+          <li><strong>${zh8() ? "\u62D2\u7EDD" : "Denied"}</strong><span>${esc3(String(denied))}</span></li>
+          <li><strong>${zh8() ? "\u964D\u7EA7\u653E\u884C\uFF08Redis \u65AD\u2192\u7167\u5E38\u670D\u52A1\u5E76\u8BA1\u6570\uFF09" : "Degraded-open (Redis down \u2192 serve anyway, counted)"}</strong><span>${esc3(String(degraded))}</span></li>
+          <li><strong>${zh8() ? "\u672C\u5730\u7A97\u53E3\u5360\u7528" : "Local windows held"}</strong><span>${esc3(String(stats.remaining_local_windows ?? 0))}</span></li>
         </ul>`;
         }
         if (usageEl) {
@@ -10511,19 +10590,19 @@ Stay inside this repo; falsify no number; if a check is unreachable, say why hon
         const maxCount = Math.max(1, ...toolUsage.map((t2) => Number(t2.count || 0)));
         toolList.innerHTML = toolUsage.length ? toolUsage.map((t2) => `
           <li class="admin-toolusage-item">
-            <span class="admin-toolusage-name">${esc2(t2.name ?? "")}</span>
+            <span class="admin-toolusage-name">${esc3(t2.name ?? "")}</span>
             <span class="admin-toolusage-bar"><span class="admin-toolusage-fill" style="width:${Math.min(100, Math.round(Number(t2.count || 0) / maxCount * 100))}%"></span></span>
             <span class="admin-toolusage-count">${compactCount2(t2.count ?? 0)} \xB7 ${Number(t2.pct ?? 0).toFixed(0)}%</span>
-          </li>`).join("") : `<li class="admin-toolusage-name">${esc2(zh8() ? "\u6CA1\u6709\u5DE5\u5177\u4E8B\u4EF6\u8BB0\u5F55\u3002" : "No tool events recorded.")}</li>`;
+          </li>`).join("") : `<li class="admin-toolusage-name">${esc3(zh8() ? "\u6CA1\u6709\u5DE5\u5177\u4E8B\u4EF6\u8BB0\u5F55\u3002" : "No tool events recorded.")}</li>`;
       }
       const taskList = $("#adminRecentTasks");
       if (taskList) {
         taskList.innerHTML = tasks.length ? tasks.map((t2) => `
           <li class="admin-task">
-            <span class="admin-task-id">${esc2(t2.id ?? "")}</span>
-            <span class="admin-task-message">${esc2(t2.message ?? "")}</span>
-            <span class="admin-task-meta">${esc2(t2.status ?? "")} \xB7 ${t2.age_hours != null ? `${t2.age_hours}h` : "\u2014"}</span>
-          </li>`).join("") : `<li class="admin-task"><span class="admin-task-message">${esc2(zh8() ? "\u6CA1\u6709\u8FD1\u671F\u4EFB\u52A1\u8BB0\u5F55\u3002" : "No recent tasks.")}</span></li>`;
+            <span class="admin-task-id">${esc3(t2.id ?? "")}</span>
+            <span class="admin-task-message">${esc3(t2.message ?? "")}</span>
+            <span class="admin-task-meta">${esc3(t2.status ?? "")} \xB7 ${t2.age_hours != null ? `${t2.age_hours}h` : "\u2014"}</span>
+          </li>`).join("") : `<li class="admin-task"><span class="admin-task-message">${esc3(zh8() ? "\u6CA1\u6709\u8FD1\u671F\u4EFB\u52A1\u8BB0\u5F55\u3002" : "No recent tasks.")}</span></li>`;
       }
       refreshIcons();
     }

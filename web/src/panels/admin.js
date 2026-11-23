@@ -1,4 +1,5 @@
 import { requestJson } from "../core/transport.js";
+import { createContextInspector } from "./admin-context.js";
 import { icon, refreshIcons } from "../icons.js";
 import { t } from "../core/i18n.js";
 import { $, state } from "../core/state.js";
@@ -409,76 +410,22 @@ export async function openAdmin() {
     const briefPromise = requestJson("/api/oracle-brief", {}, 30000).catch(() => null);
     briefPromise.then((brief) => renderBrief(brief, false));
 
-    // M8-T1294: context assembler inspector — a deterministic, zero-token view
-    // of what the large-context path would put in front of the model. The
-    // endpoint is read-only and never 500s; this tile only renders real fields.
-    const contextQuestion = () => (zh() ? "缓存 命中率 优化" : "cache hit rate context");
-    function contextPending(text) {
-      const factsEl = $("#adminContextFacts");
-      const srcEl = $("#adminContextSources");
-      if (factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(text)}</p>`;
-      if (srcEl) srcEl.innerHTML = "";
-    }
-    function renderContext(pack) {
-      const factsEl = $("#adminContextFacts");
-      const srcEl = $("#adminContextSources");
-      if (!factsEl || !srcEl) return;
-      // M8-T1314: the assembler endpoint never 500s, so an error here is a
-      // transport outcome, not a server verdict. Distinguish the three real
-      // causes instead of calling all of them an outage.
-      if (!pack) {
-        contextPending(t("admin.contextOutage"));
-        return;
-      }
-      if (pack.ok === false) {
-        // The endpoint answered but reported its own failure — surface the
-        // real reason (machine field), never a fabricated reading.
-        const reason = typeof pack.error === "string" && pack.error.trim()
-          ? pack.error : t("admin.contextSlow");
-        contextPending(`${t("admin.contextSlow")} ${esc(reason)}`);
-        return;
-      }
-      const chunks = Array.isArray(pack.chunks) ? pack.chunks : [];
-      if (!chunks.length) {
-        contextPending(t("admin.contextEmpty"));
-        return;
-      }
-      const rows = [
-        [t("admin.contextBudget"), `${pack.budget_tokens}`],
-        [t("admin.contextPacked"), `${pack.estimated_tokens} tokens`],
-        [t("admin.contextChunksCandidates"), `${chunks.length} / ${pack.candidates}`],
-        [t("admin.contextFingerprint"), String(pack.prefix_fingerprint || "—")],
-      ];
-      const note = pack.truncated
-        ? `<p class="admin-context-note">${esc(t("admin.contextTruncated"))}</p>`
-        : "";
-      factsEl.innerHTML = `<div class="admin-context-facts-grid">${rows.map(([k, v]) =>
-        `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>${note}`;
-      srcEl.innerHTML = chunks.slice(0, 6).map((chunk, index) =>
-        `<div class="admin-context-source"><span class="n">[${index + 1}]</span>` +
-        `<code>${esc(chunk.source)}:${chunk.start_line}–${chunk.end_line}</code>` +
-        `<span class="tok">${chunk.tokens} tok</span></div>`).join("");
-    }
-    function readContext(refreshed) {
-      const factsEl = $("#adminContextFacts");
-      if (refreshed && factsEl) factsEl.innerHTML = `<p class="admin-brief-pending">${esc(t("admin.contextPending"))}</p>`;
-      requestJson(`/api/rag/context?q=${encodeURIComponent(contextQuestion())}&budget=8000`, {}, 20000)
-        .then((pack) => renderContext(pack))
-        .catch((error) => {
-          // M8-T1315: transport tags each failure class; report the real one
-          // rather than calling every failed read an outage. A slow service,
-          // a 5xx, a rejected request and a dead endpoint are four different
-          // truths, and the admin panel is where honesty matters most.
-          const code = error && error.code;
-          if (code === "timeout") contextPending(t("admin.contextTimeout"));
-          else if (code === "server-error") contextPending(t("admin.contextServerError"));
-          else if (code === "http-error" || code === "auth-required") contextPending(t("admin.contextRejected"));
-          else contextPending(t("admin.contextOutage"));
-        });
-    }
-    const contextRefresh = $("#adminContextRefresh");
-    if (contextRefresh) contextRefresh.addEventListener("click", () => readContext(true));
-    readContext(false);
+    const contextSampleKey = `minicc-admin-context-latencies:${state.workspacePath || ""}`;
+    let contextSamples = [];
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(contextSampleKey) || "[]");
+      if (Array.isArray(stored)) contextSamples = stored.filter(Number.isFinite);
+    } catch {}
+    createContextInspector({
+      factsEl: $("#adminContextFacts"),
+      sourcesEl: $("#adminContextSources"),
+      refreshEl: $("#adminContextRefresh"),
+      request: requestJson,
+      t,
+      question: () => (zh() ? "缓存 命中率 优化" : "cache hit rate context"),
+      initialSamples: contextSamples,
+      onSamples: (samples) => sessionStorage.setItem(contextSampleKey, JSON.stringify(samples)),
+    });
 
     // M8-T1287: live trend analyst — the model reads the real 7-day series and
     // the rule forecast baseline, then writes a grounded direction verdict with

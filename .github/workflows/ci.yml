@@ -156,6 +156,7 @@ jobs:
         run: |
           npm run test:optimization
           npm run test:transport
+          npm run test:admincontext
           npm run test:lifecycle
           npm run test:phase
           npm run test:trace

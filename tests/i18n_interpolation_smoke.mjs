@@ -99,12 +99,16 @@ for (const locale of ["zh", "en"]) {
     assert.ok(!/\{[A-Za-z0-9_.-]+\}/.test(filled), `${locale}/${key}: placeholder left: ${filled}`);
     assert.ok(filled.includes("30") && filled.includes("119"), `${locale}/${key}: values missing: ${filled}`);
   }
-  // The context panel's honest four states all exist as real localized copy.
+  // The context panel's honest terminal states all exist as real localized copy.
   for (const key of ["admin.contextTimeout", "admin.contextSlow", "admin.contextOutage",
                      "admin.contextEmpty", "admin.contextTruncated", "admin.contextBudget",
-                     "admin.contextPacked", "admin.contextChunksCandidates", "admin.contextFingerprint"]) {
+                     "admin.contextPacked", "admin.contextChunksCandidates", "admin.contextFingerprint",
+                     "admin.contextTiming"]) {
     assert.ok(typeof t(key) === "string" && t(key) !== key, `${locale}/${key}: missing translation`);
   }
+  const timing = t("admin.contextTiming", { elapsed: 1200, timeout: 5000, samples: 2 });
+  assert.ok(!/\{[A-Za-z0-9_.-]+\}/.test(timing), `${locale}: timing placeholders left behind`);
+  assert.ok(timing.includes("1200") && timing.includes("5000") && timing.includes("2"), `${locale}: timing values missing`);
 }
 
 // transport tags timeouts with a machine-readable code; panels use it to tell
@@ -113,11 +117,12 @@ const transport = await readFile("web/src/core/transport.js", "utf8");
 assert.ok(/timeoutError\.code\s*=\s*"timeout"/.test(transport), "timeout errors must carry code=timeout");
 assert.ok(/response\.status\s*>=\s*500\s*\?\s*"server-error"/.test(transport), "5xx must be tagged server-error");
 assert.ok(/error\.code\s*=\s*"network"/.test(transport), "bare fetch rejection must be tagged network");
-const adminSrc = await readFile("web/src/panels/admin.js", "utf8");
-assert.ok(/code\s*===\s*"timeout"/.test(adminSrc), "admin context tile must branch on the timeout code");
-for (const code of ["server-error", "http-error", "auth-required"]) {
-  assert.ok(adminSrc.includes(`"${code}"`), `admin context tile must distinguish ${code} from a dead service`);
+const adminContextSrc = await readFile("web/src/panels/admin-context.js", "utf8");
+assert.ok(adminContextSrc.includes('"timeout"'), "admin context tile must branch on the timeout code");
+for (const code of ["network", "server-error", "http-error", "auth-required"]) {
+  assert.ok(adminContextSrc.includes(`"${code}"`), `admin context tile must distinguish ${code} from a dead service`);
 }
+assert.ok(adminContextSrc.includes("contextState"), "admin context states must be machine-readable");
 for (const key of ["admin.contextServerError", "admin.contextRejected"]) {
   assert.ok(t(key) !== key, `${key} must be localized in both locales`);
 }

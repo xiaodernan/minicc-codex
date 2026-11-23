@@ -1,7 +1,7 @@
 """M8-T1322: a missing browser is the step's answer, not a product failure.
 
-The focused frontend job installs Chromium before it runs 23 npm scripts. Four
-of the resulting 26 .mjs files really launch a browser; the other 22 are static
+The focused frontend job installs Chromium before it runs 24 npm scripts. Four
+of the resulting 27 .mjs files really launch a browser; the other 23 are static
 or DOM-free contracts. Before this guard, an empty PLAYWRIGHT_BROWSERS_PATH made
 all four exit 1 with Playwright's executable-not-found stack and no failure
 code (scratch/measure1322/summary.tsv). They now name HARNESS_BROWSER_MISSING

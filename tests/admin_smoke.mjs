@@ -61,15 +61,33 @@ async function checkMode(locale, expectCjk) {
   });
   assert.match(contextFacts, /8000/, "context tile must state the requested token budget");
   assert.ok(!/NaN/.test(contextFacts), "context tile must never print NaN");
+  assert.equal(await page.locator("#adminContextFacts").getAttribute("data-context-state"), "present");
+  assert.ok(Number(await page.locator("#adminContextFacts").getAttribute("data-context-timeout-ms")) >= 5000);
   const contextSources = await page.locator("#adminContextSources .admin-context-source").count();
   assert.ok(contextSources >= 1, "context tile must list at least one line-anchored source");
   await page.click("#adminContextRefresh");
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() =>
+    document.querySelector("#adminContextFacts")?.dataset.contextState === "present" &&
+    document.querySelectorAll("#adminContextSources .admin-context-source").length >= 1,
+  null, { timeout: 45000 });
   assert.ok(await page.locator("#adminContextFacts").isVisible(), "refresh must keep the context tile visible");
   assert.ok(
     (await page.locator("#adminContextSources .admin-context-source").count()) >= 1,
     "re-read must restore the source list",
   );
+
+  // Drive the real transport timer: a route that never answers must land in
+  // data-context-state=timeout, not the unreachable or empty sentence.
+  const contextTimeoutMs = Number(await page.locator("#adminContextFacts").getAttribute("data-context-timeout-ms"));
+  assert.ok(contextTimeoutMs >= 5000);
+  await page.route("**/api/rag/context?*", () => {});
+  await page.click("#adminContextRefresh");
+  await page.waitForFunction(() => document.querySelector("#adminContextFacts")?.dataset.contextState === "timeout",
+    null, { timeout: contextTimeoutMs + 5000 });
+  const timeoutFacts = (await page.locator("#adminContextFacts").innerText()).replace(/\s+/g, " ");
+  assert.match(timeoutFacts, /超时|timed out/, "a real timeout must name itself");
+  assert.doesNotMatch(timeoutFacts, /没有命中|No corpus hit/, "timeout must not impersonate an empty corpus");
+  await page.unroute("**/api/rag/context?*");
 
   // M8-T1297: bench-history filter chips — two groups, and a kind filter must
   // narrow the read (the usage line names the active filter, never a fake count).
