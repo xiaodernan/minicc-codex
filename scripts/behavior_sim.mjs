@@ -20,6 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
+import { requireBehaviorHarness } from "./behavior_harness.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -360,6 +361,11 @@ if (unknown.length) {
   process.exit(2);
 }
 
+// M8-T1305: fail fast with our own name when there is no workbench to drive,
+// before a browser is launched and before a single journey can be mis-recorded
+// as a visitor bounce. Without this, a dead port costs a full READY_TIMEOUT and
+// produces five "could-not-drive" rows that look like measured behaviour.
+await requireBehaviorHarness(BASE_URL);
 const browser = await chromium.launch({ headless: true });
 const records = [];
 for (const persona of WANTED) {

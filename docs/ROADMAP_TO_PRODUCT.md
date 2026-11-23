@@ -56747,3 +56747,26 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 3. 手工驱动器还是老样子：`scripts/behavior_sim.mjs:92` 连不上时先等满 `READY_TIMEOUT`（默认 45 秒）再写它采到的那点东西，而 `scripts/stress_credential_probe.mjs:62` 早就有一句对的写法（`web server never answered /api/health`）。让前者的失败也先说是自己的环境。
 4. 退出码 3 目前只有 verdict 分得出来，CI 那一步非零一律红：把「这一步什么都没测」抬到 step 结论/artifact 名字上，人才不必翻日志才知道该去看服务器。
 5. 探针只在套件开头探一次，服务器中途死了它一句话都不说。实测（`scratch/arm1304-middeath/summary.txt`）：`admin_smoke` 起跑 4 秒后 8866 那台被 `taskkill` 收走，套件退 1、`HARNESS_UNREACHABLE` 出现 0 次、日志里一个 `SMOKE_FAILURE_CODE` 都没有，只剩一句裸的 `page.waitForFunction: Timeout 45000ms exceeded`（`tests/admin_smoke.mjs:35`）——正是这一批在开头补掉的那个形状，只是搬到了中途。下一步要么让套件里的每次读都过同一个判据，要么让 `page.on("requestfailed")` 把「连不上了」也写成自己的名字。
+
+
+## 批次 1210 · M8-T1305: 访客驱动器连不上服务器，却把账记在访客头上
+
+### 缺什么
+- `scripts/behavior_sim.mjs` 是 req #9 的「模拟真实用户行为」手工驱动器：真无头 Chromium 走真实界面，五种性格的停留 / 点击 / 狂点 / 可点击耗时落盘成旅程。但它指到一个没绑端口时，先 `chromium.launch`，再等满 `READY_TIMEOUT`（默认 45 秒），最后给每种性格写一条 `could-not-drive` 跳出——一台没起来的服务器被报成了访客行为。这批自己（T1304 边界 3）挂下的账：`scripts/stress_credential_probe.mjs:62` 早就有对的写法（`web server never answered /api/health`），前者没有。
+- 与 T1304 修过的冒烟套件同一个错，只是长在手工驱动器上：连不上量具是环境事实，不该占用「测出来什么」的词汇；而驱动器写出的旅程会被 `minicc/behavior_journeys.py` 聚合、被管理员面板和趋势研判官当成真实用户读数。
+
+### 做了什么
+- 新增无副作用、可注入的 `scripts/behavior_harness.mjs`：`probeBehaviorHarness()` 在起浏览器前探 `/api/health`，只认 `{"ok": true, "service": "minicc"}`（stranger 的 200 / 503 / 非 JSON / 拒连一律算没有）；`requireBehaviorHarness()` 连不上时先吐 `SMOKE_FAILURE_CODE=BEHAVIOR_HARNESS_UNREACHABLE`、说清探的是哪个 URL、退 3，并明说「没有起浏览器、没有量到任何旅程」。
+- `scripts/behavior_sim.mjs` 在 `chromium.launch()` 之前 `await requireBehaviorHarness(BASE_URL)`——失败在毫秒级、浏览器根本不启动、旅程一条不写。
+- 新增 `tests/test_behavior_sim_harness.py` 六条：拒连报自己的名字与专用码、不许借 could-not-drive/bounce 词汇；真跑驱动器打空端口退 3、快于 12 秒上限（旧路径 45 秒）、不落任何旅程行；健康载荷放行；三种「有人听但不是这个 app」一律判失败；探针 URL 从 base 派生；守住 codebase 顺序——守卫必须排在 launch 之前、两侧常量一致。
+
+### 证据与门
+- `node --check scripts/behavior_harness.mjs` 与 `node --check scripts/behavior_sim.mjs` 绿。
+- `python -m pytest tests/test_behavior_sim_harness.py -q` 6/6 绿（4.30 秒）：其中的整驱动器空端口实测 `rc=3`、`BEHAVIOR_HARNESS_UNREACHABLE` 上屏、journeys.jsonl 未创建。
+- 未触及 `web/src/`，`web/app.js` 与 asset-manifest 一字未动（本批是脚本 / 测试侧）。
+- 边界（如下）。
+
+### 边界
+1. 探针证明的是「有一台 minicc 在听这个端口」，不是「它就是这批旅程该驱动的那份工作区」。把 `--url` 指到另一台在跑的实例，探针放行、访客走到的是别人的界面；与 T1304 边界 1 是同一个缺口。下一步让探针读出工作区身份（root path）再比对。
+2. 只守住了开头。旅程中途服务器死了，各段照旧记成 could-not-drive / timed-out；T1304 边界 5 的同款问题。下一步让每段读都过同一个判据，或让 `page.on("requestfailed")` 把「连不上了」写成自己的名字。
+3. 退出码 3 只有 verdict 分得出来，手工驱动器压根没有 verdict；人跑的时候得自己在日志里找 `BEHAVIOR_HARNESS_UNREACHABLE` 这句话。要不要让管理员面板的访客日志读这段错误，是另一批。
