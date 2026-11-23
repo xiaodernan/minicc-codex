@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T05:28:02.232Z",
+  "generated_at": "2026-11-23T05:34:50.523Z",
   "branch": "main",
-  "head": "66f5ea4",
-  "total_commits": 2150,
+  "head": "7cc7a25",
+  "total_commits": 2152,
   "recent_commits": [
+    {
+      "short": "7cc7a252",
+      "at": "2026-11-23T13:34:16+08:00",
+      "subject": "M8-T1312: the failure smoke now also guards the normal path - badge=total_files, both row lists match the slice, summary shows real totals (or honest 'not count"
+    },
+    {
+      "short": "60dc40c9",
+      "at": "2026-11-23T05:28:02Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "66f5ea44",
       "at": "2026-11-23T13:27:27+08:00",
@@ -19,22 +29,12 @@
       "short": "5a17b1f8",
       "at": "2026-11-23T13:13:35+08:00",
       "subject": "M8-T1310: tab badge now shows total_files (not the 120-row displayed slice) so a 121+ change workspace no longer advertises 120; list truncation and audit-windo"
-    },
-    {
-      "short": "c2a0dfb5",
-      "at": "2026-11-23T05:00:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "33a57949",
-      "at": "2026-11-23T13:00:02+08:00",
-      "subject": "M8-T1309: partial reads no longer pose as complete - renderChanges surfaces status_read_error/audit_read_error/audit_bytes_unread/audit_records_split as a disti"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 543,
+  "roadmap_batches": 544,
   "changelog_entries": 26,
-  "roadmap_lines": 56897,
+  "roadmap_lines": 56915,
   "tracked_files": 1189,
   "test_files": 764,
   "almanac_chapters": 81,
