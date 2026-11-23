@@ -57155,7 +57155,7 @@ M8-T1321 让 node 冒烟套件在服务器缺席或中途丢失时退 3、报自
 - 规格 `tests/test_frontend_browser_guard.py`：5 项全绿（3.31 秒）；其中真实空目录子进程与四个套件的集成都要求退出 3，不用注入替身冒充。
 - 反向控制 `scratch/arms1322.py`：`ARMS=7 FAILURES=0`。七条分别拆掉一个套件的守卫、让缺失路径放行、把退出码改回 1、改坏码名、把守卫挪到 launch 之后、让 deferred exit 的调用方继续、以及完全不报名；每条都让对应规格变红，还原后 sha256 全对。
 - 负对照（浏览器在时不许误报）：`npm run test:optimization`、`test:lifecycle`、`test:phase`、`test:scale` 四条依次 `rc=0`，日志没有 `HARNESS_BROWSER_MISSING`。
-- 16 道门（`scratch/gates1322.log`）：待跑。
+- 16 道门（`scratch/gates1322.log`，保留 `NO_PROXY` 的 `127.0.0.1` 回环旁路）：16/16 绿，274.7 秒，无红。新规格与共享守卫在跑门前已 `git add`，`tracked evidence census` 量的是索引里真实存在的文件；`doc pointers` 绿的是上面每条引用都落在真实文件与行号上。
 
 ### 边界
 
