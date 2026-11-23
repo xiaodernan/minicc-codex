@@ -539,9 +539,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                         budget = int((query.get("budget") or [""])[0])
                     except ValueError:
                         budget = None
+                # M8-T1317: "deep" mode raises lexical recall (fan-out x
+                # per-variant) so a 50k budget actually has candidates to pack.
+                # Both are clamped inside context_assembly; bad values fall
+                # back to the assembler defaults, never a 500.
+                fanout = per_variant = None
+                if "fanout" in query:
+                    try:
+                        fanout = int((query.get("fanout") or [""])[0])
+                    except ValueError:
+                        fanout = None
+                if "per" in query:
+                    try:
+                        per_variant = int((query.get("per") or [""])[0])
+                    except ValueError:
+                        per_variant = None
                 from .rag import answer as _rag_answer
 
-                body = _rag_answer(q, limit=limit, budget_tokens=budget)
+                body = _rag_answer(q, limit=limit, budget_tokens=budget,
+                                   fanout=fanout, per_variant=per_variant)
                 self._json(body)
             except Exception as exc:  # noqa: BLE001
                 self._json({"q": "", "answer": "", "error": f"{type(exc).__name__}: {exc}"})

@@ -57,12 +57,16 @@ assert.match(manual, /enAskDocs/, "manual must carry the en chapter body");
 // assembly evidence is rendered with real line anchors.
 assert.match(panel, /id="askdocsDepth"/, "depth selector missing");
 assert.match(panel, /askdocs\.depthWide/, "depth options must come from the dictionary");
+assert.match(panel, /"50000:48:20"/, "deep mode must encode budget:fanout:per - recall, not just budget");
+assert.match(panel, /fanout=\$\{fanout\}/, "fanout must reach the query URL in deep mode");
+assert.match(panel, /askdocs\.deepWarning/, "deep mode must warn about cost and no-model assembly");
 assert.match(panel, /budget=\$\{budget\}/, "the selected budget must be appended to the query URL");
 assert.match(panel, /contextEvidence\(context, sources\)/, "assembly evidence must be rendered");
 assert.match(panel, /source\.start_line/, "sources must show real line anchors");
-for (const key of ["askdocs.depth", "askdocs.depthPrecise", "askdocs.depthWide",
+for (const key of ["askdocs.depth", "askdocs.depthPrecise", "askdocs.depthWide", "askdocs.depthDeep",
                    "askdocs.contextEvidence", "askdocs.contextStat", "askdocs.contextPacked",
-                   "askdocs.contextChunks", "askdocs.contextFp", "askdocs.deepHint"]) {
+                   "askdocs.contextChunks", "askdocs.contextFp", "askdocs.contextFanout",
+                   "askdocs.deepHint", "askdocs.deepWarning"]) {
   assert.equal(occurrences(`"${key}":`), 2, `${key} must exist in both locales`);
 }
 

@@ -46,13 +46,25 @@ for (const locale of ["zh", "en"]) {
     null, { timeout: 45000 });
 
   await page.route("**/api/rag/query**", async (route) => {
-    calls.push(route.request().url());
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(PAYLOAD) });
+    const url = route.request().url();
+    calls.push(url);
+    const deep = url.includes("budget=50000");
+    const body = {
+      ...PAYLOAD,
+      context: {
+        ...PAYLOAD.context,
+        budget_tokens: deep ? 50000 : 8000,
+        estimated_tokens: deep ? 48610 : 1114,
+        candidates: deep ? 272 : 12,
+        fanout: deep ? 48 : 6,
+      },
+    };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 
   await page.click('.nav-item[data-view="askdocs"]');
   await page.waitForSelector("#askdocsDepth");
-  assert.equal(await page.locator("#askdocsDepth option").count(), 2, "depth selector offers precise + wide");
+  assert.equal(await page.locator("#askdocsDepth option").count(), 3, "depth selector offers precise + wide + deep");
   await page.fill("#askdocsQuestion", "cache hit rate");
   await page.selectOption("#askdocsDepth", "8000");
   await page.click("#askdocsSubmit");
@@ -73,6 +85,23 @@ for (const locale of ["zh", "en"]) {
 
   const anchors = await page.locator(".askdocs-source-file").allInnerTexts();
   assert.ok(anchors.some((s) => s.includes("L12")), "sources must show real line anchors");
+
+  // Deep mode: the budget alone is not enough — recall knobs must go on the
+  // wire too, or there is nothing to pack at 50k. The cost warning must show.
+  const wideCalls = calls.length;
+  await page.selectOption("#askdocsDepth", "50000:48:20");
+  await page.click("#askdocsSubmit");
+  await page.waitForFunction((n) => {
+    const grid = document.querySelector(".askdocs-context-grid");
+    return grid && grid.textContent.includes("48610") && n >= 0;
+  }, wideCalls, { timeout: 20000 });
+  const deepUrl = calls[calls.length - 1];
+  assert.ok(deepUrl.includes("budget=50000") && deepUrl.includes("fanout=48") && deepUrl.includes("per=20"),
+    `deep mode must carry budget + recall knobs: ${deepUrl}`);
+  const deepGrid = (await page.locator(".askdocs-context-grid").textContent()).replace(/\s+/g, " ");
+  assert.ok(deepGrid.includes("48610"), "deep packed tokens shown");
+  assert.ok(deepGrid.includes("272"), "deep candidate count shown");
+  assert.equal(await page.locator(".askdocs-context-warning").count(), 1, "deep mode must warn about cost/no-model");
 
   // Precise mode: no budget parameter on the wire.
   const before = calls.length;

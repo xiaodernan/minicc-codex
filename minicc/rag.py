@@ -168,7 +168,8 @@ def reload_index() -> int:
 
 
 def answer(query: str, limit: int = 5, *, config: Any | None = None,
-           max_output_tokens: int = 700, budget_tokens: int | None = None) -> dict[str, Any]:
+           max_output_tokens: int = 700, budget_tokens: int | None = None,
+           fanout: int | None = None, per_variant: int | None = None) -> dict[str, Any]:
     """One-shot RAG over the repo docs: retrieve, then ask the configured model.
 
     Uses the same provider settings as the rest of minicc (MINICC_* env). Returns a
@@ -188,13 +189,23 @@ def answer(query: str, limit: int = 5, *, config: Any | None = None,
     else:
         from .context_assembly import build_context_pack, render_context
 
-        pack = build_context_pack(query, budget_tokens=budget_tokens)
+        # M8-T1317: the bottleneck for 50k-90k contexts is RECALL, not budget.
+        # Measured on this repo: 12x8 fan-out yields ~82 candidates / 15k tokens;
+        # 48x20 yields ~272 / 58k. A deep mode must raise recall or the extra
+        # budget simply has nothing to pack. Callers can tune both knobs.
+        build_kwargs: dict[str, Any] = {"budget_tokens": budget_tokens}
+        if fanout is not None:
+            build_kwargs["max_variants"] = fanout
+        if per_variant is not None:
+            build_kwargs["per_variant"] = per_variant
+        pack = build_context_pack(query, **build_kwargs)
         sources = pack["chunks"]
         context_meta = {
             "budget_tokens": pack["budget_tokens"],
             "estimated_tokens": pack["estimated_tokens"],
             "candidates": pack["candidates"],
             "chunks": len(sources),
+            "fanout": len(pack["query_variants"]),
             "query_variants": pack["query_variants"],
             "prefix_fingerprint": pack["prefix_fingerprint"],
             "truncated": pack["truncated"],

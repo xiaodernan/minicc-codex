@@ -924,7 +924,8 @@ def test_get_rag_query_forwards_budget_only_when_asked(live: _LiveServer, monkey
     monkeypatch.setattr(rag_mod, "answer", fake_answer)
     status, _, body = _request(f"{live.url}/api/rag/query?q=hello&k=2", method="GET")
     assert status == 200
-    assert calls[-1] == {"q": "hello", "limit": 2, "budget_tokens": None}
+    assert calls[-1] == {"q": "hello", "limit": 2, "budget_tokens": None,
+                         "fanout": None, "per_variant": None}
     assert "context" not in json.loads(body), "legacy call must not fabricate a context block"
 
     status, _, body = _request(f"{live.url}/api/rag/query?q=hello&k=2&budget=8000", method="GET")
@@ -932,10 +933,22 @@ def test_get_rag_query_forwards_budget_only_when_asked(live: _LiveServer, monkey
     assert calls[-1]["budget_tokens"] == 8000
     assert json.loads(body)["context"] == {"chunks": 3}
 
-    # An invalid budget degrades to the legacy path, never a 500.
-    status, _, body = _request(f"{live.url}/api/rag/query?q=hello&budget=oops", method="GET")
+    # Deep mode raises lexical recall too — budget alone would have nothing
+    # to pack. Both knobs must reach rag.answer.
+    status, _, body = _request(
+        f"{live.url}/api/rag/query?q=hello&budget=50000&fanout=48&per=20", method="GET")
+    assert status == 200
+    assert calls[-1]["budget_tokens"] == 50000
+    assert calls[-1]["fanout"] == 48
+    assert calls[-1]["per_variant"] == 20
+
+    # Invalid knobs degrade to None (assembler defaults), never a 500.
+    status, _, body = _request(
+        f"{live.url}/api/rag/query?q=hello&budget=oops&fanout=bad&per=bad", method="GET")
     assert status == 200
     assert calls[-1]["budget_tokens"] is None
+    assert calls[-1]["fanout"] is None
+    assert calls[-1]["per_variant"] is None
 
 
 def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:

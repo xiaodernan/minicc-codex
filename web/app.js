@@ -1074,6 +1074,9 @@
       "askdocs.depth": "\u4E0A\u4E0B\u6587\u6DF1\u5EA6",
       "askdocs.depthPrecise": "\u7CBE\u51C6 \xB7 4 \u6BB5",
       "askdocs.depthWide": "\u5BBD\u4E0A\u4E0B\u6587 \xB7 8000 \u8BCD\u5143",
+      "askdocs.depthDeep": "\u6DF1\u4E0A\u4E0B\u6587 \xB7 5 \u4E07\u8BCD\u5143\uFF08\u9AD8\u53EC\u56DE\uFF09",
+      "askdocs.contextFanout": "\u68C0\u7D22\u53D8\u4F53 / \u5019\u9009",
+      "askdocs.deepWarning": "\u6DF1\u4E0A\u4E0B\u6587\u4F1A\u628A\u8FD1 5 \u4E07\u8BCD\u5143\u585E\u8FDB\u5355\u6B21\u8BF7\u6C42\uFF1A\u68C0\u7D22\u66F4\u5E7F\u3001\u82B1\u8D39\u66F4\u9AD8\u3002\u5F53\u524D\u4E0A\u6E38\u5DF2\u5173\u95ED\u65F6\u53EA\u88C5\u914D\u3001\u4E0D\u8C03\u7528\u6A21\u578B\uFF0C\u8FD9\u91CC\u5C55\u793A\u7684\u662F\u5C06\u8981\u88C5\u5165\u7684\u771F\u5B9E\u8BC1\u636E\uFF0C\u7EDD\u4E0D\u5192\u5145\u6A21\u578B\u5DF2\u8BFB\u3002",
       "askdocs.deepMode": "\u5BBD\u4E0A\u4E0B\u6587",
       "askdocs.contextEvidence": "\u88C5\u914D\u8BC1\u636E",
       "askdocs.contextStat": "\u8BCD\u5143\u9884\u7B97",
@@ -2087,6 +2090,9 @@
       "askdocs.depth": "Context depth",
       "askdocs.depthPrecise": "Precise - 4 chunks",
       "askdocs.depthWide": "Wide - 8000 tokens",
+      "askdocs.depthDeep": "Deep - 50k tokens (high recall)",
+      "askdocs.contextFanout": "query variants / candidates",
+      "askdocs.deepWarning": "Deep mode packs nearly 50k tokens into one request: broader recall, higher cost. While the upstream is closed, this only assembles - it does not call a model; what you see is the real evidence that WOULD be packed, never a claim that a model read it.",
       "askdocs.deepMode": "wide context",
       "askdocs.contextEvidence": "Assembly evidence",
       "askdocs.contextStat": "token budget",
@@ -8278,7 +8284,7 @@
       <li><strong>\u6253\u5F00</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u95EE\u4ED3\u5E93\u300D\uFF08\u6863\u6848\u9986\u65C1\u8FB9\uFF09\uFF0C\u6216\u6309 <code>Ctrl/\u2318K</code> \u8F93\u5165\u300C\u95EE\u4ED3\u5E93\u300D\u3002</li>
       <li><strong>\u63D0\u95EE</strong> \u2014 \u7528\u4E2D\u6587\u6216\u82F1\u6587\u95EE\u4E00\u4E2A\u5177\u4F53\u7684\u95EE\u9898\u3002\u6BD4\u5982\u300C\u4E3A\u4EC0\u4E48\u7F13\u5B58\u547D\u4E2D\u7387\u770B\u8D77\u6765\u5F88\u4F4E\uFF1F\u300D\u300C\u600E\u4E48\u8DD1\u538B\u529B\u6D4B\u8BD5\uFF1F\u300D\u9009\u597D\u5F15\u7528\u6765\u6E90\u6570 k\uFF082 / 4 / 6 / 8\uFF09\uFF0C\u6309\u300C\u63D0\u95EE\u300D\u3002</li>
       <li><strong>\u8BFB\u7B54\u6848</strong> \u2014 \u7B54\u6848\u53EA\u6765\u81EA\u68C0\u7D22\u5230\u7684\u6BB5\u843D\uFF1B\u9876\u90E8\u663E\u793A\u6A21\u578B\u540D\u4E0E\u7AEF\u70B9\uFF1B<strong>\u5F15\u7528\u6765\u6E90</strong>\u9010\u6761\u5C55\u5F00\uFF0C\u53EF\u89C1\u6BB5\u843D\u6587\u4EF6\u540D\u3001BM25 \u5206\u6570\u4E0E\u539F\u6587\u6458\u5F55\uFF1B<strong>\u7528\u91CF</strong>\u6761\u663E\u793A\u7F51\u5173\u56DE\u4F20\u7684 prompt / completion / total tokens\u3002</li>
-      <li><strong>\u4E0A\u4E0B\u6587\u6DF1\u5EA6</strong> \u2014 \u300C\u5F15\u7528\u6765\u6E90\u6570\u300D\u63A7\u5236\u7CBE\u51C6\u6A21\u5F0F\uFF08\u9ED8\u8BA4 4 \u6BB5\uFF09\uFF1B\u60F3\u8BA9\u6A21\u578B\u8BFB\u5F97\u66F4\u591A\uFF0C\u628A\u300C\u4E0A\u4E0B\u6587\u6DF1\u5EA6\u300D\u5207\u5230<strong>\u5BBD\u4E0A\u4E0B\u6587 \xB7 8000 \u8BCD\u5143</strong>\uFF1A\u88C5\u914D\u5668\u4F1A\u8BCD\u6CD5\u6269\u5C55\u51FA\u591A\u4E2A\u67E5\u8BE2\u3001\u6309\u771F\u5B9E\u6587\u4EF6\u884C\u53F7\u53BB\u91CD\u3001\u7A33\u5B9A\u6392\u5E8F\u88C5\u6EE1\u9884\u7B97\u3002\u7ED3\u679C\u91CC\u591A\u51FA\u4E00\u5757\u300C\u88C5\u914D\u8BC1\u636E\u300D\uFF0C\u663E\u793A\u8BCD\u5143\u9884\u7B97 / \u5B9E\u9645\u88C5\u5165 / \u7247\u6BB5\u4E0E\u5019\u9009\u6570 / \u7F13\u5B58\u524D\u7F00\u6307\u7EB9\uFF1B\u6BCF\u6761\u6765\u6E90\u90FD\u5E26 <code>L\u8D77\u2013\u6B62</code> \u884C\u53F7\u3002\u5934\u90E8\u987A\u5E8F\u5728\u5207\u6362\u8BED\u8A00\u6216\u52A0\u5927\u9884\u7B97\u65F6\u90FD\u4E0D\u53D8\uFF0C\u6240\u4EE5\u7F13\u5B58\u524D\u7F00\u4ECD\u53EF\u547D\u4E2D\u2014\u2014\u8FD9\u5C31\u662F\u628A 5 \u4E07\uFF5E9 \u4E07\u4E0A\u4E0B\u6587\u771F\u6B63\u7528\u8D77\u6765\u7684\u5165\u53E3\u3002</li>
+      <li><strong>\u4E0A\u4E0B\u6587\u6DF1\u5EA6</strong> \u2014 \u300C\u5F15\u7528\u6765\u6E90\u6570\u300D\u63A7\u5236\u7CBE\u51C6\u6A21\u5F0F\uFF08\u9ED8\u8BA4 4 \u6BB5\uFF09\uFF1B\u60F3\u8BA9\u6A21\u578B\u8BFB\u5F97\u66F4\u591A\uFF0C\u628A\u300C\u4E0A\u4E0B\u6587\u6DF1\u5EA6\u300D\u5207\u5230<strong>\u5BBD\u4E0A\u4E0B\u6587 \xB7 8000 \u8BCD\u5143</strong>\u6216<strong>\u6DF1\u4E0A\u4E0B\u6587 \xB7 5 \u4E07\u8BCD\u5143</strong>\uFF1A\u88C5\u914D\u5668\u4F1A\u8BCD\u6CD5\u6269\u5C55\u51FA\u591A\u4E2A\u67E5\u8BE2\u3001\u6309\u771F\u5B9E\u6587\u4EF6\u884C\u53F7\u53BB\u91CD\u3001\u7A33\u5B9A\u6392\u5E8F\u88C5\u6EE1\u9884\u7B97\u3002\u6DF1\u6863\u540C\u65F6\u628A\u68C0\u7D22\u53D8\u4F53\u4E0E\u6BCF\u8DEF\u5019\u9009\u63D0\u5230 48\xD720\u2014\u2014\u5B9E\u6D4B\u9ED8\u8BA4 12\xD78 \u53EA\u53EC\u56DE\u7EA6 80 \u7247\u6BB5 / 1.5 \u4E07\u8BCD\u5143\uFF0C\u518D\u5927\u7684\u9884\u7B97\u4E5F\u65E0\u4E1C\u897F\u53EF\u88C5\uFF1B\u63D0\u9AD8\u53EC\u56DE\u540E\u624D\u903C\u8FD1 5 \u4E07\u3002\u6DF1\u6863\u4F1A\u663E\u793A\u82B1\u8D39\u4E0E\u300C\u53EA\u88C5\u914D\u3001\u672A\u8C03\u7528\u6A21\u578B\u300D\u7684\u8BDA\u5B9E\u8B66\u793A\u3002\u7ED3\u679C\u91CC\u591A\u51FA\u4E00\u5757\u300C\u88C5\u914D\u8BC1\u636E\u300D\uFF0C\u663E\u793A\u8BCD\u5143\u9884\u7B97 / \u5B9E\u9645\u88C5\u5165 / \u7247\u6BB5\u4E0E\u5019\u9009\u6570 / \u7F13\u5B58\u524D\u7F00\u6307\u7EB9\uFF1B\u6BCF\u6761\u6765\u6E90\u90FD\u5E26 <code>L\u8D77\u2013\u6B62</code> \u884C\u53F7\u3002\u5934\u90E8\u987A\u5E8F\u5728\u5207\u6362\u8BED\u8A00\u6216\u52A0\u5927\u9884\u7B97\u65F6\u90FD\u4E0D\u53D8\uFF0C\u6240\u4EE5\u7F13\u5B58\u524D\u7F00\u4ECD\u53EF\u547D\u4E2D\u2014\u2014\u8FD9\u5C31\u662F\u628A 5 \u4E07\uFF5E9 \u4E07\u4E0A\u4E0B\u6587\u771F\u6B63\u7528\u8D77\u6765\u7684\u5165\u53E3\u3002</li>
       <li><strong>\u6CA1\u7B54\u4E0A</strong> \u2014 \u5982\u679C docs \u91CC\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\uFF0C\u6A21\u578B\u4F1A\u76F4\u63A5\u8BF4\u300C\u6CA1\u6709\u76F4\u63A5\u7B54\u6848\u300D\uFF0C\u6765\u6E90\u5217\u8868\u4E3A\u7A7A\u3002\u6362\u4E2A\u5173\u952E\u8BCD\uFF0C\u6216\u5148\u5728 docs/ \u91CC\u786E\u8BA4\u6709\u6CA1\u6709\u76F8\u5E94\u7AE0\u8282\u3002</li>
       <li><strong>\u6CA1 key</strong> \u2014 \u68C0\u7D22\u672C\u8EAB\u5728\u8FDB\u7A0B\u5185\u5B8C\u6210\uFF1B\u56DE\u7B54\u8FD9\u4E00\u6B65\u8C03\u7528\u4F60\u914D\u7F6E\u597D\u7684\u6A21\u578B\uFF0C\u56E0\u6B64\u4ECD\u9700\u8981 <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>\uFF08\u4E0E\u5BF9\u8BDD\u540C\u4E00\u5957 env\uFF09\u3002\u6CA1\u6709 key \u65F6\uFF0C\u8FD9\u91CC\u663E\u793A\u771F\u5B9E\u9519\u8BEF\uFF0C\u800C\u4E0D\u662F\u4E00\u6BB5\u7F16\u9020\u7684\u56DE\u7B54\u3002</li>
     </ol>
@@ -8295,7 +8301,7 @@
       <li><strong>Open</strong> \u2014 the \u201CAsk the Docs\u201D sidebar button (next to the Archive), or press <code>Ctrl/\u2318K</code> and type \u201Cask\u201D.</li>
       <li><strong>Ask</strong> \u2014 type a concrete question in Chinese or English, e.g. \u201CWhy does the cache hit rate look so low?\u201D or \u201CHow do I run the load test?\u201D Pick k (2 / 4 / 6 / 8) and press Ask.</li>
       <li><strong>Read</strong> \u2014 the answer comes only from the retrieved passages; the meta line shows the model and endpoint; each <strong>source</strong> expands to the file name, the BM25 score and the verbatim excerpt; the <strong>usage</strong> pill shows exactly what the gateway reported (prompt / completion / total tokens).</li>
-      <li><strong>Context depth</strong> \u2014 "Sources" controls the precise mode (4 chunks by default); to let the model read far more, switch "Context depth" to <strong>Wide - 8000 tokens</strong>: the assembler fans out into several lexical queries, de-duplicates by real file line ranges, and packs a stable order into the budget. An "Assembly evidence" block appears with the token budget / actually packed / chunks & candidates / cache-prefix fingerprint; every source carries an <code>Lstart-end</code> anchor. The head order never reshuffles when you change locale or raise the budget, so the cached prefix still hits - this is the door to genuinely using 50k-90k contexts.</li>
+      <li><strong>Context depth</strong> \u2014 "Sources" controls the precise mode (4 chunks by default); to let the model read far more, switch "Context depth" to <strong>Wide - 8000 tokens</strong> or <strong>Deep - 50k tokens</strong>: the assembler fans out into several lexical queries, de-duplicates by real file line ranges, and packs a stable order into the budget. Deep also raises recall to 48x20 variants-per-query - measured, the default 12x8 recalls only ~80 chunks / 15k tokens, so a bigger budget has nothing to pack; higher recall is what reaches 50k. Deep shows a cost warning and states plainly that nothing was sent to a model. An "Assembly evidence" block appears with the token budget / actually packed / chunks & candidates / cache-prefix fingerprint; every source carries an <code>Lstart-end</code> anchor. The head order never reshuffles when you change locale or raise the budget, so the cached prefix still hits - this is the door to genuinely using 50k-90k contexts.</li>
       <li><strong>No answer</strong> \u2014 if docs do not cover it, the model says so and the source list is empty. Rephrase, or check docs/ for a chapter first.</li>
       <li><strong>No key</strong> \u2014 retrieval runs entirely in-process; the answer step calls your configured model, so it still needs <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code> (same env as chat). Without one, the real error is shown, not a fabricated answer.</li>
     </ol>
@@ -9117,12 +9123,17 @@
     const rows = [
       [t("askdocs.contextStat"), `${context.budget_tokens}`],
       [t("askdocs.contextPacked"), `${context.estimated_tokens} tokens`],
-      [t("askdocs.contextChunks"), `${sources.length} / ${context.candidates}`],
-      [t("askdocs.contextFp"), String(context.prefix_fingerprint || "\u2014")]
+      [t("askdocs.contextChunks"), `${sources.length} / ${context.candidates}`]
     ];
+    if (Number.isInteger(context.fanout)) {
+      rows.push([t("askdocs.contextFanout"), `${context.fanout} / ${context.candidates}`]);
+    }
+    rows.push([t("askdocs.contextFp"), String(context.prefix_fingerprint || "\u2014")]);
+    const deep = context.budget_tokens >= 2e4;
     return `<details class="askdocs-context-evidence">
     <summary>${icon("layers-3")}<span>${escapeHtml(t("askdocs.contextEvidence"))}</span></summary>
     <div class="askdocs-context-grid">${rows.map(([k, v]) => `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("")}</div>
+    ${deep ? `<p class="askdocs-context-warning">${icon("alert-triangle")}<span>${escapeHtml(t("askdocs.deepWarning"))}</span></p>` : ""}
     <p class="askdocs-context-hint">${escapeHtml(t("askdocs.deepHint"))}</p>
   </details>`;
   }
@@ -9150,6 +9161,7 @@
             <select class="askdocs-kselect" id="askdocsDepth">
               <option value="" selected>${escapeHtml(t("askdocs.depthPrecise"))}</option>
               <option value="8000">${escapeHtml(t("askdocs.depthWide"))}</option>
+              <option value="50000:48:20">${escapeHtml(t("askdocs.depthDeep"))}</option>
             </select>
           </label>
           <button class="askdocs-submit" id="askdocsSubmit" type="submit">${icon("file-search-2")}<span>${escapeHtml(isZh ? "\u63D0\u95EE" : "Ask")}</span></button>
@@ -9169,14 +9181,17 @@
       const question = textarea.value.trim();
       if (!question) return;
       const k = Number($("#askdocsK")?.value ?? "4") || 4;
-      const budget = Number($("#askdocsDepth")?.value ?? "") || 0;
+      const depthParts = String($("#askdocsDepth")?.value ?? "").split(":").map(Number);
+      const budget = depthParts[0] || 0;
+      const fanout = depthParts[1] || 0;
+      const perVariant = depthParts[2] || 0;
       submit.disabled = true;
       submit.innerHTML = `${icon("loader-circle")}<span>${escapeHtml(isZh ? "\u68C0\u7D22\u4E2D\u2026" : "Retrieving\u2026")}</span>`;
       refreshIcons();
       result.hidden = false;
       result.innerHTML = `<div class="askdocs-working">${icon("loader-circle")}<span>${escapeHtml(isZh ? "BM25 \u6B63\u5728\u8FD9\u672C\u4ED3\u5E93\u7684\u6587\u6863\u91CC\u68C0\u7D22\u2026" : "BM25 is searching this repository's docs\u2026")}</span></div>`;
       try {
-        const depth = budget > 0 ? `&budget=${budget}` : "";
+        const depth = budget > 0 ? `&budget=${budget}${fanout ? `&fanout=${fanout}` : ""}${perVariant ? `&per=${perVariant}` : ""}` : "";
         const payload = await requestJson(`/api/rag/query?q=${encodeURIComponent(question)}&k=${k}${depth}`, {}, 6e4);
         const sources = Array.isArray(payload?.sources) ? payload.sources : [];
         const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";

@@ -53,12 +53,17 @@ function contextEvidence(context, sources) {
     [t("askdocs.contextStat"), `${context.budget_tokens}`],
     [t("askdocs.contextPacked"), `${context.estimated_tokens} tokens`],
     [t("askdocs.contextChunks"), `${sources.length} / ${context.candidates}`],
-    [t("askdocs.contextFp"), String(context.prefix_fingerprint || "—")],
   ];
+  if (Number.isInteger(context.fanout)) {
+    rows.push([t("askdocs.contextFanout"), `${context.fanout} / ${context.candidates}`]);
+  }
+  rows.push([t("askdocs.contextFp"), String(context.prefix_fingerprint || "—")]);
+  const deep = context.budget_tokens >= 20000;
   return `<details class="askdocs-context-evidence">
     <summary>${icon("layers-3")}<span>${escapeHtml(t("askdocs.contextEvidence"))}</span></summary>
     <div class="askdocs-context-grid">${rows.map(([k, v]) =>
       `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("")}</div>
+    ${deep ? `<p class="askdocs-context-warning">${icon("alert-triangle")}<span>${escapeHtml(t("askdocs.deepWarning"))}</span></p>` : ""}
     <p class="askdocs-context-hint">${escapeHtml(t("askdocs.deepHint"))}</p>
   </details>`;
 }
@@ -92,6 +97,7 @@ export async function openAskDocsPanel() {
             <select class="askdocs-kselect" id="askdocsDepth">
               <option value="" selected>${escapeHtml(t("askdocs.depthPrecise"))}</option>
               <option value="8000">${escapeHtml(t("askdocs.depthWide"))}</option>
+              <option value="50000:48:20">${escapeHtml(t("askdocs.depthDeep"))}</option>
             </select>
           </label>
           <button class="askdocs-submit" id="askdocsSubmit" type="submit">${icon("file-search-2")}<span>${escapeHtml(isZh ? "提问" : "Ask")}</span></button>
@@ -113,7 +119,12 @@ export async function openAskDocsPanel() {
     const question = textarea.value.trim();
     if (!question) return;
     const k = Number($("#askdocsK")?.value ?? "4") || 4;
-    const budget = Number($("#askdocsDepth")?.value ?? "") || 0;
+    // M8-T1317: depth encodes "budget:fanout:per". A deep context must raise
+    // lexical recall, not just the budget — otherwise there is nothing to pack.
+    const depthParts = String($("#askdocsDepth")?.value ?? "").split(":").map(Number);
+    const budget = depthParts[0] || 0;
+    const fanout = depthParts[1] || 0;
+    const perVariant = depthParts[2] || 0;
 
     submit.disabled = true;
     submit.innerHTML = `${icon("loader-circle")}<span>${escapeHtml(isZh ? "检索中…" : "Retrieving…")}</span>`;
@@ -124,7 +135,9 @@ export async function openAskDocsPanel() {
       : "BM25 is searching this repository's docs…")}</span></div>`;
 
     try {
-      const depth = budget > 0 ? `&budget=${budget}` : "";
+      const depth = budget > 0
+        ? `&budget=${budget}${fanout ? `&fanout=${fanout}` : ""}${perVariant ? `&per=${perVariant}` : ""}`
+        : "";
       const payload = await requestJson(`/api/rag/query?q=${encodeURIComponent(question)}&k=${k}${depth}`, {}, 60000);
       const sources = Array.isArray(payload?.sources) ? payload.sources : [];
       const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";

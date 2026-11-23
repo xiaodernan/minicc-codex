@@ -4949,6 +4949,8 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .askdocs-context-grid span { font-size: 10.5px; color: var(--quiet); }
 .askdocs-context-grid b { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
 .askdocs-context-hint { color: var(--muted); font-size: 10.5px; line-height: 1.6; margin: 0; padding: 0 12px 12px; }
+.askdocs-context-warning { align-items: flex-start; color: var(--amber); display: flex; font-size: 10.5px; gap: 8px; line-height: 1.6; margin: 0; padding: 0 12px 10px; }
+.askdocs-context-warning svg { flex: none; height: 14px; margin-top: 2px; width: 14px; }
 @media (max-width: 900px) {
   .askdocs-shell { padding: 18px 14px 30px; }
   .askdocs-controls { flex-direction: column; align-items: stretch; }
