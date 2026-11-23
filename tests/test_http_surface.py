@@ -907,6 +907,37 @@ def test_get_rag_query_route_is_registered_and_safe(live: _LiveServer, monkeypat
     assert "sk-" not in body.decode("utf-8", "replace")
 
 
+def test_get_rag_query_forwards_budget_only_when_asked(live: _LiveServer, monkeypatch) -> None:
+    """M8-T1316: the wide-context budget must reach rag.answer, and the
+    legacy path must stay byte-identical when no budget is supplied."""
+    import minicc.rag as rag_mod
+
+    calls: list[dict] = []
+
+    def fake_answer(query: str, **kwargs) -> dict:
+        calls.append({"q": query, **kwargs})
+        out = {"query": query, "answer": "", "sources": []}
+        if kwargs.get("budget_tokens") is not None:
+            out["context"] = {"chunks": 3}
+        return out
+
+    monkeypatch.setattr(rag_mod, "answer", fake_answer)
+    status, _, body = _request(f"{live.url}/api/rag/query?q=hello&k=2", method="GET")
+    assert status == 200
+    assert calls[-1] == {"q": "hello", "limit": 2, "budget_tokens": None}
+    assert "context" not in json.loads(body), "legacy call must not fabricate a context block"
+
+    status, _, body = _request(f"{live.url}/api/rag/query?q=hello&k=2&budget=8000", method="GET")
+    assert status == 200
+    assert calls[-1]["budget_tokens"] == 8000
+    assert json.loads(body)["context"] == {"chunks": 3}
+
+    # An invalid budget degrades to the legacy path, never a 500.
+    status, _, body = _request(f"{live.url}/api/rag/query?q=hello&budget=oops", method="GET")
+    assert status == 200
+    assert calls[-1]["budget_tokens"] is None
+
+
 def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:
     status, _, body = _request(f"{live.url}/api/models", method="GET")
     assert status == 200

@@ -52,4 +52,18 @@ assert.match(manual, /id: "askdocs"/, "manual chapter 10 must be registered");
 assert.match(manual, /zhAskDocs/, "manual must carry the zh chapter body");
 assert.match(manual, /enAskDocs/, "manual must carry the en chapter body");
 
+// M8-T1316: the wide-context path is actually reachable from the panel —
+// a depth selector feeds a budget into /api/rag/query, and the returned
+// assembly evidence is rendered with real line anchors.
+assert.match(panel, /id="askdocsDepth"/, "depth selector missing");
+assert.match(panel, /askdocs\.depthWide/, "depth options must come from the dictionary");
+assert.match(panel, /budget=\$\{budget\}/, "the selected budget must be appended to the query URL");
+assert.match(panel, /contextEvidence\(context, sources\)/, "assembly evidence must be rendered");
+assert.match(panel, /source\.start_line/, "sources must show real line anchors");
+for (const key of ["askdocs.depth", "askdocs.depthPrecise", "askdocs.depthWide",
+                   "askdocs.contextEvidence", "askdocs.contextStat", "askdocs.contextPacked",
+                   "askdocs.contextChunks", "askdocs.contextFp", "askdocs.deepHint"]) {
+  assert.equal(occurrences(`"${key}":`), 2, `${key} must exist in both locales`);
+}
+
 console.log("askdocs smoke: PASS");

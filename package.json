@@ -17,6 +17,7 @@
  "test:cacheseries": "node tests/frontend_cache_series_one_home_smoke.mjs",
  "test:helpshortcuts": "node tests/frontend_help_shortcuts_one_home_smoke.mjs",
  "test:askdocs": "node tests/frontend_askdocs_one_home_smoke.mjs",
+ "test:askdocs:depth": "node tests/askdocs_depth_smoke.mjs",
     "test:timeline": "node tests/frontend_timeline_one_home_smoke.mjs",
     "test:prefixstrip": "node tests/frontend_prefix_strip_one_home_smoke.mjs",
  "test:perm": "node tests/frontend_permission_mode_one_home_smoke.mjs",

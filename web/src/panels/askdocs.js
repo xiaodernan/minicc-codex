@@ -38,9 +38,28 @@ function usageLine(usage) {
 function sourceRow(index, source) {
   const score = typeof source.score === "number" ? source.score : 0;
   const chunk = typeof source.chunk === "string" ? source.chunk : "";
+  // M8-T1316: large-context chunks carry real line anchors (Lstart-Lend).
+  const anchor = Number.isInteger(source.start_line)
+    ? ` : L${source.start_line}–L${source.end_line ?? source.start_line}` : "";
   return `<details class="askdocs-source">
-    <summary class="askdocs-source-summary"><span class="askdocs-source-index">${index + 1}</span><span class="askdocs-source-file">${escapeHtml(source.source ?? "?")}</span><span class="askdocs-source-score">${escapeHtml(score.toFixed(2))}</span></summary>
+    <summary class="askdocs-source-summary"><span class="askdocs-source-index">${index + 1}</span><span class="askdocs-source-file">${escapeHtml(source.source ?? "?")}${escapeHtml(anchor)}</span><span class="askdocs-source-score">${escapeHtml(score.toFixed(2))}</span></summary>
     <pre class="askdocs-source-chunk">${escapeHtml(chunk)}</pre>
+  </details>`;
+}
+
+function contextEvidence(context, sources) {
+  if (!context) return "";
+  const rows = [
+    [t("askdocs.contextStat"), `${context.budget_tokens}`],
+    [t("askdocs.contextPacked"), `${context.estimated_tokens} tokens`],
+    [t("askdocs.contextChunks"), `${sources.length} / ${context.candidates}`],
+    [t("askdocs.contextFp"), String(context.prefix_fingerprint || "—")],
+  ];
+  return `<details class="askdocs-context-evidence">
+    <summary>${icon("layers-3")}<span>${escapeHtml(t("askdocs.contextEvidence"))}</span></summary>
+    <div class="askdocs-context-grid">${rows.map(([k, v]) =>
+      `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("")}</div>
+    <p class="askdocs-context-hint">${escapeHtml(t("askdocs.deepHint"))}</p>
   </details>`;
 }
 
@@ -69,6 +88,12 @@ export async function openAskDocsPanel() {
               <option value="8">8</option>
             </select>
           </label>
+          <label class="askdocs-kselect-wrap" for="askdocsDepth">${escapeHtml(t("askdocs.depth"))}
+            <select class="askdocs-kselect" id="askdocsDepth">
+              <option value="" selected>${escapeHtml(t("askdocs.depthPrecise"))}</option>
+              <option value="8000">${escapeHtml(t("askdocs.depthWide"))}</option>
+            </select>
+          </label>
           <button class="askdocs-submit" id="askdocsSubmit" type="submit">${icon("file-search-2")}<span>${escapeHtml(isZh ? "提问" : "Ask")}</span></button>
         </div>
       </form>
@@ -88,6 +113,7 @@ export async function openAskDocsPanel() {
     const question = textarea.value.trim();
     if (!question) return;
     const k = Number($("#askdocsK")?.value ?? "4") || 4;
+    const budget = Number($("#askdocsDepth")?.value ?? "") || 0;
 
     submit.disabled = true;
     submit.innerHTML = `${icon("loader-circle")}<span>${escapeHtml(isZh ? "检索中…" : "Retrieving…")}</span>`;
@@ -98,15 +124,19 @@ export async function openAskDocsPanel() {
       : "BM25 is searching this repository's docs…")}</span></div>`;
 
     try {
-      const payload = await requestJson(`/api/rag/query?q=${encodeURIComponent(question)}&k=${k}`, {}, 60000);
+      const depth = budget > 0 ? `&budget=${budget}` : "";
+      const payload = await requestJson(`/api/rag/query?q=${encodeURIComponent(question)}&k=${k}${depth}`, {}, 60000);
       const sources = Array.isArray(payload?.sources) ? payload.sources : [];
       const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";
       const error = payload?.error;
       const model = payload?.model;
       const baseUrl = payload?.base_url;
 
-      const meta = [model ? escapeHtml(isZh ? `模型 · ${model}` : `model · ${model}`) : "",
-        baseUrl ? escapeHtml(isZh ? `端点 · ${baseUrl}` : `endpoint · ${baseUrl}`) : ""].filter(Boolean).join("<br/>");
+      const context = payload?.context;
+      const metaParts = [model ? escapeHtml(isZh ? `模型 · ${model}` : `model · ${model}`) : "",
+        baseUrl ? escapeHtml(isZh ? `端点 · ${baseUrl}` : `endpoint · ${baseUrl}`) : ""];
+      if (context) metaParts.push(escapeHtml(t("askdocs.deepMode")));
+      const meta = metaParts.filter(Boolean).join("<br/>");
 
       const answerBlock = answer
         ? `<div class="askdocs-answer">${escapeHtml(answer)}</div>`
@@ -128,6 +158,7 @@ export async function openAskDocsPanel() {
         ${answerBlock}
         ${errorBlock}
         <div class="askdocs-usage">${escapeHtml(usageLine(payload?.usage))}</div>
+        ${contextEvidence(context, sources)}
         ${sourcesBlock}`;
       refreshIcons();
     } catch (error) {

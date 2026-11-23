@@ -1071,6 +1071,16 @@
       "admin.contextSlow": "\u670D\u52A1\u6162\uFF0C\u672A\u5728\u65F6\u9650\u5185\u8FD4\u56DE\u771F\u5B9E\u8BFB\u6570\uFF1B\u8FD9\u4E00\u683C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
       "admin.contextServerError": "\u670D\u52A1\u8FD4\u56DE\u4E86\u9519\u8BEF\uFF085xx\uFF09\u2014\u2014\u5B83\u6D3B\u7740\uFF0C\u4F46\u8FD9\u6B21\u6CA1\u7ED9\u51FA\u771F\u5B9E\u8BFB\u6570\u3002",
       "admin.contextRejected": "\u8BF7\u6C42\u88AB\u62D2\u7EDD\uFF084xx\uFF09\u2014\u2014\u4E0D\u662F\u4E0D\u53EF\u7528\uFF0C\u8FD9\u4E00\u683C\u4E0D\u586B\u5047\u6570\u5B57\u3002",
+      "askdocs.depth": "\u4E0A\u4E0B\u6587\u6DF1\u5EA6",
+      "askdocs.depthPrecise": "\u7CBE\u51C6 \xB7 4 \u6BB5",
+      "askdocs.depthWide": "\u5BBD\u4E0A\u4E0B\u6587 \xB7 8000 \u8BCD\u5143",
+      "askdocs.deepMode": "\u5BBD\u4E0A\u4E0B\u6587",
+      "askdocs.contextEvidence": "\u88C5\u914D\u8BC1\u636E",
+      "askdocs.contextStat": "\u8BCD\u5143\u9884\u7B97",
+      "askdocs.contextPacked": "\u5B9E\u9645\u88C5\u5165",
+      "askdocs.contextChunks": "\u7247\u6BB5 / \u5019\u9009",
+      "askdocs.contextFp": "\u7F13\u5B58\u524D\u7F00\u6307\u7EB9",
+      "askdocs.deepHint": "\u8BCD\u6CD5\u6269\u5C55\u51FA\u591A\u4E2A\u67E5\u8BE2\u3001\u53BB\u91CD\u3001\u6309\u5206\u6570\u7A33\u5B9A\u6392\u5E8F\u540E\u88C5\u6EE1\u9884\u7B97\uFF1B\u6BCF\u4E2A\u7247\u6BB5\u90FD\u5E26\u771F\u5B9E\u6587\u4EF6\u540D\u4E0E\u884C\u53F7\uFF0C\u5207\u6362\u8BED\u8A00\u6216\u52A0\u9884\u7B97\u90FD\u4E0D\u6253\u4E71\u5934\u90E8\u987A\u5E8F\u3002",
       "admin.contextBudget": "\u9884\u7B97",
       "admin.contextPacked": "\u88C5\u5165",
       "admin.contextChunksCandidates": "\u7247\u6BB5 / \u5019\u9009",
@@ -2074,6 +2084,16 @@
       "admin.contextSlow": "The service was slow and returned no real reading in time; this tile stays empty rather than invent numbers.",
       "admin.contextServerError": "The service answered with an error (5xx) - it is alive, but gave no real reading this time.",
       "admin.contextRejected": "The request was rejected (4xx) - not unavailable; this tile stays empty rather than invent numbers.",
+      "askdocs.depth": "Context depth",
+      "askdocs.depthPrecise": "Precise - 4 chunks",
+      "askdocs.depthWide": "Wide - 8000 tokens",
+      "askdocs.deepMode": "wide context",
+      "askdocs.contextEvidence": "Assembly evidence",
+      "askdocs.contextStat": "token budget",
+      "askdocs.contextPacked": "actually packed",
+      "askdocs.contextChunks": "chunks / candidates",
+      "askdocs.contextFp": "cache prefix fingerprint",
+      "askdocs.deepHint": "Lexical fan-out into several queries, de-duplicated, packed in stable score order; every chunk carries a real file name and line range. Switching locale or raising the budget never reshuffles the head.",
       "admin.contextBudget": "Budget",
       "admin.contextPacked": "Packed",
       "admin.contextChunksCandidates": "Chunks / candidates",
@@ -8258,6 +8278,7 @@
       <li><strong>\u6253\u5F00</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u95EE\u4ED3\u5E93\u300D\uFF08\u6863\u6848\u9986\u65C1\u8FB9\uFF09\uFF0C\u6216\u6309 <code>Ctrl/\u2318K</code> \u8F93\u5165\u300C\u95EE\u4ED3\u5E93\u300D\u3002</li>
       <li><strong>\u63D0\u95EE</strong> \u2014 \u7528\u4E2D\u6587\u6216\u82F1\u6587\u95EE\u4E00\u4E2A\u5177\u4F53\u7684\u95EE\u9898\u3002\u6BD4\u5982\u300C\u4E3A\u4EC0\u4E48\u7F13\u5B58\u547D\u4E2D\u7387\u770B\u8D77\u6765\u5F88\u4F4E\uFF1F\u300D\u300C\u600E\u4E48\u8DD1\u538B\u529B\u6D4B\u8BD5\uFF1F\u300D\u9009\u597D\u5F15\u7528\u6765\u6E90\u6570 k\uFF082 / 4 / 6 / 8\uFF09\uFF0C\u6309\u300C\u63D0\u95EE\u300D\u3002</li>
       <li><strong>\u8BFB\u7B54\u6848</strong> \u2014 \u7B54\u6848\u53EA\u6765\u81EA\u68C0\u7D22\u5230\u7684\u6BB5\u843D\uFF1B\u9876\u90E8\u663E\u793A\u6A21\u578B\u540D\u4E0E\u7AEF\u70B9\uFF1B<strong>\u5F15\u7528\u6765\u6E90</strong>\u9010\u6761\u5C55\u5F00\uFF0C\u53EF\u89C1\u6BB5\u843D\u6587\u4EF6\u540D\u3001BM25 \u5206\u6570\u4E0E\u539F\u6587\u6458\u5F55\uFF1B<strong>\u7528\u91CF</strong>\u6761\u663E\u793A\u7F51\u5173\u56DE\u4F20\u7684 prompt / completion / total tokens\u3002</li>
+      <li><strong>\u4E0A\u4E0B\u6587\u6DF1\u5EA6</strong> \u2014 \u300C\u5F15\u7528\u6765\u6E90\u6570\u300D\u63A7\u5236\u7CBE\u51C6\u6A21\u5F0F\uFF08\u9ED8\u8BA4 4 \u6BB5\uFF09\uFF1B\u60F3\u8BA9\u6A21\u578B\u8BFB\u5F97\u66F4\u591A\uFF0C\u628A\u300C\u4E0A\u4E0B\u6587\u6DF1\u5EA6\u300D\u5207\u5230<strong>\u5BBD\u4E0A\u4E0B\u6587 \xB7 8000 \u8BCD\u5143</strong>\uFF1A\u88C5\u914D\u5668\u4F1A\u8BCD\u6CD5\u6269\u5C55\u51FA\u591A\u4E2A\u67E5\u8BE2\u3001\u6309\u771F\u5B9E\u6587\u4EF6\u884C\u53F7\u53BB\u91CD\u3001\u7A33\u5B9A\u6392\u5E8F\u88C5\u6EE1\u9884\u7B97\u3002\u7ED3\u679C\u91CC\u591A\u51FA\u4E00\u5757\u300C\u88C5\u914D\u8BC1\u636E\u300D\uFF0C\u663E\u793A\u8BCD\u5143\u9884\u7B97 / \u5B9E\u9645\u88C5\u5165 / \u7247\u6BB5\u4E0E\u5019\u9009\u6570 / \u7F13\u5B58\u524D\u7F00\u6307\u7EB9\uFF1B\u6BCF\u6761\u6765\u6E90\u90FD\u5E26 <code>L\u8D77\u2013\u6B62</code> \u884C\u53F7\u3002\u5934\u90E8\u987A\u5E8F\u5728\u5207\u6362\u8BED\u8A00\u6216\u52A0\u5927\u9884\u7B97\u65F6\u90FD\u4E0D\u53D8\uFF0C\u6240\u4EE5\u7F13\u5B58\u524D\u7F00\u4ECD\u53EF\u547D\u4E2D\u2014\u2014\u8FD9\u5C31\u662F\u628A 5 \u4E07\uFF5E9 \u4E07\u4E0A\u4E0B\u6587\u771F\u6B63\u7528\u8D77\u6765\u7684\u5165\u53E3\u3002</li>
       <li><strong>\u6CA1\u7B54\u4E0A</strong> \u2014 \u5982\u679C docs \u91CC\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\uFF0C\u6A21\u578B\u4F1A\u76F4\u63A5\u8BF4\u300C\u6CA1\u6709\u76F4\u63A5\u7B54\u6848\u300D\uFF0C\u6765\u6E90\u5217\u8868\u4E3A\u7A7A\u3002\u6362\u4E2A\u5173\u952E\u8BCD\uFF0C\u6216\u5148\u5728 docs/ \u91CC\u786E\u8BA4\u6709\u6CA1\u6709\u76F8\u5E94\u7AE0\u8282\u3002</li>
       <li><strong>\u6CA1 key</strong> \u2014 \u68C0\u7D22\u672C\u8EAB\u5728\u8FDB\u7A0B\u5185\u5B8C\u6210\uFF1B\u56DE\u7B54\u8FD9\u4E00\u6B65\u8C03\u7528\u4F60\u914D\u7F6E\u597D\u7684\u6A21\u578B\uFF0C\u56E0\u6B64\u4ECD\u9700\u8981 <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>\uFF08\u4E0E\u5BF9\u8BDD\u540C\u4E00\u5957 env\uFF09\u3002\u6CA1\u6709 key \u65F6\uFF0C\u8FD9\u91CC\u663E\u793A\u771F\u5B9E\u9519\u8BEF\uFF0C\u800C\u4E0D\u662F\u4E00\u6BB5\u7F16\u9020\u7684\u56DE\u7B54\u3002</li>
     </ol>
@@ -8274,6 +8295,7 @@
       <li><strong>Open</strong> \u2014 the \u201CAsk the Docs\u201D sidebar button (next to the Archive), or press <code>Ctrl/\u2318K</code> and type \u201Cask\u201D.</li>
       <li><strong>Ask</strong> \u2014 type a concrete question in Chinese or English, e.g. \u201CWhy does the cache hit rate look so low?\u201D or \u201CHow do I run the load test?\u201D Pick k (2 / 4 / 6 / 8) and press Ask.</li>
       <li><strong>Read</strong> \u2014 the answer comes only from the retrieved passages; the meta line shows the model and endpoint; each <strong>source</strong> expands to the file name, the BM25 score and the verbatim excerpt; the <strong>usage</strong> pill shows exactly what the gateway reported (prompt / completion / total tokens).</li>
+      <li><strong>Context depth</strong> \u2014 "Sources" controls the precise mode (4 chunks by default); to let the model read far more, switch "Context depth" to <strong>Wide - 8000 tokens</strong>: the assembler fans out into several lexical queries, de-duplicates by real file line ranges, and packs a stable order into the budget. An "Assembly evidence" block appears with the token budget / actually packed / chunks & candidates / cache-prefix fingerprint; every source carries an <code>Lstart-end</code> anchor. The head order never reshuffles when you change locale or raise the budget, so the cached prefix still hits - this is the door to genuinely using 50k-90k contexts.</li>
       <li><strong>No answer</strong> \u2014 if docs do not cover it, the model says so and the source list is empty. Rephrase, or check docs/ for a chapter first.</li>
       <li><strong>No key</strong> \u2014 retrieval runs entirely in-process; the answer step calls your configured model, so it still needs <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code> (same env as chat). Without one, the real error is shown, not a fabricated answer.</li>
     </ol>
@@ -9084,9 +9106,24 @@
   function sourceRow(index, source) {
     const score2 = typeof source.score === "number" ? source.score : 0;
     const chunk = typeof source.chunk === "string" ? source.chunk : "";
+    const anchor = Number.isInteger(source.start_line) ? ` : L${source.start_line}\u2013L${source.end_line ?? source.start_line}` : "";
     return `<details class="askdocs-source">
-    <summary class="askdocs-source-summary"><span class="askdocs-source-index">${index + 1}</span><span class="askdocs-source-file">${escapeHtml(source.source ?? "?")}</span><span class="askdocs-source-score">${escapeHtml(score2.toFixed(2))}</span></summary>
+    <summary class="askdocs-source-summary"><span class="askdocs-source-index">${index + 1}</span><span class="askdocs-source-file">${escapeHtml(source.source ?? "?")}${escapeHtml(anchor)}</span><span class="askdocs-source-score">${escapeHtml(score2.toFixed(2))}</span></summary>
     <pre class="askdocs-source-chunk">${escapeHtml(chunk)}</pre>
+  </details>`;
+  }
+  function contextEvidence(context, sources) {
+    if (!context) return "";
+    const rows = [
+      [t("askdocs.contextStat"), `${context.budget_tokens}`],
+      [t("askdocs.contextPacked"), `${context.estimated_tokens} tokens`],
+      [t("askdocs.contextChunks"), `${sources.length} / ${context.candidates}`],
+      [t("askdocs.contextFp"), String(context.prefix_fingerprint || "\u2014")]
+    ];
+    return `<details class="askdocs-context-evidence">
+    <summary>${icon("layers-3")}<span>${escapeHtml(t("askdocs.contextEvidence"))}</span></summary>
+    <div class="askdocs-context-grid">${rows.map(([k, v]) => `<div><span>${escapeHtml(k)}</span><b>${escapeHtml(v)}</b></div>`).join("")}</div>
+    <p class="askdocs-context-hint">${escapeHtml(t("askdocs.deepHint"))}</p>
   </details>`;
   }
   async function openAskDocsPanel() {
@@ -9109,6 +9146,12 @@
               <option value="8">8</option>
             </select>
           </label>
+          <label class="askdocs-kselect-wrap" for="askdocsDepth">${escapeHtml(t("askdocs.depth"))}
+            <select class="askdocs-kselect" id="askdocsDepth">
+              <option value="" selected>${escapeHtml(t("askdocs.depthPrecise"))}</option>
+              <option value="8000">${escapeHtml(t("askdocs.depthWide"))}</option>
+            </select>
+          </label>
           <button class="askdocs-submit" id="askdocsSubmit" type="submit">${icon("file-search-2")}<span>${escapeHtml(isZh ? "\u63D0\u95EE" : "Ask")}</span></button>
         </div>
       </form>
@@ -9126,22 +9169,27 @@
       const question = textarea.value.trim();
       if (!question) return;
       const k = Number($("#askdocsK")?.value ?? "4") || 4;
+      const budget = Number($("#askdocsDepth")?.value ?? "") || 0;
       submit.disabled = true;
       submit.innerHTML = `${icon("loader-circle")}<span>${escapeHtml(isZh ? "\u68C0\u7D22\u4E2D\u2026" : "Retrieving\u2026")}</span>`;
       refreshIcons();
       result.hidden = false;
       result.innerHTML = `<div class="askdocs-working">${icon("loader-circle")}<span>${escapeHtml(isZh ? "BM25 \u6B63\u5728\u8FD9\u672C\u4ED3\u5E93\u7684\u6587\u6863\u91CC\u68C0\u7D22\u2026" : "BM25 is searching this repository's docs\u2026")}</span></div>`;
       try {
-        const payload = await requestJson(`/api/rag/query?q=${encodeURIComponent(question)}&k=${k}`, {}, 6e4);
+        const depth = budget > 0 ? `&budget=${budget}` : "";
+        const payload = await requestJson(`/api/rag/query?q=${encodeURIComponent(question)}&k=${k}${depth}`, {}, 6e4);
         const sources = Array.isArray(payload?.sources) ? payload.sources : [];
         const answer = typeof payload?.answer === "string" ? payload.answer.trim() : "";
         const error = payload?.error;
         const model = payload?.model;
         const baseUrl = payload?.base_url;
-        const meta = [
+        const context = payload?.context;
+        const metaParts = [
           model ? escapeHtml(isZh ? `\u6A21\u578B \xB7 ${model}` : `model \xB7 ${model}`) : "",
           baseUrl ? escapeHtml(isZh ? `\u7AEF\u70B9 \xB7 ${baseUrl}` : `endpoint \xB7 ${baseUrl}`) : ""
-        ].filter(Boolean).join("<br/>");
+        ];
+        if (context) metaParts.push(escapeHtml(t("askdocs.deepMode")));
+        const meta = metaParts.filter(Boolean).join("<br/>");
         const answerBlock = answer ? `<div class="askdocs-answer">${escapeHtml(answer)}</div>` : `<div class="askdocs-answer askdocs-answer-empty">${escapeHtml(isZh ? "\u6587\u6863\u91CC\u6CA1\u6709\u76F4\u63A5\u7B54\u6848\u3002\u6362\u4E2A\u95EE\u6CD5\uFF0C\u6216\u5148\u5728 docs/ \u91CC\u786E\u8BA4\u6709\u6CA1\u6709\u76F8\u5173\u7AE0\u8282\u3002" : "No direct answer in the docs. Rephrase, or check docs/ for a related chapter first.")}</div>`;
         const errorBlock = error ? `<div class="askdocs-error">${icon("alert-triangle")}<span>${escapeHtml(isZh ? `\u6A21\u578B\u8C03\u7528\u5931\u8D25\uFF1A${error}` : `Model call failed: ${error}`)}</span></div>` : "";
         const sourcesBlock = sources.length ? `<div class="askdocs-sources-title">${escapeHtml(isZh ? "\u5F15\u7528\u6765\u6E90" : "Sources")} <span class="askdocs-sources-count">${sources.length}</span></div>
@@ -9151,6 +9199,7 @@
         ${answerBlock}
         ${errorBlock}
         <div class="askdocs-usage">${escapeHtml(usageLine(payload?.usage))}</div>
+        ${contextEvidence(context, sources)}
         ${sourcesBlock}`;
         refreshIcons();
       } catch (error) {

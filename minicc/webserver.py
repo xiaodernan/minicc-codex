@@ -529,9 +529,19 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     limit = 4
                 limit = max(1, min(8, limit))
+                # M8-T1316: an optional token budget switches /api/rag/query
+                # from the legacy five-chunk call to the large-context
+                # assembler. Absent/invalid budget keeps the old behaviour
+                # byte-for-byte; the value is clamped inside context_assembly.
+                budget = None
+                if "budget" in query:
+                    try:
+                        budget = int((query.get("budget") or [""])[0])
+                    except ValueError:
+                        budget = None
                 from .rag import answer as _rag_answer
 
-                body = _rag_answer(q, limit=limit)
+                body = _rag_answer(q, limit=limit, budget_tokens=budget)
                 self._json(body)
             except Exception as exc:  # noqa: BLE001
                 self._json({"q": "", "answer": "", "error": f"{type(exc).__name__}: {exc}"})

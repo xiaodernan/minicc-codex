@@ -56980,3 +56980,27 @@ en/twoshards: en mode rendered CJK, first 140 chars: CHAPTER LVIII · THE TWO SH
 1. `network` 只认 TypeError 裸 rejection；某些浏览器把 DNS/证书失败包成别的类型，会落到兜底的「不可达」——结论仍诚实，只是少一个细分标签。要覆盖需按浏览器分别适配，是下一批。
 2. `http-error` 的 `status` 已挂在 Error 上，但上下文卡只显示「请求被拒」一句，没把具体 4xx 数字显示出来（数字在 message 里、只用于 console）。要不要在卡上显示状态码，是下一批。
 3. 全仓 670 处内联双语仍未迁（T1314 边界 1），本批未碰。
+
+
+## 批次 1221 · M8-T1316: 装配器造好了却没人用——把宽上下文接到「问仓库」的提问按钮上
+
+### 缺什么
+- M8-T1293 造了 `context_assembly`，M8-T1294 给它做了管理员观察卡，但真正提问的「问仓库」面板从头到尾只发 `k=4`，`/api/rag/query` 也写死调 `rag.answer(q, limit=k)`，`budget_tokens` 参数从来没被前端传过。req #4 最在意「输入上下文总是太少」，结果把 5 万～9 万上下文的入口藏在管理员面板里、用户碰不到——工具造好了却没接进产品。
+- API 关闭后「问仓库」的模型答案为空；但装配出来的证据（真实文件行号、token 预算、前缀指纹）是零 token 的真读数，应当让用户当场看见，而不是只在管理员卡里。
+
+### 做了什么
+- `/api/rag/query` 加可选 `budget` 参数：给了就转给 `rag.answer(..., budget_tokens=...)` 走大上下文装配；不给或给了烂值就走 legacy 路径，逐字不变。端点层不 clamp——交给 `context_assembly.clamp_budget` 这个唯一事实源。
+- 「问仓库」面板加「上下文深度」下拉：精准 4 段 / 宽上下文 8000 词元。宽模式在 URL 上带 `budget=8000`，结果多一块可折叠「装配证据」：词元预算、实际装入、片段/候选、缓存前缀指纹；每条来源的标题都带真实 `L起–止` 行号。九个新文案进中英字典（不新增内联双语）。
+- CSS 复用已声明的 mint/line/surface 变量，没有新造 palette 键，过 palette 门。
+- 说明书第十章中英各加一条「上下文深度」操作步骤：说清它做什么、证据块读什么、为什么头部顺序稳定能保住缓存前缀——这就是把大上下文真正用起来的入口（req #7 说明书在应用内）。
+- 新烟测 `tests/askdocs_depth_smoke.mjs`（npm `test:askdocs:depth`）：真浏览器、双语、在网络层桩住 `/api/rag/query`（模型 API 已关，用真实形状的载荷），断言深度下拉确实把 budget 发上线路、证据块显示真 token/指纹/行号、精准模式仍不带 budget、英文零 CJK、零 pageerror。连线门 `frontend_askdocs_one_home_smoke` 也加了 budget/证据/行号/字典键断言。
+
+### 证据与门
+- `test:askdocs:depth` 绿（zh/en 两轮）；`test:askdocs`、`test:i18n`（1013 键）、`test:transport`、`test:manual`（20 章）、`test:parity`、`test:layout`（10 组合）、`test:admin` 全绿；`build:web` + `check:web` 绿（产物 1819460 字符）。
+- Python：新增端点 budget 转发测试（给了传 8000、不给传 None、烂值降级 None）+ `test_context_assembly.py` = 13 passed。
+- `node --check` 改过的 JS 绿；`doc_pointers --check` 绿。全程零模型 token：真实 API 关闭，宽上下文的证据用零 token 装配器给出，模型调用点在网络层桩住、不冒充实测。
+
+### 边界
+1. 宽上下文目前只有 8000 这一个档，离用户说的 5 万～9 万还有距离——放手开整天会根据仓库体量与网关费用失控。给一个「自定义预算」输入并加token 预估警示，是下一批。
+2. 模型 API 关闭时宽模式照样只得到空答案，只是证据块有真读数；不能拿装配证据冒充「模型已读了这些」。要不要在答案区明确标「本次未调用模型、仅展示将要装入的证据」，是下一批。
+3. 全仓 670 处内联双语仍未迁（长期欠账），本批九个新文案都进了字典、未新增内联。
