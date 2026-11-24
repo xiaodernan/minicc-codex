@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T03:37:53.783Z",
+  "generated_at": "2026-11-24T06:22:52.689Z",
   "branch": "main",
-  "head": "fb03f0d",
-  "total_commits": 2184,
+  "head": "32c2f39",
+  "total_commits": 2186,
   "recent_commits": [
+    {
+      "short": "32c2f39b",
+      "at": "2026-11-24T14:21:42+08:00",
+      "subject": "M8-T1328: style the honest partial-read/truncation warnings (amber, themed, wraps cleanly) instead of leaving raw unstyled divs; browser smoke pins the shipped "
+    },
+    {
+      "short": "2a55058f",
+      "at": "2026-11-24T03:37:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "fb03f0df",
       "at": "2026-11-24T11:37:12+08:00",
@@ -19,22 +29,12 @@
       "short": "8f868d75",
       "at": "2026-11-24T11:23:08+08:00",
       "subject": "M8-T1326: the shipped-bundle missing-count fixture now derives its function dependency list from the bundle's call graph instead of a hand-copied RUN_NAMES - a "
-    },
-    {
-      "short": "dd5cfa62",
-      "at": "2026-11-23T20:14:52Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9b96883d",
-      "at": "2026-11-24T04:14:15+08:00",
-      "subject": "M8-T1325: missing-count 夹具补齐真实 bundle 依赖"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 559,
+  "roadmap_batches": 561,
   "changelog_entries": 26,
-  "roadmap_lines": 57291,
+  "roadmap_lines": 57325,
   "tracked_files": 1197,
   "test_files": 771,
   "almanac_chapters": 81,
