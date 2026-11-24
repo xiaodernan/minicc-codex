@@ -57582,3 +57582,23 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 这些提交只在本地，未 push 到各远端；用户若要让协作者也摆脱绑定，需自行 push 对应仓库。
 2. 通过 git re-checkout 到旧提交仍会带回脚本里的 7897，但当前分支已不含。
+
+
+## 批次 1248 · M8-T1343: 把「无 Clash 绑定」做成可运行的门，而非一句结论
+
+### 缺什么
+- 用户反复要求解绑 Clash。前面已从系统/agent/脚本各层清理并实测，但这些都是某次会话的观测，没有一条**可重复运行**的门来证明状态不再回退。最后两处未查（Windows 系统级代理注册表、Claude 配置）也补查干净。
+
+### 做了什么
+- 新增 `scripts/check_no_clash.py`：只读检查六层——进程环境、git/npm 全局配置、WinINET 注册表、TUN/Clash 虚拟网卡、仓库 `.env`、config.py 不再把 .env 代理导出到 os.environ；逐项打印 OK/FAIL，全部通过才退 0。
+- 新增 `tests/test_no_clash_binding.py` 运行该门并要求 `6/6 checks passed`。
+- 补查：HKLM 系统级代理环境为空；`~/.claude/settings.json` 与 `.claude.json` 均无代理。
+
+### 证据与门
+- `python scripts/check_no_clash.py`：`6/6 checks passed`，rc=0。
+- `pytest tests/test_no_clash_binding.py -q`：`1 passed`（清掉继承代理变量后）。
+- 本批不改产品逻辑，只新增诊断门与测试。
+
+### 边界
+1. 门查的是静态配置，不能证明某个**运行中进程**的内存里没有旧代理——那个只能由用户重启应用清除。
+2. 在别的 agent 工具里若有自有代理注入途径（非上述六层），本门不覆盖；按实测目前均无。
