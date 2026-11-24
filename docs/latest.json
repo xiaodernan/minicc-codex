@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T11:39:19.014Z",
+  "generated_at": "2026-11-24T11:56:38.764Z",
   "branch": "main",
-  "head": "e92e083",
-  "total_commits": 2202,
+  "head": "ec09fd7",
+  "total_commits": 2204,
   "recent_commits": [
+    {
+      "short": "ec09fd7a",
+      "at": "2026-11-24T19:55:51+08:00",
+      "subject": "M8-T1337 ledger: definitive measurement - with all proxy vars cleared, api.aizzz.xyz resolves normally and TCP-connects in 0.24s returning HTTP 403 (region poli"
+    },
+    {
+      "short": "c1b160d4",
+      "at": "2026-11-24T11:39:19Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e92e0833",
       "at": "2026-11-24T19:38:18+08:00",
@@ -19,22 +29,12 @@
       "short": "49b9f6c9",
       "at": "2026-11-24T19:31:42+08:00",
       "subject": "M8-T1335 ledger: switch the live project .env to the local zero-network LLM endpoint (backup kept at .env.aizzz.backup); real load_config + provider E2E returne"
-    },
-    {
-      "short": "0419ec17",
-      "at": "2026-11-24T11:27:43Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "5c4006b0",
-      "at": "2026-11-24T19:26:51+08:00",
-      "subject": "M8-T1335 ledger: switch the live project .env to the local zero-network LLM endpoint (backup kept at .env.aizzz.backup); real load_config + provider E2E returne"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 568,
+  "roadmap_batches": 569,
   "changelog_entries": 26,
-  "roadmap_lines": 57469,
+  "roadmap_lines": 57488,
   "tracked_files": 1200,
   "test_files": 772,
   "almanac_chapters": 81,
