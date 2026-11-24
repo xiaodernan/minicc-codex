@@ -57288,3 +57288,37 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 1. 探测只能证明「这一刻能启动一次」，不能证明套件自己那次 launch 也成功（并发下资源耗尽仍可能失败）；这是缩小窗口，不是消除。
 2. 探测给每个浏览器套件多加一次 launch+close 的开销（本机约 1 秒/套件）； CI 上若被计为性能回归，可改为只在首次失败时补探。
 3. 损坏二进制的错误消息可能含路径或系统库名，直接拼进日志；这里没有外发，但若将来把 summary 贴到公开 PR，需确认不含敏感路径。
+
+
+## 批次 1233 · M8-T1328: 诚实的警告格，却是没穿衣服的裸 div
+
+### 缺什么
+- M8-T1309/M8-T1310 加的 `.change-partial-warn`（部分读、列表截断、审计窗口截断三种披露）在 `web/styles.css` 里没有一条样式——`grep` 只查到 `.file-tree-status` / `.file-tree-error`，没有 `.change-partial-warn`。用户看到的是没颜色、没边距、没图标的原始块级 div，与「前端要特别漂亮」的要求相悖；而且这是我自己引入的视觉缺陷。
+
+### 做了什么
+- `web/styles.css` 在文件树提示语旁边加 `.change-partial-warn`：琥珀色（`--amber` / `--amber-soft`，双主题都有定义）而非珊瑚色（这不是失败）、左边框强调、8px 圆角、flex 换行、`::before` 一个 ⚠ 符号、hint 用 `--quiet` 且独占一行，窄视口不会和变更行挤在一起。
+- `tests/change_failure_smoke.mjs` 新增 `assertWarnStyled()`：真浏览器里读警告格的 computed style，断言有主题背景（不是透明）、左边框 ≥2px、非 inline 布局；partial 与 truncated 两种成因都验。文案仍从字典来，en 零 CJK 不受影响。
+- 重打包：`npm run build:web`（产物 1829350 字符）+ `check:web` 绿；`change_failure_smoke` 四种成因 × 双语全绿（含新增样式断言）。
+
+### 证据与门
+- 真跑（`MINICC_WEB_URL=http://127.0.0.1:8769 node tests/change_failure_smoke.mjs`）：`change-failure smoke passed: normal reads keep badge/rows/summary in agreement (uncounted stays uncounted); transport failure + denial fail on both surfaces; partial reads and truncation warn without hiding real counts; raw reasons machine-readable, visible copy CJK-free in EN, zero pageerror`。
+
+### 边界
+1. `::before` 的 ⚠ 是装饰符号，不进字典也不参与 i18n；它读起来像警告而非错误，与琥珀配色一致。若将来要求连图标也随语言切换，得换进字典。
+2. 样式只验了「有主题背景/边框/布局」，没验与相邻变更行的像素级不重叠；`layout_audit` 的夹具不触发部分读，所以这一格没被走查器覆盖。
+3. 本批在服务器两次重启中断后重跑完成，构建产物是重打包后的字节。
+
+## 批次 1234 · M8-T1329: 把应用从 Clash Verge 解绑，走正常网络
+
+### 缺什么
+- 用户报告不开 Clash Verge 就一直 `ECONNREFUSED`。查证：`HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 在进程环境里指向 `http://127.0.0.1:7897`（Clash Verge 的混合端口），源头是本仓库被 gitignore 的 `.env`——M8-T1073 时代为绕过 aizzz 的 403 地域限制写进去的「唯一可用通道」。Clash 一关，所有不在 `NO_PROXY` 里的请求（含 OpenCode 自己的 `cc.580ai.net`）都打向一个没人听的端口。
+
+### 做了什么
+- 编辑 `.env`（gitignored，不入库）：删掉 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` 三行，保留 key/base/model 与注释历史；写明「Clash 已退役，全部走正常网络」。
+- 验证：清掉本 shell 的继承变量后，`https://www.google.com` 与 `https://registry.npmjs.org` 都 HTTP 200（<1 秒）——直连可用。
+
+### 证据与门与边界
+- 单仓 `.env` 是唯一来源（全工作区只有这一份带 7897）；User/Machine 级环境都没有代理，WinHTTP 也是「直接访问」。
+- **仍需用户重启 OpenCode**：运行中的 OpenCode.exe 在启动时已把旧 `.env` 读进进程环境，我无法从外部改写；新开的 shell 仍会继承旧代理，直到重启。重启后才会真正直连。
+- 另一个独立问题：OpenCode 的模型端点是 `https://cc.580ai.net`，本机 OpenWrt DNS 与 8.8.8.8 / 1.1.1.1 / 223.5.5.5 都解析不出 A 记录——它很可能本来就是靠 Clash 的 DNS/规则才能解析。解绑后直连能上网，但这个模型端点不换就无法接通。这是供应商选择问题，不是仓库代码，需要用户在 OpenCode 里换成可直连的 provider。
+- 本批不动任何被跟踪的源码；账本条目记录事实与后续步骤。

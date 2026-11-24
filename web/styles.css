@@ -1983,6 +1983,15 @@ body { position: fixed; inset: var(--viewport-top) 0 auto; display: flex; flex-d
 .file-tree-note { align-items: center; color: var(--amber); display: flex; font-size: 12px; gap: 6px; margin-top: 7px; }
 .file-tree-note svg { flex: 0 0 auto; height: 11px; width: 11px; }
 
+/* M8-T1328: partial reads and truncation are honest-but-secondary answers —
+   amber, not coral (nothing failed), with the same rhythm as file-tree notes.
+   The warning ships in both surfaces (#changeList and #fileList), so it must
+   wrap cleanly at laptop width instead of colliding with the change rows. */
+.change-partial-warn { align-items: baseline; background: var(--amber-soft); border: 1px solid var(--amber); border-left-width: 3px; border-radius: 8px; color: var(--amber); display: flex; flex-wrap: wrap; font-size: 12px; gap: 4px 8px; line-height: 1.5; margin: 0 0 8px; overflow-wrap: anywhere; padding: 7px 10px; }
+.change-partial-warn::before { content: "⚠"; flex: 0 0 auto; font-family: "DM Mono", Consolas, monospace; }
+.change-partial-warn > span { font-weight: 600; }
+.change-partial-warn small { color: var(--quiet); flex-basis: 100%; }
+
 /* --- @-file mention popover (composer) ------------------------------------ */
 .mention-popover { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 10px; box-shadow: var(--shadow); display: grid; gap: 2px; left: 24px; max-height: 264px; max-width: min(440px, calc(100% - 44px)); min-width: 260px; overflow: auto; padding: 6px; position: absolute; top: 96px; width: max-content; z-index: 14; }
 .mention-popover[hidden] { display: none; }

@@ -106,6 +106,22 @@ async function checkDenied(locale) {
 // comes from the dictionary. Counts remain on screen for a partial read.
 const PARTIAL_REASON = "git 状态读取失败";
 
+// M8-T1328: an honest warning that renders as raw, unstyled text is still a
+// visual defect. Pin the shipped theme tokens rather than trusting the class.
+async function assertWarnStyled(page, selector, label) {
+  const info = await page.locator(selector).evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      background: style.backgroundColor,
+      border: style.borderLeftWidth,
+      display: style.display,
+    };
+  });
+  assert.notEqual(info.background, "rgba(0, 0, 0, 0)", `${label}: warning needs a themed background`);
+  assert.ok(parseFloat(info.border) >= 2, `${label}: warning needs an accent border: ${info.border}`);
+  assert.ok(info.display !== "inline", `${label}: warning needs its own block layout`);
+}
+
 async function checkPartial(locale) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
   page.on("pageerror", (e) => errors.push(`${locale}/partial: ${e.message}`));
@@ -141,6 +157,8 @@ async function checkPartial(locale) {
       assert.ok(!CJK.test(text), `${locale}/partial: ${selector} visible copy leaked CJK: ${text}`);
       assert.ok(/totals may be incomplete/i.test(text), `${locale}/partial: expected localized partial copy, saw: ${text}`);
     }
+    await assertWarnStyled(page, `${selector} .change-partial-warn[data-change-status="partial"]`,
+      `${locale}/partial ${selector}`);
   }
   // A partial read still shows its real numbers (unlike a failed read).
   const badge = (await page.locator("#changeTabCount").innerText()).trim();
@@ -195,6 +213,8 @@ async function checkTruncated(locale) {
     }
     assert.equal(await page.locator(`${selector} .change-partial-warn[data-change-status="audit-truncated"]`).count(), 1,
       `${locale}/truncated: ${selector} must disclose audit-window truncation`);
+    await assertWarnStyled(page, `${selector} .change-partial-warn[data-change-status="truncated"]`,
+      `${locale}/truncated ${selector}`);
   }
   await page.close();
 }
