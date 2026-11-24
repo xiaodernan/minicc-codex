@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T03:23:47.244Z",
+  "generated_at": "2026-11-24T03:37:53.783Z",
   "branch": "main",
-  "head": "8f868d7",
-  "total_commits": 2182,
+  "head": "fb03f0d",
+  "total_commits": 2184,
   "recent_commits": [
+    {
+      "short": "fb03f0df",
+      "at": "2026-11-24T11:37:12+08:00",
+      "subject": "M8-T1327: browser guard now proves Chromium can actually start, not just that the file exists - a corrupt/incompatible binary reports HARNESS_BROWSER_UNUSABLE ("
+    },
+    {
+      "short": "b6ff7823",
+      "at": "2026-11-24T03:23:47Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "8f868d75",
       "at": "2026-11-24T11:23:08+08:00",
@@ -19,22 +29,12 @@
       "short": "9b96883d",
       "at": "2026-11-24T04:14:15+08:00",
       "subject": "M8-T1325: missing-count 夹具补齐真实 bundle 依赖"
-    },
-    {
-      "short": "d68487d3",
-      "at": "2026-11-23T20:03:58Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "18855844",
-      "at": "2026-11-24T04:03:28+08:00",
-      "subject": "M8-T1324: CI 摘要分清零覆盖、部分覆盖与浏览器缺席"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 558,
+  "roadmap_batches": 559,
   "changelog_entries": 26,
-  "roadmap_lines": 57270,
+  "roadmap_lines": 57291,
   "tracked_files": 1197,
   "test_files": 771,
   "almanac_chapters": 81,
