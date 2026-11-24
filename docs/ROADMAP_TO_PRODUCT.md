@@ -57451,3 +57451,18 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 1. 这是活动配置的**有意切换**：旧 aizzz 档保留在 `C:\Users\18414\AppData\Local\Temp\minicc-env-aizzz.backup`，若 API 恢复可切回。
 2. 本地 7B 比 gpt-6.2-sol 弱很多，适合离线开发验证，不要当成等价能力。
 3. Ollama 进程在服务器重启后可能回落到 CUDA 崩溃模式；用 `scripts/start_local_llm.ps1` 重新以 CPU 模式启动即可。
+
+
+## 批次 1241 · M8-T1336: 本地 LLM 每次重启就崩 —— 把 CPU 模式固化到用户环境
+
+### 缺什么
+- M8-T1335 边界 3：切到本地零网络模型后，每次本机/服务器重启，`ollama serve` 就回落到 CUDA 模式并在推理时崩（`0xc0000409 device kernel image is invalid`）。根因查清：启动项 `Startup\Ollama.lnk` 指向 `ollama app.exe`（托盘），它按默认 CUDA 启动 serve；我之前只在手动起的那个 serve 上设了 CPU 环境变量，托盘重启的 serve 不带这些变量。
+
+### 做了什么
+- 把 `OLLAMA_NUM_GPU=0`、`OLLAMA_VULKAN=false` 写成 **User 级环境变量**（HKCU\Environment），使托盘与 serve 的任何一次启动都走 CPU，不再依赖我手动设的进程内变量。
+- 确认 Startup 的 `Ollama.lnk` 是唯一 Ollama 自启入口、无 scheduled task 另起、无其它 GPU 注入。
+
+### 证据与门
+- 注册表读回：`HKCU\Environment\OLLAMA_NUM_GPU=0`、`OLLAMA_VULKAN=false`。
+- 当前 CPU 模式的 serve 推理实测：`/v1/chat/completions` 返回 `content:"OK"`（非崩溃）。
+- 本批只改用户环境变量（机器侧、gitignored 范围外），不动仓库源码；工作树不受影响。
