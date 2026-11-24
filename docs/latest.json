@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T06:43:37.067Z",
+  "generated_at": "2026-11-24T07:30:17.199Z",
   "branch": "main",
-  "head": "6c89b91",
-  "total_commits": 2188,
+  "head": "aff0b61",
+  "total_commits": 2190,
   "recent_commits": [
+    {
+      "short": "aff0b619",
+      "at": "2026-11-24T15:29:24+08:00",
+      "subject": "M8-T1331: a fully offline local-LLM path that actually runs - CPU-mode Ollama starter script + opt-in env template, and fixed the reasoning-rejection detector t"
+    },
+    {
+      "short": "8c50e253",
+      "at": "2026-11-24T06:43:37Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "6c89b911",
       "at": "2026-11-24T14:42:51+08:00",
@@ -19,23 +29,13 @@
       "short": "32c2f39b",
       "at": "2026-11-24T14:21:42+08:00",
       "subject": "M8-T1328: style the honest partial-read/truncation warnings (amber, themed, wraps cleanly) instead of leaving raw unstyled divs; browser smoke pins the shipped "
-    },
-    {
-      "short": "2a55058f",
-      "at": "2026-11-24T03:37:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "fb03f0df",
-      "at": "2026-11-24T11:37:12+08:00",
-      "subject": "M8-T1327: browser guard now proves Chromium can actually start, not just that the file exists - a corrupt/incompatible binary reports HARNESS_BROWSER_UNUSABLE ("
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 562,
+  "roadmap_batches": 563,
   "changelog_entries": 26,
-  "roadmap_lines": 57339,
-  "tracked_files": 1197,
+  "roadmap_lines": 57366,
+  "tracked_files": 1199,
   "test_files": 771,
   "almanac_chapters": 81,
   "module_count": 14,
