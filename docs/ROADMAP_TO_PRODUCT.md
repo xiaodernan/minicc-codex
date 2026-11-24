@@ -57439,7 +57439,7 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 - 用户反复报 ECONNREFUSED、要脱离 Clash。前面已从系统/其它 agent/项目代码层清掉所有 Clash 绑定（M8-T1329/1333/1334），但**运行中的项目 `.env` 仍指向已关闭的 `api.aizzz.xyz`**——这是「这个应用」里唯一还会连不上、还会让人以为需要 Clash 的地方。
 
 ### 做了什么
-- 备份旧档到 `.env.aizzz.backup`（gitignored），把活动 `.env` 切到本地零网络端点：`MINICC_BASE_URL=http://127.0.0.1:11434/v1`、`MINICC_API_KEY=ollama`、`MINICC_MODEL=qwen2.5:7b`、`MINICC_LLM_PROTOCOL=chat_completions`。
+- 备份旧档到 `C:\Users\18414\AppData\Local\Temp\minicc-env-aizzz.backup`（仓库外），把活动 `.env` 切到本地零网络端点：`MINICC_BASE_URL=http://127.0.0.1:11434/v1`、`MINICC_API_KEY=ollama`、`MINICC_MODEL=qwen2.5:7b`、`MINICC_LLM_PROTOCOL=chat_completions`。
 - 发现运行中 Ollama 又在崩溃的 CUDA 模式（服务器重启把 CPU-mode 启动的后台进程冲掉、回落到 GPU 启动），重启为 CPU 模式（`OLLAMA_NUM_GPU=0` + `OLLAMA_VULKAN=false` + `CUDA_VISIBLE_DEVICES=-1`）后推理恢复正常。
 
 ### 证据与门
@@ -57448,6 +57448,6 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 - 本批只改 gitignored 的 `.env` 与本机 Ollama 进程，不动任何仓库源码；工作树不受影响。
 
 ### 边界
-1. 这是活动配置的**有意切换**：旧 aizzz 档保留在 `.env.aizzz.backup`，若 API 恢复可切回。
+1. 这是活动配置的**有意切换**：旧 aizzz 档保留在 `C:\Users\18414\AppData\Local\Temp\minicc-env-aizzz.backup`，若 API 恢复可切回。
 2. 本地 7B 比 gpt-6.2-sol 弱很多，适合离线开发验证，不要当成等价能力。
 3. Ollama 进程在服务器重启后可能回落到 CUDA 崩溃模式；用 `scripts/start_local_llm.ps1` 重新以 CPU 模式启动即可。
