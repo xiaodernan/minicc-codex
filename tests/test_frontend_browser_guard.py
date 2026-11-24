@@ -125,6 +125,54 @@ console.log(JSON.stringify({ result, lines }));
     assert payload["lines"] == [], payload
 
 
+def test_a_binary_that_exists_but_cannot_start_names_the_unusable_plane() -> None:
+    script = """
+import { requireBrowserOrExit, BROWSER_UNUSABLE_CODE, BROWSER_MISSING_EXIT } from "__GUARD__";
+const lines = [];
+const result = await requireBrowserOrExit({
+  chromiumImpl: {
+    executablePath: () => "/present/broken/chromium",
+    launch: async () => { throw new Error("error while loading shared libraries"); },
+  },
+  existsImpl: () => true,
+  exitImpl: (code) => { lines.push(`EXIT=${code}`); return code; },
+  writeImpl: (line) => lines.push(line),
+});
+console.log(JSON.stringify({ result, lines, code: BROWSER_UNUSABLE_CODE, exit: BROWSER_MISSING_EXIT }));
+""".replace("__GUARD__", GUARD.as_uri())
+    result = _node(script)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["code"] == "HARNESS_BROWSER_UNUSABLE", payload
+    assert payload["exit"] == payload["result"] == 3, payload
+    assert payload["lines"][0] == "SMOKE_FAILURE_CODE=HARNESS_BROWSER_UNUSABLE", payload
+    sentence = "\n".join(payload["lines"])
+    assert "could not start" in sentence and "shared libraries" in sentence, sentence
+    assert "with-deps" in sentence and "no browser assertions ran" in sentence, sentence
+
+
+def test_a_binary_that_launches_passes_and_is_closed_before_the_suite_runs() -> None:
+    script = """
+import { requireBrowserOrExit } from "__GUARD__";
+const events = [];
+const result = await requireBrowserOrExit({
+  chromiumImpl: {
+    executablePath: () => "/present/ok/chromium",
+    launch: async () => ({ close: async () => { events.push("closed"); } }),
+  },
+  existsImpl: () => true,
+  exitImpl: (code) => { events.push(`EXIT=${code}`); return code; },
+  writeImpl: (line) => events.push(line),
+});
+console.log(JSON.stringify({ result, events }));
+""".replace("__GUARD__", GUARD.as_uri())
+    result = _node(script)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["result"] == {"ok": True, "executablePath": "/present/ok/chromium"}, payload
+    assert payload["events"] == ["closed"], payload
+
+
 def test_the_real_missing_browser_path_exits_three_before_the_caller_continues(tmp_path: Path) -> None:
     empty = tmp_path / "empty-browsers"
     empty.mkdir()

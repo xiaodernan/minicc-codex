@@ -26,6 +26,10 @@ BROWSER_LOG = (
     "SMOKE_FAILURE_CODE=HARNESS_BROWSER_MISSING\n"
     "HARNESS_BROWSER_MISSING: no browser assertions ran\n"
 )
+BROWSER_UNUSABLE_LOG = (
+    "SMOKE_FAILURE_CODE=HARNESS_BROWSER_UNUSABLE\n"
+    "HARNESS_BROWSER_UNUSABLE: Chromium exists but could not start\n"
+)
 CAUGHT_LOG = "SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT\nmutation caught\n"
 PRODUCT_CODE = "SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT\n"
 
@@ -108,6 +112,16 @@ def test_missing_browser_reports_no_browser_assertions(tmp_path) -> None:
     assert "npx playwright install chromium" in summary
 
 
+def test_an_unusable_browser_reports_no_browser_assertions_with_its_own_words(tmp_path) -> None:
+    result, summary = _run(tmp_path, BROWSER_UNUSABLE_LOG, exit_code=3, step_name="Focused frontend")
+    assert result.returncode == 0, result.stderr
+    assert "Focused frontend: browser unusable - no browser assertions ran" in summary
+    assert "HARNESS_BROWSER_UNUSABLE" in summary
+    assert "with-deps" in summary
+    assert "no browser assertions ran" in summary
+    assert "browser missing" not in summary, "an unusable binary is not a missing one"
+
+
 def test_a_real_failure_does_not_get_the_harness_block(tmp_path) -> None:
     result, summary = _run(tmp_path, CAUGHT_LOG, exit_code=1)
     assert result.returncode == 0
@@ -125,6 +139,7 @@ def test_product_codes_cannot_mask_a_harness_failure(tmp_path) -> None:
         (ABSENT_LOG, "no harness - zero tests ran"),
         (LOST_LOG, "harness lost - partial coverage"),
         (BROWSER_LOG, "browser missing - no browser assertions ran"),
+        (BROWSER_UNUSABLE_LOG, "browser unusable - no browser assertions ran"),
     ):
         for combined in (PRODUCT_CODE + log_text, log_text + PRODUCT_CODE):
             result, summary = _run(tmp_path, combined, exit_code=3)
@@ -135,10 +150,10 @@ def test_product_codes_cannot_mask_a_harness_failure(tmp_path) -> None:
 def test_reporter_reuses_the_verdict_detectors() -> None:
     helper = HELPER.read_text(encoding="utf-8")
     assert "from web_smoke_verdict import" in helper
-    for name in ("harness_absent", "harness_lost", "harness_browser_missing"):
+    for name in ("harness_absent", "harness_lost", "harness_browser_missing", "harness_browser_unusable"):
         assert name in helper
     verdict = VERDICT.read_text(encoding="utf-8")
-    for name in ("harness_absent", "harness_lost", "harness_browser_missing"):
+    for name in ("harness_absent", "harness_lost", "harness_browser_missing", "harness_browser_unusable"):
         assert f"def {name}(" in verdict
 
 
@@ -169,6 +184,7 @@ def test_extraction_matches_each_verdict_sentence(tmp_path) -> None:
         (ABSENT_LOG, "zero suites ran, so this step tested nothing"),
         (LOST_LOG, "the suite ran partway, so this step has partial coverage"),
         (BROWSER_LOG, "no browser assertions ran"),
+        (BROWSER_UNUSABLE_LOG, "could not start"),
     ):
         result, summary = _run(tmp_path, log_text, exit_code=3)
         assert result.returncode == 0
@@ -179,5 +195,13 @@ def test_mutation_verdict_keeps_browser_missing_on_the_harness_plane(tmp_path) -
     result = _run_verdict(tmp_path, PRODUCT_CODE + BROWSER_LOG, exit_code=3)
     assert result.returncode == 3, result.stdout + result.stderr
     assert "browser missing" in result.stdout
+    assert "no browser assertions ran" in result.stdout
+    assert "mutation caught" not in result.stdout
+
+
+def test_mutation_verdict_keeps_browser_unusable_on_the_harness_plane(tmp_path) -> None:
+    result = _run_verdict(tmp_path, PRODUCT_CODE + BROWSER_UNUSABLE_LOG, exit_code=3)
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert "browser unusable" in result.stdout
     assert "no browser assertions ran" in result.stdout
     assert "mutation caught" not in result.stdout

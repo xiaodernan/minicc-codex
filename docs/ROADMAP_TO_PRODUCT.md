@@ -57267,3 +57267,24 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 1. 派生只认 `function name(` 形式的调用；若 `renderChanges` 哪天调用一个模块级箭头常量帮手（`const helper = x => ...`），派生会漏掉它、夹具会红。要么扩展 `_slice` 让它能正确切箭头表达式体，要么把这类帮手改成函数声明——下一批定口径。
 2. `STUBS` 是显式名单（`state`/`$`/`refreshIcons`/`console`/`I18N` 等）；夹具若新增桩，这里也得同步。
 3. 未重跑 90 分钟级全量 Python 回归；本批是纯测试装配改动，14 项相关回归覆盖其变更面。
+
+
+## 批次 1232 · M8-T1327: 浏览器文件在，却启动不了，套件仍只留一句 Playwright 栈
+
+### 缺什么
+- M8-T1322 边界 1：`tests/frontend_browser_guard.mjs` 只用 `existsSync(chromium.executablePath())` 判断浏览器在不在。二进制损坏、系统库缺失、架构不符、沙箱禁止都过存在性检查，然后在套件自己的 `chromium.launch()` 抛裸 Playwright 栈——正是这道守卫要消掉的「没有名字的失败」，只是换成了第二种成因。
+
+### 做了什么
+- 守卫加一次真实性探测：文件存在时若注入的 chromium 实现带 `launch()`（真 Playwright 一定有；单测用的假实现没有，故跳过以保住注入面），就真起一次 headless Chromium、立刻 close；启动失败则报 `SMOKE_FAILURE_CODE=HARNESS_BROWSER_UNUSABLE`、点名路径与底层错误、给出 `--with-deps` 修复命令、退 3，并在套件 launch 之前退出。
+- `scripts/web_smoke_verdict.py` 增 `harness_browser_unusable()` 与一等码，判定顺序 absent → lost → missing → unusable，退出 3；`web_smoke_step_summary.py` 把它作为第四种覆盖语义写进 job summary（「browser unusable - no browser assertions ran」，措辞与 missing 分开）。`decide()` 两元契约一字未动。
+- `tests/test_frontend_browser_guard.py` 加两条：存在但 launch 抛错 → 报 unusable、退 3、句子含底层错误与 with-deps；存在且 launch 成功 → 放行且 close 在套件之前。注入面仍不启动浏览器。`tests/test_web_smoke_step_summary.py` 加 unusable 的摘要、产品码前后夹击、verdict 平面与复用断言。
+
+### 证据与门
+- `python -m pytest tests/test_frontend_browser_guard.py tests/test_web_smoke_step_summary.py -q`：`19 passed`（19.85 秒）。
+- 负对照（浏览器在时不许误报）：`test:phase` / `test:optimization` / `test:lifecycle` / `test:scale` 依次绿；`test:scale` 首轮 rc=1 一份 JSON 读数，按 AGENTS.md 复跑两次均 rc=0，判为瞬时抖动；四个套件的新探针都真实启动并关闭了浏览器再进入自己的 launch。
+- 16 道门在下方统一重跑。
+
+### 边界
+1. 探测只能证明「这一刻能启动一次」，不能证明套件自己那次 launch 也成功（并发下资源耗尽仍可能失败）；这是缩小窗口，不是消除。
+2. 探测给每个浏览器套件多加一次 launch+close 的开销（本机约 1 秒/套件）； CI 上若被计为性能回归，可改为只在首次失败时补探。
+3. 损坏二进制的错误消息可能含路径或系统库名，直接拼进日志；这里没有外发，但若将来把 summary 贴到公开 PR，需确认不含敏感路径。

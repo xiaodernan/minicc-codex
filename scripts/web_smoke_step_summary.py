@@ -9,10 +9,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from web_smoke_verdict import (  # noqa: E402
     HARNESS_BROWSER_MISSING_CODE,
+    HARNESS_BROWSER_UNUSABLE_CODE,
     HARNESS_CODE,
     HARNESS_LOST_CODE,
     harness_absent,
     harness_browser_missing,
+    harness_browser_unusable,
     harness_lost,
 )
 
@@ -54,6 +56,12 @@ def main(argv: list[str] | None = None) -> int:
             "browser missing - no browser assertions ran",
             HARNESS_BROWSER_MISSING_CODE,
             "Install Chromium with `npx playwright install chromium` and re-run; static assertions do not replace browser coverage.",
+        ),
+        (
+            harness_browser_unusable(args.exit_code, log),
+            "browser unusable - no browser assertions ran",
+            HARNESS_BROWSER_UNUSABLE_CODE,
+            "The binary exists but cannot start; install system libraries with `npx playwright install chromium --with-deps` and re-run.",
         ),
     )
     for sentence, heading, code, advice in classifications:

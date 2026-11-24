@@ -40,6 +40,7 @@ EXPECTED_CODE = "PRODUCT_PATH_NO_COMPLETION_VERDICT"
 HARNESS_CODE = "HARNESS_UNREACHABLE"
 HARNESS_LOST_CODE = "HARNESS_LOST"
 HARNESS_BROWSER_MISSING_CODE = "HARNESS_BROWSER_MISSING"
+HARNESS_BROWSER_UNUSABLE_CODE = "HARNESS_BROWSER_UNUSABLE"
 HARNESS_EXIT = 3
 _CODE_LINE = re.compile(r"^" + re.escape(CODE_PREFIX) + r"([A-Z0-9_]+)\s*$", re.MULTILINE)
 
@@ -105,6 +106,17 @@ def harness_browser_missing(exit_code: int, log: str) -> str | None:
     )
 
 
+def harness_browser_unusable(exit_code: int, log: str) -> str | None:
+    """The binary existed but could not start: still zero browser assertions."""
+    if HARNESS_BROWSER_UNUSABLE_CODE not in codes(log):
+        return None
+    return (
+        f"browser unusable: the step named {HARNESS_BROWSER_UNUSABLE_CODE} because Chromium existed "
+        f"but could not start (the step exited {exit_code}); no browser assertions ran, so this step "
+        "cannot report a product verdict - install the browser libraries and re-run"
+    )
+
+
 def decide(exit_code: int, log: str) -> tuple[bool, str]:
     """Whether this run caught the injected mutation, and the reason either way."""
     if exit_code == 0:
@@ -143,6 +155,10 @@ def main(argv: list[str] | None = None) -> int:
     browser_missing = harness_browser_missing(args.exit_code, log)
     if browser_missing is not None:
         print(browser_missing)
+        return HARNESS_EXIT
+    browser_unusable = harness_browser_unusable(args.exit_code, log)
+    if browser_unusable is not None:
+        print(browser_unusable)
         return HARNESS_EXIT
     caught, verdict = decide(args.exit_code, log)
     print(verdict)
