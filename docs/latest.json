@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T07:30:17.199Z",
+  "generated_at": "2026-11-24T07:36:45.254Z",
   "branch": "main",
-  "head": "aff0b61",
-  "total_commits": 2190,
+  "head": "647751d",
+  "total_commits": 2192,
   "recent_commits": [
+    {
+      "short": "647751de",
+      "at": "2026-11-24T15:36:08+08:00",
+      "subject": "M8-T1332 ledger: document that OpenCode's own opencode.jsonc is editable (no restart needed) and now carries a working local ollama provider - qwen2.5:7b discov"
+    },
+    {
+      "short": "99081476",
+      "at": "2026-11-24T07:30:17Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "aff0b619",
       "at": "2026-11-24T15:29:24+08:00",
@@ -19,22 +29,12 @@
       "short": "6c89b911",
       "at": "2026-11-24T14:42:51+08:00",
       "subject": "M8-T1330: the shipped-bundle fixture's call-graph derivation now also finds module-level arrow-const helpers (not just function declarations), places them befor"
-    },
-    {
-      "short": "fb7b85b1",
-      "at": "2026-11-24T06:22:53Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "32c2f39b",
-      "at": "2026-11-24T14:21:42+08:00",
-      "subject": "M8-T1328: style the honest partial-read/truncation warnings (amber, themed, wraps cleanly) instead of leaving raw unstyled divs; browser smoke pins the shipped "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 563,
+  "roadmap_batches": 564,
   "changelog_entries": 26,
-  "roadmap_lines": 57366,
+  "roadmap_lines": 57393,
   "tracked_files": 1199,
   "test_files": 771,
   "almanac_chapters": 81,
