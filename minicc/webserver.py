@@ -725,7 +725,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_ci_diagnosis(workspace=self.server.service.workspace, force_refresh=fresh))
+                # M8-T1339: pass the service's injected config instead of letting the
+                # builder reload .env from disk — same value in production, but a test
+                # (or a slow local lane) is not forced into a real model call here.
+                self._json(build_ci_diagnosis(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
@@ -743,7 +746,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_audit_story(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_audit_story(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
@@ -761,7 +764,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_workspace_retrospective(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_workspace_retrospective(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
@@ -838,6 +841,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
                 self._json(build_workspace_recommendations(
+                    config=self.server.service.config,
                     workspace=self.server.service.workspace,
                     stats=self.server.service.stats(),
                     summary=self.server.service.admin_summary(),
@@ -870,6 +874,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
                 self._json(build_trend_insight(
+                    config=self.server.service.config,
                     workspace=self.server.service.workspace,
                     stats=self.server.service.stats(),
                     summary=self.server.service.admin_summary(),
@@ -903,6 +908,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
                 self._json(build_visitor_insight(
+                    config=self.server.service.config,
                     workspace=self.server.service.workspace,
                     report=self.server.service.behavior_journeys(),
                     force_refresh=fresh,
@@ -924,7 +930,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_workspace_review(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_workspace_review(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
@@ -942,7 +948,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_workspace_plan(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_workspace_plan(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": [], "en": [],
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
@@ -960,7 +966,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_workspace_diagnosis(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_workspace_diagnosis(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)
@@ -978,7 +984,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
                 query = parse_qs(parsed.query)
                 fresh = (query.get("fresh") or [""])[0].strip() in ("1", "true", "yes")
-                self._json(build_workspace_brief(workspace=self.server.service.workspace, force_refresh=fresh))
+                self._json(build_workspace_brief(config=self.server.service.config, workspace=self.server.service.workspace, force_refresh=fresh))
             except Exception as exc:  # noqa: BLE001 - the panel must never 500
                 self._json({"live": False, "zh": "", "en": "",
                             "error": f"{type(exc).__name__}: {exc}"}, 200)

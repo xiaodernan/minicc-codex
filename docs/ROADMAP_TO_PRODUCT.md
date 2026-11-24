@@ -57485,3 +57485,41 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 403 是该网关的地域策略（文档早有记录：直连中国区被拒，只有走 Clash 才行），不是本项目代码能改的；用户已声明该 API 关闭。
 2. 本批是机器侧实测记录，不动仓库源码。
+
+
+## 批次 1243 · M8-T1338: 离线启动器把「能答 /api/tags」当成了「能推理」
+
+### 缺什么
+- 用户反复报 ECONNREFUSED 后，项目已切到本地零网络模型（M8-T1335），Ollama CPU 模式也固化（M8-T1336）。但 `scripts/start_local_llm.ps1` 有两处真缺陷：①它用 `/api/tags` 是否 200 判定 READY——而实测 CUDA 崩溃模式下 tags 仍返回 200、真正推理才崩，于是「READY」可能是假的；②catch 块里写了 C 风格注释 `/* */`，PowerShell 不认，若 Ollama 没在跑、走到启动分支就会报错（之前 tags 一直 200 走了早退分支，从没执行到）。
+
+### 做了什么
+- 新增 `Invoke-InferenceProbe`：真发一条 `/v1/chat/completions` 请求并断言返回含 `OK`；早退路径与首次启动路径都改用它判 READY，tags 只用来列模型。
+- 把 CPU 模式 `OLLAMA_NUM_GPU=0` / `OLLAMA_VULKAN=false` 写进脚本的 User 作用域持久化（不再依赖我手工设的一次性命令），并同步当前进程环境。
+- 修掉 `/* */` 注释为 PowerShell 的 `#`。若已有一个 serve 但推理失败，明确提示「以 CPU 模式重启」而非谎称 READY。
+- 新增 `tests/test_local_llm_starter.py` 四条：判 READY 必须有 chat/completions 推理、早退路径也探测推理、无 C 风格注释、CPU 模式持久化、首次启动分支仍在。
+
+### 证据与门
+- 语法解析 `[Parser]::ParseFile` OK；针对当前 CPU 模式 serve 实跑脚本：`Ollama already answering and inferring ... nothing to do`，列出两个 qwen2.5 模型。
+- `pytest tests/test_local_llm_starter.py -q`：`4 passed`（期间我的解释性注释里手写了 `/* */` 字面量，被自己的门抓住，改成 hash 注释后恢复——门确实在盯）。
+
+### 边界
+1. 推理探针固定用 `qwen2.5:7b`；换模型时需同步这里的模型名。
+2. 脚本只在 Windows + 该固定 ollama 路径下工作，跨机器需改路径（与 `env.local-llm.example` 同约束）。
+
+
+## 批次 1244 · M8-T1339: 切到本地模型后，oracle 路由的门被真模型调用拖超时
+
+### 缺什么
+- M8-T1335 把项目 `.env` 切到本地 CPU 模型（零网络）。`route coverage` 门随后在 `/api/oracle-retrospective`、`/api/oracle-plan` 超时——测试用注入的假 config（`example.test`）起了服务，但 oracle builder 们默认 `config=None`，会自己 `load_config()` 读真实 `.env`，于是用慢速本地模型发真调用，超过探针的 30s。这是测试服偷偷用真配置的问题，不是产品坏。
+
+### 做了什么
+- webserver 的十个 LLM-backed oracle 路由（ci-diagnosis / audit-story / retrospective / recommendations / trend / visitors / review / plan / diagnosis / brief）统一把 `config=self.server.service.config` 传给 builder；规则型的 `oracle_drift`（无 config 参数）保持原样。生产行为不变（本来就是同一份 config），测试/慢速 lane 用注入值、快速失败。
+- 新增 `tests/test_oracle_routes_use_injected_config.py` 两条：所有 LLM builder 调用都带注入 config、drift 不被强塞 config。
+
+### 证据与门
+- 修复前隔离：`test_http_route_inventory.py` `1 failed, 11 passed`（GET oracle-plan 超时 30s）；逐个修完后再跑：`12 passed in 92.66s`。
+- 新门 `2 passed`；`test_local_llm_starter.py` 4 passed（M8-T1338）；全量门在下一段重跑。
+
+### 边界
+1. 合并窗口里若并行会话也改了 webserver.py 的 oracle 路由，需确认 config 传递没被覆盖。
+2. 这改的是路由与 builder 的接线，不改任何 oracle 的提示词/缓存语义。
