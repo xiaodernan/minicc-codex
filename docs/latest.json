@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T19:47:37.423Z",
+  "generated_at": "2026-11-24T20:13:53.239Z",
   "branch": "main",
-  "head": "f3d2fe3",
-  "total_commits": 2206,
+  "head": "84dca26",
+  "total_commits": 2208,
   "recent_commits": [
+    {
+      "short": "84dca261",
+      "at": "2026-11-25T04:06:33+08:00",
+      "subject": "M8-T1340 ledger: found and removed the real Clash bindings - 268 .ps1 scripts across other projects/worktrees hardcoded 127.0.0.1:7897 as a proxy fallback or us"
+    },
+    {
+      "short": "6d22d675",
+      "at": "2026-11-24T19:47:37Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "f3d2fe3f",
       "at": "2026-11-25T03:46:55+08:00",
@@ -19,22 +29,12 @@
       "short": "ec09fd7a",
       "at": "2026-11-24T19:55:51+08:00",
       "subject": "M8-T1337 ledger: definitive measurement - with all proxy vars cleared, api.aizzz.xyz resolves normally and TCP-connects in 0.24s returning HTTP 403 (region poli"
-    },
-    {
-      "short": "c1b160d4",
-      "at": "2026-11-24T11:39:19Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e92e0833",
-      "at": "2026-11-24T19:38:18+08:00",
-      "subject": "M8-T1336 ledger: pin OLLAMA_NUM_GPU=0 / OLLAMA_VULKAN=false as User env vars so the local zero-network LLM survives restarts instead of falling back to the cras"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 571,
+  "roadmap_batches": 572,
   "changelog_entries": 26,
-  "roadmap_lines": 57526,
+  "roadmap_lines": 57546,
   "tracked_files": 1202,
   "test_files": 774,
   "almanac_chapters": 81,
