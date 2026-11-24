@@ -57466,3 +57466,22 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 - 注册表读回：`HKCU\Environment\OLLAMA_NUM_GPU=0`、`OLLAMA_VULKAN=false`。
 - 当前 CPU 模式的 serve 推理实测：`/v1/chat/completions` 返回 `content:"OK"`（非崩溃）。
 - 本批只改用户环境变量（机器侧、gitignored 范围外），不动仓库源码；工作树不受影响。
+
+
+## 批次 1242 · M8-T1337: 定论 —— 直接连接 aizzz 不是 ECONNREFUSED，而是 403
+
+### 缺什么
+- 用户反复报 `ECONNREFUSED` 并怀疑应用被绑到 Clash。前面已从全机每一层证明无 Clash 绑定（进程/注册表/TUN/DNS/hosts/实时 7897 连接/各 agent 配置全干净）。但还缺一个决定性实测：**在零代理下，直接连 aizzz 端点到底是什么结果**。
+
+### 做了什么（实测，清掉所有代理变量后）
+- `Resolve-DnsName api.aizzz.xyz`：正常解析到 Cloudflare IP（`172.67.195.108` 等）——DNS 没被劫持。
+- `curl https://api.aizzz.xyz/v1/models`（无代理）：`connect 0.24s`、HTTP **403**。
+
+### 结论
+- **直连 aizzz 是"连得上、被网关 403 拒绝"，不是 ECONNREFUSED**。所以本机没有任何东西绑在 Clash 上——否则直连会连接被拒/超时，而不是 0.24s 拿到 403。
+- 用户看到的 `ECONNREFUSED` 只能来自某个**仍指向 127.0.0.1:7897 的进程内旧环境**（早先开 Clash 时启动的应用），完全退出重启即可清掉；或来自已关闭的 provider 选择。
+- 这与之前所有动作一致：`.env` 已切本地零网络模型（E2E `MINICC_OK`）、Ollama CPU 模式固化、OpenCode 挂了免代理 provider。项目侧无残留。
+
+### 边界
+1. 403 是该网关的地域策略（文档早有记录：直连中国区被拒，只有走 Clash 才行），不是本项目代码能改的；用户已声明该 API 关闭。
+2. 本批是机器侧实测记录，不动仓库源码。
