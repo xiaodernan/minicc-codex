@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-23T20:14:52.340Z",
+  "generated_at": "2026-11-24T03:23:47.244Z",
   "branch": "main",
-  "head": "9b96883",
-  "total_commits": 2180,
+  "head": "8f868d7",
+  "total_commits": 2182,
   "recent_commits": [
+    {
+      "short": "8f868d75",
+      "at": "2026-11-24T11:23:08+08:00",
+      "subject": "M8-T1326: the shipped-bundle missing-count fixture now derives its function dependency list from the bundle's call graph instead of a hand-copied RUN_NAMES - a "
+    },
+    {
+      "short": "dd5cfa62",
+      "at": "2026-11-23T20:14:52Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "9b96883d",
       "at": "2026-11-24T04:14:15+08:00",
@@ -19,22 +29,12 @@
       "short": "18855844",
       "at": "2026-11-24T04:03:28+08:00",
       "subject": "M8-T1324: CI 摘要分清零覆盖、部分覆盖与浏览器缺席"
-    },
-    {
-      "short": "dd5faf86",
-      "at": "2026-11-23T19:44:44Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "6471666b",
-      "at": "2026-11-24T03:43:50+08:00",
-      "subject": "M8-T1323: 上下文超时按实测走，不再冒充不可达"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 557,
+  "roadmap_batches": 558,
   "changelog_entries": 26,
-  "roadmap_lines": 57251,
+  "roadmap_lines": 57270,
   "tracked_files": 1197,
   "test_files": 771,
   "almanac_chapters": 81,
