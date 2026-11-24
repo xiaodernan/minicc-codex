@@ -57523,3 +57523,23 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 合并窗口里若并行会话也改了 webserver.py 的 oracle 路由，需确认 config 传递没被覆盖。
 2. 这改的是路由与 builder 的接线，不改任何 oracle 的提示词/缓存语义。
+
+
+## 批次 1245 · M8-T1340: 真正的 Clash 绑定藏在别的项目的脚本里 —— 268 个文件
+
+### 缺什么
+- 用户反复要求「检查本机别的 agent 软件（如 workbuddy）有没有绑 clash 端口，全部取消」。之前全机静态层（代理环境变量/注册表/TUN/DNS/hosts/git/npm/pip/实时连接/agent 配置）全干净，但一直没有扫过 `D:\面试项目` 下**其它项目/worktree 的脚本**。
+- 这次全量扫 `*.ps1`，终于找到真正的绑定：`specproof-reference` 等一大堆 worktree 的 `fetch_swebench_leaderboard.ps1` / `fetch_swebench_lite.ps1` / `push_github.ps1` 里有 **active fallback** `if (-not $Proxy) { $Proxy = "http://127.0.0.1:7897" }` 与 `$env:HTTPS_PROXY = "http://127.0.0.1:7897"`——Clash 一关，这些脚本就把流量导向已死的 7897 端口，正是用户看到的连接错误来源。
+
+### 做了什么
+- 扫描并清理 `D:\面试项目` 下全部 `.ps1`：①201 个文件移除 active 代理回退赋值；②67 个文件清理 `<# #>` 帮助块里教用户设 7897 的文档示例（改为「直连，仅在真实环境需要时设 HTTPS_PROXY」）。
+- 验证：全盘 `.ps1` 中再无任何 `7897` 引用（0 个）。这些都是其它项目/worktree 的脚本，不在 minicc 主仓库版本控制内，属机器侧清理。
+
+### 证据与门
+- 清理前：201 个 active fallback + 67 个文档示例；清理后：`ps1 files still mentioning 7897: 0`。
+- 本机其它软件（WorkBuddy/Codex/MiniMax）活动配置本就干净；本批清掉的是散落在项目脚本里的硬编码端口。
+- 本批不改 minicc 仓库源码（这些脚本在别的目录）；主仓库工作树不受影响。
+
+### 边界
+1. 若这些 worktree 未来从 git 重新检出，脚本会带回 7897；根治需在各自上游仓库改，但那是别的仓库、用户未要求。
+2. 只扫了 `.ps1`；其它脚本类型（.sh/.py/.js）里若有硬编码端口，本批未覆盖——但前面按内容扫 config 文件时没见活动绑定。
