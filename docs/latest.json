@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T11:27:42.660Z",
+  "generated_at": "2026-11-24T11:32:10.367Z",
   "branch": "main",
-  "head": "5c4006b",
-  "total_commits": 2198,
+  "head": "49b9f6c",
+  "total_commits": 2200,
   "recent_commits": [
+    {
+      "short": "49b9f6c9",
+      "at": "2026-11-24T19:31:42+08:00",
+      "subject": "M8-T1335 ledger: switch the live project .env to the local zero-network LLM endpoint (backup kept at .env.aizzz.backup); real load_config + provider E2E returne"
+    },
+    {
+      "short": "0419ec17",
+      "at": "2026-11-24T11:27:43Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "5c4006b0",
       "at": "2026-11-24T19:26:51+08:00",
@@ -19,16 +29,6 @@
       "short": "961b0a08",
       "at": "2026-11-24T18:58:59+08:00",
       "subject": "M8-T1334 ledger: full-machine audit of other agent software (workbuddy / workbuddy-ai / minimax / codex / copilot) for Clash port bindings - all active configs/"
-    },
-    {
-      "short": "14bb80e8",
-      "at": "2026-11-24T07:48:42Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "a858845b",
-      "at": "2026-11-24T15:47:56+08:00",
-      "subject": "M8-T1333: remove the last project-side Clash binding - load_config() no longer re-exports proxy vars from .env into os.environ (a stale HTTPS_PROXY line could s"
     }
   ],
   "first_commit_at": "2026-08-24",
