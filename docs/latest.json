@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T06:22:52.689Z",
+  "generated_at": "2026-11-24T06:43:37.067Z",
   "branch": "main",
-  "head": "32c2f39",
-  "total_commits": 2186,
+  "head": "6c89b91",
+  "total_commits": 2188,
   "recent_commits": [
+    {
+      "short": "6c89b911",
+      "at": "2026-11-24T14:42:51+08:00",
+      "subject": "M8-T1330: the shipped-bundle fixture's call-graph derivation now also finds module-level arrow-const helpers (not just function declarations), places them befor"
+    },
+    {
+      "short": "fb7b85b1",
+      "at": "2026-11-24T06:22:53Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "32c2f39b",
       "at": "2026-11-24T14:21:42+08:00",
@@ -19,22 +29,12 @@
       "short": "fb03f0df",
       "at": "2026-11-24T11:37:12+08:00",
       "subject": "M8-T1327: browser guard now proves Chromium can actually start, not just that the file exists - a corrupt/incompatible binary reports HARNESS_BROWSER_UNUSABLE ("
-    },
-    {
-      "short": "b6ff7823",
-      "at": "2026-11-24T03:23:47Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "8f868d75",
-      "at": "2026-11-24T11:23:08+08:00",
-      "subject": "M8-T1326: the shipped-bundle missing-count fixture now derives its function dependency list from the bundle's call graph instead of a hand-copied RUN_NAMES - a "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 561,
+  "roadmap_batches": 562,
   "changelog_entries": 26,
-  "roadmap_lines": 57325,
+  "roadmap_lines": 57339,
   "tracked_files": 1197,
   "test_files": 771,
   "almanac_chapters": 81,
