@@ -57390,3 +57390,21 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 1. 没把本地模型设为默认（避免把弱 7B 强加给所有会话）；用户用 `/models` 自选。
 2. `~/.config/opencode/opencode.jsonc` 在用户目录、不随仓库版本控制，换机器需重新追加该 provider。
 3. 内置云模型仍需普通外网可达；完全断网时只有本地 ollama 一条路。
+
+
+## 批次 1238 · M8-T1333: 项目自己还会偷偷把进程绑回 Clash
+
+### 缺什么
+- 用户反复报不开 Clash 就 ECONNREFUSED。仓库 `.env` 的代理行已删（M8-T1329），OpenCode 侧也挂上本地/内置免代理 provider（M8-T1332），但项目代码里还埋着最后一处绑定：`minicc/config.py` 的 `load_config()` 会把 `.env` 里任何 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY` 重新导出进 `os.environ`（M8-T1174 为 Clash 加的），注释还写着「route through Clash like the user needs」。这意味着只要 `.env` 里再出现一行遗留代理，整个 minicc 进程树又会静默绑到 127.0.0.1:7897。
+
+### 做了什么
+- 删掉那段代理再导出的循环与 `_PROXY_KEYS`，注释改为明确「minicc 永不从 .env 绑代理；操作者要代理就在真实环境里设，传输库自然会读」。`.env` 仍可读 `MINICC_*` 配置，但不再改写进程代理环境。
+- 新增 `tests/test_config_never_exports_a_proxy.py` 三条：①`.env` 里的遗留代理不进 `os.environ`；②真实环境里已有的 `HTTPS_PROXY` 不被清掉（操作者自愿设置的仍生效）；③静态门禁止那段导出代码回来。
+
+### 证据与门
+- `pytest tests/test_config_never_exports_a_proxy.py -q`：`3 passed`；`test_config_surface.py + 本门`：`53 passed`；`test_tracked_evidence_census.py` 在 `git add` 新测试后 5/5 绿。
+- `pre_push_gates.py`：16/16 绿（107.6s）。首次跑因新测试未入索引导致 census 红 2 格，`git add` 后恢复——按既有纪律处理。
+
+### 边界
+1. 用户级 `~/.minicc/config.json` 里还有另一个端点（`ynynzyy.xyz` / `gpt-6-astra`，优先级低于 `.env`），那是用户自己的配置，本批不碰；若它也连不上，属用户配置问题。
+2. 本批只移除「从 .env 导代理」这一处；传输层读真实 `HTTP_PROXY/HTTPS_PROXY` 的正常行为保留（有门确认不被误清）。

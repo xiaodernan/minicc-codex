@@ -727,20 +727,14 @@ def load_config(
 
     env_values = _parse_env_file(Path(".env"))
 
-    # M8-T1174: the lane carries a Clash Verge Rev proxy (127.0.0.1:7897)
-    # because the upstream gateway refuses direct Chinese-region traffic.
-    # `.env` carries the proxy but nothing else exports it, so outbound
-    # HTTP from minicc processes went straight to the gateway and was
-    # refused with a region error — the lane looked dead from inside.
-    # Well-known proxy vars from .env are exported here (and only here,
-    # and only when the process did not already set them), so both the
-    # CLI and the web process route through Clash like the user needs.
-    _PROXY_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
-                   "http_proxy", "https_proxy", "all_proxy", "no_proxy")
-    for _key in _PROXY_KEYS:
-        _value = env_values.get(_key)
-        if _value and _key not in os.environ:
-            os.environ[_key] = _value
+    # M8-T1333: Clash Verge is retired. M8-T1174 used to re-export any proxy
+    # key found in .env into os.environ so the whole process tree routed
+    # through 127.0.0.1:7897. With Clash gone that port is closed, and a
+    # single stale `HTTPS_PROXY` line in .env silently ECONNREFUSED every
+    # outbound call again. minicc must never bind itself to a proxy: the
+    # operator sets proxy vars in the real environment when they want them,
+    # and transport libraries already read those. Keep .env for MINICC_*
+    # config only — do not mutate os.environ from here.
 
     def _stringify(value: object) -> str:
         # M2-T8 (audit P2-5e): a JSON list in config.json used to become its
