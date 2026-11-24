@@ -57563,3 +57563,22 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 这些 worktree 从 git 重新检出会带回原脚本；根治要在各自上游仓库改，用户未要求。
 2. 年鉴正文与测试夹具里的 7897 是事实/测试需要，不是绑定，按纪律保留。
+
+
+## 批次 1247 · M8-T1342: Clash 清理只在工作树里，re-checkout 会复活绑定
+
+### 缺什么
+- M8-T1340/1341 把 268 个脚本 + caesura 常量的 Clash 绑定改在磁盘上，但一直**未提交**——任何 `git checkout .` 都会把 7897 带回，清理不持久。用户明确授权「即使部分内容被锁住也不要管，直接补完」。
+
+### 做了什么
+- 逐 worktree 只暂存带清理标记（`Clash retired` / `normal network` 等）的文件并本地提交，不 push（避免改动公开仓库远端），不碰其它预存的用户改动。
+- 结果：**16 个 worktree/repo 提交成功**，每个只含我改的代理清理文件；复核剩余未提交且带清理标记的文件为 0。
+
+### 证据与门
+- 提交清单：caesura(1) / m492_shallow(3) / sp221-plane(3) / specproof-reference(1) / specproof-refs-plane-80ri(3) / specproof-refs-plane-ifw7(3) / sp_design1(3) / sp_prefix(3) / _eval530_plane(3) / _pt521_plane(4) / _pt521_plane2(3) / _sp_clone528(3) / _wt2072arm(4) / _wt2072arm2(4) / _wt2072base(4) / _wt2072p9(4)。
+- 其余工作树里的预存改动（非本批代理清理）未暂存、未提交，保持原样。
+- 本批改的是其它仓库的本地提交，不动 minicc 主仓库源码。
+
+### 边界
+1. 这些提交只在本地，未 push 到各远端；用户若要让协作者也摆脱绑定，需自行 push 对应仓库。
+2. 通过 git re-checkout 到旧提交仍会带回脚本里的 7897，但当前分支已不含。
