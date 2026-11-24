@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T20:41:02.341Z",
+  "generated_at": "2026-11-24T21:02:16.902Z",
   "branch": "main",
-  "head": "b8f57f1",
-  "total_commits": 2214,
+  "head": "540350b",
+  "total_commits": 2216,
   "recent_commits": [
+    {
+      "short": "540350b3",
+      "at": "2026-11-25T04:55:09+08:00",
+      "subject": "M8-T1344 ledger: a background doc-cleanup finished late (26 files) - committed those remaining Clash usage-example removals locally across 9 worktrees, verified"
+    },
+    {
+      "short": "08e22e36",
+      "at": "2026-11-24T20:41:02Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b8f57f1e",
       "at": "2026-11-25T04:40:08+08:00",
@@ -19,22 +29,12 @@
       "short": "9e098052",
       "at": "2026-11-24T20:36:48Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d72752a4",
-      "at": "2026-11-25T04:31:04+08:00",
-      "subject": "M8-T1342 ledger: make the Clash cleanup durable - locally committed the proxy-binding removal in 16 worktrees/repos (only the cleanup files, no push, no other u"
-    },
-    {
-      "short": "f5bd8654",
-      "at": "2026-11-25T04:24:54+08:00",
-      "subject": "M8-T1341 ledger: final Clash sweep across non-ps1 active files - neutralized caesura's LLM_DEFAULT_PROXY constant and cleaned remaining usage-example docstrings"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 575,
+  "roadmap_batches": 576,
   "changelog_entries": 26,
-  "roadmap_lines": 57605,
+  "roadmap_lines": 57622,
   "tracked_files": 1204,
   "test_files": 775,
   "almanac_chapters": 81,
