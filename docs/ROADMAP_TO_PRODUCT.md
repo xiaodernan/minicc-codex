@@ -57408,3 +57408,26 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 用户级 `~/.minicc/config.json` 里还有另一个端点（`ynynzyy.xyz` / `gpt-6-astra`，优先级低于 `.env`），那是用户自己的配置，本批不碰；若它也连不上，属用户配置问题。
 2. 本批只移除「从 .env 导代理」这一处；传输层读真实 `HTTP_PROXY/HTTPS_PROXY` 的正常行为保留（有门确认不被误清）。
+
+
+## 批次 1239 · M8-T1334: 全机 agent 软件的 Clash 绑定审计 —— 结论：无活动绑定
+
+### 缺什么
+- 用户要求「检查本机别的 agent 软件（workbuddy 等）有没有也绑了 clash 端口，全部取消」。需要给出可核查的结论，而不是拍脑袋。
+
+### 查了什么（实际命令与结果）
+- 目标目录：`~/.workbuddy`、`~/.workbuddy-ai`、`~/.minimax`、`~/.codex`、`~/.copilot`，以及 WorkBuddy / WorkBuddyAI 安装目录。
+- 用 rg 按扩展名（json/jsonc/toml/yaml/env/ini/cfg…）扫描 `7897|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|socks5://|proxyUrl|proxy-server`：
+  - **活动配置文件全部干净**——`~/.codex/config.toml`、`~/.workbuddy/settings.json`、`~/.workbuddy-ai/settings.json` 均无代理。
+  - 命中 `7897` 的文件全在 `traces/`、`background-tasks/`、`changes-detail/`、`backups/`、`sessions/modify_backup/` —— 都是**历史记录/对话快照/日志**，不是运行时读取的配置。
+  - 唯一命中「profile.ps1」的是 `sessions/modify_backup/` 里的**备份**，内容还是「已停用 Clash、移除 7897 变量」的清理脚本（之前会话做的），不是设代理。
+- 活体 PowerShell profile 四个标准位置全部「not present」——没有活化的 profile 在注入代理。
+- 桌面/开始菜单里 7 个 agent 启动器（WorkBuddy AI / MiniMax Code / TraeCode CN / Command Code）参数全空，无 `-Proxy` 注入；各 agent home 根目录无 `.env*`。
+- 系统层（前几批已验）：进程环境无代理、WinINET `ProxyEnable=0`、Clash 自身无配置/系统代理/TUN 全关、用户/机器级环境无 `HTTP_PROXY`（仅 `NO_PROXY`）。
+
+### 结论
+本机**没有任何活动中的 agent 软件把流量绑到 Clash 端口 7897**。残留的 7897 字符串只在历史日志/快照/备份里，属记录而非绑定，不影响运行；删改这些历史文件无意义且有破坏对话/任务记录的风险，故不删除。
+
+### 边界
+1. 若某个 agent 是在**早先开着 Clash 时启动**的，它进程环境里可能仍留着旧 `HTTP_PROXY`——重启该 agent 即可清掉（重启不是应用配置，仓库无法代办）。
+2. 本批是机器侧审计，不改任何项目源码；工作树不受影响。
