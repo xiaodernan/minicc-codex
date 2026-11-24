@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T11:32:10.367Z",
+  "generated_at": "2026-11-24T11:39:19.014Z",
   "branch": "main",
-  "head": "49b9f6c",
-  "total_commits": 2200,
+  "head": "e92e083",
+  "total_commits": 2202,
   "recent_commits": [
+    {
+      "short": "e92e0833",
+      "at": "2026-11-24T19:38:18+08:00",
+      "subject": "M8-T1336 ledger: pin OLLAMA_NUM_GPU=0 / OLLAMA_VULKAN=false as User env vars so the local zero-network LLM survives restarts instead of falling back to the cras"
+    },
+    {
+      "short": "a98a5f71",
+      "at": "2026-11-24T11:32:10Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "49b9f6c9",
       "at": "2026-11-24T19:31:42+08:00",
@@ -19,22 +29,12 @@
       "short": "5c4006b0",
       "at": "2026-11-24T19:26:51+08:00",
       "subject": "M8-T1335 ledger: switch the live project .env to the local zero-network LLM endpoint (backup kept at .env.aizzz.backup); real load_config + provider E2E returne"
-    },
-    {
-      "short": "5f110de1",
-      "at": "2026-11-24T10:59:27Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "961b0a08",
-      "at": "2026-11-24T18:58:59+08:00",
-      "subject": "M8-T1334 ledger: full-machine audit of other agent software (workbuddy / workbuddy-ai / minimax / codex / copilot) for Clash port bindings - all active configs/"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 567,
+  "roadmap_batches": 568,
   "changelog_entries": 26,
-  "roadmap_lines": 57454,
+  "roadmap_lines": 57469,
   "tracked_files": 1200,
   "test_files": 772,
   "almanac_chapters": 81,
