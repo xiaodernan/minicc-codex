@@ -57543,3 +57543,23 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 若这些 worktree 未来从 git 重新检出，脚本会带回 7897；根治需在各自上游仓库改，但那是别的仓库、用户未要求。
 2. 只扫了 `.ps1`；其它脚本类型（.sh/.py/.js）里若有硬编码端口，本批未覆盖——但前面按内容扫 config 文件时没见活动绑定。
+
+
+## 批次 1246 · M8-T1341: 收尾 —— 其它文件类型里的最后几处 Clash 引用
+
+### 缺什么
+- M8-T1340 只清了 `.ps1`。这批按边界补扫 `.py/.js/.ts/.mjs/.json` 等活动文件，找出最后几处仍指向 7897 的**活代码/活文档**。
+
+### 查了什么、做了什么
+- 全量扫 `D:\面试项目` 下活动脚本/配置里的 `7897`：
+  - `caesura/scripts/caesura-author-env.mjs` 的 `LLM_DEFAULT_PROXY = 'http://127.0.0.1:7897'`（caesura agent 工具的默认代理常量；虽是死导出但持有 Clash 地址）→ 改为空串。确认 `applyAuthorProxyFromEnv()` 只读真实环境变量、无硬编码回退。
+  - 若干 worktree 里 Python 脚本 docstring 的「Run through the local proxy: ...7897」用法示例、ai-director 的中文注释 → 改为「直连，仅在真实环境需要时设代理」。
+- **有意不动**：`almanac.js` / `app.js` 里的 LEDGER 年鉴正文（历史快照，AGENTS.md 规定「历史快照是事实、不是漂移，别改」）、`test_config_never_exports_a_proxy.py` 的测试夹具（故意内嵌该串以断言不会被导出）、日志/历史记录。
+
+### 证据与门
+- `LLM_DEFAULT_PROXY` 改为 `''` 并复核；清理脚本跑完后用主仓门禁复验无回归；主仓工作树不受影响（这些文件在别的项目/worktree）。
+- 结合 M8-T1340：全机活动层（系统代理/TUN/DNS/hosts/git/npm/pip/agent 配置/全部脚本默认代理）已无任何 7897 绑定；仅历史记录与年鉴正文保留该字符串作为事实。
+
+### 边界
+1. 这些 worktree 从 git 重新检出会带回原脚本；根治要在各自上游仓库改，用户未要求。
+2. 年鉴正文与测试夹具里的 7897 是事实/测试需要，不是绑定，按纪律保留。
