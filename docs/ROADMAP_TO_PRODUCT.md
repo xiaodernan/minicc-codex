@@ -57336,3 +57336,30 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 证据与门
 - `python -m pytest tests/test_the_panel_does_not_print_a_missing_count_as_zero.py -q`：`14 passed`（6.31 秒）；原 13 项行为断言未改，证明新切片没改坏现有夹具。
 - 纯测试装配改动，未动产品/bundle/i18n。
+
+
+## 批次 1236 · M8-T1331: 不开 Clash 也能用大模型 —— 本地 CPU 端点真跑通，并修掉一个隐藏的拒绝识别 bug
+
+### 缺什么
+- 用户反复报 `ECONNREFUSED`、要脱离 Clash。仓库层代理已删（M8-T1329），但 OpenCode 的 provider（`cc.580ai.net`）是公网 NXDOMAIN、只靠 Clash DNS 活着，配置在桌面应用的加密存储里，仓库改不到。必须给一条**真正能跑、且不依赖任何外部端点**的本地通路。
+- RTX 3060 上 Ollama 的 CUDA 路径崩（`device kernel image is invalid` / 0xc0000409），所以默认启动的本地模型根本推理不了——之前我差点把它当成可用方案，这批改到真跑通才记账。
+- minicc 自己的 LLM 客户端发 `reasoning_effort`，Ollama 回 `"qwen2.5:7b" does not support thinking`；`_looks_like_reasoning_rejection` 只认 `reasoning` 不认 `thinking`，导致「关掉 reasoning 重试」的兜底没触发，直接报错。
+
+### 做了什么
+1. 定位 CUDA 崩溃后改用 CPU：`OLLAMA_NUM_GPU=0` + `OLLAMA_VULKAN=false` + 清掉 `CUDA_VISIBLE_DEVICES`，`qwen2.5:7b` 推理成功（curl `/v1/chat/completions` 返回 `content:"ok"`）。
+2. 新增 `scripts/start_local_llm.ps1`：固化 CPU 模式启动、等待就绪（不盲睡）、打印端点；重复运行幂等。
+3. **修真 bug**：`minicc/llm/openai_provider.py` 的 `_looks_like_reasoning_rejection()` 把 `thinking` 纳入 reasoning 旋钮别名，Ollama 那种措辞现在也会触发 disable-and-retry。
+4. 新增 `env.local-llm.example`（opt-in 配置模板）：`MINICC_BASE_URL=http://127.0.0.1:11434/v1` / `MINICC_API_KEY=ollama` / `MINICC_MODEL=qwen2.5:7b` / `MINICC_LLM_PROTOCOL=chat_completions`，全部是已有键（不新增 `MINICC_*`，config_surface 门无需改）。
+5. `tests/test_openai_provider.py` 加两条回归：thinking 别名与 reasoning 别名都被识别、无关错误不被误吞。
+
+### 证据与门
+- 端到端真跑（`local_llm_e2e.py`，用 minicc 自己的 `OpenAICompatibleProvider`）：`PROTOCOL: chat_completions`、`TEXT: 'LOCAL_OK'`、`DELTA_CHARS: 8`、`E2E: PASS`——带流式增量与诚实 usage，全程 loopback、零代理。
+- 修复前后：修前 `openai.BadRequestError: 400 does not support thinking`；修后同脚本 PASS。
+- `python -m pytest tests/test_openai_provider.py -q`：`25 passed`（含两条新回归）。
+- 启动脚本实测：对已在跑的 CPU 实例幂等返回两个模型名。
+
+### 边界
+1. 这是**用户可选**的离线档（复制 example 到 `.env` 才生效），不改变现有 `.env` 的外网档；用户需在 OpenCode 设置里也切到该端点（那一步在加密存储里，仓库做不了）。
+2. CPU 推理比 GPU 慢很多；`qwen2.5:7b` 约 7.6B、32k 上下文，适合离线开发验证，不等价于 gpt-6.2-sol。
+3. 只识别了 `thinking` 这一个别名；其它网关若用 `reasoning_content` / `enable_thinking` 之类措辞，仍可能漏，下一批可按实测再加。
+4. 端到端脚本是仓库外的一次性探针（`C:\Users\18414\AppData\Local\Temp`），不入库；入库的是可复用的启动脚本与配置模板。

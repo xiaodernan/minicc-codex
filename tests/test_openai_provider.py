@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from minicc.llm.openai_provider import (
+    OpenAICompatibleProvider,
     REASONING_FALLBACKS,
     REASONING_WIRE_VALUES,
     TOOLS_REJECTION_HINTS,
@@ -40,6 +41,30 @@ def test_reasoning_wire_values() -> None:
 def test_reasoning_fallbacks() -> None:
     assert isinstance(REASONING_FALLBACKS, dict)
     assert len(REASONING_FALLBACKS) > 0
+
+
+# ============================================================================
+# M8-T1331: reasoning-rejection detection must know every wire alias.
+# ============================================================================
+
+def test_reasoning_rejection_recognizes_thinking_alias() -> None:
+    """Ollama says `does not support thinking`; that must trigger reasoning-off.
+
+    Without this, a local OpenAI-compatible server that rejects the reasoning
+    knob under its `thinking` name falls through to a hard error instead of the
+    provider's own disable-and-retry path.
+    """
+    detect = OpenAICompatibleProvider._looks_like_reasoning_rejection
+    assert detect('Error code: 400 - "qwen2.5:7b" does not support thinking') is True
+    assert detect("reasoning_effort is not supported by this model") is True
+    assert detect('unknown parameter: "reasoning"') is True
+
+
+def test_reasoning_rejection_does_not_swallow_unrelated_errors() -> None:
+    detect = OpenAICompatibleProvider._looks_like_reasoning_rejection
+    assert detect("this model does not support streaming at the moment") is False  # no knob word
+    assert detect("connection refused") is False
+    assert detect("invalid API key") is False
 
 
 def test_tools_rejection_hints() -> None:

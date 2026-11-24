@@ -947,7 +947,12 @@ class OpenAICompatibleProvider:
     @staticmethod
     def _looks_like_reasoning_rejection(exc: BadRequestError) -> bool:
         text = str(exc).lower()
-        return "reasoning" in text and any(
+        # A model may reject the reasoning knob under any of its wire aliases.
+        # Local OpenAI-compatible servers (Ollama) say `"<model>" does not
+        # support thinking` — "thinking", not "reasoning", so the old gate
+        # missed it and the reasoning-off fallback never fired. M8-T1331.
+        knob = any(word in text for word in ("reasoning", "thinking"))
+        return knob and any(
             marker in text
             for marker in (
                 "effort",
