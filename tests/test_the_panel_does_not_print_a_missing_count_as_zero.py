@@ -68,8 +68,13 @@ def _slice(text: str, name: str) -> str:
         start = text.find(header)
         if start < 0:
             continue
+        brace = text.find("{", start)
+        if brace < 0:
+            # An arrow const (or a bare declaration) has no block here; the
+            # dedicated _slice_arrow handles it. Not an error.
+            continue
         depth = 0
-        for k in range(text.index("{", start), len(text)):
+        for k in range(brace, len(text)):
             if text[k] == "{":
                 depth += 1
             elif text[k] == "}":
@@ -80,8 +85,50 @@ def _slice(text: str, name: str) -> str:
     return ""
 
 
+def _slice_arrow(text: str, name: str) -> str:
+    """A module-level arrow const: `const name = (...) => ...;` up to its `;`.
+
+    Unlike _slice, this does not brace-count from the first `{` — an arrow's
+    expression body may have none, and a later function's `{` would then be
+    captured instead. Strings/templates are skipped so a `;` inside prose does
+    not end the statement early.
+    """
+    for header in (f"const {name} = (", f"var {name} = (", f"let {name} = ("):
+        start = text.find(header)
+        if start < 0:
+            continue
+        depth = 0
+        quote = ""
+        for k in range(start, len(text)):
+            ch = text[k]
+            if quote:
+                if ch == "\\":
+                    continue
+                if ch == quote:
+                    quote = ""
+                continue
+            if ch in "\"'`":
+                quote = ch
+                continue
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+            elif ch == ";" and depth == 0:
+                return text[start : k + 1]
+        return ""
+    return ""
+
+
+def _piece(text: str, name: str) -> str:
+    fn = _slice(text, name)
+    if fn and fn.startswith(f"function {name}("):
+        return fn
+    return _slice_arrow(text, name)
+
+
 def _extract(text: str, names: list[str]) -> dict[str, str]:
-    return {name: _slice(text, name) for name in names}
+    return {name: _piece(text, name) for name in names}
 
 
 def derive_run_names(text: str) -> list[str]:
@@ -98,13 +145,10 @@ def derive_run_names(text: str) -> list[str]:
     def visit(name: str) -> None:
         if name in seen or name in STUBS:
             return
-        piece = _slice(text, name)
-        # Only real `function name(` declarations belong in the fixture.
-        # `_slice` brace-counts from the first `{` after a header, which cannot
-        # handle an arrow's expression body (`const softPath = x => escapeHtml(x)`)
-        # or a data literal (`const map = {`): those produce a malformed slice.
-        # Local arrow consts live inside their caller's body and travel with it.
-        if not piece or not piece.startswith(f"function {name}("):
+        piece = _piece(text, name)
+        # Real function declarations and module-level arrow consts both belong
+        # here; data literals (`const map = {`) do not. _piece tells them apart.
+        if not piece:
             return
         seen.add(name)
         for callee in _CALL.findall(piece):
@@ -309,3 +353,14 @@ def test_fixture_dependencies_are_derived_from_the_bundle_call_graph() -> None:
         1,
     ) + "\nfunction newFutureHelper(x) { return x; }\n"
     assert "newFutureHelper" in derive_run_names(probe), "derivation did not follow a new call"
+
+    # M8-T1330: an arrow-const helper (not hoisted) must be found too, and
+    # placed before its caller so the generated Node module defines it first.
+    arrow_probe = _text(BUNDLE).replace(
+        "function renderChanges(data) {",
+        "function renderChanges(data) {\n  const __probe = arrowHelper(2);",
+        1,
+    ) + "\nconst arrowHelper = (x) => escapeHtml(String(x));\n"
+    derived = derive_run_names(arrow_probe)
+    assert "arrowHelper" in derived, derived
+    assert derived.index("arrowHelper") < derived.index("renderChanges"), derived

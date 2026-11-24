@@ -57322,3 +57322,17 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 - **仍需用户重启 OpenCode**：运行中的 OpenCode.exe 在启动时已把旧 `.env` 读进进程环境，我无法从外部改写；新开的 shell 仍会继承旧代理，直到重启。重启后才会真正直连。
 - 另一个独立问题：OpenCode 的模型端点是 `https://cc.580ai.net`，本机 OpenWrt DNS 与 8.8.8.8 / 1.1.1.1 / 223.5.5.5 都解析不出 A 记录——它很可能本来就是靠 Clash 的 DNS/规则才能解析。解绑后直连能上网，但这个模型端点不换就无法接通。这是供应商选择问题，不是仓库代码，需要用户在 OpenCode 里换成可直连的 provider。
 - 本批不动任何被跟踪的源码；账本条目记录事实与后续步骤。
+
+
+## 批次 1235 · M8-T1330: 派生的夹具名单还不认箭头函数帮手
+
+### 缺什么
+- M8-T1326 边界 1：`derive_run_names()` 只认 `function name(` 声明。若 `renderChanges` 改调用一个模块级箭头常量帮手（`const helper = x => ...`），派生会漏掉它、夹具再红一次——手抄名单的病换了个入口复发。
+
+### 做了什么
+- `tests/test_the_panel_does_not_print_a_missing_count_as_zero.py` 增 `_slice_arrow()`：从 `const/let/var name = (` 起，按括号深度与字符串/模板跳过，切到顶层分号，正确拿到表达式体的箭头常量；`_piece()` 优先函数声明、否则箭头常量，数据字面量（`const map = {`）仍不认。`_slice()` 无 `{` 时返回空而非抛错。派生后序不变，箭头常量排在调用者之前（不提升）。
+- 派生门再扩一条：往 `renderChanges` 注入 `arrowHelper(2)` 调用与 `const arrowHelper = x => escapeHtml(String(x));`，断言它被发现且排在 `renderChanges` 之前。
+
+### 证据与门
+- `python -m pytest tests/test_the_panel_does_not_print_a_missing_count_as_zero.py -q`：`14 passed`（6.31 秒）；原 13 项行为断言未改，证明新切片没改坏现有夹具。
+- 纯测试装配改动，未动产品/bundle/i18n。
