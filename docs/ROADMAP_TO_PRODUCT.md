@@ -57248,3 +57248,22 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 1. 本批修的是测试夹具装配，产品字节没有变化；13 项绿灯证明原有缺失计数合同重新被执行，不构成新的产品功能证据。
 2. `RUN_NAMES` 仍是显式依赖名单。以后 `renderChanges` 再调用新的 bundle 内函数，名单仍需同步；本次没有引入自动调用图解析，也没有把 Node 夹具换成另一套运行时。
 3. 未重新跑 90 分钟级全量 Python 回归。上一批记下的 7 个基线红已全部有定向绿灯，但「定向全绿」不能冒充新的全库计数；共享机器上另有无关 pytest 进程，本批 47 项相关回归耗时 300.37 秒，16 道门耗时 406.9 秒，读数已按实际竞争环境记录。
+
+
+## 批次 1231 · M8-T1326: 夹具的依赖名单还在手抄，改一次 renderChanges 红一次
+
+### 缺什么
+- M8-T1325 边界 1：`tests/test_the_panel_does_not_print_a_missing_count_as_zero.py` 的 `RUN_NAMES` 是手抄的 bundle 函数名清单。M8-T1308 给 `renderChanges` 加了 `changePartialReasons`，名单没同步，六个行为格全在 Node 里抛 `ReferenceError`——测试夹具自己漏掉依赖，而产品字节没错。下次再给 `renderChanges` 加帮手，同样会红一次，再手补一次名单。
+
+### 做了什么
+- 名单改成从发出去的 `web/app.js` 调用图派生：`RUN_ROOTS` 只留夹具入口（`t` / `changeFileRow` / `renderChanges`），`derive_run_names()` 用正则找每个函数体里的调用点，只认 `function name(` 声明（箭头常量与 `const x = {` 会被 `_slice` 的括号计数切坏，且局部箭头随调用者一起被切走，不必单列），递归到闭包、后序输出（被调者排在调用者之前）。`STUBS` 明确排除夹具自己提供的 `refreshIcons` / `$` / `state` 等，免得 bundle 里那份碰到 `document` 的副本盖掉桩。
+- 新增一条门：断言派生结果含 `changePartialReasons`（当年弄坏手抄名单的那个帮手）、依赖排在调用者之前，并往 `renderChanges` 注入一个全新帮手的调用，证明派生是动态跟随调用图而非换了个名字的钉死清单。原有 13 格断言一字未改。
+
+### 证据与门
+- `python -m pytest tests/test_the_panel_does_not_print_a_missing_count_as_zero.py -q`：`14 passed`（原 13 + 派生门 1；4.76 秒）。派生名单实测为 `['t','compactNumber','countLabel','escapeHtml','fileType','changeStatusLabel','changeFileRow','renderChangeFailure','changePartialReasons','renderChanges']`；注入 `newFutureHelper` 后能被自动发现。
+- 只动测试文件，未动产品/bundle/i18n：源码与发出去的字节一字未变。
+
+### 边界
+1. 派生只认 `function name(` 形式的调用；若 `renderChanges` 哪天调用一个模块级箭头常量帮手（`const helper = x => ...`），派生会漏掉它、夹具会红。要么扩展 `_slice` 让它能正确切箭头表达式体，要么把这类帮手改成函数声明——下一批定口径。
+2. `STUBS` 是显式名单（`state`/`$`/`refreshIcons`/`console`/`I18N` 等）；夹具若新增桩，这里也得同步。
+3. 未重跑 90 分钟级全量 Python 回归；本批是纯测试装配改动，14 项相关回归覆盖其变更面。

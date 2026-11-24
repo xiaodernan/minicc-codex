@@ -13,6 +13,7 @@ bundle，改源不重打包在这里会直接红。构建工具链在不在不�
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -32,17 +33,19 @@ HELPER = "countLabel"
 NODE = shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 
-RUN_NAMES = [
-    "t",
-    "escapeHtml",
-    "fileType",
-    "changeStatusLabel",
-    "compactNumber",
-    "changeFileRow",
-    "changePartialReasons",
-    "renderChanges",
-    HELPER,
-]
+# The functions the fixture bodies call directly. Everything they depend on is
+# derived from the shipped bundle's call graph, so adding a helper to
+# renderChanges (M8-T1308/M8-T1309 did exactly that) can no longer break the
+# fixture with a stale hand-maintained list. Kept as roots, not as the full list.
+RUN_ROOTS = ["t", "changeFileRow", "renderChanges"]
+
+# A call site in the bundle: capture the callee name and ignore member calls
+# (`obj.method(` captures `method`, which has no bundle function header).
+_CALL = re.compile(r"\b([A-Za-z_$][\w$]*)\s*\(")
+
+# Names the generated Node fixture supplies itself. The bundle's own copies
+# (notably refreshIcons, which touches `document`) must never shadow them.
+STUBS = {"state", "$", "captured", "strip", "refreshIcons", "console", "I18N"}
 
 
 def _text(path: Path) -> str:
@@ -81,6 +84,38 @@ def _extract(text: str, names: list[str]) -> dict[str, str]:
     return {name: _slice(text, name) for name in names}
 
 
+def derive_run_names(text: str) -> list[str]:
+    """Transitive closure of bundle functions reachable from RUN_ROOTS.
+
+    Post-order: a callee is appended before its caller, so arrow-function
+    consts (which are not hoisted) are defined before the code that uses them.
+    Names with no function header in the bundle are globals/stubs provided by
+    the harness (`I18N`, `$`, `state`, …) and are deliberately not extracted.
+    """
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def visit(name: str) -> None:
+        if name in seen or name in STUBS:
+            return
+        piece = _slice(text, name)
+        # Only real `function name(` declarations belong in the fixture.
+        # `_slice` brace-counts from the first `{` after a header, which cannot
+        # handle an arrow's expression body (`const softPath = x => escapeHtml(x)`)
+        # or a data literal (`const map = {`): those produce a malformed slice.
+        # Local arrow consts live inside their caller's body and travel with it.
+        if not piece or not piece.startswith(f"function {name}("):
+            return
+        seen.add(name)
+        for callee in _CALL.findall(piece):
+            visit(callee)
+        ordered.append(name)
+
+    for root in RUN_ROOTS:
+        visit(root)
+    return ordered
+
+
 def _js(tmp_path: Path, pieces: dict[str, str], body: str) -> dict[str, str]:
     """把切出来的函数与桩（`state` / `$` / `refreshIcons`）拼成一个 node 模块跑一遍。"""
     i18n = _slice(_text(BUNDLE), "I18N")
@@ -96,7 +131,7 @@ def _js(tmp_path: Path, pieces: dict[str, str], body: str) -> dict[str, str]:
         'console.log("CELL|label|" + strip(t("' + LABEL_KEY + '")));',
         'console.log("CELL|fallback|" + t("' + ABSENT_KEY + '"));',
     ]
-    for name in RUN_NAMES:
+    for name in pieces:
         piece = pieces.get(name, "")
         if piece:
             lines.append(piece)
@@ -136,7 +171,7 @@ console.log("CELL|summary_real|" + strip(captured["#changeSummary"]));
 
 @pytest.fixture(scope="module")
 def bundle_pieces() -> dict[str, str]:
-    return _extract(_text(BUNDLE), RUN_NAMES)
+    return _extract(_text(BUNDLE), derive_run_names(_text(BUNDLE)))
 
 
 # --------------------------------------------------------------------------
@@ -249,3 +284,28 @@ def test_the_preview_module_imports_the_one_home() -> None:
     """详情页那一头不许自己再判一次：它 import 那一个家。"""
     line = next((l for l in _text(PREVIEW).splitlines() if 'from "../chat/stream.js"' in l), "")
     assert HELPER in line, line
+
+
+def test_fixture_dependencies_are_derived_from_the_bundle_call_graph() -> None:
+    """M8-T1326: a new helper inside renderChanges must be found automatically.
+
+    The hand-maintained list broke when changePartialReasons was added; this
+    pins that derivation reaches it and that dependencies come before callers
+    (arrow-function consts are not hoisted in the generated Node fixture).
+    """
+    names = derive_run_names(_text(BUNDLE))
+    for root in RUN_ROOTS:
+        assert root in names, (root, names)
+    assert HELPER in names, names
+    assert "changePartialReasons" in names, names
+    assert names.index("changePartialReasons") < names.index("renderChanges"), names
+    assert "escapeHtml" in names and "compactNumber" in names, names
+
+    # Prove it is genuinely dynamic, not a renamed pinned list: inject a call
+    # to a brand-new helper into renderChanges and confirm it is discovered.
+    probe = _text(BUNDLE).replace(
+        "function renderChanges(data) {",
+        "function renderChanges(data) {\n  const __probe = newFutureHelper(1);",
+        1,
+    ) + "\nfunction newFutureHelper(x) { return x; }\n"
+    assert "newFutureHelper" in derive_run_names(probe), "derivation did not follow a new call"
