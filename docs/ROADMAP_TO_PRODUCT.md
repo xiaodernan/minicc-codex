@@ -57363,3 +57363,30 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 2. CPU 推理比 GPU 慢很多；`qwen2.5:7b` 约 7.6B、32k 上下文，适合离线开发验证，不等价于 gpt-6.2-sol。
 3. 只识别了 `thinking` 这一个别名；其它网关若用 `reasoning_content` / `enable_thinking` 之类措辞，仍可能漏，下一批可按实测再加。
 4. 端到端脚本是仓库外的一次性探针（`C:\Users\18414\AppData\Local\Temp`），不入库；入库的是可复用的启动脚本与配置模板。
+
+
+## 批次 1237 · M8-T1332: 应用自己的模型配置，才是 ECONNREFUSED 的最后一块
+
+### 缺什么
+- 用户反复报 `ECONNREFUSED`、要脱离 Clash。前几批清了仓库 `.env` 的代理（M8-T1329）、做了本地 CPU 通路（M8-T1331），但一直说「OpenCode 的 provider 在加密存储里、仓库改不到」。这其实不准确——OpenCode 全局配置 `~/.config/opencode/opencode.jsonc` 是可编辑的，而且配置改动**无需重启**即可生效。
+
+### 做了什么
+- 在 `~/.config/opencode/opencode.jsonc` 里**追加**一个 `ollama` provider（保留原 `$schema`，不动任何现有配置、不设默认模型）：`providers.ollama.settings.baseURL = http://127.0.0.1:11434/v1`。OpenCode 内置的 Ollama 发现机制会探测该端点并把模型加进 `/models`。
+- 用 `opencode-cli.exe api get /api/config` 确认配置被加载；`/api/provider` 显示 `ollama` activation=enabled；`/api/model` 显示 `qwen2.5:7b` 与 `qwen2.5-cpu:latest` 均 `providerID=ollama`、tools=true、cost=[]、baseURL=127.0.0.1:11434——即已发现、可用、零费用、全回环。
+- `https://opencode.ai/inference/openai/v1` 直连返回 HTTP 404（POST-only 端点的正常 GET 响应），证明内置 provider 走普通网络可达，无 DNS/ECONNREFUSED。
+
+### 关键结论（给用户）
+不开 Clash 有**两条**可用的模型通路，都在用户侧选择：
+1. **内置 `opencode` provider** 的免费云模型（tidepool-alpha-free / hy4-flash-free / deepseek-v4.1-flash-free 等，baseURL=opencode.ai），走普通外网；
+2. **本地 `ollama` provider** 的 `qwen2.5:7b`，走 127.0.0.1，完全离线（需先跑 `scripts/start_local_llm.ps1`）。
+用 `/models` 切换即可。原先失败的 `cc.580ai.net` 只是其中一种已配置端点，不再是唯一选项。
+
+### 证据与门
+- `/api/provider`: `ollama ... activation: enabled ... baseURL http://127.0.0.1:11434/v1`。
+- `/api/model`: 两个 qwen2.5 模型 `providerID: ollama`、`enabled: true`、`capabilities.tools: true`、`cost: []`。
+- 本批只改用户侧 OpenCode 配置（仓库外、gitignored 范围之外），不动任何项目源码；无需跑仓库门禁。
+
+### 边界
+1. 没把本地模型设为默认（避免把弱 7B 强加给所有会话）；用户用 `/models` 自选。
+2. `~/.config/opencode/opencode.jsonc` 在用户目录、不随仓库版本控制，换机器需重新追加该 provider。
+3. 内置云模型仍需普通外网可达；完全断网时只有本地 ollama 一条路。
