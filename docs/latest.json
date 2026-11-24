@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T11:56:38.764Z",
+  "generated_at": "2026-11-24T19:47:37.423Z",
   "branch": "main",
-  "head": "ec09fd7",
-  "total_commits": 2204,
+  "head": "f3d2fe3",
+  "total_commits": 2206,
   "recent_commits": [
+    {
+      "short": "f3d2fe3f",
+      "at": "2026-11-25T03:46:55+08:00",
+      "subject": "M8-T1338+T1339: harden the zero-network local-LLM path - starter now proves real inference (not just /api/tags) and persists CPU mode; oracle HTTP routes pass t"
+    },
+    {
+      "short": "9e694c61",
+      "at": "2026-11-24T11:56:39Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "ec09fd7a",
       "at": "2026-11-24T19:55:51+08:00",
@@ -19,24 +29,14 @@
       "short": "e92e0833",
       "at": "2026-11-24T19:38:18+08:00",
       "subject": "M8-T1336 ledger: pin OLLAMA_NUM_GPU=0 / OLLAMA_VULKAN=false as User env vars so the local zero-network LLM survives restarts instead of falling back to the cras"
-    },
-    {
-      "short": "a98a5f71",
-      "at": "2026-11-24T11:32:10Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "49b9f6c9",
-      "at": "2026-11-24T19:31:42+08:00",
-      "subject": "M8-T1335 ledger: switch the live project .env to the local zero-network LLM endpoint (backup kept at .env.aizzz.backup); real load_config + provider E2E returne"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 569,
+  "roadmap_batches": 571,
   "changelog_entries": 26,
-  "roadmap_lines": 57488,
-  "tracked_files": 1200,
-  "test_files": 772,
+  "roadmap_lines": 57526,
+  "tracked_files": 1202,
+  "test_files": 774,
   "almanac_chapters": 81,
   "module_count": 14,
   "feature_surface": [
