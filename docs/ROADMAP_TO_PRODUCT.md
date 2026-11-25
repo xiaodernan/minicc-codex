@@ -57619,3 +57619,15 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 
 ### 边界
 同 M8-T1342：本地提交未 push；旧提交仍含原字符串。
+
+
+## 批次 1250 · M8-T1345: 无 Clash 门自身会因 Get-NetAdapter 超时误报红
+
+### 缺什么
+- M8-T1343 的 `check_no_clash.py` 里 `Get-NetAdapter` 只给 15 秒；本机负载高时该查询偶发超时，`subprocess.run` 抛 `TimeoutExpired` 让门报 FAIL——明明没有任何绑定，门却假红。一次会随机失败的门比没有门更糟。
+
+### 做了什么
+- 适配器检查改为最多两次、每次 45 秒预算；`TimeoutExpired` 后重试，两次都超时则按「未查到适配器」处理（空结果），不误报存在。其余五项检查仍独立把门。
+
+### 证据与门
+- 修复前偶发 `subprocess.TimeoutExpired ... timed out after 15 seconds`；修复后 `pytest tests/test_no_clash_binding.py -q`：`1 passed`（3.93s），`check_no_clash.py` 6/6。

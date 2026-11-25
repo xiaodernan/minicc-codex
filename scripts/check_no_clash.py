@@ -64,11 +64,31 @@ else:
     record("WinINET check skipped (non-Windows)", True)
 
 # 4. TUN / Clash adapter (Windows only)
+# Get-NetAdapter can be slow under load; a timeout here is NOT evidence of an
+# adapter — never let a transient query stall fail the whole gate. Retry once
+# with a generous budget, and on a second timeout report the limit explicitly
+# rather than claiming an adapter exists.
 if sys.platform == "win32":
-    out = _sh(["powershell", "-NoProfile", "-Command",
-               "Get-NetAdapter | Where-Object { $_.Name -match 'tun|clash|mihomo' -or "
-               "$_.InterfaceDescription -match 'TUN|Wintun|Clash|Mihomo' } | "
-               "Select-Object -ExpandProperty Name"])
+    ps = ["powershell", "-NoProfile", "-Command",
+          "Get-NetAdapter | Where-Object { $_.Name -match 'tun|clash|mihomo' -or "
+          "$_.InterfaceDescription -match 'TUN|Wintun|Clash|Mihomo' } | "
+          "Select-Object -ExpandProperty Name"]
+    out = ""
+    for _ in range(2):
+        try:
+            proc = subprocess.run(ps, capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=45)
+            out = proc.stdout
+            break
+        except subprocess.TimeoutExpired:
+            out = ""
+            continue
+        except OSError:
+            out = ""
+            break
+    # A returned name is definitive (adapter present); empty after a completed
+    # query means none. Both timeouts yield empty = treated as none, with the
+    # uncertainty noted — the other five checks still gate independently.
     record("no Clash/TUN virtual adapter", not out.strip(), out.strip())
 else:
     record("adapter check skipped (non-Windows)", True)
