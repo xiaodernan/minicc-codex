@@ -16,14 +16,18 @@ CHECK = ROOT / "scripts" / "check_no_clash.py"
 
 
 def test_no_active_clash_binding() -> None:
-    env = dict(os.environ)
+    # Drop inherited proxy vars so the gate reads the real machine state. Pin
+    # the child's stdout/stderr codec INLINE in env= — a parent-only decoder is
+    # half-pinned and the subprocess-decoding gate rejects it on Windows.
+    proxy_free = dict(os.environ)
     for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
                 "http_proxy", "https_proxy", "all_proxy"):
-        env.pop(key, None)
+        proxy_free.pop(key, None)
     result = subprocess.run(
         [sys.executable, str(CHECK)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
-        cwd=str(ROOT), env=env, timeout=60, check=False,
+        cwd=str(ROOT), env=dict(proxy_free, PYTHONIOENCODING="utf-8"),
+        timeout=60, check=False,
     )
     assert result.returncode == 0, f"a Clash binding remains:\n{result.stdout}\n{result.stderr}"
     assert "6/6 checks passed" in result.stdout, result.stdout

@@ -57648,3 +57648,16 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 ### 边界
 1. 7B 模型的裁决质量不等价于 gpt-6.2-sol；这里验证的是「接线与门可用」，不是模型能力对等。
 2. E2E 属手工脚本，不进 CI（会真占模型），但本地模型零费用，可随时复跑。
+
+
+## 批次 1252 · M8-T1347: 无 Clash 门的测试被子进程解码门判半 pin
+
+### 缺什么
+- 全量套件（4152 passed 后 -x 停）抓到真缺陷：我加的 `tests/test_no_clash_binding.py:23 subprocess.run` 父端 `encoding="utf-8"`、子端未声明，被 `test_subprocess_decoding.py` 判「half-pinned captures」——Windows 上变成 mojibake 而非崩溃。
+
+### 做了什么
+- 把子端 codec pin 以 `env=dict(proxy_free, PYTHONIOENCODING="utf-8")` **内联在调用里**（静态门要求 token 位于调用段，单独赋值不算），同时保留清除继承代理变量的逻辑。
+
+### 证据与门
+- 修复前：`test_subprocess_decoding.py` 1 failed + 24 passed；修复后两项定向测试 `2 passed`。
+- 全量套件此前读数：`1 failed, 4152 passed, 6 skipped`（2881s），唯一红就是本项。
