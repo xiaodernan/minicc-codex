@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-25T02:58:32.318Z",
+  "generated_at": "2026-11-25T03:21:11.390Z",
   "branch": "main",
-  "head": "c8d204a",
-  "total_commits": 2218,
+  "head": "e798954",
+  "total_commits": 2220,
   "recent_commits": [
+    {
+      "short": "e798954c",
+      "at": "2026-11-25T11:20:34+08:00",
+      "subject": "M8-T1346 ledger: LLM transition-router E2E passed against the local zero-network model (qwen2.5:7b, 127.0.0.1) - verify->repair accepted, proving req #4 LLM sta"
+    },
+    {
+      "short": "b431e8bf",
+      "at": "2026-11-25T02:58:32Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "c8d204a6",
       "at": "2026-11-25T10:58:07+08:00",
@@ -19,22 +29,12 @@
       "short": "540350b3",
       "at": "2026-11-25T04:55:09+08:00",
       "subject": "M8-T1344 ledger: a background doc-cleanup finished late (26 files) - committed those remaining Clash usage-example removals locally across 9 worktrees, verified"
-    },
-    {
-      "short": "08e22e36",
-      "at": "2026-11-24T20:41:02Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "b8f57f1e",
-      "at": "2026-11-25T04:40:08+08:00",
-      "subject": "M8-T1343: make 'no Clash binding' a permanent runnable gate - check_no_clash.py verifies six layers (env/git/npm/WinINET/TUN/.env/config.py) and its test requir"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 577,
+  "roadmap_batches": 578,
   "changelog_entries": 26,
-  "roadmap_lines": 57634,
+  "roadmap_lines": 57651,
   "tracked_files": 1204,
   "test_files": 775,
   "almanac_chapters": 81,
