@@ -57631,3 +57631,20 @@ M8-T1306 的 step summary 只认 `HARNESS_UNREACHABLE`；M8-T1321 已让 verdict
 
 ### 证据与门
 - 修复前偶发 `subprocess.TimeoutExpired ... timed out after 15 seconds`；修复后 `pytest tests/test_no_clash_binding.py -q`：`1 passed`（3.93s），`check_no_clash.py` 6/6。
+
+
+## 批次 1251 · M8-T1346: 本地模型上真跑通 LLM 状态流转（零 Clash、零外网）
+
+### 缺什么
+- 前面把项目 `.env` 切到本地零网络模型并验证了简单 chat（`MINICC_OK`），但没验证过**产品自己的 LLM 能力路径**——`llm_router` 的模型驱动状态裁决是 req #4 的关键能力，之前一直依赖已关闭的 aizzz / Clash。
+
+### 做了什么
+- 清掉继承代理变量后，直接跑 `tests/llm_router_e2e.py`：它用 `load_config()`（现在是本地 qwen2.5:7b）+ 真实 `OpenAICompatibleProvider`，喂一个「verify 失败、有修复证据」的合成状态，让模型在 repair / summarize 间裁决。
+
+### 证据与门
+- 输出：`model=qwen2.5:7b  base=http://127.0.0.1:11434/v1`；`decision: {'target': 'repair', 'source': 'llm', 'candidates': ['repair','summarize'], 'accepted': True}`；`RESULT: PASS — LLM routed verify -> repair`。
+- 全程 127.0.0.1、零代理、零外网、零 token 费用。证明的关键能力：本地模型下 LLM 路由决策仍能正确产出并被 fail-closed 接受。
+
+### 边界
+1. 7B 模型的裁决质量不等价于 gpt-6.2-sol；这里验证的是「接线与门可用」，不是模型能力对等。
+2. E2E 属手工脚本，不进 CI（会真占模型），但本地模型零费用，可随时复跑。
