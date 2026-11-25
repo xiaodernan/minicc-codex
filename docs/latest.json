@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-24T21:02:16.902Z",
+  "generated_at": "2026-11-25T02:58:32.318Z",
   "branch": "main",
-  "head": "540350b",
-  "total_commits": 2216,
+  "head": "c8d204a",
+  "total_commits": 2218,
   "recent_commits": [
+    {
+      "short": "c8d204a6",
+      "at": "2026-11-25T10:58:07+08:00",
+      "subject": "M8-T1345: harden the no-clash gate - Get-NetAdapter timeout no longer fails the gate (retry with generous budget, treat repeated timeout as no adapter); test pa"
+    },
+    {
+      "short": "8cb90a99",
+      "at": "2026-11-24T21:02:17Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "540350b3",
       "at": "2026-11-25T04:55:09+08:00",
@@ -19,22 +29,12 @@
       "short": "b8f57f1e",
       "at": "2026-11-25T04:40:08+08:00",
       "subject": "M8-T1343: make 'no Clash binding' a permanent runnable gate - check_no_clash.py verifies six layers (env/git/npm/WinINET/TUN/.env/config.py) and its test requir"
-    },
-    {
-      "short": "3020b0ea",
-      "at": "2026-11-24T20:37:14Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "9e098052",
-      "at": "2026-11-24T20:36:48Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 576,
+  "roadmap_batches": 577,
   "changelog_entries": 26,
-  "roadmap_lines": 57622,
+  "roadmap_lines": 57634,
   "tracked_files": 1204,
   "test_files": 775,
   "almanac_chapters": 81,
